@@ -108,6 +108,7 @@ However, if you have configured custom node-specific environment variables in yo
 
 ### Custom Prompts and R Quiet Mode
 The interactive subshells automatically apply customized prompt configurations so you always know you are in a debugger session:
+
 * **Python**: Launches with a `py> ` prompt.
 * **R**: Launches quietly (suppressing R's verbose default welcome copyright banner) with a `r> ` prompt.
 * **Julia**: Configures an asynchronous REPL prompt hook to display `jl> `.

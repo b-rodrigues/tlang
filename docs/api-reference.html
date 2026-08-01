@@ -2500,7 +2500,7 @@ sorted.</p>
 <pre class="t"><code>pipeline_cycles(p)</code></pre>
 <hr />
 <h3
-id="nodecommand-script-na-runtime-t-serializer-default-deserializer-default-env_vars-args-shell-na-shell_args-functions-include-noop-false-flake-na"><code>node(command, script = NA, runtime = "T", serializer = "default", deserializer = "default", env_vars = [:], args = [:], shell = NA, shell_args = [], functions = [], include = [], noop = false, flake = NA)</code></h3>
+id="nodecommand-script-na-runtime-t-serializer-default-deserializer-default-env_vars-args-shell-na-shell_args-functions-include-noop-false-flake-na"><code>node(command, script = NA, runtime = "T", serializer = default, deserializer = default, env_vars = [:], args = [:], shell = NA, shell_args = [], functions = [], include = [], noop = false, flake = NA)</code></h3>
 <p>Configure execution settings such as the runtime and custom
 serialized methods for a pipeline node.</p>
 <p><strong>Parameters:</strong></p>
@@ -2557,9 +2557,7 @@ include = &quot;config.yml&quot;
 }</code></pre>
 <hr />
 <h3
-id="pycommand-script-na-serializer-default-deserializer-default-env_vars-functions-include-noop-false-flake-na"><code>py(command, script = NA, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false, flake = NA)</code></h3>
-<h3
-id="pyncommand-script-na-serializer-default-deserializer-default-env_vars-functions-include-noop-false-flake-na"><code>pyn(command, script = NA, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false, flake = NA)</code></h3>
+id="pyncommand-script-na-serializer-default-deserializer-default-env_vars-functions-include-noop-false-flake-na"><code>pyn(command, script = NA, serializer = default, deserializer = default, env_vars = [:], functions = [], include = [], noop = false, flake = NA)</code></h3>
 <p>Configure a Python Pipeline Node. A convenience wrapper around
 <code>node()</code> with <code>runtime = "Python"</code>. Used directly
 within a <code>pipeline { ... }</code> block to execute Python code.</p>
@@ -2593,7 +2591,7 @@ the Python code is executed by the pipeline builder, not
 immediately.</p>
 <hr />
 <h3
-id="rncommand-script-na-serializer-default-deserializer-default-env_vars-functions-include-noop-false-flake-na"><code>rn(command, script = NA, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false, flake = NA)</code></h3>
+id="rncommand-script-na-serializer-default-deserializer-default-env_vars-functions-include-noop-false-flake-na"><code>rn(command, script = NA, serializer = default, deserializer = default, env_vars = [:], functions = [], include = [], noop = false, flake = NA)</code></h3>
 <p>Configure an R Pipeline Node. A convenience wrapper around
 <code>node()</code> with <code>runtime = "R"</code>. Used directly
 within a <code>pipeline { ... }</code> block to execute R code.</p>
@@ -2626,7 +2624,7 @@ used as a named binding inside a <code>pipeline { ... }</code> block;
 the R code is executed by the pipeline builder, not immediately.</p>
 <hr />
 <h3
-id="jlncommand-script-na-serializer-default-deserializer-default-env_vars-functions-include-noop-false-flake-na"><code>jln(command, script = NA, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false, flake = NA)</code></h3>
+id="jlncommand-script-na-serializer-default-deserializer-default-env_vars-functions-include-noop-false-flake-na"><code>jln(command, script = NA, serializer = default, deserializer = default, env_vars = [:], functions = [], include = [], noop = false, flake = NA)</code></h3>
 <p>Configure a Julia Pipeline Node. A convenience wrapper around
 <code>node()</code> with <code>runtime = "Julia"</code>. Used directly
 within a <code>pipeline { ... }</code> block to execute Julia code.</p>
@@ -2663,7 +2661,7 @@ used as a named binding inside a <code>pipeline { ... }</code> block;
 the Julia code is executed by the pipeline builder, not immediately.</p>
 <hr />
 <h3
-id="qnscript-na-serializer-default-deserializer-default-env_vars-args-functions-include-noop-false-flake-na"><code>qn(script = NA, serializer = "default", deserializer = "default", env_vars = [:], args = [:], functions = [], include = [], noop = false, flake = NA)</code></h3>
+id="qnscript-na-serializer-default-deserializer-default-env_vars-args-functions-include-noop-false-flake-na"><code>qn(script = NA, serializer = default, deserializer = default, env_vars = [:], args = [:], functions = [], include = [], noop = false, flake = NA)</code></h3>
 <p>Configure a Quarto pipeline node. A convenience wrapper around
 <code>node()</code> with <code>runtime = "Quarto"</code>. Use it to
 render <code>.qmd</code> files inside <code>pipeline { ... }</code>
@@ -2702,7 +2700,7 @@ the Quarto document is rendered by the pipeline builder, not
 immediately.</p>
 <hr />
 <h3
-id="shncommand-script-na-serializer-text-deserializer-default-env_vars-args-shell-sh-shell_args-functions-include-noop-false-flake-na"><code>shn(command, script = NA, serializer = "text", deserializer = "default", env_vars = [:], args = [], shell = "sh", shell_args = [], functions = [], include = [], noop = false, flake = NA)</code></h3>
+id="shncommand-script-na-serializer-text-deserializer-default-env_vars-args-shell-sh-shell_args-functions-include-noop-false-flake-na"><code>shn(command, script = NA, serializer = ^text, deserializer = default, env_vars = [:], args = [], shell = "sh", shell_args = [], functions = [], include = [], noop = false, flake = NA)</code></h3>
 <p>Configure a shell pipeline node. A convenience wrapper around
 <code>node()</code> with <code>runtime = "sh"</code>. Use it for CLI
 tools, inline shell scripts, and <code>.sh</code> files inside
@@ -3002,12 +3000,15 @@ variable names to pass into the sandbox.</li>
 </ul></li>
 </ul>
 <p><strong>Returns:</strong></p>
-<p><code>BuildLog</code> with fields: - <code>nodes</code> — per-node
-status/duration records - <code>duration</code> — total build duration
-in seconds - <code>failed_nodes</code> — list of failed/errored node
-names - <code>out_path</code> — Nix output path for the build (migration
+<p><code>BuildLog</code> with fields:</p>
+<ul>
+<li><code>nodes</code> — per-node status/duration records</li>
+<li><code>duration</code> — total build duration in seconds</li>
+<li><code>failed_nodes</code> — list of failed/errored node names</li>
+<li><code>out_path</code> — Nix output path for the build (migration
 path for previous string-return behavior) (or <code>DataFrame</code> if
-<code>dry_run = true</code>)</p>
+<code>dry_run = true</code>)</li>
+</ul>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>build_pipeline(p)
 build_pipeline(p, nix_options = [dry_run: true])
@@ -3652,13 +3653,19 @@ to filter log filenames (e.g. <code>".*test.*"</code>).</li>
 </ul>
 <p><strong>Returns:</strong></p>
 <p><code>DataFrame</code> — A DataFrame detailing historical builds with
-columns: - <code>build_id</code> (1-indexed rank from most recent to
-oldest) - <code>timestamp</code> (ISO-8601 UTC string of build time) -
-<code>duration</code> (total duration in seconds) - <code>n_nodes</code>
-(total number of nodes) - <code>n_failed</code> (number of
-failed/errored nodes) - <code>n_warnings</code> (number of warnings
-issued) - <code>out_path</code> (Nix output store path for the build) -
-<code>hash</code> (unique content hash of build input signature)</p>
+columns:</p>
+<ul>
+<li><code>build_id</code> (1-indexed rank from most recent to
+oldest)</li>
+<li><code>timestamp</code> (ISO-8601 UTC string of build time)</li>
+<li><code>duration</code> (total duration in seconds)</li>
+<li><code>n_nodes</code> (total number of nodes)</li>
+<li><code>n_failed</code> (number of failed/errored nodes)</li>
+<li><code>n_warnings</code> (number of warnings issued)</li>
+<li><code>out_path</code> (Nix output store path for the build)</li>
+<li><code>hash</code> (unique content hash of build input
+signature)</li>
+</ul>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>p = pipeline { a = 1; b = 2 }
 hist = build_log_history(p, n = 5)</code></pre>
@@ -3686,33 +3693,39 @@ around each hunk for patient diffs. Default: <code>3</code>.</li>
 </ul>
 <p><strong>Returns:</strong></p>
 <p><code>Dict</code> — A structured type-sensitive diff dictionary
-containing: - <strong>For DataFrames</strong> (<code>csv</code>,
+containing:</p>
+<ul>
+<li><strong>For DataFrames</strong> (<code>csv</code>,
 <code>arrow</code>, <code>parquet</code>): <code>schema_changed</code>
 (Bool), <code>added_columns</code> (List), <code>removed_columns</code>
 (List), <code>nrows_a</code> (Int), <code>nrows_b</code> (Int), and
 <code>numeric_drift</code> (DataFrame summarizing column-level mean
-values and shift percentages). - <strong>For PMML Models</strong>
-(<code>pmml</code>): <code>model_type</code> (String),
-<code>coefficients_changed</code> (Bool), and <code>coef_diff</code>
-(DataFrame comparing regression coefficients and intercept shift
-deltas). Falls back to generic structural equality diff for
-non-regression models. - <strong>For Text Files</strong>
-(<code>text</code>): <code>changed</code> (Bool),
-<code>lines_added</code> (Int), <code>lines_removed</code> (Int), and
-<code>diff</code> (String unified diff output). - <strong>For
-Python-native artifacts</strong> (for example pickled NumPy ndarrays):
-<code>kind = "python_object_diff"</code>, unified diff line counts,
-rendered git-like diff hunks, and shape/dtype metadata when available. -
-<strong>For Julia-native artifacts</strong> (for example serialized
+values and shift percentages).</li>
+<li><strong>For PMML Models</strong> (<code>pmml</code>):
+<code>model_type</code> (String), <code>coefficients_changed</code>
+(Bool), and <code>coef_diff</code> (DataFrame comparing regression
+coefficients and intercept shift deltas). Falls back to generic
+structural equality diff for non-regression models.</li>
+<li><strong>For Text Files</strong> (<code>text</code>):
+<code>changed</code> (Bool), <code>lines_added</code> (Int),
+<code>lines_removed</code> (Int), and <code>diff</code> (String unified
+diff output).</li>
+<li><strong>For Python-native artifacts</strong> (for example pickled
+NumPy ndarrays): <code>kind = "python_object_diff"</code>, unified diff
+line counts, rendered git-like diff hunks, and shape/dtype metadata when
+available.</li>
+<li><strong>For Julia-native artifacts</strong> (for example serialized
 arrays or structs): <code>kind = "julia_object_diff"</code>,
 DeepDiffs-rendered summaries, captured diff lines, and type/shape
-metadata when available. - <strong>For R-native artifacts</strong> (for
-example serialized model objects): <code>kind = "r_object_diff"</code>,
-diffobj-rendered summaries, captured diff lines, and class/type metadata
-when available. - <strong>For Generic/Scalars</strong>:
-<code>value_a</code> (Any), <code>value_b</code> (Any),
-<code>changed</code> (Bool), and <code>delta</code> (Float numeric
-difference or NA).</p>
+metadata when available.</li>
+<li><strong>For R-native artifacts</strong> (for example serialized
+model objects): <code>kind = "r_object_diff"</code>, diffobj-rendered
+summaries, captured diff lines, and class/type metadata when
+available.</li>
+<li><strong>For Generic/Scalars</strong>: <code>value_a</code> (Any),
+<code>value_b</code> (Any), <code>changed</code> (Bool), and
+<code>delta</code> (Float numeric difference or NA).</li>
+</ul>
 <p>Native Python, Julia, and R object diffs are preserved only for
 artifacts using the standard <code>default</code> or <code>tobj</code>
 serializers. Custom serializer names use the normal artifact-loading
@@ -3738,14 +3751,19 @@ comparison without loading artifacts.</p>
 <li><code>p</code> — The pipeline to compare builds for.</li>
 </ul>
 <p><strong>Returns:</strong></p>
-<p><code>DataFrame</code> — A summary with columns: - <code>name</code>
-(String) — Node name. - <code>status</code> (String) — One of
-<code>"unchanged"</code>, <code>"changed"</code>, <code>"added"</code>,
-<code>"removed"</code>. - <code>hash_a</code> (String) — Nix content
-hash from build A. - <code>hash_b</code> (String) — Nix content hash
-from build B. - <code>class_a</code> (String) — Output value class from
-build A. - <code>class_b</code> (String) — Output value class from build
-B.</p>
+<p><code>DataFrame</code> — A summary with columns:</p>
+<ul>
+<li><code>name</code> (String) — Node name.</li>
+<li><code>status</code> (String) — One of <code>"unchanged"</code>,
+<code>"changed"</code>, <code>"added"</code>,
+<code>"removed"</code>.</li>
+<li><code>hash_a</code> (String) — Nix content hash from build A.</li>
+<li><code>hash_b</code> (String) — Nix content hash from build B.</li>
+<li><code>class_a</code> (String) — Output value class from build
+A.</li>
+<li><code>class_b</code> (String) — Output value class from build
+B.</li>
+</ul>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>p = pipeline { a = 1; b = 2 }
 build_pipeline(p)
@@ -4045,19 +4063,22 @@ notation.</p>
 DataFrames</strong>: If the input DataFrame is the diagnostics table
 returned by <code>collect_exceptions(p)</code> (detected via the columns
 <code>["node", "status", "code", "message"]</code>),
-<code>explain()</code> behaves as follows: - <strong>Single
-Exception</strong>: If the DataFrame contains exactly one row, calling
-<code>explain()</code> directly maps to that specific exception,
-returning a dictionary with keys <code>kind</code>, <code>type</code>
-(<code>"Error"</code> or <code>"Warning"</code>),
+<code>explain()</code> behaves as follows:</p>
+<ul>
+<li><strong>Single Exception</strong>: If the DataFrame contains exactly
+one row, calling <code>explain()</code> directly maps to that specific
+exception, returning a dictionary with keys <code>kind</code>,
+<code>type</code> (<code>"Error"</code> or <code>"Warning"</code>),
 <code>error_code</code>/<code>warning_code</code>,
 <code>error_message</code>/<code>warning_message</code>, and
-<code>node</code>. - <strong>Multiple Exceptions</strong>: If there are
-zero or multiple rows, <code>explain()</code> returns an overarching
+<code>node</code>.</li>
+<li><strong>Multiple Exceptions</strong>: If there are zero or multiple
+rows, <code>explain()</code> returns an overarching
 <code>exceptions_list</code> dictionary containing keys
 <code>kind</code>, <code>type</code>, <code>description</code>,
 <code>count</code>, and <code>exceptions</code> (a list of mapped
-explanation dictionaries for each diagnostic element).</p>
+explanation dictionaries for each diagnostic element).</li>
+</ul>
 <p>For pipeline node results returned by <code>read_node(...)</code>,
 <code>explain()</code> now returns a top-level node wrapper with
 <code>kind</code>, <code>node_name</code>, <code>diagnostics</code>, and

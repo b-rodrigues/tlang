@@ -108,7 +108,7 @@ polyglot pipeline.</p>
 pipeline. T itself is never installed — you install Nix, then bootstrap
 a project that pins its own copy of the T toolchain. If you already have
 a T project created with <code>t init --project</code>, skip straight to
-<a href="#1-enter-the-project-environment">section 1</a>.</p>
+<a href="#enter-the-project-environment">section 1</a>.</p>
 <h2 id="bootstrap-a-project">0. Bootstrap a project</h2>
 <p>T is distributed exclusively via Nix. Follow the <a
 href="nix-installation.html">Nix Installation Guide</a> to install Nix and
@@ -252,6 +252,9 @@ the three runtimes.</p>
 <ol type="1">
 <li><a href="editors.html">Configure Editors</a> — Set up syntax
 highlighting, LSP support, and formatting conveniences.</li>
+<li><a href="data-formats.html">Data I/O &amp; Formats</a> — Read CSV,
+Parquet, and Arrow IPC files; download data from URLs; understand NA
+handling.</li>
 <li><a href="language_overview.html">Language Overview</a> — Learn T
 expressions, data types, functions, and pipes.</li>
 <li><a href="pipeline_tutorial.html">Pipeline Tutorial</a> — Go deeper

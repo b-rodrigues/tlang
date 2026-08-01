@@ -44,9 +44,13 @@ and run pipelines in completely isolated, reproducible sandboxes. To
 offer fine-grained control over Nix builds, T provides a unified
 <code>nix_options</code> dictionary argument.</p>
 <p>This argument is accepted by all primary orchestration and execution
-entry points: - <code>populate_pipeline()</code> -
-<code>build_pipeline()</code> - <code>pipeline_run()</code> -
-<code>t_make()</code></p>
+entry points:</p>
+<ul>
+<li><code>populate_pipeline()</code></li>
+<li><code>build_pipeline()</code></li>
+<li><code>pipeline_run()</code></li>
+<li><code>t_make()</code></li>
+</ul>
 <hr />
 <h2 id="the-nix_options-dictionary">The <code>nix_options</code>
 Dictionary</h2>
@@ -176,13 +180,17 @@ the planned build graph:</p>
 -- Trigger a planned dry-run
 plan_df = build_pipeline(p, nix_options = [dry_run: true])
 print(plan_df)</code></pre>
-<p>The returned DataFrame contains three columns: -
-<strong><code>node</code></strong>: The name of the pipeline node. -
-<strong><code>action</code></strong>: The build action determined by Nix
-(<code>"build"</code>, <code>"fetch"</code> from cache, or
-<code>"noop"</code>). - <strong><code>path</code></strong>: The absolute
+<p>The returned DataFrame contains three columns:</p>
+<ul>
+<li><strong><code>node</code></strong>: The name of the pipeline
+node.</li>
+<li><strong><code>action</code></strong>: The build action determined by
+Nix (<code>"rebuild"</code>, <code>"fetch"</code> from cache, or
+<code>"cache_hit"</code>).</li>
+<li><strong><code>store_path</code></strong>: The absolute
 <code>/nix/store/</code> path where the node’s output derivation
-resides.</p>
+resides.</li>
+</ul>
 <p>This allows you to programmatically inspect build plans, perform
 capacity planning, or check whether specific nodes will be pulled from a
 binary cache before initiating a build.</p>
@@ -243,12 +251,16 @@ build_pipeline(p, nix_options = [
 pipeline_run(p, nix_options = [
   sandbox: false -- maps to sandbox: &quot;none&quot;
 ])</code></pre>
-<p>Supported values for <code>sandbox</code>: - <code>true</code> or
-<code>"strict"</code>: All build jobs are completely isolated (default).
-- <code>"relaxed"</code>: Relaxes sandboxing rules for derivations that
-request it, allowing paths in the host filesystem to be accessed. -
-<code>false</code> or <code>"none"</code>: Sandboxing is disabled
-entirely.</p>
+<p>Supported values for <code>sandbox</code>:</p>
+<ul>
+<li><code>true</code> or <code>"strict"</code>: All build jobs are
+completely isolated (default).</li>
+<li><code>"relaxed"</code>: Relaxes sandboxing rules for derivations
+that request it, allowing paths in the host filesystem to be
+accessed.</li>
+<li><code>false</code> or <code>"none"</code>: Sandboxing is disabled
+entirely.</li>
+</ul>
 <hr />
 <h2 id="environment-whitelisting-keep_env">6. Environment Whitelisting
 (<code>keep_env</code>)</h2>
@@ -277,10 +289,9 @@ environment variables into the Nix sandbox, but they serve different
 purposes:</p>
 <ul>
 <li><strong><code>env_vars</code></strong> is a per-node dictionary of
-key-value pairs set on <code>node()</code>,
-<code>py()</code>/<code>pyn()</code>, <code>rn()</code>,
-<code>shn()</code>, <code>jln()</code>, or <code>qn()</code>. You
-provide explicit values for each variable.</li>
+key-value pairs set on <code>node()</code>, <code>pyn()</code>,
+<code>rn()</code>, <code>shn()</code>, <code>jln()</code>, or
+<code>qn()</code>. You provide explicit values for each variable.</li>
 <li><strong><code>keep_env</code></strong> is a pipeline-wide list of
 variable <em>names</em> passed through <code>nix_options</code>. It
 forwards existing host environment variables by name without specifying
@@ -307,12 +318,12 @@ their values.</li>
 </tr>
 <tr>
 <td style="text-align: left;"><strong>Where</strong></td>
-<td style="text-align: left;"><code>node()</code>, <code>py()</code>,
+<td style="text-align: left;"><code>node()</code>, <code>pyn()</code>,
 <code>rn()</code>, <code>shn()</code>, <code>jln()</code>,
 <code>qn()</code></td>
 <td style="text-align: left;"><code>nix_options</code> in
 <code>t_make()</code>, <code>pipeline_run()</code>,
-<code>pipeline_build()</code></td>
+<code>build_pipeline()</code>, <code>populate_pipeline()</code></td>
 </tr>
 <tr>
 <td style="text-align: left;"><strong>What it does</strong></td>
@@ -351,7 +362,7 @@ t_make(nix_options = [max_jobs: &quot;high&quot;])
 -- ❌ TypeError: t_make: unknown option &#39;threads&#39; in nix_options
 t_make(nix_options = [threads: 4])
 
--- ❌ ValueError: sandbox: &#39;invalid_sandbox&#39; is not a valid sandboxing mode
+-- ❌ TypeError: t_make: &#39;sandbox&#39; in nix_options must be &#39;relaxed&#39;, &#39;strict&#39;, &#39;none&#39;, or a Bool
 t_make(nix_options = [sandbox: &quot;invalid_sandbox&quot;])</code></pre>
 <hr />
 <h2 id="low-level-derivation-projection-pipeline_to_drv">8. Low-Level

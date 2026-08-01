@@ -28,7 +28,7 @@ p = pipeline {
         command = <{
             glm(Survived ~ Pclass + Sex + Age, data = titanic, family = binomial())
         }>,
-        serializer = "pmml"
+        serializer = ^pmml
     )
 }
 build_pipeline(p)

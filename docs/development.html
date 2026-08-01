@@ -139,9 +139,13 @@ class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="
 <span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a><span class="ex">dune</span> exec src/repl.exe</span></code></pre></div>
 <h3 id="editor-setup">Editor Setup</h3>
 <h4 id="vs-code">VS Code</h4>
-<p>Install extensions: - <strong>OCaml Platform</strong>
-(<code>ocamllabs.ocaml-platform</code>) - <strong>Dune</strong> (syntax
-highlighting for <code>dune</code> files)</p>
+<p>Install extensions:</p>
+<ul>
+<li><strong>OCaml Platform</strong>
+(<code>ocamllabs.ocaml-platform</code>)</li>
+<li><strong>Dune</strong> (syntax highlighting for <code>dune</code>
+files)</li>
+</ul>
 <p><strong><code>.vscode/settings.json</code></strong>:</p>
 <div class="sourceCode" id="cb2"><pre
 class="sourceCode json"><code class="sourceCode json"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
@@ -180,10 +184,13 @@ class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="
 <span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Watch mode (rebuild on file changes)</span></span>
 <span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a><span class="ex">dune</span> build <span class="at">--watch</span></span></code></pre></div>
 <h3 id="build-artifacts">Build Artifacts</h3>
-<p>Compiled outputs are in <code>_build/default/</code>: -
-<code>src/repl.exe</code> — REPL executable - <code>src/*.cmo</code>,
-<code>src/*.cmi</code> — Compiled modules - <code>tests/*.exe</code> —
-Test executables</p>
+<p>Compiled outputs are in <code>_build/default/</code>:</p>
+<ul>
+<li><code>src/repl.exe</code> — REPL executable</li>
+<li><code>src/*.cmo</code>, <code>src/*.cmi</code> — Compiled
+modules</li>
+<li><code>tests/*.exe</code> — Test executables</li>
+</ul>
 <h3 id="build-configuration">Build Configuration</h3>
 <p><strong><code>dune-project</code></strong>: Project metadata</p>
 <pre class="sexp"><code>(lang dune 3.0)
@@ -199,10 +206,14 @@ Test executables</p>
 
 (ocamllex lexer)</code></pre>
 <h3 id="dependencies">Dependencies</h3>
-<p>Managed by Nix (in <code>flake.nix</code>): - <strong>OCaml</strong>
-4.14+ - <strong>Dune</strong> 3.0+ - <strong>Menhir</strong> (parser
-generator) - <strong>Arrow GLib</strong> (Arrow bindings) -
-<strong>GLib</strong> (C library)</p>
+<p>Managed by Nix (in <code>flake.nix</code>):</p>
+<ul>
+<li><strong>OCaml</strong> 4.14+</li>
+<li><strong>Dune</strong> 3.0+</li>
+<li><strong>Menhir</strong> (parser generator)</li>
+<li><strong>Arrow GLib</strong> (Arrow bindings)</li>
+<li><strong>GLib</strong> (C library)</li>
+</ul>
 <p>Update dependencies:</p>
 <div class="sourceCode" id="cb8"><pre
 class="sourceCode bash"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> flake update</span>
@@ -385,18 +396,30 @@ class="sourceCode bash"><code class="sourceCode bash"><span id="cb33-1"><a href=
 <p><strong>Type errors</strong>:</p>
 <pre class="t"><code>&gt; 1 + &quot;hello&quot;
 Error(TypeError: Cannot add Int and String)</code></pre>
-<p>Check: - Value types (use <code>type()</code>) - Function signatures
-- Conversion functions available</p>
+<p>Check:</p>
+<ul>
+<li>Value types (use <code>type()</code>)</li>
+<li>Function signatures</li>
+<li>Conversion functions available</li>
+</ul>
 <p><strong>Name errors</strong>:</p>
 <pre class="t"><code>&gt; undefined_var
 Error(NameError: &#39;undefined_var&#39; is not defined)</code></pre>
-<p>Check: - Variable spelling - Scope (is it in current environment?) -
-Package loaded correctly</p>
+<p>Check:</p>
+<ul>
+<li>Variable spelling</li>
+<li>Scope (is it in current environment?)</li>
+<li>Package loaded correctly</li>
+</ul>
 <p><strong>Arrow FFI errors</strong>:</p>
 <pre><code>Error: Undefined symbol: caml_arrow_read_csv</code></pre>
-<p>Check: - You’re in Nix shell (<code>nix develop</code>) - Arrow GLib
-is available: <code>pkg-config --modversion arrow-glib</code> - FFI
-stubs compiled correctly</p>
+<p>Check:</p>
+<ul>
+<li>You’re in Nix shell (<code>nix develop</code>)</li>
+<li>Arrow GLib is available:
+<code>pkg-config --modversion arrow-glib</code></li>
+<li>FFI stubs compiled correctly</li>
+</ul>
 <hr />
 <h2 id="development-workflow">Development Workflow</h2>
 <h3 id="typical-development-cycle">Typical Development Cycle</h3>

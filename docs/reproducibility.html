@@ -131,10 +131,13 @@ constraints</li>
 <hr />
 <h2 id="nix-integration">Nix Integration</h2>
 <h3 id="what-is-nix">What is Nix?</h3>
-<p>Nix is a declarative package manager that ensures: -
-<strong>Bit-for-bit identical builds</strong> across machines -
-<strong>Isolated environments</strong> (no global state) -
-<strong>Versioned dependencies</strong> (pinned to exact commits)</p>
+<p>Nix is a declarative package manager that ensures:</p>
+<ul>
+<li><strong>Bit-for-bit identical builds</strong> across machines</li>
+<li><strong>Isolated environments</strong> (no global state)</li>
+<li><strong>Versioned dependencies</strong> (pinned to exact
+commits)</li>
+</ul>
 <h3 id="how-t-uses-nix">How T Uses Nix</h3>
 <p>Every T project is a <strong>Nix flake</strong>:</p>
 <p><strong><code>flake.nix</code></strong>:</p>
@@ -173,8 +176,12 @@ class="sourceCode json"><code class="sourceCode json"><span id="cb2-1"><a href="
 <h3 id="reproducibility-across-time">Reproducibility Across Time</h3>
 <p><strong>Scenario</strong>: You run an analysis today. A colleague
 tries to run it in 2026.</p>
-<p><strong>Without Nix</strong>: - Package versions have changed - APIs
-have breaking changes - Results differ or code errors</p>
+<p><strong>Without Nix</strong>:</p>
+<ul>
+<li>Package versions have changed</li>
+<li>APIs have breaking changes</li>
+<li>Results differ or code errors</li>
+</ul>
 <p><strong>With Nix</strong>:</p>
 <div class="sourceCode" id="cb3"><pre
 class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 2026: Same exact environment as 2024</span></span>
@@ -188,13 +195,15 @@ originally.</p>
 <hr />
 <h2 id="deterministic-execution">Deterministic Execution</h2>
 <h3 id="no-hidden-randomness">No Hidden Randomness</h3>
-<p>T provides <strong>explicit, reproducible randomness</strong>: -
-<strong><code>set_seed(seed)</code></strong>: Initializes a global
-random number generator with a given integer seed. -
-<strong><code>sample(x, n, replace)</code></strong>: Draw a random
-sample of size n from a Vector or List. -
-<strong><code>slice_sample(data, n, replace)</code></strong>: Draw a
-random sample of n rows from a DataFrame.</p>
+<p>T provides <strong>explicit, reproducible randomness</strong>:</p>
+<ul>
+<li><strong><code>set_seed(seed)</code></strong>: Initializes a global
+random number generator with a given integer seed.</li>
+<li><strong><code>sample(x, n, replace)</code></strong>: Draw a random
+sample of size n from a Vector or List.</li>
+<li><strong><code>slice_sample(data, n, replace)</code></strong>: Draw a
+random sample of n rows from a DataFrame.</li>
+</ul>
 <pre class="t"><code>-- Reproducible random sampling
 set_seed(42)
 my_sample = sample([1, 2, 3, 4, 5], n = 3)
@@ -258,9 +267,13 @@ Assumptions with Intent Blocks</h2>
 }
 
 -- Analysis code follows...</code></pre>
-<p><strong>Benefits</strong>: - Future readers understand context - LLMs
-can regenerate code correctly - Auditors can verify assumptions -
-Changes to assumptions are versioned (Git)</p>
+<p><strong>Benefits</strong>:</p>
+<ul>
+<li>Future readers understand context</li>
+<li>LLMs can regenerate code correctly</li>
+<li>Auditors can verify assumptions</li>
+<li>Changes to assumptions are versioned (Git)</li>
+</ul>
 <hr />
 <h2 id="reproducible-workflow-example">Reproducible Workflow
 Example</h2>

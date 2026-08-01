@@ -205,7 +205,7 @@ T provides two types of pipes to manage complex data flows and error states:
 - **Maybe-Pipe (`?|>`)**: Designed for **error recovery**. Unlike the standard pipe, `?|>` **always forwards** the value—including Errors—to the next function. This allows you to write custom handlers that can inspect Errors and potentially recover from them.
 
 ### Dynamic Pattern Branching
-Pipeline nodes can be dynamically expanded into multiple branches using `map_pattern(dep)` or `cross_pattern(...)`. Supports List, Vector, and DataFrame dependencies, auto-expansion on `build_pipeline`/`populate_pipeline`/composition builtins, and cross-runtime branch execution (T/R/Python/Julia) with JSON interchange. See the [Pipeline Tutorial](docs/pipeline_tutorial.md#11-pattern-based-branching) for details.
+Pipeline nodes can be dynamically expanded into multiple branches using `map_pattern(dep)` or `cross_pattern(...)`. Supports List, Vector, and DataFrame dependencies, auto-expansion on `build_pipeline`/`populate_pipeline`/composition builtins, and cross-runtime branch execution (T/R/Python/Julia) with JSON interchange. See the [Pipeline Materialization](docs/pipeline-materialization.md#pattern-based-branching) guide for details.
 
 ### Static DAG Conditionals
 `node_when(condition, node_value)` includes or excludes a node from the DAG at pipeline construction time if the condition is falsy. `node_fork(cond1, val1, cond2, val2, ..., .default = ...)` selects the first matching branch. Both preserve Nix's acyclic build requirement.

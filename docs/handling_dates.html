@@ -39,13 +39,19 @@ T</h1>
 working with dates and times, heavily inspired by R’s
 <code>lubridate</code>.</p>
 <h2 id="core-types">Core Types</h2>
-<p>T supports several temporal types: - <strong>Date</strong>: A
-calendar date (e.g., <code>2024-03-08</code>). -
-<strong>Datetime</strong>: A precise point in time with a timezone
-label. - <strong>Interval</strong>: A span of time between two specific
-instants. - <strong>Period</strong>: A human-friendly duration (e.g., “2
-months and 3 days”). - <strong>Duration</strong>: A precise physical
-duration in seconds.</p>
+<p>T supports several temporal types:</p>
+<ul>
+<li><strong>Date</strong>: A calendar date (e.g.,
+<code>2024-03-08</code>).</li>
+<li><strong>Datetime</strong>: A precise point in time with a timezone
+label.</li>
+<li><strong>Interval</strong>: A span of time between two specific
+instants.</li>
+<li><strong>Period</strong>: A human-friendly duration (e.g., “2 months
+and 3 days”).</li>
+<li><strong>Duration</strong>: A precise physical duration in
+seconds.</li>
+</ul>
 <h2 id="parsing-dates">Parsing Dates</h2>
 <p>You can parse strings into dates using shorthand helpers:</p>
 <pre class="t"><code>d1 = ymd(&quot;2024-01-15&quot;)

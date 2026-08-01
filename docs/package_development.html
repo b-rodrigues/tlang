@@ -309,7 +309,7 @@ p = pipeline {
   heavy_node = node(
     command = &lt;{ run_heavy_nix_job() }&gt;,
     # Skip execution if not running in CI
-    noop = (env_var(&quot;CI&quot;) == &quot;&quot;)
+    noop = (get(env(&quot;CI&quot;), &quot;&quot;) == &quot;&quot;)
   )
 }
 
@@ -373,9 +373,14 @@ for common issues:</p>
 <div class="sourceCode" id="cb19"><pre
 class="sourceCode bash"><code class="sourceCode bash"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t doctor</span>
 <span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a><span class="ex">✓</span> Everything looks good!</span></code></pre></div>
-<p>It checks for: - Required files (<code>DESCRIPTION.toml</code>,
-<code>flake.nix</code>). - Valid directory structure. - Documentation
-existence. - Nix installation.</p>
+<p>It checks for:</p>
+<ul>
+<li>Required files (<code>DESCRIPTION.toml</code>,
+<code>flake.nix</code>).</li>
+<li>Valid directory structure.</li>
+<li>Documentation existence.</li>
+<li>Nix installation.</li>
+</ul>
 <h2 id="publishing">7. Publishing</h2>
 <p>When you are ready to release a version:</p>
 <ol type="1">

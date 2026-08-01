@@ -139,13 +139,13 @@ That is why these names are intentionally left without the `str_` prefix.
 
 For per-function details, see the reference pages:
 
-- [`str_nchar`](reference/nchar.html)
-- [`str_substring`](reference/substring.html)
-- [`str_replace`](reference/replace.html)
-- [`str_sprintf`](reference/sprintf.html)
-- [`str_join`](reference/join.html)
-- [`to_string`](reference/string.html)
-- [`str_split`](reference/strsplit.html)
+- [`str_nchar`](reference/str_nchar.html)
+- [`str_substring`](reference/str_substring.html)
+- [`str_replace`](reference/str_replace.html)
+- [`str_sprintf`](reference/str_sprintf.html)
+- [`str_join`](reference/str_join.html)
+- [`to_string`](reference/to_string.html)
+- [`str_split`](reference/str_split.html)
 - [`contains`](reference/contains.html)
 - [`starts_with`](reference/starts_with.html)
 - [`ends_with`](reference/ends_with.html)

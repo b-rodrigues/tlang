@@ -26,7 +26,7 @@ T is a tree-walking interpreter built in OCaml. The architecture prioritizes:
 4. **Extensibility**: Modular package system for adding functionality
 
 **Tech Stack:**
-- **Host Language**: OCaml 4.14+
+- **Host Language**: OCaml 5.x
 - **Parser Generator**: Menhir (LR parser)
 - **Lexer**: ocamllex
 - **Build System**: Dune
@@ -103,6 +103,7 @@ T is a tree-walking interpreter built in OCaml. The architecture prioritizes:
 **Purpose**: Convert source text into tokens.
 
 **Key Features**:
+
 - Keyword recognition (`if`, `else`, `function`, `pipeline`, etc.)
 - Operators: arithmetic (`+`, `-`, `*`, `/`), comparison (`==`, `<`, `>`), logical (`and`, `or`, `not`)
 - Pipe operators: `|>`, `?|>`, `~` (formula)
@@ -125,6 +126,7 @@ IDENT("df") PIPE IDENT("filter") LPAREN LAMBDA ...
 **Purpose**: Build abstract syntax tree (AST) from tokens.
 
 **Grammar Highlights**:
+
 - Expression-oriented: Everything is an expression (conditionals, blocks, etc.)
 - Operator precedence: `*` / `/` bind tighter than `+` / `-`
 - Pipe associativity: Left-associative (`a |> f |> g` = `(a |> f) |> g`)
@@ -142,6 +144,7 @@ IDENT("df") PIPE IDENT("filter") LPAREN LAMBDA ...
 9. Function application
 
 **Special Constructs**:
+
 - **Pipelines**: `pipeline { node1 = expr1; node2 = expr2 }`
 - **Intents**: `intent { field: value }`
 - **Formulas**: `response ~ predictor`
@@ -195,6 +198,7 @@ type value =
 ```
 
 **Design Notes**:
+
 - Expressions are immutable; evaluation produces new values
 - Functions capture environment as closures
 - Errors and NA are first-class values, not exceptions
@@ -221,6 +225,7 @@ val eval_unop : unop -> value -> value
 ```
 
 **Environment Model**:
+
 - Environments are hash tables: `string -> value`
 - Nested scopes: Functions create child environments
 - Closures: Functions capture their defining environment
@@ -240,6 +245,7 @@ apply_function (eval env right) [value]  (* Always forward *)
 ```
 
 **Error Handling**:
+
 - Errors are `VError` values, not OCaml exceptions
 - Propagate through pipelines (unless caught)
 - Actionable error messages with context
@@ -249,6 +255,7 @@ apply_function (eval env right) [value]  (* Always forward *)
 **Purpose**: Interactive read-eval-print loop.
 
 **Features**:
+
 - Persistent environment across evaluations
 - Pretty-printing of results
 - Multiline input support
@@ -399,7 +406,7 @@ That means Arrow is used both as an internal storage backend and as an interchan
 T puts significant effort into providing high-fidelity representations of Python, R, and Julia objects. 
 
 - **Fail-Safe Loading**: The `read_node()` function is designed to never crash the primary T environment, even if the node's artifacts are missing or corrupted. 
-- **Representation Wrappers**: T provides specialized "host object" representations for common foreign types (Lists, Dicts, DataFrames, Models). If a node produces an object that T doesn't natively understand, it is safely wrapped as a generic `HostObject` that can still be passed as a reference to other nodes of the same language (e.g., from one R node to another) without T needing to understand its internal structure.
+- **Representation Wrappers**: T provides specialized representations for common foreign types (Lists, Dicts, DataFrames, Models). If a node produces an object that T doesn't natively understand, `read_node()` returns an explicit `VError` rather than a placeholder, so no data is silently dropped or mangled.
 - **Native Fallback**: If T's representation is insufficient for a particular task, users can always access the raw object by reading the node's artifact directly from within a native script (e.g., using `read_node()` inside a `.qmd` or `.py` component). This ensures full interop with the entire ecosystem of libraries in those languages.
 
 
@@ -444,6 +451,7 @@ T uses **Apache Arrow** for high-performance columnar data.
 ### FFI Bindings
 
 Located in `src/arrow/`:
+
 - **arrow_ffi.ml**: OCaml wrappers for C functions
 - **C stubs**: Interface to Arrow C GLib
 
@@ -489,6 +497,7 @@ df.age
 ```
 
 Returns a `VVector`:
+
 - If native handle: Zero-copy view into Arrow column
 - If fallback: Extracted OCaml list
 
@@ -548,12 +557,14 @@ Functions are registered in the global environment by name.
 ### Why Tree-Walking Interpreter?
 
 **Pros**:
+
 - Simple to implement and modify
 - Direct AST representation
 - Easy debugging
 - Fast development iteration
 
 **Cons**:
+
 - Slower than bytecode or JIT
 - No ahead-of-time optimization
 
@@ -562,6 +573,7 @@ Functions are registered in the global environment by name.
 ### Why OCaml?
 
 **Pros**:
+
 - Excellent parser/compiler tooling (Menhir, ocamllex)
 - Strong type system for host language (prevents bugs)
 - Good FFI story (C bindings for Arrow)
@@ -569,6 +581,7 @@ Functions are registered in the global environment by name.
 - Functional paradigm matches T's design
 
 **Cons**:
+
 - Smaller ecosystem than Python/JavaScript
 - Steeper learning curve for contributors
 
@@ -577,12 +590,14 @@ Functions are registered in the global environment by name.
 ### Why Apache Arrow?
 
 **Pros**:
+
 - Industry-standard columnar format
 - Zero-copy interoperability (Parquet, R, Python, Julia)
 - High-performance compute kernels
 - Cross-language support
 
 **Cons**:
+
 - Large dependency
 - C++ dependency management complexity (mitigated by Nix)
 - FFI maintenance burden
@@ -592,12 +607,14 @@ Functions are registered in the global environment by name.
 ### Why Nix?
 
 **Pros**:
+
 - Perfect reproducibility (same inputs → same outputs)
 - Declarative dependency management
 - Isolated development environments
 - Cross-platform consistency
 
 **Cons**:
+
 - Steep learning curve
 - Longer initial build times
 - Smaller user base than Docker
@@ -607,11 +624,13 @@ Functions are registered in the global environment by name.
 ### Why Explicit NA Handling?
 
 **Pros**:
+
 - No silent data loss
 - Forces user to think about missingness
 - Predictable behavior
 
 **Cons**:
+
 - More verbose than automatic propagation
 - Requires `na_rm` parameters everywhere
 
@@ -620,11 +639,13 @@ Functions are registered in the global environment by name.
 ### Why No Static Types?
 
 **Pros**:
+
 - Faster prototyping
 - Simpler user experience (no type annotations)
 - Easier REPL workflow
 
 **Cons**:
+
 - Runtime errors instead of compile-time errors
 - Less safety for large codebases
 
@@ -702,6 +723,7 @@ diff t_output.txt r_output.txt
 ### Bytecode Compilation
 
 Replace tree-walking interpreter with bytecode VM:
+
 - Compile AST → bytecode
 - Stack-based VM for execution
 - Faster loops and function calls
@@ -709,6 +731,7 @@ Replace tree-walking interpreter with bytecode VM:
 ### Type Inference
 
 Add optional static typing:
+
 - Hindley-Milner type inference
 - Gradual typing (mix static/dynamic)
 - IDE support via Language Server Protocol
@@ -716,6 +739,7 @@ Add optional static typing:
 ### Distributed Execution
 
 Pipeline nodes run on clusters:
+
 - Serialize pipelines to remote workers
 - Arrow Flight for zero-copy data transfer
 - Fault tolerance via re-execution
@@ -723,6 +747,7 @@ Pipeline nodes run on clusters:
 ### GPU Acceleration
 
 Arrow Compute on CUDA:
+
 - Offload aggregations to GPU
 - Vectorized operations on GPU
 - Requires cuDF or similar

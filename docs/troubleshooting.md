@@ -4,27 +4,6 @@ Solutions to common issues when using T.
 
 ## Installation Issues
 
-### "command not found: nix"
-
-**Problem**: Nix is not installed or not in PATH.
-
-**Solution**:
-```bash
-# Install Nix (recommended: Determinate Systems installer)
-curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install --no-confirm
-
-# Restart shell or source profile
-source /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
-```
-
-**Verify**:
-```bash
-nix --version
-# Should output: nix (Nix) 2.x.x
-```
-
----
-
 ### "error: experimental feature 'flakes' is disabled"
 
 **Problem**: Flakes not enabled in Nix configuration.
@@ -156,6 +135,7 @@ Warning: 2 shift/reduce conflicts
 ```
 
 **Solution** (for contributors):
+
 - Review `parser.mly` for ambiguous rules
 - Add precedence directives (`%left`, `%right`)
 - Refactor grammar to remove ambiguity
@@ -196,11 +176,8 @@ Error(NameError: ...)
 "Age: " + 25
 -- Error: Cannot add String and Int
 
--- Workaround: Convert manually or use string concatenation with print
--- Note: Alpha does not have a to_string() conversion function yet
--- Use print for output instead:
-print("Age: ")
-print(25)
+-- Workaround: Convert explicitly with to_string() and join with str_join()
+print(str_join(["Age: ", to_string(25)]))
 ```
 
 ---
@@ -296,6 +273,7 @@ df = read_csv("huge.csv")
 **Problem**: Waiting for multiline completion or invalid syntax.
 
 **Solution**:
+
 - Press Ctrl+C to cancel
 - Check for unclosed `(`, `{`, `[`
 - Ctrl+C now safely interrupts long-running evaluations and returns you to the prompt
@@ -327,6 +305,7 @@ ls data.csv  # In shell
 **Problem**: Arrow infers types from first rows.
 
 **Solution**: Ensure data is consistent:
+
 - No mixed types in columns
 - Missing values represented as empty strings (inferred as NA)
 - Numeric columns don't have text
@@ -496,6 +475,7 @@ nix develop --command dune build
 ### When asking for help
 
 Include:
+
 - **Exact error message**
 - **Minimal code to reproduce**
 - **Your environment**:

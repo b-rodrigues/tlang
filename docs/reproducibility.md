@@ -32,6 +32,7 @@ T provides **perfect reproducibility**: The same T code with the same data produ
 ### What is Nix?
 
 Nix is a declarative package manager that ensures:
+
 - **Bit-for-bit identical builds** across machines
 - **Isolated environments** (no global state)
 - **Versioned dependencies** (pinned to exact commits)
@@ -82,6 +83,7 @@ Every T project is a **Nix flake**:
 **Scenario**: You run an analysis today. A colleague tries to run it in 2026.
 
 **Without Nix**:
+
 - Package versions have changed
 - APIs have breaking changes
 - Results differ or code errors
@@ -104,6 +106,7 @@ The `flake.lock` file ensures every dependency (OCaml, Arrow, system libraries) 
 ### No Hidden Randomness
 
 T provides **explicit, reproducible randomness**:
+
 - **`set_seed(seed)`**: Initializes a global random number generator with a given integer seed.
 - **`sample(x, n, replace)`**: Draw a random sample of size n from a Vector or List.
 - **`slice_sample(data, n, replace)`**: Draw a random sample of n rows from a DataFrame.
@@ -180,6 +183,7 @@ intent {
 ```
 
 **Benefits**:
+
 - Future readers understand context
 - LLMs can regenerate code correctly
 - Auditors can verify assumptions

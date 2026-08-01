@@ -4,6 +4,18 @@
 
 Pipelines are T's core execution model. They let you define named computation steps (nodes) that are automatically ordered by their dependencies, executed deterministically, and cached for re-use.
 
+### How Polyglot Pipelines Work
+
+From declaration to result, every pipeline follows the same five-stage flow:
+
+1. **Declare**. You define nodes inside a `pipeline { ... }` block. Each node gets a name, a command (T expression or `<{ }>` foreign-code block), a runtime (`rn()`, `pyn()`, `jln()`, `qn()`, `shn()`, or `node()` for T), and a serializer that controls how data enters and leaves the node.
+2. **Analyze**. T scans the DAG — it resolves which node depends on which, detects cycles, and extracts identifier references from foreign-code blocks for dependency tracking.
+3. **Emit**. T generates one Nix derivation per node. Each derivation bundles the right runtime (R, Python, Julia, Quarto, or shell), the packages declared in `tproject.toml`, and the serializer/deserializer glue code that will handle data interchange.
+4. **Build**. Nix executes each derivation in a hermetic sandbox. Upstream artifacts are already materialized in the Nix store, so the serializer writes the node's output and the deserializer reads upstream inputs — all without shared memory or runtime coupling.
+5. **Read back**. After `build_pipeline(p)` or `populate_pipeline(p, build = true)` completes, use `read_node(p.node_name)` to load any node's serialized artifact back into T for inspection, and use `<{ }>` to embed command blocks.
+
+> **Key insight**: A pipeline is a **declarative build graph**, not a script. Nodes describe *what* to produce, not *when* to compute. T handles the ordering, caching, and reproducibility — the same pipeline produces the same results on any machine.
+
 ---
 
 ## 1. Your First Pipeline
@@ -202,12 +214,22 @@ p = pipeline {
         fit = LinearRegression().fit(X, y)
         fit
     }>,
-    serializer = "pmml"
+    serializer = ^pmml
+  )
+
+  -- Running a Julia node that reads and summarizes the data
+  summary = jln(
+    command = <{
+      using DataFrames
+      df = CSV.read(data_path, DataFrame)
+      describe(df)
+    }>,
+    serializer = ^csv
   )
 }
 ```
 
-Bare syntax (like `x = 10`) is automatically desugared to `x = node(command = 10, runtime = T, serializer = default, deserializer = default)`. You can also use `pyn()`, `rn()`, and `shn()` as shortcuts for Python, R, and shell runtimes. T enforces cross-runtime safety: if a node with a non-`T` runtime depends on a `T` node, or vice versa, you should specify an explicit `serializer`/`deserializer`.
+Bare syntax (like `x = 10`) is automatically desugared to `x = node(command = 10, runtime = T, serializer = default, deserializer = default)`. You can also use `pyn()`, `rn()`, `jln()`, `qn()`, and `shn()` as shortcuts for Python, R, Julia, Quarto, and shell runtimes. T enforces cross-runtime safety: if a node with a non-`T` runtime depends on a `T` node, or vice versa, you should specify an explicit `serializer`/`deserializer`.
 
 When an R node returns a `ggplot2` object, a Python node returns a `matplotlib` / `plotnine` plot object, or a Julia node returns a `TidierPlots.jl`, `Plots.jl`, or `Makie.jl` figure object, T preserves lightweight plot metadata for REPL inspection. Reading or printing those artifacts shows a structured summary with the plot class (`ggplot`, `matplotlib`, `plotnine`, `tidierplots`, `plotsjl`, or `makie`), runtime backend (`R`, `Python`, or `Julia`), title, labels, mappings when available, and layer information instead of a raw runtime-specific object dump.
 
@@ -218,20 +240,39 @@ Instead of inlining code with `command`, you can point a node to an external sou
 ```t
 p = pipeline {
   -- Execute an external R script
-  model = rn(script = "train_model.R", serializer = "pmml")
+  model = rn(script = "train_model.R", serializer = ^pmml)
 
   -- Execute an external Python script
-  predictions = pyn(script = "predict.py", deserializer = "pmml")
+  predictions = pyn(script = "predict.py", deserializer = ^pmml)
 
   -- Execute an external shell script
   report = shn(script = "postprocess.sh")
 
   -- node() auto-detects the runtime from the file extension
-  summary = node(script = "summarise.R", serializer = "json")
+  summary = node(script = "summarise.R", serializer = ^json)
 }
 ```
 
-When using `script`, the runtime is auto-detected from the file extension (`.R` → R, `.py` → Python, `.sh` → sh) if not explicitly set via the `runtime` argument. T reads the script file to extract identifier references, allowing the pipeline dependency graph to be built correctly from variables referenced in the external file.
+When using `script`, the runtime is auto-detected from the file extension (`.R` → R, `.py` → Python, `.jl` → Julia, `.sh` → sh, `.qmd` → Quarto) if not explicitly set via the `runtime` argument. T reads the script file to extract identifier references, allowing the pipeline dependency graph to be built correctly from variables referenced in the external file.
+
+### Sourcing Functions and Including Files
+
+All non-T node constructors accept two optional parameters that control what gets loaded into the Nix sandbox before execution:
+
+- **`functions`**: Code files to **source, import, or exec** before the node's command runs. T emits the right instruction per runtime. Use this to share utility functions across nodes.
+- **`include`**: Additional files (config, data, templates) to copy into the sandbox. These are present at the root of the sandbox and can be referenced by relative paths from your command or script.
+
+| Runtime | `functions` behavior | Example |
+|---------|---------------------|---------|
+| R | `source('file.R')` | `rn(command = <{...}>, functions = ["utils.R"])` |
+| Python | `exec(open('file.py').read())` | `pyn(command = <{...}>, functions = ["preproc.py"])` |
+| Julia | `include("file.jl")` | `jln(command = <{...}>, functions = ["helpers.jl"])` |
+| T | `import "file.t"` | `node(command = ..., functions = ["lib.t"])` |
+| Shell / Quarto | *(no sourcing)* | `shn(command = <{...}>, functions = [...])` |
+
+The Nix derivation copies the entire project tree into the sandbox (excluding `.git`, `_pipeline`, `_build`), so any file listed in `functions` or `include` is available automatically as long as it exists in the project.
+
+Both parameters are **combinable**: use `set_pipeline_global_options(p, functions = [rn: "utils.R"], include = "config.yml")` to prepend global files that apply to every node. Pass per-node `functions` or `include` to add files for a specific node — the lists are concatenated (global first, then per-node). Use `mutate_node` to replace a node's lists entirely, or `$functions = NA` to clear them.
 
 ### Shell / Bash nodes with `shn()`
 
@@ -263,6 +304,47 @@ There are two useful modes:
 - **Shell mode**: provide raw shell source with `<{ ... }>` or a `.sh` `script`, optionally overriding the interpreter with `shell = "bash"` and `shell_args = ["-lc"]` when you need Bash-specific syntax.
 
 Shell nodes default to `serializer = text`, which makes them a good fit for reports, command output, and glue code between other pipeline nodes. For a full end-to-end example that mixes T, R, Python, and `sh`, see `tests/pipeline/polyglot_shell_pipeline.t` and `.github/workflows/polyglot-shell-pipeline.yml`.
+
+### Julia nodes with `jln()`
+
+Use `jln()` for pipeline steps written in Julia. It wraps `node(runtime = Julia, ...)`, just like `rn()` and `pyn()` wrap `node()` for R and Python. Julia packages are declared in `[jl-dependencies]` in `tproject.toml` and live in `julia_depot_sandbox_hook` during builds. To use the REPL debug node mode, the `tlang` companion package is automatically injected into every Julia node without manual declaration.
+
+```t
+p = pipeline {
+  raw = read_csv("data.csv")
+
+  julia_summary = jln(
+    command = <{
+      using DataFrames, Statistics
+      df = CSV.read(raw_path, DataFrame)
+      result = combine(groupby(df, :cyl),
+                       :mpg => mean => :avg_mpg)
+      result
+    }>,
+    serializer = ^csv
+  )
+}
+```
+
+Julia nodes default to `serializer = default`, which uses Julia's standard `Serialization` module to write `.jls` artifacts. Use `^csv`, `^arrow`, or `^json` for cross-runtime interchange with T, R, or Python nodes.
+
+### Quarto nodes with `qn()`
+
+Use `qn()` for pipeline steps that render Quarto documents (`.qmd` files) as part of a reproducible build. It wraps `node(runtime = Quarto, ...)`. The `.qmd` file path goes in the `script` argument:
+
+```t
+p = pipeline {
+  data = read_csv("data.csv") |> filter($age > 18)
+
+  report = qn(
+    script = "analysis.qmd"
+  )
+}
+```
+
+During the Nix build, Quarto renders the `.qmd` to HTML inside the sandbox. If the `.qmd` file calls `read_node("data")`, T automatically detects this as a pipeline dependency and substitutes the node's Nix store path at build time. The rendered output stays in `/nix/store/` — use `pipeline_copy(p, "report")` to retrieve it.
+
+For full Quarto setup (YAML filters, `additional-tools`, formatting), see the [Literate Programming & Quarto](literate-programming-quarto.md) guide.
 
 ### Fetching Remote Assets
 
@@ -417,7 +499,7 @@ p = pipeline {
       data <- read.csv("data.csv")
       lm(mpg ~ wt + hp, data = data)
     }>,
-    serializer = "pmml"
+    serializer = ^pmml
   )
   
   -- Node 2: Predict in T using the R model
@@ -427,12 +509,12 @@ p = pipeline {
       predict(test_df, model_r)
     }>,
     runtime = "T",
-    deserializer = "pmml"
+    deserializer = ^pmml
   )
 }
 ```
 
-Setting `deserializer = "pmml"` on the T node tells the pipeline runner to use T's native PMML parser to convert the R model into a T model object.
+Setting `deserializer = ^pmml` on the T node tells the pipeline runner to use T's native PMML parser to convert the R model into a T model object.
 
 ---
 
@@ -802,5 +884,7 @@ Now that you've mastered pipeline basics, explore advanced topics:
 2. **[Pipeline Materialization & Nix Orchestration](pipeline-materialization.md)** — Building pipelines into reproducible Nix artifacts, orchestrating builds, transferring archives, CI/CD, branching, and custom flakes.
 3. **[Project Development](project_development.md)** — Master T's project structure and dependency management.
 4. **[Package Development](package_development.md)** — Create reusable T libraries.
-5. **[Reproducibility Guide](reproducibility.md)** — Deep dive into T's commitment to reproducible research.
-6. **[API Reference](api-reference.md)** — Complete function reference by package.
+5. **[Error Handling](error-handling.md)** — Understand T's first-class error system, `?|>` pipe, `collect_exceptions()`, and failfast mode.
+6. **[Debugging](debugging.md)** — Interactive node debugging and REPL diagnostics.
+7. **[Reproducibility Guide](reproducibility.md)** — Deep dive into T's commitment to reproducible research.
+8. **[API Reference](api-reference.md)** — Complete function reference by package.

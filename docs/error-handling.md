@@ -33,7 +33,7 @@ T treats errors as **first-class values**, not exceptions. This design enables:
 
 ## Execution Modes: Resilient vs. Fail-Fast
 
-T-Lang provides two modes of evaluation, controlled by the "resilience" setting:
+T provides two modes of evaluation, controlled by the "resilience" setting:
 
 ### 1. Resilient Mode (Default)
 Evaluation continues even when statements or pipeline nodes result in `VError` values. This is aligned with the "Errors are Values" philosophy, allowing you to collect as much information as possible from a single run. Residual errors are simply passed to downstream functions (which may short-circuit via `|>` or recover via `?|>`). This is the recommended mode for complex data pipelines where you want to observe as many diagnostic outcomes as possible in a single pass.
@@ -42,11 +42,10 @@ Evaluation continues even when statements or pipeline nodes result in `VError` v
 Evaluation stops immediately upon encountering the first `VError`. This is the usual, common behaviour for critical scripts where subsequent steps should only run if previous ones were flawlessly successful.
 
 **How to toggle**:
+
 - **CLI**: Use `t run --failfast script.t`
 - **REPL**: Set `t_run(failfast = true, ...)`
 - **Pipelines**: Use `t_make(failfast = true)`
-
----
 
 ---
 
@@ -79,6 +78,7 @@ prnt(42)
 ```
 
 **Features**:
+
 - Levenshtein distance-based suggestions
 - Searches current scope and standard library
 - Case-insensitive suggestions
@@ -114,6 +114,7 @@ add(1, 2, 3)
 ```
 
 **Features**:
+
 - Shows expected parameter names
 - Shows actual argument count
 - Suggests correct usage
@@ -231,6 +232,7 @@ T provides powerful primitives to analyze exceptions/diagnostics and preserve th
 Converts all terminal errors and warning diagnostics from computed nodes of a built pipeline into a structured four-column `DataFrame` (`node`, `status`, `code`, and `message`), allowing you to inspect and filter multiple pipeline issues.
 
 To keep the printed output clean and readable:
+
 * **Traceback Truncation**: `collect_exceptions` automatically extracts the **last non-empty line** of multi-line tracebacks (like Python or Arrow error messages) to preserve the actual error class and message, and caps the text length at `100` characters.
 * **Polars-Style Cell Truncation**: When pretty-printing any `DataFrame` in the REPL, all string cells exceeding `35` characters are truncated to `32` characters followed by `...` (Polars-style) to prevent wide/broken columns.
 
@@ -248,6 +250,7 @@ exceptions_df |> filter($status == "Warning")
 ##### Explaining Collected Exceptions
 
 T's built-in `explain()` function has specialized support for `collect_exceptions` DataFrames:
+
 - **Direct Explanation (1 exception)**: If there is exactly one exception row in the DataFrame, calling `explain(exceptions_df)` will automatically map to that diagnostic exception and return a structured dictionary explaining the exact error or warning details (containing the originating node, diagnostic code, and description message).
 - **Consolidated Explanation (multiple exceptions)**: If there are zero or multiple exceptions, calling `explain(exceptions_df)` returns a structured representation of the exception collection itself (`exceptions_list`), with a `count` property and an `exceptions` list containing the mapped explanation of each individual diagnostic element.
 
@@ -497,7 +500,7 @@ risky_calc() ?|> enhance_error
 
 ## Pipeline Diagnostics and Soft-Failures
 
-In T-Lang, the materialization of a pipeline is a separate phase from the logic execution. When a node in a pipeline fails, it doesn't necessarily halt the entire build.
+In T, the materialization of a pipeline is a separate phase from the logic execution. When a node in a pipeline fails, it doesn't necessarily halt the entire build.
 
 ### Pipeline Node Statuses & Failure Modes
 
@@ -506,14 +509,14 @@ When you run `build_pipeline(p)` and inspect the build log using `build_log(p) |
 | Node Status | Did it execute? | Did it fail? | Pipeline Impact | Description & Cause |
 | :--- | :---: | :---: | :--- | :--- |
 | **`Completed`** | Yes | No | **Success** (propagates data) | The node ran successfully and serialized its output artifact. |
-| **`Completed with error`** (Soft-Fail) | Yes | **Yes (Soft)** | **Continues** (propagates error) | The script ran inside the sandbox but raised a user-space exception. T-Lang captures this as a first-class `VError` value so independent branches can still build. |
+| **`Completed with error`** (Soft-Fail) | Yes | **Yes (Soft)** | **Continues** (propagates error) | The script ran inside the sandbox but raised a user-space exception. T captures this as a first-class `VError` value so independent branches can still build. |
 | **`Errored`** (Hard-Fail) | Yes | **Yes (Hard)** | **Aborts Build** | The sandbox execution crashed entirely or exited with a non-zero code (e.g., syntax errors, missing packages, memory exhaustion). |
 | **`Skipped`** | **No** | No | **Bypassed** | The node was never evaluated or executed because an upstream dependency suffered a hard `Errored` failure. |
 
 #### Detailed Failure Mechanics
 
 1. **Why `Completed with error` propagates downstream:**
-   Because T-Lang treats errors as first-class values, a soft-failure is saved as a normal serialized directory outcome. Downstream nodes are still scheduled to run, receive the `VError` as input, and automatically propagate it further down the pipe unless you explicitly recover from it.
+   Because T treats errors as first-class values, a soft-failure is saved as a normal serialized directory outcome. Downstream nodes are still scheduled to run, receive the `VError` as input, and automatically propagate it further down the pipe unless you explicitly recover from it.
 
 2. **Why `Errored` halts downstream execution:**
    When a node suffers a hard `Errored` nix-build failure, the Nix daemon immediately stops evaluating that branch. No output directory is produced, and the entire build process terminates.
@@ -563,7 +566,7 @@ The per-node diagnostics in `read_pipeline(p).nodes` carry full warning lists as
 
 ### Investigating with `explain()`
 
-When you load a node that soft-failed, you receive a T-Lang Error object. You can use the `explain()` builtin to see the exact cause, including tracebacks from other languages.
+When you load a node that soft-failed, you receive a T Error object. You can use the `explain()` builtin to see the exact cause, including tracebacks from other languages.
 
 ```t
 hu = read_node("py_err")
@@ -581,10 +584,10 @@ explain(hu)
 
 ## Polyglot Error Handling (Python/R)
 
-T-Lang provides a "diagnostic bridge" for nodes running in other languages.
+T provides a "diagnostic bridge" for nodes running in other languages.
 
 ### Python Nodes
-- **Exceptions**: All uncaught exceptions are caught by the T-Lang runner. The exception type, message, and full traceback are serialized into the `VError` artifact.
+- **Exceptions**: All uncaught exceptions are caught by the T runner. The exception type, message, and full traceback are serialized into the `VError` artifact.
 - **Warnings**: Captured via `warnings.catch_warnings()`. These are listed in the build summary but do not cause the node to return an error state.
 
 ### R Nodes
@@ -635,6 +638,7 @@ p = pipeline {
 ```
 
 **Why use this?**:
+
 *   **Adaptive Modeling**: Your pipeline automatically scales its complexity to match the quality of the incoming data, avoiding "singular matrix" or "one level to_factor" errors.
 *   **Operational Intelligence**: Instead of the whole pipeline failing due to a minor data shift (like one category disappearing from today's extract), the system gracefully degrades its service while still providing a result.
 *   **Auditability**: Every run clearly states which path was taken through the use of descriptive tags like `low_diversity` or `high_quality`.
@@ -654,6 +658,7 @@ T offers several tools for managing errors, each suited for different scenarios:
     *   **Complex Recovery Logic**: When `if (is_error(x))` becomes too nested or less readable.
 
 **General Guidance**:
+
 *   Use `|>` for the majority of your data pipelines where you expect success and want to stop on the first error.
 *   Use `?|>` when you need to inspect or act on an error *at a specific point* in a pipeline, often followed by `match` or an `if (is_error(...))` check.
 *   Use `match` when your error recovery logic involves different actions for different error types, or when you want a clear, declarative way to distinguish between success and various error states.
@@ -916,6 +921,7 @@ assert(length(result_list) == expected_length, "Length mismatch")
 ---
 
 **See Also**:
+
 - [Examples](examples.md) — Error handling patterns in practice
 - [API Reference](api-reference.md) — Error-related functions
 - [Troubleshooting](troubleshooting.md) — Common issues and solutions

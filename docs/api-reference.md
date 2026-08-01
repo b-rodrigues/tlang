@@ -3076,7 +3076,7 @@ pipeline_cycles(p)
 
 
 
-### `node(command, script = NA, runtime = "T", serializer = "default", deserializer = "default", env_vars = [:], args = [:], shell = NA, shell_args = [], functions = [], include = [], noop = false, flake = NA)`
+### `node(command, script = NA, runtime = "T", serializer = default, deserializer = default, env_vars = [:], args = [:], shell = NA, shell_args = [], functions = [], include = [], noop = false, flake = NA)`
 
 Configure execution settings such as the runtime and custom serialized methods for a pipeline node.
 
@@ -3115,9 +3115,7 @@ include = "config.yml"
 
 ---
 
-### `py(command, script = NA, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false, flake = NA)`
-
-### `pyn(command, script = NA, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false, flake = NA)`
+### `pyn(command, script = NA, serializer = default, deserializer = default, env_vars = [:], functions = [], include = [], noop = false, flake = NA)`
 
 Configure a Python Pipeline Node. A convenience wrapper around `node()` with `runtime = "Python"`. Used directly within a `pipeline { ... }` block to execute Python code.
 
@@ -3139,7 +3137,7 @@ A pipeline node configuration object (`NodeDef`). Must be used as a named bindin
 
 ---
 
-### `rn(command, script = NA, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false, flake = NA)`
+### `rn(command, script = NA, serializer = default, deserializer = default, env_vars = [:], functions = [], include = [], noop = false, flake = NA)`
 
 Configure an R Pipeline Node. A convenience wrapper around `node()` with `runtime = "R"`. Used directly within a `pipeline { ... }` block to execute R code.
 
@@ -3161,7 +3159,7 @@ A pipeline node configuration object (`NodeDef`). Must be used as a named bindin
 
 ---
 
-### `jln(command, script = NA, serializer = "default", deserializer = "default", env_vars = [:], functions = [], include = [], noop = false, flake = NA)`
+### `jln(command, script = NA, serializer = default, deserializer = default, env_vars = [:], functions = [], include = [], noop = false, flake = NA)`
 
 Configure a Julia Pipeline Node. A convenience wrapper around `node()` with `runtime = "Julia"`. Used directly within a `pipeline { ... }` block to execute Julia code.
 
@@ -3184,7 +3182,7 @@ A pipeline node configuration object (`NodeDef`). Must be used as a named bindin
 
 ---
 
-### `qn(script = NA, serializer = "default", deserializer = "default", env_vars = [:], args = [:], functions = [], include = [], noop = false, flake = NA)`
+### `qn(script = NA, serializer = default, deserializer = default, env_vars = [:], args = [:], functions = [], include = [], noop = false, flake = NA)`
 
 Configure a Quarto pipeline node. A convenience wrapper around `node()` with `runtime = "Quarto"`. Use it to render `.qmd` files inside `pipeline { ... }` blocks.
 
@@ -3207,7 +3205,7 @@ A pipeline node configuration object (`NodeDef`). Must be used as a named bindin
 
 ---
 
-### `shn(command, script = NA, serializer = "text", deserializer = "default", env_vars = [:], args = [], shell = "sh", shell_args = [], functions = [], include = [], noop = false, flake = NA)`
+### `shn(command, script = NA, serializer = ^text, deserializer = default, env_vars = [:], args = [], shell = "sh", shell_args = [], functions = [], include = [], noop = false, flake = NA)`
 
 Configure a shell pipeline node. A convenience wrapper around `node()` with `runtime = "sh"`. Use it for CLI tools, inline shell scripts, and `.sh` files inside `pipeline { ... }` blocks.
 
@@ -3487,6 +3485,7 @@ Shorthand for `populate_pipeline(p, build = true)`. Recommended for scripts run 
 **Returns:**
 
 `BuildLog` with fields:
+
 - `nodes` — per-node status/duration records
 - `duration` — total build duration in seconds
 - `failed_nodes` — list of failed/errored node names
@@ -3946,6 +3945,7 @@ Returns a summary DataFrame of all historical builds matching the current pipeli
 **Returns:**
 
 `DataFrame` — A DataFrame detailing historical builds with columns:
+
 - `build_id` (1-indexed rank from most recent to oldest)
 - `timestamp` (ISO-8601 UTC string of build time)
 - `duration` (total duration in seconds)
@@ -3979,6 +3979,7 @@ Compares the dynamic evaluations or built artifacts of `node_a` and `node_b` acr
 **Returns:**
 
 `Dict` — A structured type-sensitive diff dictionary containing:
+
 - **For DataFrames** (`csv`, `arrow`, `parquet`): `schema_changed` (Bool), `added_columns` (List), `removed_columns` (List), `nrows_a` (Int), `nrows_b` (Int), and `numeric_drift` (DataFrame summarizing column-level mean values and shift percentages).
 - **For PMML Models** (`pmml`): `model_type` (String), `coefficients_changed` (Bool), and `coef_diff` (DataFrame comparing regression coefficients and intercept shift deltas). Falls back to generic structural equality diff for non-regression models.
 - **For Text Files** (`text`): `changed` (Bool), `lines_added` (Int), `lines_removed` (Int), and `diff` (String unified diff output).
@@ -4017,6 +4018,7 @@ Compares the two most recent builds of a pipeline and returns a DataFrame summar
 **Returns:**
 
 `DataFrame` — A summary with columns:
+
 - `name` (String) — Node name.
 - `status` (String) — One of `"unchanged"`, `"changed"`, `"added"`, `"removed"`.
 - `hash_a` (String) — Nix content hash from build A.
@@ -4248,6 +4250,7 @@ For DataFrames, returns a compact summary by default showing `kind`, `nrow`, `nc
 
 **Specialized support for `collect_exceptions(p)` DataFrames**:
 If the input DataFrame is the diagnostics table returned by `collect_exceptions(p)` (detected via the columns `["node", "status", "code", "message"]`), `explain()` behaves as follows:
+
 - **Single Exception**: If the DataFrame contains exactly one row, calling `explain()` directly maps to that specific exception, returning a dictionary with keys `kind`, `type` (`"Error"` or `"Warning"`), `error_code`/`warning_code`, `error_message`/`warning_message`, and `node`.
 - **Multiple Exceptions**: If there are zero or multiple rows, `explain()` returns an overarching `exceptions_list` dictionary containing keys `kind`, `type`, `description`, `count`, and `exceptions` (a list of mapped explanation dictionaries for each diagnostic element).
 

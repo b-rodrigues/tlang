@@ -45,6 +45,7 @@ Please review it to understand the detailed ethical guidelines and expected beha
 3. Expected: `1e10`, Got: `9.99999e9`
 
 **Environment**:
+
 - OS: Ubuntu 22.04
 - Nix: 2.13.3
 - OCaml: 4.14.1
@@ -53,6 +54,7 @@ Please review it to understand the detailed ethical guidelines and expected beha
 ### Suggesting Features
 
 **Before suggesting**, consider:
+
 - Is it aligned with T's design goals (reproducibility, explicitness, data analysis)?
 - Is it too broad or general-purpose?
 - Could it be a library instead of core language feature?
@@ -65,6 +67,7 @@ Please review it to understand the detailed ethical guidelines and expected beha
 ### Contributing Code
 
 We welcome:
+
 - Bug fixes
 - New standard library functions
 - Performance improvements
@@ -76,6 +79,7 @@ We welcome:
 ### Improving Documentation
 
 Documentation contributions are highly valued:
+
 - Fix typos and grammatical errors
 - Add examples to existing docs
 - Write tutorials for common workflows
@@ -85,21 +89,17 @@ Documentation contributions are highly valued:
 
 ## Development Setup
 
-See the [Development Guide](development.md) for detailed setup instructions.
+The repository's `flake.nix` provides the complete development toolchain — OCaml compiler, Menhir parser generator, development tools, and all library dependencies. There is nothing to install separately.
 
-**Quick Start**:
+```bash
+git clone https://github.com/b-rodrigues/tlang.git
+cd tlang
+nix develop
+dune build
+dune runtest
+```
 
-1. **Install Nix**: Follow the [Nix Installation Guide](nix-installation.md).
-2. **Clone and Build**:
-   ```bash
-   git clone https://github.com/b-rodrigues/tlang.git
-   cd tlang
-   nix develop
-   dune build
-    dune runtest
-    ```
-
-3. **Coverage**: See the [Development Guide](development.md#coverage) for building with coverage instrumentation.
+For coverage builds and deeper environment details, see the [Development Guide](development.md).
 
 ---
 
@@ -147,6 +147,7 @@ tlang/
 Follow standard OCaml conventions:
 
 **Naming**:
+
 - `snake_case` for functions and variables
 - `PascalCase` for modules and types
 - `SCREAMING_CASE` for constants
@@ -167,11 +168,13 @@ let eval env expr =
 ```
 
 **Comments**:
+
 - Use `(* OCaml comments *)` for implementation notes
 - Document complex logic
 - Explain "why" not "what"
 
 **Pattern Matching**:
+
 - Exhaustively match all cases
 - Use `_` for catch-all only when intentional
 - Avoid deeply nested matches (extract functions)
@@ -191,6 +194,7 @@ a = mean(c.age)  -- Errors if NA present
 ```
 
 **Documentation**:
+
 - Include docstrings for new functions
 - Provide usage examples
 - Document parameters and return values
@@ -245,11 +249,13 @@ diff t_output.txt r_output.txt
 ### Test Coverage
 
 **Required**:
+
 - All new functions must have unit tests
 - Bug fixes must include regression tests
 - Performance claims must include benchmarks
 
 **Recommended**:
+
 - Test edge cases (empty lists, NA values, errors)
 - Test cross-platform behavior (Linux, macOS)
 - Test integration with existing features
@@ -318,6 +324,7 @@ Follow conventional commit format:
 ```
 
 **Types**:
+
 - `feat`: New feature
 - `fix`: Bug fix
 - `docs`: Documentation only
@@ -350,6 +357,7 @@ Add median function to stats package
 ```
 
 **Description**: Include:
+
 - What changed and why
 - Related issue numbers (`Fixes #42`, `Closes #17`)
 - Testing done
@@ -374,6 +382,7 @@ Fixes #42
 ```
 
 **Checklist**:
+
 - [ ] Code follows style guidelines
 - [ ] Tests added/updated
 - [ ] Documentation updated
@@ -430,11 +439,13 @@ Fixes #42
 ### Function Signature Guidelines
 
 **Parameters**:
+
 - Required parameters first
 - Optional parameters (e.g., `na_rm`) last
 - Use named arguments for clarity
 
 **Return values**:
+
 - Return values, not side effects (when possible)
 - Use `VError` for errors, not OCaml exceptions
 - Document return type in comments
@@ -465,6 +476,7 @@ if List.length values = 0 then
 ### Asking Good Questions
 
 Include:
+
 - What you're trying to do
 - What you've tried
 - Specific error messages
@@ -493,6 +505,7 @@ Environment: Ubuntu 22.04, OCaml 4.14.1
 ## Recognition
 
 Contributors are recognized in:
+
 - GitHub contributor graph
 - Release notes for significant contributions
 - `CONTRIBUTORS.md` file (coming soon)

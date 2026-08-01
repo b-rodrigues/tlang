@@ -116,7 +116,7 @@ seq(1, 10, by = 2)    -- [1, 3, 5, 7, 9]</code></pre>
 </tr>
 <tr>
 <td><code>Dict</code></td>
-<td><code>{x: 1, y: 2}</code></td>
+<td><code>[x: 1, y: 2]</code></td>
 <td>Key-value maps with string keys</td>
 </tr>
 <tr>
@@ -270,7 +270,8 @@ navigation</li>
 <li><strong>Multi-line input</strong> for open brackets, parentheses,
 and braces</li>
 <li><strong>Magic commands</strong> such as <code>:help</code>,
-<code>:quit</code>, and <code>:clear</code></li>
+<code>:quit</code>, <code>:version</code>, and
+<code>:packages</code></li>
 <li><strong>Signal-safe interrupts</strong> so <code>Ctrl+C</code>
 returns you to the prompt cleanly</li>
 </ul>
@@ -388,7 +389,7 @@ error(&quot;fail&quot;) ?|&gt; recovery |&gt; increment  -- 1</code></pre>
 <pre class="t"><code>result = if (5 &gt; 3) &quot;yes&quot; else &quot;no&quot;   -- &quot;yes&quot;</code></pre>
 <p>Conditionals are expressions — they return values.</p>
 <hr />
-<h2 id="pattern-matching-new">Pattern Matching (New)</h2>
+<h2 id="pattern-matching">Pattern Matching</h2>
 <p>T now supports pattern matching on lists and errors using the
 <code>match</code> expression. This addition provides a more declarative
 way to destructure data and handle error states.</p>
@@ -500,7 +501,7 @@ tail(numbers)    -- [2, 3]</code></pre>
 person.name  -- &quot;Alice&quot;
 person.age   -- 30</code></pre>
 <h3 id="dictionaries">Dictionaries</h3>
-<pre class="t"><code>config = {host: &quot;localhost&quot;, port: 8080}
+<pre class="t"><code>config = [host: &quot;localhost&quot;, port: 8080]
 config.host  -- &quot;localhost&quot;
 config.port  -- 8080</code></pre>
 <hr />
@@ -600,10 +601,11 @@ get(data, l_deep)            -- 1
 data_updated = over(data, l_deep, \(x) 99)
 get(data_updated, l_deep)    -- 99</code></pre>
 <blockquote>
-<p>[!NOTE] <strong>Serializable Pipelines</strong>: Tlang lenses are now
-implemented as structured data (<code>VLens</code>), not closures. This
-ensures they can be saved to disk by one pipeline node and loaded by
-another without losing functionality.</p>
+<p>[!NOTE] <strong>Serializable Pipelines</strong>: Pipeline lenses are
+first-class values that can be passed between pipeline nodes and
+serialized to disk. Use <code>mutate_node()</code> or
+<code>set_pipeline_global_options()</code> to apply a lens to a
+pipeline.</p>
 </blockquote>
 <hr />
 <h2 id="missing-values-na">Missing Values (NA)</h2>
@@ -925,6 +927,43 @@ a <code>ShellError</code> containing the <code>stderr</code> output.</p>
 <pre class="t"><code>result = ?&lt;{ls /nonexistent}&gt;
 is_error(result)  -- true</code></pre>
 <hr />
+<h2 id="foreign-code-blocks">Foreign Code Blocks
+(<code>&lt;{ }&gt;</code>)</h2>
+<p>The <code>&lt;{ ... }&gt;</code> syntax embeds <strong>verbatim
+foreign code</strong> — R, Python, Julia, or shell scripts — inside T.
+Everything between <code>&lt;{</code> and <code>}&gt;</code> is captured
+as a raw string without T interpreting it at all. This is the mechanism
+that makes polyglot pipeline nodes possible.</p>
+<p>The <code>&lt;{ }&gt;</code> block is used as the
+<code>command</code> argument to pipeline node constructors:</p>
+<pre class="t"><code>p = pipeline {
+  r_step = rn(
+    command = &lt;{
+      library(dplyr)
+      mtcars |&gt; filter(mpg &gt; 20)
+    }&gt;,
+    serializer = ^csv
+  )
+}</code></pre>
+<p>The R code inside <code>&lt;{ ... }&gt;</code> is stored verbatim. T
+never parses or executes it — T emits it into the Nix sandbox where the
+R runtime handles it when the node is built.</p>
+<p>Key properties: - <strong>Opaque to T</strong>: The lexer captures
+everything up to <code>}&gt;</code> as a single token; T never inspects
+the foreign code’s syntax. - <strong>Required for non-T
+runtimes</strong>: <code>rn()</code>, <code>pyn()</code>,
+<code>jln()</code>, <code>shn()</code>, and <code>qn()</code> all
+require their <code>command</code> to be wrapped in
+<code>&lt;{ }&gt;</code> (or use the <code>script</code> argument to
+point to an external file). - <strong>Identifier extraction</strong>:
+For pipeline dependency analysis, T scans <code>&lt;{ }&gt;</code>
+blocks to extract identifier-like tokens (words matching
+<code>[a-zA-Z_][a-zA-Z0-9_]*</code>), ignoring commented lines
+(<code>--</code> or <code>#</code>). This lets T detect cross-pipeline
+references. - <strong>Not for T nodes</strong>: Plain
+<code>node()</code> with <code>runtime = "T"</code> uses ordinary T
+expressions, not <code>&lt;{ }&gt;</code>.</p>
+<hr />
 <h2 id="pipelines">Pipelines</h2>
 <p>Pipelines define named computation nodes with automatic dependency
 resolution and provide the foundation for reproducible, polyglot
@@ -934,39 +973,40 @@ href="../examples/polyglot_pipeline.t"><code>examples/polyglot_pipeline.t</code>
 file. T supports R (<code>rn()</code>), Python (<code>pyn()</code>),
 Julia (<code>jln()</code>), Quarto (<code>qn()</code>), and Shell
 (<code>shn()</code>) nodes out of the box.</p>
-<p>Built-in serializer keywords include <code>"csv"</code>,
-<code>"arrow"</code>, <code>"pmml"</code>, and <code>"onnx"</code> (or
-<code>^csv</code>, <code>^arrow</code>, <code>^pmml</code>,
-<code>^onnx</code> when referencing the first-class serializer values
-directly).</p>
+<p>Built-in serializer symbols include <code>^csv</code>,
+<code>^arrow</code>, <code>^pmml</code>, and <code>^onnx</code>, which
+you pass to node constructors like <code>serializer = ^csv</code>.</p>
 <p>The <strong>ONNX</strong> system provides full cross-runtime model
-portability: - <strong><code>^onnx</code> Serializer</strong>:
-Automatically handles model export/import between R, Python, and T
-nodes. - <strong>Native Inference</strong>: Use
-<code>t_read_onnx()</code> to load models and <code>predict()</code> for
-high-performance scoring directly inside T nodes, with no dependency on
-R or Python at prediction time. - <strong>Rich Metadata</strong>:
-T-native ONNX objects contain input/output schema and custom model
-properties (producer, description, feature names) extracted directly
-from the session.</p>
+portability:</p>
+<ul>
+<li><strong><code>^onnx</code> Serializer</strong>: Automatically
+handles model export/import between R, Python, and T nodes.</li>
+<li><strong>Native Inference</strong>: Use <code>t_read_onnx()</code> to
+load models and <code>predict()</code> for high-performance scoring
+directly inside T nodes, with no dependency on R or Python at prediction
+time.</li>
+<li><strong>Rich Metadata</strong>: T-native ONNX objects contain
+input/output schema and custom model properties (producer, description,
+feature names) extracted directly from the session.</li>
+</ul>
 <pre class="t"><code>p = pipeline {
   -- 1. Load data natively in T (CSV backend)
   data = node(
     command = read_csv(&quot;examples/sample_data.csv&quot;) |&gt; filter($age &gt; 25),
-    serializer = &quot;csv&quot;
+    serializer = ^csv
   )
   
   -- 2. Train a statistical model in R (using the rn() wrapper)
   model_r = rn(
     command = &lt;{ lm(score ~ age, data = data) }&gt;,
-    serializer = &quot;pmml&quot;,
-    deserializer = &quot;csv&quot;
+    serializer = ^pmml,
+    deserializer = ^csv
   )
   
   -- 3. Predict natively in T (no R/Python runtime needed for evaluation!)
   predictions = node(
     command = data |&gt; mutate($pred = predict(data, model_r)),
-    deserializer = &quot;pmml&quot;
+    deserializer = ^pmml
   )
 
   -- 4. Generate a shell report
@@ -1021,19 +1061,25 @@ to an external file using <code>script</code>. <code>command</code> and
 <code>script</code> are mutually exclusive, and the runtime can be
 inferred from file extensions such as <code>.R</code> or
 <code>.py</code>.</p>
-<p>Pipeline features: - <strong>Automatic dependency
-resolution</strong>: Nodes can be declared in any order -
-<strong>Deterministic execution</strong>: Same inputs always produce
-same outputs - <strong>Cycle detection</strong>: Circular dependencies
-are caught and reported - <strong>Introspection</strong>:
-<code>pipeline_nodes()</code>, <code>pipeline_deps()</code>,
-<code>pipeline_node()</code> - <strong>Cross-language</strong>:
-<code>node()</code>, <code>py()</code>/<code>pyn()</code>,
-<code>rn()</code>, and <code>shn()</code> enable execution in T, Python,
-R, and shell runtimes - <strong>Environment Variables</strong>: Pass
-custom variables into Nix build sandboxes via <code>env_vars</code> -
-<strong>Re-run</strong>: <code>pipeline_run()</code> re-executes the
-pipeline</p>
+<p>Pipeline features:</p>
+<ul>
+<li><strong>Automatic dependency resolution</strong>: Nodes can be
+declared in any order</li>
+<li><strong>Deterministic execution</strong>: Same inputs always produce
+same outputs</li>
+<li><strong>Cycle detection</strong>: Circular dependencies are caught
+and reported</li>
+<li><strong>Introspection</strong>: <code>pipeline_nodes()</code>,
+<code>pipeline_deps()</code>, <code>pipeline_node()</code></li>
+<li><strong>Cross-language</strong>: <code>node()</code>,
+<code>pyn()</code>, <code>rn()</code>, <code>jln()</code>,
+<code>qn()</code>, and <code>shn()</code> enable execution in T, Python,
+R, Julia, Quarto, and shell runtimes</li>
+<li><strong>Environment Variables</strong>: Pass custom variables into
+Nix build sandboxes via <code>env_vars</code></li>
+<li><strong>Re-run</strong>: <code>pipeline_run()</code> re-executes the
+pipeline</li>
+</ul>
 <p>You can also inspect and transform pipelines without rebuilding them
 from scratch:</p>
 <pre class="t"><code>p_full = p_etl |&gt; union(p_model)
@@ -1175,9 +1221,9 @@ functions:</p>
 </ul>
 <h4 id="pipelines-1">Pipelines</h4>
 <ul>
-<li><code>node(command :: Any, script :: String, runtime = "T", serializer = "default", deserializer = "default", functions = [], include = [], noop = false) :: Any</code></li>
-<li><code>pyn(command :: Any, script :: String, serializer = "default", deserializer = "default", functions = [], include = [], noop = false) :: Any</code></li>
-<li><code>rn(command :: Any, script :: String, serializer = "default", deserializer = "default", functions = [], include = [], noop = false) :: Any</code></li>
+<li><code>node(command :: Any, script :: String, runtime = T, serializer = default, deserializer = default, functions = [], include = [], noop = false) :: Any</code></li>
+<li><code>pyn(command :: Any, script :: String, serializer = default, deserializer = default, functions = [], include = [], noop = false) :: Any</code></li>
+<li><code>rn(command :: Any, script :: String, serializer = default, deserializer = default, functions = [], include = [], noop = false) :: Any</code></li>
 <li><code>build_pipeline(pipeline :: Pipeline) :: NA</code></li>
 <li><code>pipeline_run(pipeline :: Pipeline) :: Pipeline</code></li>
 <li><code>pipeline_nodes(p :: Pipeline) :: List[String]</code></li>
@@ -1265,10 +1311,9 @@ type(3.14)           -- &quot;Float&quot;
 type(true)           -- &quot;Bool&quot;
 type(&quot;hello&quot;)        -- &quot;String&quot;
 type([1, 2])         -- &quot;List&quot;
-type({x: 1})         -- &quot;Dict&quot;
+type([x: 1])         -- &quot;Dict&quot;
 type(NA)             -- &quot;NA&quot;
-type(1 / 0)          -- &quot;Error&quot;
-type(NA)           -- &quot;NA&quot;</code></pre>
+type(1 / 0)          -- &quot;Error&quot;</code></pre>
 <hr />
 <h2 id="next-steps">Next Steps</h2>
 <p>Now that you have a solid grasp of T’s syntax and core features,

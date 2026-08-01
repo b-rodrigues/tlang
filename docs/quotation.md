@@ -76,6 +76,7 @@ e = to_expr(select(df, age, height))
 ### `eval(expr_or_quosure)`
 
 The `eval()` function evaluates an Expression or Quosure:
+
 - **Expression**: evaluated in the *current* environment.
 - **Quosure**: evaluated in its *captured* environment.
 

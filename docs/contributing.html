@@ -137,45 +137,53 @@ class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb1-1"><
 <span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>Expected: <span class="in">`1e10`</span>, Got: <span class="in">`9.99999e9`</span></span>
 <span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>**Environment**:</span>
-<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>OS: Ubuntu 22.04</span>
-<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Nix: 2.13.3</span>
-<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>OCaml: 4.14.1</span></code></pre></div>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>OS: Ubuntu 22.04</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Nix: 2.13.3</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>OCaml: 4.14.1</span></code></pre></div>
 <h3 id="suggesting-features">Suggesting Features</h3>
-<p><strong>Before suggesting</strong>, consider: - Is it aligned with
-T’s design goals (reproducibility, explicitness, data analysis)? - Is it
-too broad or general-purpose? - Could it be a library instead of core
-language feature?</p>
+<p><strong>Before suggesting</strong>, consider:</p>
+<ul>
+<li>Is it aligned with T’s design goals (reproducibility, explicitness,
+data analysis)?</li>
+<li>Is it too broad or general-purpose?</li>
+<li>Could it be a library instead of core language feature?</li>
+</ul>
 <p><strong>When suggesting</strong>: 1. Clearly describe the problem it
 solves 2. Provide concrete examples 3. Discuss alternatives</p>
 <h3 id="contributing-code">Contributing Code</h3>
-<p>We welcome: - Bug fixes - New standard library functions -
-Performance improvements - Documentation improvements - Test coverage
-expansion</p>
+<p>We welcome:</p>
+<ul>
+<li>Bug fixes</li>
+<li>New standard library functions</li>
+<li>Performance improvements</li>
+<li>Documentation improvements</li>
+<li>Test coverage expansion</li>
+</ul>
 <p><strong>Good first issues</strong> are tagged with
 <code>good-first-issue</code> in GitHub.</p>
 <h3 id="improving-documentation">Improving Documentation</h3>
-<p>Documentation contributions are highly valued: - Fix typos and
-grammatical errors - Add examples to existing docs - Write tutorials for
-common workflows - Improve API reference clarity</p>
+<p>Documentation contributions are highly valued:</p>
+<ul>
+<li>Fix typos and grammatical errors</li>
+<li>Add examples to existing docs</li>
+<li>Write tutorials for common workflows</li>
+<li>Improve API reference clarity</li>
+</ul>
 <hr />
 <h2 id="development-setup">Development Setup</h2>
-<p>See the <a href="development.html">Development Guide</a> for detailed
-setup instructions.</p>
-<p><strong>Quick Start</strong>:</p>
-<ol type="1">
-<li><p><strong>Install Nix</strong>: Follow the <a
-href="nix-installation.html">Nix Installation Guide</a>.</p></li>
-<li><p><strong>Clone and Build</strong>:</p>
+<p>The repository’s <code>flake.nix</code> provides the complete
+development toolchain — OCaml compiler, Menhir parser generator,
+development tools, and all library dependencies. There is nothing to
+install separately.</p>
 <div class="sourceCode" id="cb2"><pre
 class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone https://github.com/b-rodrigues/tlang.git</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> tlang</span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> develop</span>
 <span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="ex">dune</span> build</span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a> <span class="ex">dune</span> runtest</span></code></pre></div></li>
-<li><p><strong>Coverage</strong>: See the <a
-href="development.md#coverage">Development Guide</a> for building with
-coverage instrumentation.</p></li>
-</ol>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="ex">dune</span> runtest</span></code></pre></div>
+<p>For coverage builds and deeper environment details, see the <a
+href="development.html">Development Guide</a>.</p>
 <hr />
 <h2 id="project-structure">Project Structure</h2>
 <pre><code>tlang/
@@ -212,9 +220,12 @@ coverage instrumentation.</p></li>
 <h2 id="coding-standards">Coding Standards</h2>
 <h3 id="ocaml-style">OCaml Style</h3>
 <p>Follow standard OCaml conventions:</p>
-<p><strong>Naming</strong>: - <code>snake_case</code> for functions and
-variables - <code>PascalCase</code> for modules and types -
-<code>SCREAMING_CASE</code> for constants</p>
+<p><strong>Naming</strong>:</p>
+<ul>
+<li><code>snake_case</code> for functions and variables</li>
+<li><code>PascalCase</code> for modules and types</li>
+<li><code>SCREAMING_CASE</code> for constants</li>
+</ul>
 <p><strong>Formatting</strong>:</p>
 <div class="sourceCode" id="cb4"><pre
 class="sourceCode ocaml"><code class="sourceCode ocaml"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co">(* Use ocamlformat for automatic formatting *)</span></span>
@@ -228,12 +239,18 @@ class="sourceCode ocaml"><code class="sourceCode ocaml"><span id="cb4-1"><a href
 <span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>      <span class="kw">let</span> v_right = eval env right <span class="kw">in</span></span>
 <span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>      eval_binop op v_left v_right</span>
 <span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>  | _ -&gt; <span class="dt">failwith</span> <span class="st">&quot;Not implemented&quot;</span></span></code></pre></div>
-<p><strong>Comments</strong>: - Use <code>(* OCaml comments *)</code>
-for implementation notes - Document complex logic - Explain “why” not
-“what”</p>
-<p><strong>Pattern Matching</strong>: - Exhaustively match all cases -
-Use <code>_</code> for catch-all only when intentional - Avoid deeply
-nested matches (extract functions)</p>
+<p><strong>Comments</strong>:</p>
+<ul>
+<li>Use <code>(* OCaml comments *)</code> for implementation notes</li>
+<li>Document complex logic</li>
+<li>Explain “why” not “what”</li>
+</ul>
+<p><strong>Pattern Matching</strong>:</p>
+<ul>
+<li>Exhaustively match all cases</li>
+<li>Use <code>_</code> for catch-all only when intentional</li>
+<li>Avoid deeply nested matches (extract functions)</li>
+</ul>
 <h3 id="t-language-style">T Language Style</h3>
 <p><strong>Example programs</strong> should demonstrate best
 practices:</p>
@@ -244,9 +261,12 @@ avg_age = mean(customers.age, na_rm = true)
 -- Bad: Cryptic names, implicit NA behavior
 c = read_csv(&quot;data.csv&quot;)
 a = mean(c.age)  -- Errors if NA present</code></pre>
-<p><strong>Documentation</strong>: - Include docstrings for new
-functions - Provide usage examples - Document parameters and return
-values</p>
+<p><strong>Documentation</strong>:</p>
+<ul>
+<li>Include docstrings for new functions</li>
+<li>Provide usage examples</li>
+<li>Document parameters and return values</li>
+</ul>
 <hr />
 <h2 id="testing-requirements">Testing Requirements</h2>
 <h3 id="unit-tests">Unit Tests</h3>
@@ -278,12 +298,18 @@ class="sourceCode bash"><code class="sourceCode bash"><span id="cb9-1"><a href="
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="ex">Rscript</span> tests/golden/mean.R <span class="op">&gt;</span> r_output.txt</span>
 <span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="fu">diff</span> t_output.txt r_output.txt</span></code></pre></div>
 <h3 id="test-coverage">Test Coverage</h3>
-<p><strong>Required</strong>: - All new functions must have unit tests -
-Bug fixes must include regression tests - Performance claims must
-include benchmarks</p>
-<p><strong>Recommended</strong>: - Test edge cases (empty lists, NA
-values, errors) - Test cross-platform behavior (Linux, macOS) - Test
-integration with existing features</p>
+<p><strong>Required</strong>:</p>
+<ul>
+<li>All new functions must have unit tests</li>
+<li>Bug fixes must include regression tests</li>
+<li>Performance claims must include benchmarks</li>
+</ul>
+<p><strong>Recommended</strong>:</p>
+<ul>
+<li>Test edge cases (empty lists, NA values, errors)</li>
+<li>Test cross-platform behavior (Linux, macOS)</li>
+<li>Test integration with existing features</li>
+</ul>
 <h3 id="running-tests">Running Tests</h3>
 <div class="sourceCode" id="cb10"><pre
 class="sourceCode bash"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co"># All tests</span></span>
@@ -334,11 +360,16 @@ class="sourceCode bash"><code class="sourceCode bash"><span id="cb15-1"><a href=
 &lt;body&gt;
 
 &lt;footer&gt;</code></pre>
-<p><strong>Types</strong>: - <code>feat</code>: New feature -
-<code>fix</code>: Bug fix - <code>docs</code>: Documentation only -
-<code>style</code>: Formatting, no code change - <code>refactor</code>:
-Code refactor - <code>test</code>: Add or fix tests -
-<code>chore</code>: Build, CI, tooling</p>
+<p><strong>Types</strong>:</p>
+<ul>
+<li><code>feat</code>: New feature</li>
+<li><code>fix</code>: Bug fix</li>
+<li><code>docs</code>: Documentation only</li>
+<li><code>style</code>: Formatting, no code change</li>
+<li><code>refactor</code>: Code refactor</li>
+<li><code>test</code>: Add or fix tests</li>
+<li><code>chore</code>: Build, CI, tooling</li>
+</ul>
 <p><strong>Examples</strong>:</p>
 <pre><code>feat(stats): Add median function
 
@@ -352,9 +383,14 @@ This caused incorrect behavior in nested functions.</code></pre>
 <h3 id="pull-request-guidelines">Pull Request Guidelines</h3>
 <p><strong>Title</strong>: Clear and descriptive</p>
 <pre><code>Add median function to stats package</code></pre>
-<p><strong>Description</strong>: Include: - What changed and why -
-Related issue numbers (<code>Fixes #42</code>, <code>Closes #17</code>)
-- Testing done - Screenshots (for UI/output changes)</p>
+<p><strong>Description</strong>: Include:</p>
+<ul>
+<li>What changed and why</li>
+<li>Related issue numbers (<code>Fixes #42</code>,
+<code>Closes #17</code>)</li>
+<li>Testing done</li>
+<li>Screenshots (for UI/output changes)</li>
+</ul>
 <p><strong>Example</strong>:</p>
 <div class="sourceCode" id="cb20"><pre
 class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="fu">## Summary</span></span>
@@ -371,9 +407,16 @@ class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb20-1">
 <span id="cb20-12"><a href="#cb20-12" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Tested with NA values (na_rm parameter)</span>
 <span id="cb20-13"><a href="#cb20-13" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb20-14"><a href="#cb20-14" aria-hidden="true" tabindex="-1"></a>Fixes #42</span></code></pre></div>
-<p><strong>Checklist</strong>: - [ ] Code follows style guidelines - [ ]
-Tests added/updated - [ ] Documentation updated - [ ] All tests pass - [
-] Commit messages are clear</p>
+<p><strong>Checklist</strong>:</p>
+<ul class="task-list">
+<li><label><input type="checkbox" />Code follows style
+guidelines</label></li>
+<li><label><input type="checkbox" />Tests added/updated</label></li>
+<li><label><input type="checkbox" />Documentation updated</label></li>
+<li><label><input type="checkbox" />All tests pass</label></li>
+<li><label><input type="checkbox" />Commit messages are
+clear</label></li>
+</ul>
 <hr />
 <h2 id="review-process">Review Process</h2>
 <h3 id="what-reviewers-look-for">What Reviewers Look For</h3>
@@ -429,12 +472,18 @@ class="sourceCode ocaml"><code class="sourceCode ocaml"><span id="cb21-1"><a hre
 </ol>
 <h3 id="function-signature-guidelines">Function Signature
 Guidelines</h3>
-<p><strong>Parameters</strong>: - Required parameters first - Optional
-parameters (e.g., <code>na_rm</code>) last - Use named arguments for
-clarity</p>
-<p><strong>Return values</strong>: - Return values, not side effects
-(when possible) - Use <code>VError</code> for errors, not OCaml
-exceptions - Document return type in comments</p>
+<p><strong>Parameters</strong>:</p>
+<ul>
+<li>Required parameters first</li>
+<li>Optional parameters (e.g., <code>na_rm</code>) last</li>
+<li>Use named arguments for clarity</li>
+</ul>
+<p><strong>Return values</strong>:</p>
+<ul>
+<li>Return values, not side effects (when possible)</li>
+<li>Use <code>VError</code> for errors, not OCaml exceptions</li>
+<li>Document return type in comments</li>
+</ul>
 <p><strong>Error handling</strong>:</p>
 <div class="sourceCode" id="cb22"><pre
 class="sourceCode ocaml"><code class="sourceCode ocaml"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="co">(* Good: Return VError *)</span></span>
@@ -458,9 +507,14 @@ show-and-tell</li>
 discussion</li>
 </ul>
 <h3 id="asking-good-questions">Asking Good Questions</h3>
-<p>Include: - What you’re trying to do - What you’ve tried - Specific
-error messages - Minimal reproducible example - Your environment (OS,
-versions)</p>
+<p>Include:</p>
+<ul>
+<li>What you’re trying to do</li>
+<li>What you’ve tried</li>
+<li>Specific error messages</li>
+<li>Minimal reproducible example</li>
+<li>Your environment (OS, versions)</li>
+</ul>
 <p><strong>Example</strong>:</p>
 <div class="sourceCode" id="cb23"><pre
 class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a>I&#39;m trying to add a new window function <span class="in">`row_min()`</span> but getting a type error:</span>
@@ -476,9 +530,12 @@ the conversion happens.</p>
 <p>Environment: Ubuntu 22.04, OCaml 4.14.1 ```</p>
 <hr />
 <h2 id="recognition">Recognition</h2>
-<p>Contributors are recognized in: - GitHub contributor graph - Release
-notes for significant contributions - <code>CONTRIBUTORS.md</code> file
-(coming soon)</p>
+<p>Contributors are recognized in:</p>
+<ul>
+<li>GitHub contributor graph</li>
+<li>Release notes for significant contributions</li>
+<li><code>CONTRIBUTORS.md</code> file (coming soon)</li>
+</ul>
 <hr />
 <h2 id="license">License</h2>
 <p>By contributing, you agree that your contributions will be licensed

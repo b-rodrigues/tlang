@@ -33,7 +33,7 @@ This page lists real-world T projects that demonstrate the power of polyglot, re
 - **Description**: Moving trained models between high-level languages and T's native scoring engine.
 - **Key Features**: `predict()` across language boundaries, standardized model storage.
 
-### [Julia Interop](julia_interop_t.html)
+### [Julia Interop](https://github.com/b-rodrigues/t_demos/tree/master/julia_interop_t)
 - **Repo**: `julia_interop_t`
 - **Description**: Demonstrates first-class support for Julia nodes and CSV data interchange.
 - **Key Features**: `jln()`, automatic Julia environment provisioning.
@@ -45,7 +45,7 @@ This page lists real-world T projects that demonstrate the power of polyglot, re
 
 ## Meta-programming & Introspection
 
-### [Dynamic Lookup & Symbols](metaprogramming.html)
+### [Dynamic Lookup & Symbols](https://github.com/b-rodrigues/t_demos/tree/master/get_sym_demo_t)
 - **Repo**: `get_sym_demo_t`
 - **Description**: Showcases runtime variable lookup and symbol construction for dynamic orchestration.
 - **Key Features**: `get()`, `to_symbol()`, dynamic node access.
@@ -58,7 +58,7 @@ To try any of these demos locally:
 
 1.  **Clone the demos repository**:
     ```bash
-    git clone https://github.com/tstats-project/t_demos
+    git clone https://github.com/b-rodrigues/t_demos
     cd t_demos/<project_name>
     ```
 2.  **Bootstrap the T environment**:

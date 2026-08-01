@@ -36,23 +36,26 @@ node(..., serializer = my_ser)
 ```
 
 > [!IMPORTANT]
-> **String literals (e.g., `serializer = "arrow"`) are strictly disallowed.** You must use either a symbol with the `^` prefix for built-ins or a variable name for custom serializers. Using a string literal will result in a `TypeError`.
+> **String literals (e.g., `serializer = "arrow"`) are strictly disallowed in node constructors** (`rn()`, `pyn()`, `jln()`, `shn()`, `qn()`, `node()`). You must use either a symbol with the `^` prefix for built-ins or a variable name for custom serializers. Using a string literal in a node constructor will result in a `TypeError`.
+>
+> `mutate_node()` and `set_pipeline_global_options()` accept both strings and symbols: `mutate_node($serializer = "pmml")` and `set_pipeline_global_options(p, serializer = ^pmml)` are both valid.
 
 
 ### Implicit Serialization
-If you don't specify a serializer, T uses the `^tlang` (internal binary) format for T-to-T communication. For other runtimes, T attempts to infer a sensible default based on the data type or the specific wrapper used (e.g., `shn()` defaults to `^text`).
+If you don't specify a serializer, T uses the `default` serializer, which selects each runtime's native binary format for in-language interchange (`serialize` for T, `saveRDS` for R, `pickle` for Python, and Julia's `Serialization` package). For shell nodes, `shn()` defaults to `^text`.
 
 ## 2. Built-in Serializers
 
-| Identifier | Name | Best For | Compatibility |
-|---|---|---|---|
-| `^tlang` | T-Native | T-to-T interchange | T only |
-| `^arrow` | Apache Arrow | Large DataFrames | T, R, Python, Julia |
-| `^pmml` | PMML | Predictive Models | T, R, Python |
-| `^onnx` | ONNX | ML Models | T, R, Python, Julia (read/inference) |
-| `^json` | JSON | Config, lists, dicts | T, R, Python, Julia |
-| `^csv` | CSV | Tabular data | T, R, Python, Julia |
-| `^text` | Plain Text | Logs, shell output | All |
+| Identifier | Name | Best For | Write support | Read support | Notes |
+|---|---|---|---|---|---|
+| `^tlang` | T-Native | T-to-T interchange | T | T | Internal binary format |
+| `^arrow` | Apache Arrow | Large DataFrames | T, R, Python, Julia | T, R, Python, Julia | Fully symmetric across all runtimes |
+| `^csv` | CSV | Tabular data | T, R, Python, Julia | T, R, Python, Julia | Fully symmetric; R uses base `write.csv`/`read.csv` |
+| `^json` | JSON | Config, lists, dicts | T, R, Python, Julia | T, R, Python, Julia | Fully symmetric; Python uses stdlib |
+| `^pmml` | PMML | Predictive Models | T, R, Python, Julia | T, R, Python, Julia | Julia writer: GLM.jl → PMML 4.4; Julia reader: JPMML evaluator via `JavaCall` |
+| `^onnx` | ONNX | ML Models | T, R, Python | T, R, Python, Julia | Julia: inference only (`ONNXRunTime.jl`); export is experimental/limited |
+| `^text` | Plain Text | Logs, shell output | All | All | Raw text, no format constraints |
+| `^bin` | Binary | Passthrough, fetchurl | T | T | Opaque binary blob; default for `fetchurl()` nodes |
 
 ## 3. The `serializer` Structure
 
@@ -108,7 +111,26 @@ node B {
 
 This prevents runtime errors after long-running computations by catching interchange mismatches at the start of the build.
 
-## 5. Polyglot Support
+## 5. Serializer Runtime Dependencies
+
+When you build a pipeline, T scans every node's serializer and runtime to determine which packages are needed, then checks `tproject.toml` for those packages. If any are missing, T **prompts you** with the exact `[r-dependencies]`, `[py-dependencies]`, and `[jl-dependencies]` entries to add before proceeding. You must then run `t update` and re-enter `nix develop` for the packages to become available. (Set `TLANG_AUTO_ADD_PIPELINE_DEPS=1` to skip the prompt in CI — T auto-appends the missing entries and exits with instructions to rerun the build.)
+
+The table below shows which packages each format pulls in per runtime:
+
+| Format | R packages | Python packages | Julia packages |
+|--------|-----------|----------------|---------------|
+| `^csv` | *(base R)* | `pandas` | `CSV`, `DataFrames` |
+| `^arrow` | `arrow` | `pandas`, `pyarrow` | `Arrow`, `DataFrames` |
+| `^json` | `jsonlite` | *(stdlib)* | `JSON` |
+| `^pmml` | `XML`, `jsonlite`, `r2pmml` | `numpy`, `pandas`, `pyarrow`, `scikit-learn`, `scipy`, `sklearn2pmml`, `statsmodels` | `GLM`, `JavaCall` |
+| `^onnx` | `onnx` | `onnxruntime`, `skl2onnx` | `ONNXRunTime`, `ONNX` |
+| `^text` | *(base R)* | *(stdlib)* | *(stdlib)* |
+| `^bin` | *(none)* | *(none)* | *(none)* |
+| `default` | *(none)* | *(stdlib pickle)* | *(stdlib Serialization)* |
+
+The `^pmml` format also requires the `jre` system tool for R, Python, and Julia nodes (for JPMML evaluator execution). Add `"jre"` to `[additional-tools].packages` in `tproject.toml`.
+
+## 6. Polyglot Support
 
 For cross-language nodes, serializers provide the necessary glue code for the target runtime. For example, when using `^arrow` in an R node:
 
@@ -152,4 +174,10 @@ If you use a custom format name (e.g., `format: "myformat"`), you should ensure 
 
 For ONNX specifically, Julia nodes read model artifacts through `ONNXRunTime.jl` via the built-in `jl_read_onnx()` helper. Julia ONNX export is not supported yet, so `jl_write_onnx()` fails explicitly instead of silently falling back to another format.
 
-For more information on how pipelines use these serializers, see the [Pipeline Tutorial](pipeline_tutorial.md). For a model-focused walkthrough of `^pmml`, see the [PMML Tutorial](pmml_tutorial.md).
+---
+
+## Next Steps
+
+1. **[Pipeline Tutorial](pipeline_tutorial.md)** — Learn how pipelines use serializers for polyglot data interchange.
+2. **[Data I/O & Formats](data-formats.md)** — Read and write CSV, Parquet, and Arrow IPC files; download data from URLs.
+3. **[Project Development](project_development.md)** — Declare runtime dependencies so serializer packages are available at build time.

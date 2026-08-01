@@ -6,7 +6,7 @@
 This guide takes you from a bare machine to a working polyglot pipeline. T itself is
 never installed — you install Nix, then bootstrap a project that pins its own copy of
 the T toolchain. If you already have a T project created with `t init --project`, skip
-straight to [section 1](#1-enter-the-project-environment).
+straight to [section 1](#enter-the-project-environment).
 
 ## 0. Bootstrap a project
 
@@ -174,9 +174,11 @@ Once this quick pipeline works, continue in this order:
 
 1. [Configure Editors](editors.md) — Set up syntax highlighting, LSP support,
    and formatting conveniences.
-2. [Language Overview](language_overview.md) — Learn T expressions, data types,
+2. [Data I/O & Formats](data-formats.md) — Read CSV, Parquet, and Arrow IPC files;
+   download data from URLs; understand NA handling.
+3. [Language Overview](language_overview.md) — Learn T expressions, data types,
    functions, and pipes.
-3. [Pipeline Tutorial](pipeline_tutorial.md) — Go deeper into dependency graphs,
+4. [Pipeline Tutorial](pipeline_tutorial.md) — Go deeper into dependency graphs,
    serializers, materialization, error handling, and larger DAGs.
-4. [Project Development](project_development.md) — Learn more about
+5. [Project Development](project_development.md) — Learn more about
    `tproject.toml`, Nix environments, tests, and project structure.

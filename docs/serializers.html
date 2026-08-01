@@ -72,25 +72,44 @@ import &quot;src/my_ser.t&quot; [my_ser]
 node(..., serializer = my_ser)</code></pre>
 <blockquote>
 <p>[!IMPORTANT] <strong>String literals (e.g.,
-<code>serializer = "arrow"</code>) are strictly disallowed.</strong> You
-must use either a symbol with the <code>^</code> prefix for built-ins or
-a variable name for custom serializers. Using a string literal will
-result in a <code>TypeError</code>.</p>
+<code>serializer = "arrow"</code>) are strictly disallowed in node
+constructors</strong> (<code>rn()</code>, <code>pyn()</code>,
+<code>jln()</code>, <code>shn()</code>, <code>qn()</code>,
+<code>node()</code>). You must use either a symbol with the
+<code>^</code> prefix for built-ins or a variable name for custom
+serializers. Using a string literal in a node constructor will result in
+a <code>TypeError</code>.</p>
+<p><code>mutate_node()</code> and
+<code>set_pipeline_global_options()</code> accept both strings and
+symbols: <code>mutate_node($serializer = "pmml")</code> and
+<code>set_pipeline_global_options(p, serializer = ^pmml)</code> are both
+valid.</p>
 </blockquote>
 <h3 id="implicit-serialization">Implicit Serialization</h3>
-<p>If you don’t specify a serializer, T uses the <code>^tlang</code>
-(internal binary) format for T-to-T communication. For other runtimes, T
-attempts to infer a sensible default based on the data type or the
-specific wrapper used (e.g., <code>shn()</code> defaults to
-<code>^text</code>).</p>
+<p>If you don’t specify a serializer, T uses the <code>default</code>
+serializer, which selects each runtime’s native binary format for
+in-language interchange (<code>serialize</code> for T,
+<code>saveRDS</code> for R, <code>pickle</code> for Python, and Julia’s
+<code>Serialization</code> package). For shell nodes, <code>shn()</code>
+defaults to <code>^text</code>.</p>
 <h2 id="built-in-serializers">2. Built-in Serializers</h2>
-<table>
+<table style="width:100%;">
+<colgroup>
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+</colgroup>
 <thead>
 <tr>
 <th>Identifier</th>
 <th>Name</th>
 <th>Best For</th>
-<th>Compatibility</th>
+<th>Write support</th>
+<th>Read support</th>
+<th>Notes</th>
 </tr>
 </thead>
 <tbody>
@@ -98,43 +117,68 @@ specific wrapper used (e.g., <code>shn()</code> defaults to
 <td><code>^tlang</code></td>
 <td>T-Native</td>
 <td>T-to-T interchange</td>
-<td>T only</td>
+<td>T</td>
+<td>T</td>
+<td>Internal binary format</td>
 </tr>
 <tr>
 <td><code>^arrow</code></td>
 <td>Apache Arrow</td>
 <td>Large DataFrames</td>
 <td>T, R, Python, Julia</td>
-</tr>
-<tr>
-<td><code>^pmml</code></td>
-<td>PMML</td>
-<td>Predictive Models</td>
-<td>T, R, Python</td>
-</tr>
-<tr>
-<td><code>^onnx</code></td>
-<td>ONNX</td>
-<td>ML Models</td>
-<td>T, R, Python, Julia (read/inference)</td>
-</tr>
-<tr>
-<td><code>^json</code></td>
-<td>JSON</td>
-<td>Config, lists, dicts</td>
 <td>T, R, Python, Julia</td>
+<td>Fully symmetric across all runtimes</td>
 </tr>
 <tr>
 <td><code>^csv</code></td>
 <td>CSV</td>
 <td>Tabular data</td>
 <td>T, R, Python, Julia</td>
+<td>T, R, Python, Julia</td>
+<td>Fully symmetric; R uses base
+<code>write.csv</code>/<code>read.csv</code></td>
+</tr>
+<tr>
+<td><code>^json</code></td>
+<td>JSON</td>
+<td>Config, lists, dicts</td>
+<td>T, R, Python, Julia</td>
+<td>T, R, Python, Julia</td>
+<td>Fully symmetric; Python uses stdlib</td>
+</tr>
+<tr>
+<td><code>^pmml</code></td>
+<td>PMML</td>
+<td>Predictive Models</td>
+<td>T, R, Python, Julia</td>
+<td>T, R, Python, Julia</td>
+<td>Julia writer: GLM.jl → PMML 4.4; Julia reader: JPMML evaluator via
+<code>JavaCall</code></td>
+</tr>
+<tr>
+<td><code>^onnx</code></td>
+<td>ONNX</td>
+<td>ML Models</td>
+<td>T, R, Python</td>
+<td>T, R, Python, Julia</td>
+<td>Julia: inference only (<code>ONNXRunTime.jl</code>); export is
+experimental/limited</td>
 </tr>
 <tr>
 <td><code>^text</code></td>
 <td>Plain Text</td>
 <td>Logs, shell output</td>
 <td>All</td>
+<td>All</td>
+<td>Raw text, no format constraints</td>
+</tr>
+<tr>
+<td><code>^bin</code></td>
+<td>Binary</td>
+<td>Passthrough, fetchurl</td>
+<td>T</td>
+<td>T</td>
+<td>Opaque binary blob; default for <code>fetchurl()</code> nodes</td>
 </tr>
 </tbody>
 </table>
@@ -187,7 +231,95 @@ node B {
 -- &quot;Format mismatch: Node A produces ^csv, but Node B expects ^arrow.&quot;</code></pre>
 <p>This prevents runtime errors after long-running computations by
 catching interchange mismatches at the start of the build.</p>
-<h2 id="polyglot-support">5. Polyglot Support</h2>
+<h2 id="serializer-runtime-dependencies">5. Serializer Runtime
+Dependencies</h2>
+<p>When you build a pipeline, T scans every node’s serializer and
+runtime to determine which packages are needed, then checks
+<code>tproject.toml</code> for those packages. If any are missing, T
+<strong>prompts you</strong> with the exact
+<code>[r-dependencies]</code>, <code>[py-dependencies]</code>, and
+<code>[jl-dependencies]</code> entries to add before proceeding. You
+must then run <code>t update</code> and re-enter
+<code>nix develop</code> for the packages to become available. (Set
+<code>TLANG_AUTO_ADD_PIPELINE_DEPS=1</code> to skip the prompt in CI — T
+auto-appends the missing entries and exits with instructions to rerun
+the build.)</p>
+<p>The table below shows which packages each format pulls in per
+runtime:</p>
+<table>
+<colgroup>
+<col style="width: 16%" />
+<col style="width: 22%" />
+<col style="width: 32%" />
+<col style="width: 30%" />
+</colgroup>
+<thead>
+<tr>
+<th>Format</th>
+<th>R packages</th>
+<th>Python packages</th>
+<th>Julia packages</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>^csv</code></td>
+<td><em>(base R)</em></td>
+<td><code>pandas</code></td>
+<td><code>CSV</code>, <code>DataFrames</code></td>
+</tr>
+<tr>
+<td><code>^arrow</code></td>
+<td><code>arrow</code></td>
+<td><code>pandas</code>, <code>pyarrow</code></td>
+<td><code>Arrow</code>, <code>DataFrames</code></td>
+</tr>
+<tr>
+<td><code>^json</code></td>
+<td><code>jsonlite</code></td>
+<td><em>(stdlib)</em></td>
+<td><code>JSON</code></td>
+</tr>
+<tr>
+<td><code>^pmml</code></td>
+<td><code>XML</code>, <code>jsonlite</code>, <code>r2pmml</code></td>
+<td><code>numpy</code>, <code>pandas</code>, <code>pyarrow</code>,
+<code>scikit-learn</code>, <code>scipy</code>,
+<code>sklearn2pmml</code>, <code>statsmodels</code></td>
+<td><code>GLM</code>, <code>JavaCall</code></td>
+</tr>
+<tr>
+<td><code>^onnx</code></td>
+<td><code>onnx</code></td>
+<td><code>onnxruntime</code>, <code>skl2onnx</code></td>
+<td><code>ONNXRunTime</code>, <code>ONNX</code></td>
+</tr>
+<tr>
+<td><code>^text</code></td>
+<td><em>(base R)</em></td>
+<td><em>(stdlib)</em></td>
+<td><em>(stdlib)</em></td>
+</tr>
+<tr>
+<td><code>^bin</code></td>
+<td><em>(none)</em></td>
+<td><em>(none)</em></td>
+<td><em>(none)</em></td>
+</tr>
+<tr>
+<td><code>default</code></td>
+<td><em>(none)</em></td>
+<td><em>(stdlib pickle)</em></td>
+<td><em>(stdlib Serialization)</em></td>
+</tr>
+</tbody>
+</table>
+<p>The <code>^pmml</code> format also requires the <code>jre</code>
+system tool for R, Python, and Julia nodes (for JPMML evaluator
+execution). Add <code>"jre"</code> to
+<code>[additional-tools].packages</code> in
+<code>tproject.toml</code>.</p>
+<h2 id="polyglot-support">6. Polyglot Support</h2>
 <p>For cross-language nodes, serializers provide the necessary glue code
 for the target runtime. For example, when using <code>^arrow</code> in
 an R node:</p>
@@ -241,10 +373,19 @@ format. You can do this by adding the libraries to your
 helper. Julia ONNX export is not supported yet, so
 <code>jl_write_onnx()</code> fails explicitly instead of silently
 falling back to another format.</p>
-<p>For more information on how pipelines use these serializers, see the
-<a href="pipeline_tutorial.html">Pipeline Tutorial</a>. For a
-model-focused walkthrough of <code>^pmml</code>, see the <a
-href="pmml_tutorial.html">PMML Tutorial</a>.</p>
+<hr />
+<h2 id="next-steps">Next Steps</h2>
+<ol type="1">
+<li><strong><a href="pipeline_tutorial.html">Pipeline
+Tutorial</a></strong> — Learn how pipelines use serializers for polyglot
+data interchange.</li>
+<li><strong><a href="data-formats.html">Data I/O &amp;
+Formats</a></strong> — Read and write CSV, Parquet, and Arrow IPC files;
+download data from URLs.</li>
+<li><strong><a href="project_development.html">Project
+Development</a></strong> — Declare runtime dependencies so serializer
+packages are available at build time.</li>
+</ol>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

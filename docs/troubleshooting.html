@@ -101,35 +101,21 @@
 <h1 id="troubleshooting-guide">Troubleshooting Guide</h1>
 <p>Solutions to common issues when using T.</p>
 <h2 id="installation-issues">Installation Issues</h2>
-<h3 id="command-not-found-nix">“command not found: nix”</h3>
-<p><strong>Problem</strong>: Nix is not installed or not in PATH.</p>
-<p><strong>Solution</strong>:</p>
-<div class="sourceCode" id="cb1"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Install Nix (recommended: Determinate Systems installer)</span></span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="ex">curl</span> <span class="at">--proto</span> <span class="st">&#39;=https&#39;</span> <span class="at">--tlsv1.2</span> <span class="at">-sSf</span> <span class="at">-L</span> https://install.determinate.systems/nix <span class="kw">|</span> <span class="fu">sh</span> <span class="at">-s</span> <span class="at">--</span> install <span class="at">--no-confirm</span></span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Restart shell or source profile</span></span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="bu">source</span> /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh</span></code></pre></div>
-<p><strong>Verify</strong>:</p>
-<div class="sourceCode" id="cb2"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> <span class="at">--version</span></span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Should output: nix (Nix) 2.x.x</span></span></code></pre></div>
-<hr />
 <h3 id="error-experimental-feature-flakes-is-disabled">“error:
 experimental feature ‘flakes’ is disabled”</h3>
 <p><strong>Problem</strong>: Flakes not enabled in Nix
 configuration.</p>
 <p><strong>Solution</strong>:</p>
-<div class="sourceCode" id="cb3"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">mkdir</span> <span class="at">-p</span> ~/.config/nix</span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;experimental-features = nix-command flakes&quot;</span> <span class="op">&gt;&gt;</span> ~/.config/nix/nix.conf</span></code></pre></div>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">mkdir</span> <span class="at">-p</span> ~/.config/nix</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;experimental-features = nix-command flakes&quot;</span> <span class="op">&gt;&gt;</span> ~/.config/nix/nix.conf</span></code></pre></div>
 <p><strong>For NixOS users</strong>, add to
 <code>/etc/nixos/configuration.nix</code>:</p>
-<div class="sourceCode" id="cb4"><pre
-class="sourceCode nix"><code class="sourceCode nix"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>nix<span class="op">.</span>settings<span class="op">.</span>experimental<span class="op">-</span>features = <span class="op">[</span> <span class="st">&quot;nix-command&quot;</span> <span class="st">&quot;flakes&quot;</span> <span class="op">]</span>;</span></code></pre></div>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode nix"><code class="sourceCode nix"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>nix<span class="op">.</span>settings<span class="op">.</span>experimental<span class="op">-</span>features = <span class="op">[</span> <span class="st">&quot;nix-command&quot;</span> <span class="st">&quot;flakes&quot;</span> <span class="op">]</span>;</span></code></pre></div>
 <p>Then rebuild:</p>
-<div class="sourceCode" id="cb5"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">sudo</span> nixos-rebuild switch</span></code></pre></div>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">sudo</span> nixos-rebuild switch</span></code></pre></div>
 <hr />
 <h3 id="ignoring-untrusted-substituter-or-cache-fetch-errors">“ignoring
 untrusted substituter” or cache fetch errors</h3>
@@ -139,25 +125,25 @@ binary cache is not configured.</p>
 <p><strong>Solution</strong>:</p>
 <p><strong>On NixOS</strong>, add to
 <code>/etc/nixos/configuration.nix</code>:</p>
-<div class="sourceCode" id="cb6"><pre
-class="sourceCode nix"><code class="sourceCode nix"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>nix<span class="op">.</span>settings = <span class="op">{</span></span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>  <span class="va">trusted-users</span> <span class="op">=</span> <span class="op">[</span> <span class="st">&quot;root&quot;</span> <span class="st">&quot;your-username&quot;</span> <span class="op">];</span></span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>  <span class="va">substituters</span> <span class="op">=</span> <span class="op">[</span></span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;https://cache.nixos.org&quot;</span></span>
-<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;https://rstats-on-nix.cachix.org&quot;</span></span>
-<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>  <span class="op">];</span></span>
-<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>  <span class="va">trustedPublicKeys</span> <span class="op">=</span> <span class="op">[</span></span>
-<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=&quot;</span></span>
-<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;rstats-on-nix.cachix.org-1:vdiiVgocg6WeJrODIqdprZRUrhi1JzhBnXv7aWI6+F0=&quot;</span></span>
-<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>  <span class="op">];</span></span>
-<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a><span class="op">}</span>;</span></code></pre></div>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode nix"><code class="sourceCode nix"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>nix<span class="op">.</span>settings = <span class="op">{</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  <span class="va">trusted-users</span> <span class="op">=</span> <span class="op">[</span> <span class="st">&quot;root&quot;</span> <span class="st">&quot;your-username&quot;</span> <span class="op">];</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>  <span class="va">substituters</span> <span class="op">=</span> <span class="op">[</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;https://cache.nixos.org&quot;</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;https://rstats-on-nix.cachix.org&quot;</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>  <span class="op">];</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>  <span class="va">trustedPublicKeys</span> <span class="op">=</span> <span class="op">[</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=&quot;</span></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;rstats-on-nix.cachix.org-1:vdiiVgocg6WeJrODIqdprZRUrhi1JzhBnXv7aWI6+F0=&quot;</span></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>  <span class="op">];</span></span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a><span class="op">}</span>;</span></code></pre></div>
 <p>Then rebuild: <code>sudo nixos-rebuild switch</code></p>
 <p><strong>On non-NixOS Linux or macOS</strong>, add to
 <code>/etc/nix/nix.conf</code>:</p>
-<div class="sourceCode" id="cb7"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;trusted-users = root </span><span class="va">$(</span><span class="fu">whoami</span><span class="va">)</span><span class="st">&quot;</span> <span class="kw">|</span> <span class="fu">sudo</span> tee <span class="at">-a</span> /etc/nix/nix.conf</span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;substituters = https://cache.nixos.org https://rstats-on-nix.cachix.org&quot;</span> <span class="kw">|</span> <span class="fu">sudo</span> tee <span class="at">-a</span> /etc/nix/nix.conf</span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= rstats-on-nix.cachix.org-1:vdiiVgocg6WeJrODIqdprZRUrhi1JzhBnXv7aWI6+F0=&quot;</span> <span class="kw">|</span> <span class="fu">sudo</span> tee <span class="at">-a</span> /etc/nix/nix.conf</span></code></pre></div>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;trusted-users = root </span><span class="va">$(</span><span class="fu">whoami</span><span class="va">)</span><span class="st">&quot;</span> <span class="kw">|</span> <span class="fu">sudo</span> tee <span class="at">-a</span> /etc/nix/nix.conf</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;substituters = https://cache.nixos.org https://rstats-on-nix.cachix.org&quot;</span> <span class="kw">|</span> <span class="fu">sudo</span> tee <span class="at">-a</span> /etc/nix/nix.conf</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= rstats-on-nix.cachix.org-1:vdiiVgocg6WeJrODIqdprZRUrhi1JzhBnXv7aWI6+F0=&quot;</span> <span class="kw">|</span> <span class="fu">sudo</span> tee <span class="at">-a</span> /etc/nix/nix.conf</span></code></pre></div>
 <p>Then restart the Nix daemon:
 <code>sudo systemctl restart nix-daemon</code> (Linux) or
 <code>sudo launchctl kickstart -k system/org.nixos.nix-daemon</code>
@@ -172,8 +158,8 @@ takes very long</h3>
 <p><strong>Solution</strong>: Be patient. First build can take 10-30
 minutes.</p>
 <p><strong>Monitor progress</strong>:</p>
-<div class="sourceCode" id="cb8"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> develop <span class="at">--show-trace</span></span></code></pre></div>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> develop <span class="at">--show-trace</span></span></code></pre></div>
 <p><strong>Speed up future builds</strong>: Nix caches everything in
 <code>/nix/store/</code>.</p>
 <hr />
@@ -182,33 +168,33 @@ class="sourceCode bash"><code class="sourceCode bash"><span id="cb8-1"><a href="
 <p><strong>Problem</strong>: Inside Nix shell, Arrow should be
 available. If not, flake may be broken.</p>
 <p><strong>Solution</strong>:</p>
-<div class="sourceCode" id="cb9"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Ensure you&#39;re in Nix shell</span></span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> develop</span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Verify Arrow is available</span></span>
-<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="ex">pkg-config</span> <span class="at">--modversion</span> arrow-glib</span>
-<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Should output version number (e.g., 10.0.0)</span></span></code></pre></div>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Ensure you&#39;re in Nix shell</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> develop</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Verify Arrow is available</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="ex">pkg-config</span> <span class="at">--modversion</span> arrow-glib</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Should output version number (e.g., 10.0.0)</span></span></code></pre></div>
 <p><strong>If still failing</strong>: Try updating flake:</p>
-<div class="sourceCode" id="cb10"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> flake update</span>
-<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> develop</span></code></pre></div>
+<div class="sourceCode" id="cb8"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> flake update</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> develop</span></code></pre></div>
 <hr />
 <h2 id="build-issues">Build Issues</h2>
 <h3 id="dune-command-not-found">“dune: command not found”</h3>
 <p><strong>Problem</strong>: Not inside Nix development shell.</p>
 <p><strong>Solution</strong>:</p>
-<div class="sourceCode" id="cb11"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> develop</span>
-<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Now dune should be available</span></span></code></pre></div>
+<div class="sourceCode" id="cb9"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> develop</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Now dune should be available</span></span></code></pre></div>
 <hr />
 <h3 id="error-unbound-module-ast">“Error: Unbound module Ast”</h3>
 <p><strong>Problem</strong>: Modules not compiled or dependency
 issue.</p>
 <p><strong>Solution</strong>:</p>
-<div class="sourceCode" id="cb12"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ex">dune</span> clean</span>
-<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="ex">dune</span> build</span></code></pre></div>
+<div class="sourceCode" id="cb10"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ex">dune</span> clean</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="ex">dune</span> build</span></code></pre></div>
 <p><strong>If still failing</strong>: Check <code>dune</code> file
 includes necessary modules.</p>
 <hr />
@@ -216,10 +202,13 @@ includes necessary modules.</p>
 <p><strong>Problem</strong>: Parser grammar has ambiguities.</p>
 <p><strong>Example output</strong>:</p>
 <pre><code>Warning: 2 shift/reduce conflicts</code></pre>
-<p><strong>Solution</strong> (for contributors): - Review
-<code>parser.mly</code> for ambiguous rules - Add precedence directives
-(<code>%left</code>, <code>%right</code>) - Refactor grammar to remove
-ambiguity</p>
+<p><strong>Solution</strong> (for contributors):</p>
+<ul>
+<li>Review <code>parser.mly</code> for ambiguous rules</li>
+<li>Add precedence directives (<code>%left</code>,
+<code>%right</code>)</li>
+<li>Refactor grammar to remove ambiguity</li>
+</ul>
 <p><strong>For users</strong>: Warnings are okay if parser works
 correctly. Errors must be fixed.</p>
 <hr />
@@ -246,11 +235,8 @@ Cannot add Int and String)”</h3>
 &quot;Age: &quot; + 25
 -- Error: Cannot add String and Int
 
--- Workaround: Convert manually or use string concatenation with print
--- Note: Alpha does not have a to_string() conversion function yet
--- Use print for output instead:
-print(&quot;Age: &quot;)
-print(25)</code></pre>
+-- Workaround: Convert explicitly with to_string() and join with str_join()
+print(str_join([&quot;Age: &quot;, to_string(25)]))</code></pre>
 <hr />
 <h3 id="errornaerror-na-value-encountered">“Error(NAError: NA value
 encountered)”</h3>
@@ -279,9 +265,9 @@ if (y == 0) 0.0 else x / y
 <h3 id="segmentation-fault-crash">Segmentation fault (crash)</h3>
 <p><strong>Problem</strong>: Usually in Arrow FFI or native code.</p>
 <p><strong>Debugging</strong>:</p>
-<div class="sourceCode" id="cb18"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Run with valgrind</span></span>
-<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a><span class="fu">valgrind</span> <span class="at">--leak-check</span><span class="op">=</span>full dune exec src/repl.exe</span></code></pre></div>
+<div class="sourceCode" id="cb16"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Run with valgrind</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="fu">valgrind</span> <span class="at">--leak-check</span><span class="op">=</span>full dune exec src/repl.exe</span></code></pre></div>
 <p><strong>Workaround</strong>: Avoid Arrow operations, use
 fallback:</p>
 <pre class="t"><code>-- May crash with large native DataFrames
@@ -316,10 +302,14 @@ and report if reproducible.</p>
 <h3 id="repl-hangs-on-input">REPL hangs on input</h3>
 <p><strong>Problem</strong>: Waiting for multiline completion or invalid
 syntax.</p>
-<p><strong>Solution</strong>: - Press Ctrl+C to cancel - Check for
-unclosed <code>(</code>, <code>{</code>, <code>[</code> - Ctrl+C now
-safely interrupts long-running evaluations and returns you to the
-prompt</p>
+<p><strong>Solution</strong>:</p>
+<ul>
+<li>Press Ctrl+C to cancel</li>
+<li>Check for unclosed <code>(</code>, <code>{</code>,
+<code>[</code></li>
+<li>Ctrl+C now safely interrupts long-running evaluations and returns
+you to the prompt</li>
+</ul>
 <hr />
 <h2 id="data-loading-issues">Data Loading Issues</h2>
 <h3 id="error-file-not-found">“Error: File not found”</h3>
@@ -336,9 +326,12 @@ ls data.csv  # In shell</code></pre>
 <hr />
 <h3 id="csv-loads-with-wrong-types">CSV loads with wrong types</h3>
 <p><strong>Problem</strong>: Arrow infers types from first rows.</p>
-<p><strong>Solution</strong>: Ensure data is consistent: - No mixed
-types in columns - Missing values represented as empty strings (inferred
-as NA) - Numeric columns don’t have text</p>
+<p><strong>Solution</strong>: Ensure data is consistent:</p>
+<ul>
+<li>No mixed types in columns</li>
+<li>Missing values represented as empty strings (inferred as NA)</li>
+<li>Numeric columns don’t have text</li>
+</ul>
 <p><strong>Workaround</strong>: Preprocess CSV externally or load as
 strings and convert.</p>
 <hr />
@@ -397,8 +390,8 @@ just numerical noise.</p>
 for -larrow”</h3>
 <p><strong>Problem</strong>: Arrow libraries not in library path.</p>
 <p><strong>Solution</strong>: Use Nix shell (this shouldn’t happen):</p>
-<div class="sourceCode" id="cb25"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> develop</span></code></pre></div>
+<div class="sourceCode" id="cb23"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> develop</span></code></pre></div>
 <p>If Nix fails, check <code>flake.nix</code> for macOS-specific
 configuration.</p>
 <hr />
@@ -406,39 +399,39 @@ configuration.</p>
 <p><strong>Problem</strong>: File on Windows mount
 (<code>/mnt/c/...</code>) instead of Linux filesystem.</p>
 <p><strong>Solution</strong>: Clone repository to Linux filesystem:</p>
-<div class="sourceCode" id="cb26"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Bad (Windows mount)</span></span>
-<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> /mnt/c/Users/username/tlang</span>
-<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Good (Linux filesystem)</span></span>
-<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> ~/tlang</span></code></pre></div>
+<div class="sourceCode" id="cb24"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Bad (Windows mount)</span></span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> /mnt/c/Users/username/tlang</span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Good (Linux filesystem)</span></span>
+<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> ~/tlang</span></code></pre></div>
 <hr />
 <h2 id="advanced-troubleshooting">Advanced Troubleshooting</h2>
 <h3 id="enable-debug-logging">Enable debug logging</h3>
 <p><strong>Modify <code>eval.ml</code></strong> (for contributors):</p>
-<div class="sourceCode" id="cb27"><pre
-class="sourceCode ocaml"><code class="sourceCode ocaml"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="kw">let</span> debug = <span class="dt">ref</span> <span class="kw">true</span></span>
-<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a><span class="kw">let</span> eval env expr =</span>
-<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a>  <span class="kw">if</span> !debug <span class="kw">then</span></span>
-<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a>    <span class="dt">Printf</span>.eprintf <span class="st">&quot;DEBUG: eval %s</span><span class="ch">\n</span><span class="st">&quot;</span> (show_expr expr);</span>
-<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a>  <span class="co">(* ... *)</span></span></code></pre></div>
+<div class="sourceCode" id="cb25"><pre
+class="sourceCode ocaml"><code class="sourceCode ocaml"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="kw">let</span> debug = <span class="dt">ref</span> <span class="kw">true</span></span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a><span class="kw">let</span> eval env expr =</span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a>  <span class="kw">if</span> !debug <span class="kw">then</span></span>
+<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a>    <span class="dt">Printf</span>.eprintf <span class="st">&quot;DEBUG: eval %s</span><span class="ch">\n</span><span class="st">&quot;</span> (show_expr expr);</span>
+<span id="cb25-6"><a href="#cb25-6" aria-hidden="true" tabindex="-1"></a>  <span class="co">(* ... *)</span></span></code></pre></div>
 <hr />
 <h3 id="inspect-nix-build">Inspect Nix build</h3>
 <p><strong>See what Nix is building</strong>:</p>
-<div class="sourceCode" id="cb28"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> develop <span class="at">--show-trace</span></span></code></pre></div>
+<div class="sourceCode" id="cb26"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> develop <span class="at">--show-trace</span></span></code></pre></div>
 <p><strong>Check Nix store</strong>:</p>
-<div class="sourceCode" id="cb29"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="fu">ls</span> /nix/store/ <span class="kw">|</span> <span class="fu">grep</span> arrow</span>
-<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a><span class="fu">ls</span> /nix/store/ <span class="kw">|</span> <span class="fu">grep</span> ocaml</span></code></pre></div>
+<div class="sourceCode" id="cb27"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="fu">ls</span> /nix/store/ <span class="kw">|</span> <span class="fu">grep</span> arrow</span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a><span class="fu">ls</span> /nix/store/ <span class="kw">|</span> <span class="fu">grep</span> ocaml</span></code></pre></div>
 <hr />
 <h3 id="clean-rebuild">Clean rebuild</h3>
 <p><strong>Nuclear option</strong> (removes all build artifacts):</p>
-<div class="sourceCode" id="cb30"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="ex">dune</span> clean</span>
-<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a><span class="fu">rm</span> <span class="at">-rf</span> _build</span>
-<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> develop <span class="at">--command</span> dune build</span></code></pre></div>
+<div class="sourceCode" id="cb28"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="ex">dune</span> clean</span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a><span class="fu">rm</span> <span class="at">-rf</span> _build</span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> develop <span class="at">--command</span> dune build</span></code></pre></div>
 <hr />
 <h2 id="getting-more-help">Getting More Help</h2>
 <h3 id="before-asking-for-help">Before asking for help</h3>
@@ -450,9 +443,19 @@ Issues</a></strong></li>
 <li><strong>Try minimal reproducible example</strong></li>
 </ol>
 <h3 id="when-asking-for-help">When asking for help</h3>
-<p>Include: - <strong>Exact error message</strong> - <strong>Minimal
-code to reproduce</strong> - <strong>Your environment</strong>:
-<code>bash   uname -a   nix --version   # Inside nix develop:   ocaml --version   dune --version   pkg-config --modversion arrow-glib</code></p>
+<p>Include:</p>
+<ul>
+<li><p><strong>Exact error message</strong></p></li>
+<li><p><strong>Minimal code to reproduce</strong></p></li>
+<li><p><strong>Your environment</strong>:</p>
+<div class="sourceCode" id="cb29"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="fu">uname</span> <span class="at">-a</span></span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> <span class="at">--version</span></span>
+<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Inside nix develop:</span></span>
+<span id="cb29-4"><a href="#cb29-4" aria-hidden="true" tabindex="-1"></a><span class="ex">ocaml</span> <span class="at">--version</span></span>
+<span id="cb29-5"><a href="#cb29-5" aria-hidden="true" tabindex="-1"></a><span class="ex">dune</span> <span class="at">--version</span></span>
+<span id="cb29-6"><a href="#cb29-6" aria-hidden="true" tabindex="-1"></a><span class="ex">pkg-config</span> <span class="at">--modversion</span> arrow-glib</span></code></pre></div></li>
+</ul>
 <h3 id="where-to-ask">Where to ask</h3>
 <ul>
 <li><strong>Bugs</strong>: <a

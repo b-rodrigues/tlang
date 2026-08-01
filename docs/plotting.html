@@ -162,17 +162,22 @@ Artifact</strong>: The serialized plot object (e.g., an RDS file for
 <code>ggplot2</code>). 2. <strong>The Metadata
 (<code>viz</code>)</strong>: A JSON representation of the plot’s
 contents.</p>
-<p>T automatically extracts: - <strong>Title</strong>: The main title of
-the plot. - <strong>Backend</strong>: The runtime used to produce the
-plot (<code>"R"</code>, <code>"Python"</code>, or <code>"Julia"</code>).
-- <strong>Class</strong>: The stable plot class tag (for example
+<p>T automatically extracts:</p>
+<ul>
+<li><strong>Title</strong>: The main title of the plot.</li>
+<li><strong>Backend</strong>: The runtime used to produce the plot
+(<code>"R"</code>, <code>"Python"</code>, or <code>"Julia"</code>).</li>
+<li><strong>Class</strong>: The stable plot class tag (for example
 <code>"ggplot"</code>, <code>"plotnine"</code>,
 <code>"tidierplots"</code>, <code>"plotsjl"</code>, or
-<code>"makie"</code>). - <strong>Labels</strong>: Axis labels and
-legends. - <strong>Layers</strong>: The types of geometries present
-(e.g., “point”, “line”). - <strong>Mappings</strong>: For
-grammar-of-graphics style backends such as <code>ggplot2</code>,
-<code>plotnine</code>, and <code>TidierPlots.jl</code>.</p>
+<code>"makie"</code>).</li>
+<li><strong>Labels</strong>: Axis labels and legends.</li>
+<li><strong>Layers</strong>: The types of geometries present (e.g.,
+“point”, “line”).</li>
+<li><strong>Mappings</strong>: For grammar-of-graphics style backends
+such as <code>ggplot2</code>, <code>plotnine</code>, and
+<code>TidierPlots.jl</code>.</li>
+</ul>
 <hr />
 <h2 id="inspecting-plots-with-read_node">Inspecting Plots with
 <code>read_node()</code></h2>

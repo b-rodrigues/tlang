@@ -148,9 +148,9 @@ definition.</li>
 <li><strong>AGENTS.md</strong>: Onboarding guide for AI Agents.</li>
 <li><strong>T-LANGUAGE-REFERENCE.md</strong>: Tiered language reference
 for LLMs.</li>
-<li><strong>.claude/skills/SKILL.md</strong>: An AI agent skill file
-that teaches LLMs how to work with T projects (scaffolded
-automatically).</li>
+<li><strong><code>.claude/skills/t-project/SKILL.md</code></strong>: An
+AI agent skill file that teaches LLMs how to work with T projects
+(scaffolded automatically).</li>
 </ul>
 <h2 id="entering-the-development-environment">2. Entering the
 Development Environment</h2>
@@ -218,7 +218,7 @@ project’s nixpkgs date to today’s UTC date:</p>
 <div class="sourceCode" id="cb8"><pre
 class="sourceCode bash"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t upgrade</span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="ex">Checking</span> for new T releases...</span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="ex">Upgrading</span> project to T 0.53.0 and nixpkgs date 2026-05-08 <span class="er">(</span><span class="ex">today</span><span class="st">&#39;s UTC date)...</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="ex">Upgrading</span> project to T 0.54.3 and nixpkgs date 2026-07-27 <span class="er">(</span><span class="ex">today</span><span class="st">&#39;s UTC date)...</span></span>
 <span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="st">Regenerating flake.nix and updating dependencies...</span></span>
 <span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a><span class="st">Running nix flake update...</span></span></code></pre></div>
 <p>This updates your <code>tproject.toml</code> and then runs
@@ -321,7 +321,7 @@ workspace from scratch</h4>
 package metadata — you are starting from an empty T project.</p>
 <p><strong>1. Create a new T project</strong></p>
 <div class="sourceCode" id="cb15"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> project my_project</span>
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> init <span class="at">--project</span> my_project</span>
 <span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> my_project</span></code></pre></div>
 <p><strong>2. Edit <code>tproject.toml</code></strong></p>
 <p>Replace the default <code>[py-dependencies]</code> section (or add it
@@ -332,8 +332,11 @@ class="sourceCode toml"><code class="sourceCode toml"><span id="cb16-1"><a href=
 <span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a><span class="dt">workspace</span> <span class="op">=</span> <span class="st">&quot;python&quot;</span></span></code></pre></div>
 <p>The <code>version</code> field is optional when using the UV resolver
 — T infers it from <code>requires-python</code> in
-<code>pyproject.toml</code>. Remove any <code>packages</code> key if
-present — UV and <code>packages</code> are mutually exclusive.</p>
+<code>pyproject.toml</code>. The specifier must constrain Python to a
+single minor version (e.g. <code>&gt;=3.12,&lt;3.13</code>); an
+open-ended specifier like <code>&gt;=3.12</code> is rejected as
+ambiguous. Remove any <code>packages</code> key if present — UV and
+<code>packages</code> are mutually exclusive.</p>
 <p><strong>3. Create the Python workspace directory and
 <code>pyproject.toml</code></strong></p>
 <div class="sourceCode" id="cb17"><pre
@@ -343,7 +346,7 @@ class="sourceCode toml"><code class="sourceCode toml"><span id="cb18-1"><a href=
 <span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a><span class="kw">[project]</span></span>
 <span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a><span class="dt">name</span> <span class="op">=</span> <span class="st">&quot;my_project_python_env&quot;</span></span>
 <span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a><span class="dt">version</span> <span class="op">=</span> <span class="st">&quot;0.1.0&quot;</span></span>
-<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a><span class="dt">requires-python</span> <span class="op">=</span> <span class="st">&quot;&gt;=3.12&quot;</span></span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a><span class="dt">requires-python</span> <span class="op">=</span> <span class="st">&quot;&gt;=3.12,&lt;3.13&quot;</span></span>
 <span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a><span class="dt">dependencies</span> <span class="op">=</span> <span class="op">[</span></span>
 <span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;pandas&quot;</span><span class="op">,</span></span>
 <span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a><span class="op">]</span></span></code></pre></div>
@@ -384,6 +387,34 @@ you chose.</p>
 <li>Commit the updated <code>pyproject.toml</code> and
 <code>uv.lock</code>.</li>
 </ol>
+<h3 id="julia-dependencies">3.5 Julia Dependencies</h3>
+<p>Julia packages use the nixpkgs resolver. List them under
+<code>[jl-dependencies]</code>:</p>
+<div class="sourceCode" id="cb23"><pre
+class="sourceCode toml"><code class="sourceCode toml"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[jl-dependencies]</span></span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a><span class="dt">version</span> <span class="op">=</span> <span class="st">&quot;lts&quot;</span></span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a><span class="dt">packages</span> <span class="op">=</span> <span class="op">[</span><span class="st">&quot;DataFrames&quot;</span><span class="op">,</span> <span class="st">&quot;CSV&quot;</span><span class="op">,</span> <span class="st">&quot;GLM&quot;</span><span class="op">]</span></span></code></pre></div>
+<p>The <code>version</code> field defaults to <code>"lts"</code> (the
+current Julia long-term-support release). To pin a specific version, use
+the format <code>"1.10"</code> or <code>"1.11"</code>, which maps to the
+corresponding <code>julia_1_10</code> or <code>julia_1_11</code>
+attribute in nixpkgs.</p>
+<p>After editing, run <code>t update</code> to include the Julia
+packages in <code>flake.nix</code>. They are then available via
+<code>using</code> inside <code>jln()</code> nodes:</p>
+<pre class="t"><code>p = pipeline {
+  julia_step = jln(
+    command = &lt;{
+      using DataFrames, CSV
+      df = CSV.read(&quot;data.csv&quot;, DataFrame)
+      println(nrow(df))
+    }&gt;
+  )
+}</code></pre>
+<p>The <code>tlang</code> companion package (for
+<code>debug_node</code>, <code>read_node</code> helpers, etc.) is
+automatically injected into every Julia node — no need to declare
+it.</p>
 <h2 id="importing-packages">4. Importing Packages</h2>
 <p>Once inside <code>nix develop</code>, you can use the
 <code>import</code> statement in your T scripts to load package
@@ -423,11 +454,11 @@ p = pipeline {
 build_pipeline(p)
 print(price_by_area)</code></pre>
 <p>Run your script:</p>
-<div class="sourceCode" id="cb27"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run src/pipeline.t</span></code></pre></div>
+<div class="sourceCode" id="cb29"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run src/pipeline.t</span></code></pre></div>
 <p>Or use the REPL for interactive exploration:</p>
-<div class="sourceCode" id="cb28"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t repl</span></code></pre></div>
+<div class="sourceCode" id="cb30"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t repl</span></code></pre></div>
 <h2 id="running-tests">6. Running Tests</h2>
 <p>You can add tests in <code>tests/</code> following the same
 conventions as packages:</p>
@@ -437,8 +468,8 @@ import my_stats
 result = weighted_mean([1, 2, 3], [0.5, 0.3, 0.2])
 assert(result == 1.7)</code></pre>
 <p>Run them with:</p>
-<div class="sourceCode" id="cb30"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t test</span></code></pre></div>
+<div class="sourceCode" id="cb32"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t test</span></code></pre></div>
 <h3 id="pipeline-verification-nodes-assertion-dictionaries">6.1 Pipeline
 Verification Nodes &amp; Assertion Dictionaries</h3>
 <p>When testing pipeline workflows, separate data transformation nodes
@@ -464,12 +495,15 @@ JSON (<code>serializer = ^json</code>):</p>
     deserializer = ^csv
   )
 }</code></pre>
-<p>This pattern provides a clean duality: - <strong>Passing
-builds</strong> output a structured JSON status artifact mapping check
-names to <code>true</code> (accessible via
-<code>read_node(p.check_filter)</code>). - <strong>Failing
-assertions</strong> short-circuit execution immediately, recording the
-full <code>AssertionError</code> object in the node’s build log.</p>
+<p>This pattern provides a clean duality:</p>
+<ul>
+<li><strong>Passing builds</strong> output a structured JSON status
+artifact mapping check names to <code>true</code> (accessible via
+<code>read_node(p.check_filter)</code>).</li>
+<li><strong>Failing assertions</strong> short-circuit execution
+immediately, recording the full <code>AssertionError</code> object in
+the node’s build log.</li>
+</ul>
 <h3 id="skipping-pipeline-tests-conditionally">Skipping Pipeline Tests
 Conditionally</h3>
 <p>Since pipeline nodes are compiled and executed via Nix, tests that
@@ -485,7 +519,7 @@ p = pipeline {
   heavy_node = node(
     command = &lt;{ run_heavy_nix_job() }&gt;,
     # Skip execution if not running in CI
-    noop = (env_var(&quot;CI&quot;) == &quot;&quot;)
+    noop = (get(env(&quot;CI&quot;), &quot;&quot;) == &quot;&quot;)
   )
 }
 
@@ -505,11 +539,11 @@ inputs</li>
 source of truth for dependencies</li>
 </ul>
 <p>Anyone can reproduce your environment:</p>
-<div class="sourceCode" id="cb33"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> git clone https://github.com/user/housing-analysis</span>
-<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> cd housing-analysis</span>
-<span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> nix develop</span>
-<span id="cb33-4"><a href="#cb33-4" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run src/pipeline.t</span></code></pre></div>
+<div class="sourceCode" id="cb35"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> git clone https://github.com/user/housing-analysis</span>
+<span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> cd housing-analysis</span>
+<span id="cb35-3"><a href="#cb35-3" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> nix develop</span>
+<span id="cb35-4"><a href="#cb35-4" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run src/pipeline.t</span></code></pre></div>
 <p>The same T version, same package versions, same R packages, and same
 system libraries are used every time.</p>
 <h2 id="ide-support-autocompletion">8. IDE Support &amp;
@@ -535,11 +569,15 @@ REPL, file tree, variable watcher, pipeline diagram, and plot viewer. To
 enable Atelier in a new project, pass <code>--include-atelier</code> to
 <code>t init</code>. Once inside <code>nix develop</code>, simply run
 <code>atelier</code>.</p>
-<p>Once active, you will get real-time autocompletion for: -
-<strong>Package functions</strong>: Suggestions for all imported
-functions. - <strong>Local variables</strong>: Defined earlier in your
-script. - <strong>DataFrame columns</strong>: Column names from your
-data sources (accessible via the <code>$</code> prefix).</p>
+<p>Once active, you will get real-time autocompletion for:</p>
+<ul>
+<li><strong>Package functions</strong>: Suggestions for all imported
+functions.</li>
+<li><strong>Local variables</strong>: Defined earlier in your
+script.</li>
+<li><strong>DataFrame columns</strong>: Column names from your data
+sources (accessible via the <code>$</code> prefix).</li>
+</ul>
 <hr />
 <h2 id="next-steps">Next Steps</h2>
 <ol type="1">
@@ -548,6 +586,11 @@ Overview</a></strong> — Learn about types, syntax, and logic.</li>
 <li><strong><a href="pipeline_tutorial.html">Pipeline
 Tutorial</a></strong> — Learn how to structure your analysis as a
 DAG.</li>
+<li><strong><a href="serializers.html">Serializers</a></strong> —
+Understand data interchange between T, R, Python, and Julia nodes.</li>
+<li><strong><a href="data-formats.html">Data I/O &amp;
+Formats</a></strong> — Read and write CSV, Parquet, and Arrow IPC
+files.</li>
 <li><strong><a href="api-reference.html">API Reference</a></strong> —
 Explore the standard library.</li>
 <li><strong><a href="data_manipulation_examples.html">Data Manipulation

@@ -105,6 +105,41 @@
 <p>Pipelines are T’s core execution model. They let you define named
 computation steps (nodes) that are automatically ordered by their
 dependencies, executed deterministically, and cached for re-use.</p>
+<h3 id="how-polyglot-pipelines-work">How Polyglot Pipelines Work</h3>
+<p>From declaration to result, every pipeline follows the same
+five-stage flow:</p>
+<ol type="1">
+<li><strong>Declare</strong>. You define nodes inside a
+<code>pipeline { ... }</code> block. Each node gets a name, a command (T
+expression or <code>&lt;{ }&gt;</code> foreign-code block), a runtime
+(<code>rn()</code>, <code>pyn()</code>, <code>jln()</code>,
+<code>qn()</code>, <code>shn()</code>, or <code>node()</code> for T),
+and a serializer that controls how data enters and leaves the node.</li>
+<li><strong>Analyze</strong>. T scans the DAG — it resolves which node
+depends on which, detects cycles, and extracts identifier references
+from foreign-code blocks for dependency tracking.</li>
+<li><strong>Emit</strong>. T generates one Nix derivation per node. Each
+derivation bundles the right runtime (R, Python, Julia, Quarto, or
+shell), the packages declared in <code>tproject.toml</code>, and the
+serializer/deserializer glue code that will handle data
+interchange.</li>
+<li><strong>Build</strong>. Nix executes each derivation in a hermetic
+sandbox. Upstream artifacts are already materialized in the Nix store,
+so the serializer writes the node’s output and the deserializer reads
+upstream inputs — all without shared memory or runtime coupling.</li>
+<li><strong>Read back</strong>. After <code>build_pipeline(p)</code> or
+<code>populate_pipeline(p, build = true)</code> completes, use
+<code>read_node(p.node_name)</code> to load any node’s serialized
+artifact back into T for inspection, and use <code>&lt;{ }&gt;</code> to
+embed command blocks.</li>
+</ol>
+<blockquote>
+<p><strong>Key insight</strong>: A pipeline is a <strong>declarative
+build graph</strong>, not a script. Nodes describe <em>what</em> to
+produce, not <em>when</em> to compute. T handles the ordering, caching,
+and reproducibility — the same pipeline produces the same results on any
+machine.</p>
+</blockquote>
 <hr />
 <h2 id="your-first-pipeline">1. Your First Pipeline</h2>
 <p>A pipeline is a block of named expressions enclosed in
@@ -643,17 +678,27 @@ serialization methods for when a pipeline is materialized by Nix:</p>
         fit = LinearRegression().fit(X, y)
         fit
     }&gt;,
-    serializer = &quot;pmml&quot;
+    serializer = ^pmml
+  )
+
+  -- Running a Julia node that reads and summarizes the data
+  summary = jln(
+    command = &lt;{
+      using DataFrames
+      df = CSV.read(data_path, DataFrame)
+      describe(df)
+    }&gt;,
+    serializer = ^csv
   )
 }</code></pre>
 <p>Bare syntax (like <code>x = 10</code>) is automatically desugared to
 <code>x = node(command = 10, runtime = T, serializer = default, deserializer = default)</code>.
-You can also use <code>pyn()</code>, <code>rn()</code>, and
-<code>shn()</code> as shortcuts for Python, R, and shell runtimes. T
-enforces cross-runtime safety: if a node with a non-<code>T</code>
-runtime depends on a <code>T</code> node, or vice versa, you should
-specify an explicit
-<code>serializer</code>/<code>deserializer</code>.</p>
+You can also use <code>pyn()</code>, <code>rn()</code>,
+<code>jln()</code>, <code>qn()</code>, and <code>shn()</code> as
+shortcuts for Python, R, Julia, Quarto, and shell runtimes. T enforces
+cross-runtime safety: if a node with a non-<code>T</code> runtime
+depends on a <code>T</code> node, or vice versa, you should specify an
+explicit <code>serializer</code>/<code>deserializer</code>.</p>
 <p>When an R node returns a <code>ggplot2</code> object, a Python node
 returns a <code>matplotlib</code> / <code>plotnine</code> plot object,
 or a Julia node returns a <code>TidierPlots.jl</code>,
@@ -674,23 +719,91 @@ This works with <code>node()</code>, <code>pyn()</code>,
 <code>command</code> arguments are mutually exclusive.</p>
 <pre class="t"><code>p = pipeline {
   -- Execute an external R script
-  model = rn(script = &quot;train_model.R&quot;, serializer = &quot;pmml&quot;)
+  model = rn(script = &quot;train_model.R&quot;, serializer = ^pmml)
 
   -- Execute an external Python script
-  predictions = pyn(script = &quot;predict.py&quot;, deserializer = &quot;pmml&quot;)
+  predictions = pyn(script = &quot;predict.py&quot;, deserializer = ^pmml)
 
   -- Execute an external shell script
   report = shn(script = &quot;postprocess.sh&quot;)
 
   -- node() auto-detects the runtime from the file extension
-  summary = node(script = &quot;summarise.R&quot;, serializer = &quot;json&quot;)
+  summary = node(script = &quot;summarise.R&quot;, serializer = ^json)
 }</code></pre>
 <p>When using <code>script</code>, the runtime is auto-detected from the
 file extension (<code>.R</code> → R, <code>.py</code> → Python,
-<code>.sh</code> → sh) if not explicitly set via the
-<code>runtime</code> argument. T reads the script file to extract
-identifier references, allowing the pipeline dependency graph to be
-built correctly from variables referenced in the external file.</p>
+<code>.jl</code> → Julia, <code>.sh</code> → sh, <code>.qmd</code> →
+Quarto) if not explicitly set via the <code>runtime</code> argument. T
+reads the script file to extract identifier references, allowing the
+pipeline dependency graph to be built correctly from variables
+referenced in the external file.</p>
+<h3 id="sourcing-functions-and-including-files">Sourcing Functions and
+Including Files</h3>
+<p>All non-T node constructors accept two optional parameters that
+control what gets loaded into the Nix sandbox before execution:</p>
+<ul>
+<li><strong><code>functions</code></strong>: Code files to
+<strong>source, import, or exec</strong> before the node’s command runs.
+T emits the right instruction per runtime. Use this to share utility
+functions across nodes.</li>
+<li><strong><code>include</code></strong>: Additional files (config,
+data, templates) to copy into the sandbox. These are present at the root
+of the sandbox and can be referenced by relative paths from your command
+or script.</li>
+</ul>
+<table>
+<colgroup>
+<col style="width: 23%" />
+<col style="width: 53%" />
+<col style="width: 23%" />
+</colgroup>
+<thead>
+<tr>
+<th>Runtime</th>
+<th><code>functions</code> behavior</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>R</td>
+<td><code>source('file.R')</code></td>
+<td><code>rn(command = &lt;{...}&gt;, functions = ["utils.R"])</code></td>
+</tr>
+<tr>
+<td>Python</td>
+<td><code>exec(open('file.py').read())</code></td>
+<td><code>pyn(command = &lt;{...}&gt;, functions = ["preproc.py"])</code></td>
+</tr>
+<tr>
+<td>Julia</td>
+<td><code>include("file.jl")</code></td>
+<td><code>jln(command = &lt;{...}&gt;, functions = ["helpers.jl"])</code></td>
+</tr>
+<tr>
+<td>T</td>
+<td><code>import "file.t"</code></td>
+<td><code>node(command = ..., functions = ["lib.t"])</code></td>
+</tr>
+<tr>
+<td>Shell / Quarto</td>
+<td><em>(no sourcing)</em></td>
+<td><code>shn(command = &lt;{...}&gt;, functions = [...])</code></td>
+</tr>
+</tbody>
+</table>
+<p>The Nix derivation copies the entire project tree into the sandbox
+(excluding <code>.git</code>, <code>_pipeline</code>,
+<code>_build</code>), so any file listed in <code>functions</code> or
+<code>include</code> is available automatically as long as it exists in
+the project.</p>
+<p>Both parameters are <strong>combinable</strong>: use
+<code>set_pipeline_global_options(p, functions = [rn: "utils.R"], include = "config.yml")</code>
+to prepend global files that apply to every node. Pass per-node
+<code>functions</code> or <code>include</code> to add files for a
+specific node — the lists are concatenated (global first, then
+per-node). Use <code>mutate_node</code> to replace a node’s lists
+entirely, or <code>$functions = NA</code> to clear them.</p>
 <h3 id="shell-bash-nodes-with-shn">Shell / Bash nodes with
 <code>shn()</code></h3>
 <p>Use <code>shn()</code> for pipeline steps that are easiest to express
@@ -731,6 +844,56 @@ pipeline nodes. For a full end-to-end example that mixes T, R, Python,
 and <code>sh</code>, see
 <code>tests/pipeline/polyglot_shell_pipeline.t</code> and
 <code>.github/workflows/polyglot-shell-pipeline.yml</code>.</p>
+<h3 id="julia-nodes-with-jln">Julia nodes with <code>jln()</code></h3>
+<p>Use <code>jln()</code> for pipeline steps written in Julia. It wraps
+<code>node(runtime = Julia, ...)</code>, just like <code>rn()</code> and
+<code>pyn()</code> wrap <code>node()</code> for R and Python. Julia
+packages are declared in <code>[jl-dependencies]</code> in
+<code>tproject.toml</code> and live in
+<code>julia_depot_sandbox_hook</code> during builds. To use the REPL
+debug node mode, the <code>tlang</code> companion package is
+automatically injected into every Julia node without manual
+declaration.</p>
+<pre class="t"><code>p = pipeline {
+  raw = read_csv(&quot;data.csv&quot;)
+
+  julia_summary = jln(
+    command = &lt;{
+      using DataFrames, Statistics
+      df = CSV.read(raw_path, DataFrame)
+      result = combine(groupby(df, :cyl),
+                       :mpg =&gt; mean =&gt; :avg_mpg)
+      result
+    }&gt;,
+    serializer = ^csv
+  )
+}</code></pre>
+<p>Julia nodes default to <code>serializer = default</code>, which uses
+Julia’s standard <code>Serialization</code> module to write
+<code>.jls</code> artifacts. Use <code>^csv</code>, <code>^arrow</code>,
+or <code>^json</code> for cross-runtime interchange with T, R, or Python
+nodes.</p>
+<h3 id="quarto-nodes-with-qn">Quarto nodes with <code>qn()</code></h3>
+<p>Use <code>qn()</code> for pipeline steps that render Quarto documents
+(<code>.qmd</code> files) as part of a reproducible build. It wraps
+<code>node(runtime = Quarto, ...)</code>. The <code>.qmd</code> file
+path goes in the <code>script</code> argument:</p>
+<pre class="t"><code>p = pipeline {
+  data = read_csv(&quot;data.csv&quot;) |&gt; filter($age &gt; 18)
+
+  report = qn(
+    script = &quot;analysis.qmd&quot;
+  )
+}</code></pre>
+<p>During the Nix build, Quarto renders the <code>.qmd</code> to HTML
+inside the sandbox. If the <code>.qmd</code> file calls
+<code>read_node("data")</code>, T automatically detects this as a
+pipeline dependency and substitutes the node’s Nix store path at build
+time. The rendered output stays in <code>/nix/store/</code> — use
+<code>pipeline_copy(p, "report")</code> to retrieve it.</p>
+<p>For full Quarto setup (YAML filters, <code>additional-tools</code>,
+formatting), see the <a href="literate-programming-quarto.html">Literate
+Programming &amp; Quarto</a> guide.</p>
 <h3 id="fetching-remote-assets">Fetching Remote Assets</h3>
 <p>Pipeline nodes can download files from URLs using
 <code>fetchurl</code>. This generates a Nix derivation that uses
@@ -915,7 +1078,7 @@ to make predictions without leaving the T runtime:</p>
       data &lt;- read.csv(&quot;data.csv&quot;)
       lm(mpg ~ wt + hp, data = data)
     }&gt;,
-    serializer = &quot;pmml&quot;
+    serializer = ^pmml
   )
   
   -- Node 2: Predict in T using the R model
@@ -925,10 +1088,10 @@ to make predictions without leaving the T runtime:</p>
       predict(test_df, model_r)
     }&gt;,
     runtime = &quot;T&quot;,
-    deserializer = &quot;pmml&quot;
+    deserializer = ^pmml
   )
 }</code></pre>
-<p>Setting <code>deserializer = "pmml"</code> on the T node tells the
+<p>Setting <code>deserializer = ^pmml</code> on the T node tells the
 pipeline runner to use T’s native PMML parser to convert the R model
 into a T model object.</p>
 <hr />
@@ -1080,8 +1243,8 @@ nodes succeeded and which failed.</p>
 <p>If you prefer the usual, common behaviour where evaluation stops
 immediately at the first error, you can use the <code>--failfast</code>
 flag:</p>
-<div class="sourceCode" id="cb33"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run <span class="at">--failfast</span> src/pipeline.t</span></code></pre></div>
+<div class="sourceCode" id="cb35"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run <span class="at">--failfast</span> src/pipeline.t</span></code></pre></div>
 <p>In your T scripts, you can also opt-in to this behavior via
 <code>t_make()</code>:</p>
 <pre class="t"><code>t_make(failfast = true)</code></pre>
@@ -1257,6 +1420,11 @@ Development</a></strong> — Master T’s project structure and dependency
 management.</li>
 <li><strong><a href="package_development.html">Package
 Development</a></strong> — Create reusable T libraries.</li>
+<li><strong><a href="error-handling.html">Error Handling</a></strong> —
+Understand T’s first-class error system, <code>?|&gt;</code> pipe,
+<code>collect_exceptions()</code>, and failfast mode.</li>
+<li><strong><a href="debugging.html">Debugging</a></strong> — Interactive
+node debugging and REPL diagnostics.</li>
 <li><strong><a href="reproducibility.html">Reproducibility
 Guide</a></strong> — Deep dive into T’s commitment to reproducible
 research.</li>

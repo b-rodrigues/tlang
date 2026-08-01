@@ -39,7 +39,7 @@ This creates the following structure:
 - **tests/**: Project-specific tests.
 - **AGENTS.md**: Onboarding guide for AI Agents.
 - **T-LANGUAGE-REFERENCE.md**: Tiered language reference for LLMs.
-- **.claude/skills/SKILL.md**: An AI agent skill file that teaches LLMs how to work with T projects (scaffolded automatically).
+- **`.claude/skills/t-project/SKILL.md`**: An AI agent skill file that teaches LLMs how to work with T projects (scaffolded automatically).
 
 ## 2. Entering the Development Environment
 
@@ -113,7 +113,7 @@ To upgrade your project to the latest version of T and set the project's nixpkgs
 ```bash
 $ t upgrade
 Checking for new T releases...
-Upgrading project to T 0.53.0 and nixpkgs date 2026-05-08 (today's UTC date)...
+Upgrading project to T 0.54.3 and nixpkgs date 2026-07-27 (today's UTC date)...
 Regenerating flake.nix and updating dependencies...
 Running nix flake update...
 ```
@@ -212,7 +212,7 @@ This walkthrough assumes you do **not** have `uv` installed and have **no** exis
 **1. Create a new T project**
 
 ```bash
-t project my_project
+t init --project my_project
 cd my_project
 ```
 
@@ -226,7 +226,7 @@ resolver = "uv"
 workspace = "python"
 ```
 
-The `version` field is optional when using the UV resolver — T infers it from `requires-python` in `pyproject.toml`. Remove any `packages` key if present — UV and `packages` are mutually exclusive.
+The `version` field is optional when using the UV resolver — T infers it from `requires-python` in `pyproject.toml`. The specifier must constrain Python to a single minor version (e.g. `>=3.12,<3.13`); an open-ended specifier like `>=3.12` is rejected as ambiguous. Remove any `packages` key if present — UV and `packages` are mutually exclusive.
 
 **3. Create the Python workspace directory and `pyproject.toml`**
 
@@ -239,7 +239,7 @@ mkdir python
 [project]
 name = "my_project_python_env"
 version = "0.1.0"
-requires-python = ">=3.12"
+requires-python = ">=3.12,<3.13"
 dependencies = [
     "pandas",
 ]
@@ -286,6 +286,34 @@ Python pipeline nodes work identically regardless of which resolver you chose.
 2. Re-run `uv lock --project python`.
 3. Re-run `t update` to regenerate `flake.nix`.
 4. Commit the updated `pyproject.toml` and `uv.lock`.
+
+### 3.5 Julia Dependencies
+
+Julia packages use the nixpkgs resolver. List them under `[jl-dependencies]`:
+
+```toml
+[jl-dependencies]
+version = "lts"
+packages = ["DataFrames", "CSV", "GLM"]
+```
+
+The `version` field defaults to `"lts"` (the current Julia long-term-support release). To pin a specific version, use the format `"1.10"` or `"1.11"`, which maps to the corresponding `julia_1_10` or `julia_1_11` attribute in nixpkgs.
+
+After editing, run `t update` to include the Julia packages in `flake.nix`. They are then available via `using` inside `jln()` nodes:
+
+```t
+p = pipeline {
+  julia_step = jln(
+    command = <{
+      using DataFrames, CSV
+      df = CSV.read("data.csv", DataFrame)
+      println(nrow(df))
+    }>
+  )
+}
+```
+
+The `tlang` companion package (for `debug_node`, `read_node` helpers, etc.) is automatically injected into every Julia node — no need to declare it.
 
 ## 4. Importing Packages
 
@@ -397,6 +425,7 @@ test_filter = pipeline {
 ```
 
 This pattern provides a clean duality:
+
 - **Passing builds** output a structured JSON status artifact mapping check names to `true` (accessible via `read_node(p.check_filter)`).
 - **Failing assertions** short-circuit execution immediately, recording the full `AssertionError` object in the node's build log.
 
@@ -413,7 +442,7 @@ p = pipeline {
   heavy_node = node(
     command = <{ run_heavy_nix_job() }>,
     # Skip execution if not running in CI
-    noop = (env_var("CI") == "")
+    noop = (get(env("CI"), "") == "")
   )
 }
 
@@ -464,6 +493,7 @@ To enable Atelier in a new project, pass `--include-atelier` to `t init`. Once
 inside `nix develop`, simply run `atelier`.
 
 Once active, you will get real-time autocompletion for:
+
 -   **Package functions**: Suggestions for all imported functions.
 -   **Local variables**: Defined earlier in your script.
 -   **DataFrame columns**: Column names from your data sources (accessible via the `$` prefix).
@@ -474,5 +504,7 @@ Once active, you will get real-time autocompletion for:
 
 1. **[Language Overview](language_overview.md)** — Learn about types, syntax, and logic.
 2. **[Pipeline Tutorial](pipeline_tutorial.md)** — Learn how to structure your analysis as a DAG.
-3. **[API Reference](api-reference.md)** — Explore the standard library.
-4. **[Data Manipulation Examples](data_manipulation_examples.md)** — More worked examples of data wrangling.
+3. **[Serializers](serializers.md)** — Understand data interchange between T, R, Python, and Julia nodes.
+4. **[Data I/O & Formats](data-formats.md)** — Read and write CSV, Parquet, and Arrow IPC files.
+5. **[API Reference](api-reference.md)** — Explore the standard library.
+6. **[Data Manipulation Examples](data_manipulation_examples.md)** — More worked examples of data wrangling.

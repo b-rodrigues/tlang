@@ -54,7 +54,7 @@ T supports the following value types:
 | `Bool`      | `true`, `false`          | Boolean values                      |
 | `String`    | `"hello"`                | Text strings                        |
 | `List`      | `[1, 2, 3]`             | Ordered, heterogeneous collections  |
-| `Dict`      | `{x: 1, y: 2}`          | Key-value maps with string keys     |
+| `Dict`      | `[x: 1, y: 2]`          | Key-value maps with string keys     |
 | `Vector`    | Column data              | Typed arrays (from DataFrames)      |
 | `DataFrame` | `read_csv("data.csv")`   | Tabular data (rows × columns)       |
 | `Pipeline`  | `pipeline { ... }`       | DAG-based execution graph           |
@@ -166,7 +166,7 @@ The T REPL (`t repl` or `t` in a project shell) supports:
 - **Readline editing** with arrow keys and history navigation
 - **Persistent history** in `~/.t_history`
 - **Multi-line input** for open brackets, parentheses, and braces
-- **Magic commands** such as `:help`, `:quit`, and `:clear`
+- **Magic commands** such as `:help`, `:quit`, `:version`, and `:packages`
 - **Signal-safe interrupts** so `Ctrl+C` returns you to the prompt cleanly
 
 ### Language Server Protocol (LSP)
@@ -306,7 +306,7 @@ Conditionals are expressions — they return values.
 
 ---
 
-## Pattern Matching (New)
+## Pattern Matching
 
 T now supports pattern matching on lists and errors using the `match` expression. This addition provides a more declarative way to destructure data and handle error states.
 
@@ -409,7 +409,7 @@ person.age   -- 30
 ### Dictionaries
 
 ```t
-config = {host: "localhost", port: 8080}
+config = [host: "localhost", port: 8080]
 config.host  -- "localhost"
 config.port  -- 8080
 ```
@@ -488,7 +488,7 @@ get(data_updated, l_deep)    -- 99
 ```
 
 > [!NOTE]
-> **Serializable Pipelines**: Tlang lenses are now implemented as structured data (`VLens`), not closures. This ensures they can be saved to disk by one pipeline node and loaded by another without losing functionality.
+> **Serializable Pipelines**: Pipeline lenses are first-class values that can be passed between pipeline nodes and serialized to disk. Use `mutate_node()` or `set_pipeline_global_options()` to apply a lens to a pipeline.
 
 ---
 
@@ -817,13 +817,42 @@ is_error(result)  -- true
 
 ---
 
+## Foreign Code Blocks (`<{ }>`)
+
+The `<{ ... }>` syntax embeds **verbatim foreign code** — R, Python, Julia, or shell scripts — inside T. Everything between `<{` and `}>` is captured as a raw string without T interpreting it at all. This is the mechanism that makes polyglot pipeline nodes possible.
+
+The `<{ }>` block is used as the `command` argument to pipeline node constructors:
+
+```t
+p = pipeline {
+  r_step = rn(
+    command = <{
+      library(dplyr)
+      mtcars |> filter(mpg > 20)
+    }>,
+    serializer = ^csv
+  )
+}
+```
+
+The R code inside `<{ ... }>` is stored verbatim. T never parses or executes it — T emits it into the Nix sandbox where the R runtime handles it when the node is built.
+
+Key properties:
+- **Opaque to T**: The lexer captures everything up to `}>` as a single token; T never inspects the foreign code's syntax.
+- **Required for non-T runtimes**: `rn()`, `pyn()`, `jln()`, `shn()`, and `qn()` all require their `command` to be wrapped in `<{ }>` (or use the `script` argument to point to an external file).
+- **Identifier extraction**: For pipeline dependency analysis, T scans `<{ }>` blocks to extract identifier-like tokens (words matching `[a-zA-Z_][a-zA-Z0-9_]*`), ignoring commented lines (`--` or `#`). This lets T detect cross-pipeline references.
+- **Not for T nodes**: Plain `node()` with `runtime = "T"` uses ordinary T expressions, not `<{ }>`.
+
+---
+
 ## Pipelines
 
 Pipelines define named computation nodes with automatic dependency resolution and provide the foundation for reproducible, polyglot workflows. You can see a complete, polyglot version of this example in the [`examples/polyglot_pipeline.t`](../examples/polyglot_pipeline.t) file. T supports R (`rn()`), Python (`pyn()`), Julia (`jln()`), Quarto (`qn()`), and Shell (`shn()`) nodes out of the box.
 
-Built-in serializer keywords include `"csv"`, `"arrow"`, `"pmml"`, and `"onnx"` (or `^csv`, `^arrow`, `^pmml`, `^onnx` when referencing the first-class serializer values directly).
+Built-in serializer symbols include `^csv`, `^arrow`, `^pmml`, and `^onnx`, which you pass to node constructors like `serializer = ^csv`.
 
 The **ONNX** system provides full cross-runtime model portability:
+
 - **`^onnx` Serializer**: Automatically handles model export/import between R, Python, and T nodes.
 - **Native Inference**: Use `t_read_onnx()` to load models and `predict()` for high-performance scoring directly inside T nodes, with no dependency on R or Python at prediction time.
 - **Rich Metadata**: T-native ONNX objects contain input/output schema and custom model properties (producer, description, feature names) extracted directly from the session.
@@ -833,20 +862,20 @@ p = pipeline {
   -- 1. Load data natively in T (CSV backend)
   data = node(
     command = read_csv("examples/sample_data.csv") |> filter($age > 25),
-    serializer = "csv"
+    serializer = ^csv
   )
   
   -- 2. Train a statistical model in R (using the rn() wrapper)
   model_r = rn(
     command = <{ lm(score ~ age, data = data) }>,
-    serializer = "pmml",
-    deserializer = "csv"
+    serializer = ^pmml,
+    deserializer = ^csv
   )
   
   -- 3. Predict natively in T (no R/Python runtime needed for evaluation!)
   predictions = node(
     command = data |> mutate($pred = predict(data, model_r)),
-    deserializer = "pmml"
+    deserializer = ^pmml
   )
 
   -- 4. Generate a shell report
@@ -907,11 +936,12 @@ For more comprehensive examples and templates, visit the [T Demos repository](ht
 Instead of inlining code with `command`, nodes can point to an external file using `script`. `command` and `script` are mutually exclusive, and the runtime can be inferred from file extensions such as `.R` or `.py`.
 
 Pipeline features:
+
 - **Automatic dependency resolution**: Nodes can be declared in any order
 - **Deterministic execution**: Same inputs always produce same outputs
 - **Cycle detection**: Circular dependencies are caught and reported
 - **Introspection**: `pipeline_nodes()`, `pipeline_deps()`, `pipeline_node()`
-- **Cross-language**: `node()`, `py()`/`pyn()`, `rn()`, and `shn()` enable execution in T, Python, R, and shell runtimes
+- **Cross-language**: `node()`, `pyn()`, `rn()`, `jln()`, `qn()`, and `shn()` enable execution in T, Python, R, Julia, Quarto, and shell runtimes
 - **Environment Variables**: Pass custom variables into Nix build sandboxes via `env_vars`
 - **Re-run**: `pipeline_run()` re-executes the pipeline
 
@@ -1004,9 +1034,9 @@ These signatures provide a compact map of the most commonly used functions:
 
 #### Pipelines
 
-- `node(command :: Any, script :: String, runtime = "T", serializer = "default", deserializer = "default", functions = [], include = [], noop = false) :: Any`
-- `pyn(command :: Any, script :: String, serializer = "default", deserializer = "default", functions = [], include = [], noop = false) :: Any`
-- `rn(command :: Any, script :: String, serializer = "default", deserializer = "default", functions = [], include = [], noop = false) :: Any`
+- `node(command :: Any, script :: String, runtime = T, serializer = default, deserializer = default, functions = [], include = [], noop = false) :: Any`
+- `pyn(command :: Any, script :: String, serializer = default, deserializer = default, functions = [], include = [], noop = false) :: Any`
+- `rn(command :: Any, script :: String, serializer = default, deserializer = default, functions = [], include = [], noop = false) :: Any`
 - `build_pipeline(pipeline :: Pipeline) :: NA`
 - `pipeline_run(pipeline :: Pipeline) :: Pipeline`
 - `pipeline_nodes(p :: Pipeline) :: List[String]`
@@ -1134,10 +1164,9 @@ type(3.14)           -- "Float"
 type(true)           -- "Bool"
 type("hello")        -- "String"
 type([1, 2])         -- "List"
-type({x: 1})         -- "Dict"
+type([x: 1])         -- "Dict"
 type(NA)             -- "NA"
 type(1 / 0)          -- "Error"
-type(NA)           -- "NA"
 ```
 
 ---

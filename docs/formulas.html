@@ -65,13 +65,17 @@ Regression</h2>
 <code>y ~ x</code>)</li>
 </ul>
 <h3 id="returns">Returns</h3>
-<p>Dictionary containing: - <code>formula</code>: The model formula -
-<code>coefficients</code>: Dictionary of term estimates -
-<code>std_errors</code>: Dictionary of standard errors -
-<code>r_squared</code>: R² statistic - <code>adj_r_squared</code>:
-Adjusted R² statistic - <code>sigma</code>: Residual standard error -
-<code>nobs</code>: Number of observations - <code>_tidy_df</code>: Tidy
-DataFrame of results</p>
+<p>Dictionary containing:</p>
+<ul>
+<li><code>formula</code>: The model formula</li>
+<li><code>coefficients</code>: Dictionary of term estimates</li>
+<li><code>std_errors</code>: Dictionary of standard errors</li>
+<li><code>r_squared</code>: R² statistic</li>
+<li><code>adj_r_squared</code>: Adjusted R² statistic</li>
+<li><code>sigma</code>: Residual standard error</li>
+<li><code>nobs</code>: Number of observations</li>
+<li><code>_tidy_df</code>: Tidy DataFrame of results</li>
+</ul>
 <h3 id="examples-1">Examples</h3>
 <pre class="t"><code>data = read_csv(&quot;mtcars.csv&quot;)
 model = lm(data = data, formula = mpg ~ hp)

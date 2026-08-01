@@ -5,6 +5,7 @@
 T integrates declaratively with the Nix ecosystem to compile, build, and run pipelines in completely isolated, reproducible sandboxes. To offer fine-grained control over Nix builds, T provides a unified `nix_options` dictionary argument. 
 
 This argument is accepted by all primary orchestration and execution entry points:
+
 - `populate_pipeline()`
 - `build_pipeline()`
 - `pipeline_run()`
@@ -64,9 +65,10 @@ print(plan_df)
 ```
 
 The returned DataFrame contains three columns:
+
 - **`node`**: The name of the pipeline node.
-- **`action`**: The build action determined by Nix (`"build"`, `"fetch"` from cache, or `"noop"`).
-- **`path`**: The absolute `/nix/store/` path where the node's output derivation resides.
+- **`action`**: The build action determined by Nix (`"rebuild"`, `"fetch"` from cache, or `"cache_hit"`).
+- **`store_path`**: The absolute `/nix/store/` path where the node's output derivation resides.
 
 This allows you to programmatically inspect build plans, perform capacity planning, or check whether specific nodes will be pulled from a binary cache before initiating a build.
 
@@ -134,6 +136,7 @@ pipeline_run(p, nix_options = [
 ```
 
 Supported values for `sandbox`:
+
 - `true` or `"strict"`: All build jobs are completely isolated (default).
 - `"relaxed"`: Relaxes sandboxing rules for derivations that request it, allowing paths in the host filesystem to be accessed.
 - `false` or `"none"`: Sandboxing is disabled entirely.
@@ -162,13 +165,13 @@ The pipeline engine validates that only allowed variables are whitelisted and sa
 
 The `env_vars` parameter (on node-level functions) and `keep_env` (in `nix_options`) both inject environment variables into the Nix sandbox, but they serve different purposes:
 
-- **`env_vars`** is a per-node dictionary of key-value pairs set on `node()`, `py()`/`pyn()`, `rn()`, `shn()`, `jln()`, or `qn()`. You provide explicit values for each variable.
+- **`env_vars`** is a per-node dictionary of key-value pairs set on `node()`, `pyn()`, `rn()`, `shn()`, `jln()`, or `qn()`. You provide explicit values for each variable.
 - **`keep_env`** is a pipeline-wide list of variable *names* passed through `nix_options`. It forwards existing host environment variables by name without specifying their values.
 
 | | `env_vars` | `keep_env` |
 | :--- | :--- | :--- |
 | **Scope** | Per-node | Whole pipeline (all nodes) |
-| **Where** | `node()`, `py()`, `rn()`, `shn()`, `jln()`, `qn()` | `nix_options` in `t_make()`, `pipeline_run()`, `pipeline_build()` |
+| **Where** | `node()`, `pyn()`, `rn()`, `shn()`, `jln()`, `qn()` | `nix_options` in `t_make()`, `pipeline_run()`, `build_pipeline()`, `populate_pipeline()` |
 | **What it does** | Sets env vars to explicit values you provide | Forwards existing host env vars by name |
 | **Type** | Dict (key-value pairs) | String or List of variable names |
 
@@ -197,7 +200,7 @@ t_make(nix_options = [max_jobs: "high"])
 -- ❌ TypeError: t_make: unknown option 'threads' in nix_options
 t_make(nix_options = [threads: 4])
 
--- ❌ ValueError: sandbox: 'invalid_sandbox' is not a valid sandboxing mode
+-- ❌ TypeError: t_make: 'sandbox' in nix_options must be 'relaxed', 'strict', 'none', or a Bool
 t_make(nix_options = [sandbox: "invalid_sandbox"])
 ```
 

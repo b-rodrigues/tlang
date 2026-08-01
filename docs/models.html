@@ -72,7 +72,7 @@ in R</h4>
         command = &lt;{
             glm(Survived ~ Pclass + Sex + Age, data = titanic, family = binomial())
         }&gt;,
-        serializer = &quot;pmml&quot;
+        serializer = ^pmml
     )
 }
 build_pipeline(p)

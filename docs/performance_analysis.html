@@ -152,9 +152,11 @@ script to populate with actual measurements</p>
 <hr />
 <h2 id="analysis">Analysis</h2>
 <h3 id="scaling-behavior">Scaling Behavior</h3>
-<p>Operations should scale approximately linearly with row count: - 10x
-rows → ~10x time for columnar operations - Group-by scaling depends on
-group cardinality</p>
+<p>Operations should scale approximately linearly with row count:</p>
+<ul>
+<li>10x rows → ~10x time for columnar operations</li>
+<li>Group-by scaling depends on group cardinality</li>
+</ul>
 <h3 id="hot-paths">Hot Paths</h3>
 <p>The most time-critical operations for large datasets are: 1.
 <strong>Group-by + aggregation</strong>: Dominates pipeline execution

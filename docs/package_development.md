@@ -221,7 +221,7 @@ p = pipeline {
   heavy_node = node(
     command = <{ run_heavy_nix_job() }>,
     # Skip execution if not running in CI
-    noop = (env_var("CI") == "")
+    noop = (get(env("CI"), "") == "")
   )
 }
 
@@ -300,6 +300,7 @@ $ t doctor
 ```
 
 It checks for:
+
 - Required files (`DESCRIPTION.toml`, `flake.nix`).
 - Valid directory structure.
 - Documentation existence.
