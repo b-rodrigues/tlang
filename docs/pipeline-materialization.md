@@ -82,8 +82,8 @@ print(actions)
 The resulting `DataFrame` contains the columns:
 
 - `node`: The name of the pipeline node.
-- `action`: The action planned (e.g., `"build"`, `"substitute"`, or `"noop"`).
-- `path`: The absolute store path of the Nix derivation or artifact.
+- `action`: The action planned (e.g., `"rebuild"`, `"fetch"`, or `"cache_hit"`).
+- `store_path`: The absolute store path of the Nix derivation or artifact.
 
 ### Advanced Nix Orchestration Example
 
@@ -179,10 +179,10 @@ p = pipeline {
 -- Check cache hit/miss status directly
 plan = populate_pipeline(p, dry_run = true)
 print(plan)
--- Returns a DataFrame with columns: node, action, and path.
+-- Returns a DataFrame with columns: node, action, and store_path.
 -- "action" will be one of:
---   - "cached": path is already built/cached locally
---   - "build": path must be rebuilt locally
+--   - "cache_hit": path is already built/cached locally
+--   - "rebuild": path must be rebuilt locally
 --   - "fetch": path can be retrieved from remote binary substitutes
 ```
 

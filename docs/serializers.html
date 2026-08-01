@@ -72,10 +72,18 @@ import &quot;src/my_ser.t&quot; [my_ser]
 node(..., serializer = my_ser)</code></pre>
 <blockquote>
 <p>[!IMPORTANT] <strong>String literals (e.g.,
-<code>serializer = "arrow"</code>) are strictly disallowed.</strong> You
-must use either a symbol with the <code>^</code> prefix for built-ins or
-a variable name for custom serializers. Using a string literal will
-result in a <code>TypeError</code>.</p>
+<code>serializer = "arrow"</code>) are strictly disallowed in node
+constructors</strong> (<code>rn()</code>, <code>pyn()</code>,
+<code>jln()</code>, <code>shn()</code>, <code>qn()</code>,
+<code>node()</code>). You must use either a symbol with the
+<code>^</code> prefix for built-ins or a variable name for custom
+serializers. Using a string literal in a node constructor will result in
+a <code>TypeError</code>.</p>
+<p><code>mutate_node()</code> and
+<code>set_pipeline_global_options()</code> accept both strings and
+symbols: <code>mutate_node($serializer = "pmml")</code> and
+<code>set_pipeline_global_options(p, serializer = ^pmml)</code> are both
+valid.</p>
 </blockquote>
 <h3 id="implicit-serialization">Implicit Serialization</h3>
 <p>If you don’t specify a serializer, T uses the <code>default</code>

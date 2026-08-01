@@ -261,10 +261,11 @@ print(actions)</code></pre>
 <p>The resulting <code>DataFrame</code> contains the columns:</p>
 <ul>
 <li><code>node</code>: The name of the pipeline node.</li>
-<li><code>action</code>: The action planned (e.g., <code>"build"</code>,
-<code>"substitute"</code>, or <code>"noop"</code>).</li>
-<li><code>path</code>: The absolute store path of the Nix derivation or
-artifact.</li>
+<li><code>action</code>: The action planned (e.g.,
+<code>"rebuild"</code>, <code>"fetch"</code>, or
+<code>"cache_hit"</code>).</li>
+<li><code>store_path</code>: The absolute store path of the Nix
+derivation or artifact.</li>
 </ul>
 <h3 id="advanced-nix-orchestration-example">Advanced Nix Orchestration
 Example</h3>
@@ -358,10 +359,10 @@ in the Nix cache and which ones require rebuilding or downloading:</p>
 -- Check cache hit/miss status directly
 plan = populate_pipeline(p, dry_run = true)
 print(plan)
--- Returns a DataFrame with columns: node, action, and path.
+-- Returns a DataFrame with columns: node, action, and store_path.
 -- &quot;action&quot; will be one of:
---   - &quot;cached&quot;: path is already built/cached locally
---   - &quot;build&quot;: path must be rebuilt locally
+--   - &quot;cache_hit&quot;: path is already built/cached locally
+--   - &quot;rebuild&quot;: path must be rebuilt locally
 --   - &quot;fetch&quot;: path can be retrieved from remote binary substitutes</code></pre>
 <h3 id="programmatic-garbage-collection">Programmatic Garbage
 Collection</h3>

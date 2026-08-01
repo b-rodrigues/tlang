@@ -19205,8 +19205,8 @@ print(actions)
 The resulting `DataFrame` contains the columns:
 
 - `node`: The name of the pipeline node.
-- `action`: The action planned (e.g., `"build"`, `"substitute"`, or `"noop"`).
-- `path`: The absolute store path of the Nix derivation or artifact.
+- `action`: The action planned (e.g., `"rebuild"`, `"fetch"`, or `"cache_hit"`).
+- `store_path`: The absolute store path of the Nix derivation or artifact.
 
 ### Advanced Nix Orchestration Example
 
@@ -19302,10 +19302,10 @@ p = pipeline {
 -- Check cache hit/miss status directly
 plan = populate_pipeline(p, dry_run = true)
 print(plan)
--- Returns a DataFrame with columns: node, action, and path.
+-- Returns a DataFrame with columns: node, action, and store_path.
 -- "action" will be one of:
---   - "cached": path is already built/cached locally
---   - "build": path must be rebuilt locally
+--   - "cache_hit": path is already built/cached locally
+--   - "rebuild": path must be rebuilt locally
 --   - "fetch": path can be retrieved from remote binary substitutes
 ```
 
@@ -35608,7 +35608,9 @@ node(..., serializer = my_ser)
 ```
 
 > [!IMPORTANT]
-> **String literals (e.g., `serializer = "arrow"`) are strictly disallowed.** You must use either a symbol with the `^` prefix for built-ins or a variable name for custom serializers. Using a string literal will result in a `TypeError`.
+> **String literals (e.g., `serializer = "arrow"`) are strictly disallowed in node constructors** (`rn()`, `pyn()`, `jln()`, `shn()`, `qn()`, `node()`). You must use either a symbol with the `^` prefix for built-ins or a variable name for custom serializers. Using a string literal in a node constructor will result in a `TypeError`.
+>
+> `mutate_node()` and `set_pipeline_global_options()` accept both strings and symbols: `mutate_node($serializer = "pmml")` and `set_pipeline_global_options(p, serializer = ^pmml)` are both valid.
 
 
 ### Implicit Serialization

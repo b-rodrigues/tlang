@@ -36,7 +36,9 @@ node(..., serializer = my_ser)
 ```
 
 > [!IMPORTANT]
-> **String literals (e.g., `serializer = "arrow"`) are strictly disallowed.** You must use either a symbol with the `^` prefix for built-ins or a variable name for custom serializers. Using a string literal will result in a `TypeError`.
+> **String literals (e.g., `serializer = "arrow"`) are strictly disallowed in node constructors** (`rn()`, `pyn()`, `jln()`, `shn()`, `qn()`, `node()`). You must use either a symbol with the `^` prefix for built-ins or a variable name for custom serializers. Using a string literal in a node constructor will result in a `TypeError`.
+>
+> `mutate_node()` and `set_pipeline_global_options()` accept both strings and symbols: `mutate_node($serializer = "pmml")` and `set_pipeline_global_options(p, serializer = ^pmml)` are both valid.
 
 
 ### Implicit Serialization
