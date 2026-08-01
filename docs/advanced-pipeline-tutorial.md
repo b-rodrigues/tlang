@@ -155,7 +155,7 @@ See [§4.4 of the Pipeline Tutorial](pipeline_tutorial.md#reading-back-a-nodes-r
 
 ## 20. Environment Variables
 
-Pipeline nodes can pass environment variables into the Nix build sandbox via the `env_vars` named argument on `node()`, `py()`/`pyn()`, and `rn()`. This allows nodes to configure their build-time execution environment without embedding those values directly into the command body.
+Pipeline nodes can pass environment variables into the Nix build sandbox via the `env_vars` named argument on `node()`, `pyn()`, `rn()`, `jln()`, `qn()`, and `shn()`. This allows nodes to configure their build-time execution environment without embedding those values directly into the command body.
 
 ```t
 p = pipeline {

@@ -249,10 +249,10 @@ columns.</p>
 <h2 id="environment-variables">20. Environment Variables</h2>
 <p>Pipeline nodes can pass environment variables into the Nix build
 sandbox via the <code>env_vars</code> named argument on
-<code>node()</code>, <code>py()</code>/<code>pyn()</code>, and
-<code>rn()</code>. This allows nodes to configure their build-time
-execution environment without embedding those values directly into the
-command body.</p>
+<code>node()</code>, <code>pyn()</code>, <code>rn()</code>,
+<code>jln()</code>, <code>qn()</code>, and <code>shn()</code>. This
+allows nodes to configure their build-time execution environment without
+embedding those values directly into the command body.</p>
 <pre class="t"><code>p = pipeline {
   model = rn(
     command = &lt;{ train_model(data) }&gt;,

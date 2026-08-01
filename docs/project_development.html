@@ -387,6 +387,34 @@ you chose.</p>
 <li>Commit the updated <code>pyproject.toml</code> and
 <code>uv.lock</code>.</li>
 </ol>
+<h3 id="julia-dependencies">3.5 Julia Dependencies</h3>
+<p>Julia packages use the nixpkgs resolver. List them under
+<code>[jl-dependencies]</code>:</p>
+<div class="sourceCode" id="cb23"><pre
+class="sourceCode toml"><code class="sourceCode toml"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[jl-dependencies]</span></span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a><span class="dt">version</span> <span class="op">=</span> <span class="st">&quot;lts&quot;</span></span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a><span class="dt">packages</span> <span class="op">=</span> <span class="op">[</span><span class="st">&quot;DataFrames&quot;</span><span class="op">,</span> <span class="st">&quot;CSV&quot;</span><span class="op">,</span> <span class="st">&quot;GLM&quot;</span><span class="op">]</span></span></code></pre></div>
+<p>The <code>version</code> field defaults to <code>"lts"</code> (the
+current Julia long-term-support release). To pin a specific version, use
+the format <code>"1.10"</code> or <code>"1.11"</code>, which maps to the
+corresponding <code>julia_1_10</code> or <code>julia_1_11</code>
+attribute in nixpkgs.</p>
+<p>After editing, run <code>t update</code> to include the Julia
+packages in <code>flake.nix</code>. They are then available via
+<code>using</code> inside <code>jln()</code> nodes:</p>
+<pre class="t"><code>p = pipeline {
+  julia_step = jln(
+    command = &lt;{
+      using DataFrames, CSV
+      df = CSV.read(&quot;data.csv&quot;, DataFrame)
+      println(nrow(df))
+    }&gt;
+  )
+}</code></pre>
+<p>The <code>tlang</code> companion package (for
+<code>debug_node</code>, <code>read_node</code> helpers, etc.) is
+automatically injected into every Julia node — no need to declare
+it.</p>
 <h2 id="importing-packages">4. Importing Packages</h2>
 <p>Once inside <code>nix develop</code>, you can use the
 <code>import</code> statement in your T scripts to load package
@@ -426,11 +454,11 @@ p = pipeline {
 build_pipeline(p)
 print(price_by_area)</code></pre>
 <p>Run your script:</p>
-<div class="sourceCode" id="cb27"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run src/pipeline.t</span></code></pre></div>
+<div class="sourceCode" id="cb29"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run src/pipeline.t</span></code></pre></div>
 <p>Or use the REPL for interactive exploration:</p>
-<div class="sourceCode" id="cb28"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t repl</span></code></pre></div>
+<div class="sourceCode" id="cb30"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t repl</span></code></pre></div>
 <h2 id="running-tests">6. Running Tests</h2>
 <p>You can add tests in <code>tests/</code> following the same
 conventions as packages:</p>
@@ -440,8 +468,8 @@ import my_stats
 result = weighted_mean([1, 2, 3], [0.5, 0.3, 0.2])
 assert(result == 1.7)</code></pre>
 <p>Run them with:</p>
-<div class="sourceCode" id="cb30"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t test</span></code></pre></div>
+<div class="sourceCode" id="cb32"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t test</span></code></pre></div>
 <h3 id="pipeline-verification-nodes-assertion-dictionaries">6.1 Pipeline
 Verification Nodes &amp; Assertion Dictionaries</h3>
 <p>When testing pipeline workflows, separate data transformation nodes
@@ -511,11 +539,11 @@ inputs</li>
 source of truth for dependencies</li>
 </ul>
 <p>Anyone can reproduce your environment:</p>
-<div class="sourceCode" id="cb33"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> git clone https://github.com/user/housing-analysis</span>
-<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> cd housing-analysis</span>
-<span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> nix develop</span>
-<span id="cb33-4"><a href="#cb33-4" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run src/pipeline.t</span></code></pre></div>
+<div class="sourceCode" id="cb35"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> git clone https://github.com/user/housing-analysis</span>
+<span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> cd housing-analysis</span>
+<span id="cb35-3"><a href="#cb35-3" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> nix develop</span>
+<span id="cb35-4"><a href="#cb35-4" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run src/pipeline.t</span></code></pre></div>
 <p>The same T version, same package versions, same R packages, and same
 system libraries are used every time.</p>
 <h2 id="ide-support-autocompletion">8. IDE Support &amp;

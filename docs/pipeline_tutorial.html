@@ -645,15 +645,25 @@ serialization methods for when a pipeline is materialized by Nix:</p>
     }&gt;,
     serializer = ^pmml
   )
+
+  -- Running a Julia node that reads and summarizes the data
+  summary = jln(
+    command = &lt;{
+      using DataFrames
+      df = CSV.read(data_path, DataFrame)
+      describe(df)
+    }&gt;,
+    serializer = ^csv
+  )
 }</code></pre>
 <p>Bare syntax (like <code>x = 10</code>) is automatically desugared to
 <code>x = node(command = 10, runtime = T, serializer = default, deserializer = default)</code>.
-You can also use <code>pyn()</code>, <code>rn()</code>, and
-<code>shn()</code> as shortcuts for Python, R, and shell runtimes. T
-enforces cross-runtime safety: if a node with a non-<code>T</code>
-runtime depends on a <code>T</code> node, or vice versa, you should
-specify an explicit
-<code>serializer</code>/<code>deserializer</code>.</p>
+You can also use <code>pyn()</code>, <code>rn()</code>,
+<code>jln()</code>, <code>qn()</code>, and <code>shn()</code> as
+shortcuts for Python, R, Julia, Quarto, and shell runtimes. T enforces
+cross-runtime safety: if a node with a non-<code>T</code> runtime
+depends on a <code>T</code> node, or vice versa, you should specify an
+explicit <code>serializer</code>/<code>deserializer</code>.</p>
 <p>When an R node returns a <code>ggplot2</code> object, a Python node
 returns a <code>matplotlib</code> / <code>plotnine</code> plot object,
 or a Julia node returns a <code>TidierPlots.jl</code>,
@@ -687,10 +697,11 @@ This works with <code>node()</code>, <code>pyn()</code>,
 }</code></pre>
 <p>When using <code>script</code>, the runtime is auto-detected from the
 file extension (<code>.R</code> → R, <code>.py</code> → Python,
-<code>.sh</code> → sh) if not explicitly set via the
-<code>runtime</code> argument. T reads the script file to extract
-identifier references, allowing the pipeline dependency graph to be
-built correctly from variables referenced in the external file.</p>
+<code>.jl</code> → Julia, <code>.sh</code> → sh, <code>.qmd</code> →
+Quarto) if not explicitly set via the <code>runtime</code> argument. T
+reads the script file to extract identifier references, allowing the
+pipeline dependency graph to be built correctly from variables
+referenced in the external file.</p>
 <h3 id="shell-bash-nodes-with-shn">Shell / Bash nodes with
 <code>shn()</code></h3>
 <p>Use <code>shn()</code> for pipeline steps that are easiest to express
@@ -731,6 +742,35 @@ pipeline nodes. For a full end-to-end example that mixes T, R, Python,
 and <code>sh</code>, see
 <code>tests/pipeline/polyglot_shell_pipeline.t</code> and
 <code>.github/workflows/polyglot-shell-pipeline.yml</code>.</p>
+<h3 id="julia-nodes-with-jln">Julia nodes with <code>jln()</code></h3>
+<p>Use <code>jln()</code> for pipeline steps written in Julia. It wraps
+<code>node(runtime = Julia, ...)</code>, just like <code>rn()</code> and
+<code>pyn()</code> wrap <code>node()</code> for R and Python. Julia
+packages are declared in <code>[jl-dependencies]</code> in
+<code>tproject.toml</code> and live in
+<code>julia_depot_sandbox_hook</code> during builds. To use the REPL
+debug node mode, the <code>tlang</code> companion package is
+automatically injected into every Julia node without manual
+declaration.</p>
+<pre class="t"><code>p = pipeline {
+  raw = read_csv(&quot;data.csv&quot;)
+
+  julia_summary = jln(
+    command = &lt;{
+      using DataFrames, Statistics
+      df = CSV.read(raw_path, DataFrame)
+      result = combine(groupby(df, :cyl),
+                       :mpg =&gt; mean =&gt; :avg_mpg)
+      result
+    }&gt;,
+    serializer = ^csv
+  )
+}</code></pre>
+<p>Julia nodes default to <code>serializer = default</code>, which uses
+Julia’s standard <code>Serialization</code> module to write
+<code>.jls</code> artifacts. Use <code>^csv</code>, <code>^arrow</code>,
+or <code>^json</code> for cross-runtime interchange with T, R, or Python
+nodes.</p>
 <h3 id="fetching-remote-assets">Fetching Remote Assets</h3>
 <p>Pipeline nodes can download files from URLs using
 <code>fetchurl</code>. This generates a Nix derivation that uses
@@ -1080,8 +1120,8 @@ nodes succeeded and which failed.</p>
 <p>If you prefer the usual, common behaviour where evaluation stops
 immediately at the first error, you can use the <code>--failfast</code>
 flag:</p>
-<div class="sourceCode" id="cb33"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run <span class="at">--failfast</span> src/pipeline.t</span></code></pre></div>
+<div class="sourceCode" id="cb34"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run <span class="at">--failfast</span> src/pipeline.t</span></code></pre></div>
 <p>In your T scripts, you can also opt-in to this behavior via
 <code>t_make()</code>:</p>
 <pre class="t"><code>t_make(failfast = true)</code></pre>

@@ -108,7 +108,23 @@ node B {
 
 This prevents runtime errors after long-running computations by catching interchange mismatches at the start of the build.
 
-## 5. Polyglot Support
+## 5. Serializer Runtime Dependencies
+
+Each serializer format may require specific runtime packages. T auto-detects which packages are needed based on the node's serializer and runtime, but these packages must still be declared in `tproject.toml` (unless `TLANG_AUTO_ADD_PIPELINE_DEPS=1` is set). The table below shows which packages each format pulls in per runtime:
+
+| Format | R packages | Python packages | Julia packages |
+|--------|-----------|----------------|---------------|
+| `^csv` | *(base R)* | `pandas` | `CSV`, `DataFrames` |
+| `^arrow` | `arrow` | `pandas`, `pyarrow` | `Arrow`, `DataFrames` |
+| `^json` | `jsonlite` | *(stdlib)* | `JSON` |
+| `^pmml` | `XML`, `jsonlite`, `r2pmml` | `numpy`, `pandas`, `pyarrow`, `scikit-learn`, `scipy`, `sklearn2pmml`, `statsmodels` | — |
+| `^onnx` | `onnx` | `onnxruntime`, `skl2onnx` | `ONNXRunTime`, `ONNX` |
+| `^text` | *(base R)* | *(stdlib)* | *(stdlib)* |
+| `default` | *(none)* | *(stdlib pickle)* | *(stdlib Serialization)* |
+
+The `^pmml` format also requires `jre` as a system tool (for R and Python). T automatically discovers scanning dependencies from your pipeline code and prompts you to add missing entries to `tproject.toml` before building.
+
+## 6. Polyglot Support
 
 For cross-language nodes, serializers provide the necessary glue code for the target runtime. For example, when using `^arrow` in an R node:
 

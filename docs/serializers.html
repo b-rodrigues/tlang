@@ -188,7 +188,81 @@ node B {
 -- &quot;Format mismatch: Node A produces ^csv, but Node B expects ^arrow.&quot;</code></pre>
 <p>This prevents runtime errors after long-running computations by
 catching interchange mismatches at the start of the build.</p>
-<h2 id="polyglot-support">5. Polyglot Support</h2>
+<h2 id="serializer-runtime-dependencies">5. Serializer Runtime
+Dependencies</h2>
+<p>Each serializer format may require specific runtime packages. T
+auto-detects which packages are needed based on the node’s serializer
+and runtime, but these packages must still be declared in
+<code>tproject.toml</code> (unless
+<code>TLANG_AUTO_ADD_PIPELINE_DEPS=1</code> is set). The table below
+shows which packages each format pulls in per runtime:</p>
+<table>
+<colgroup>
+<col style="width: 16%" />
+<col style="width: 22%" />
+<col style="width: 32%" />
+<col style="width: 30%" />
+</colgroup>
+<thead>
+<tr>
+<th>Format</th>
+<th>R packages</th>
+<th>Python packages</th>
+<th>Julia packages</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>^csv</code></td>
+<td><em>(base R)</em></td>
+<td><code>pandas</code></td>
+<td><code>CSV</code>, <code>DataFrames</code></td>
+</tr>
+<tr>
+<td><code>^arrow</code></td>
+<td><code>arrow</code></td>
+<td><code>pandas</code>, <code>pyarrow</code></td>
+<td><code>Arrow</code>, <code>DataFrames</code></td>
+</tr>
+<tr>
+<td><code>^json</code></td>
+<td><code>jsonlite</code></td>
+<td><em>(stdlib)</em></td>
+<td><code>JSON</code></td>
+</tr>
+<tr>
+<td><code>^pmml</code></td>
+<td><code>XML</code>, <code>jsonlite</code>, <code>r2pmml</code></td>
+<td><code>numpy</code>, <code>pandas</code>, <code>pyarrow</code>,
+<code>scikit-learn</code>, <code>scipy</code>,
+<code>sklearn2pmml</code>, <code>statsmodels</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>^onnx</code></td>
+<td><code>onnx</code></td>
+<td><code>onnxruntime</code>, <code>skl2onnx</code></td>
+<td><code>ONNXRunTime</code>, <code>ONNX</code></td>
+</tr>
+<tr>
+<td><code>^text</code></td>
+<td><em>(base R)</em></td>
+<td><em>(stdlib)</em></td>
+<td><em>(stdlib)</em></td>
+</tr>
+<tr>
+<td><code>default</code></td>
+<td><em>(none)</em></td>
+<td><em>(stdlib pickle)</em></td>
+<td><em>(stdlib Serialization)</em></td>
+</tr>
+</tbody>
+</table>
+<p>The <code>^pmml</code> format also requires <code>jre</code> as a
+system tool (for R and Python). T automatically discovers scanning
+dependencies from your pipeline code and prompts you to add missing
+entries to <code>tproject.toml</code> before building.</p>
+<h2 id="polyglot-support">6. Polyglot Support</h2>
 <p>For cross-language nodes, serializers provide the necessary glue code
 for the target runtime. For example, when using <code>^arrow</code> in
 an R node:</p>

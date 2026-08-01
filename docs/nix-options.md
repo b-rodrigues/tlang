@@ -165,13 +165,13 @@ The pipeline engine validates that only allowed variables are whitelisted and sa
 
 The `env_vars` parameter (on node-level functions) and `keep_env` (in `nix_options`) both inject environment variables into the Nix sandbox, but they serve different purposes:
 
-- **`env_vars`** is a per-node dictionary of key-value pairs set on `node()`, `py()`/`pyn()`, `rn()`, `shn()`, `jln()`, or `qn()`. You provide explicit values for each variable.
+- **`env_vars`** is a per-node dictionary of key-value pairs set on `node()`, `pyn()`, `rn()`, `shn()`, `jln()`, or `qn()`. You provide explicit values for each variable.
 - **`keep_env`** is a pipeline-wide list of variable *names* passed through `nix_options`. It forwards existing host environment variables by name without specifying their values.
 
 | | `env_vars` | `keep_env` |
 | :--- | :--- | :--- |
 | **Scope** | Per-node | Whole pipeline (all nodes) |
-| **Where** | `node()`, `py()`, `rn()`, `shn()`, `jln()`, `qn()` | `nix_options` in `t_make()`, `pipeline_run()`, `build_pipeline()`, `populate_pipeline()` |
+| **Where** | `node()`, `pyn()`, `rn()`, `shn()`, `jln()`, `qn()` | `nix_options` in `t_make()`, `pipeline_run()`, `build_pipeline()`, `populate_pipeline()` |
 | **What it does** | Sets env vars to explicit values you provide | Forwards existing host env vars by name |
 | **Type** | Dict (key-value pairs) | String or List of variable names |
 

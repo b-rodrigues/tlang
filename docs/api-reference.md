@@ -3115,8 +3115,6 @@ include = "config.yml"
 
 ---
 
-### `py(command, script = NA, serializer = default, deserializer = default, env_vars = [:], functions = [], include = [], noop = false, flake = NA)`
-
 ### `pyn(command, script = NA, serializer = default, deserializer = default, env_vars = [:], functions = [], include = [], noop = false, flake = NA)`
 
 Configure a Python Pipeline Node. A convenience wrapper around `node()` with `runtime = "Python"`. Used directly within a `pipeline { ... }` block to execute Python code.

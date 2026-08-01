@@ -289,10 +289,9 @@ environment variables into the Nix sandbox, but they serve different
 purposes:</p>
 <ul>
 <li><strong><code>env_vars</code></strong> is a per-node dictionary of
-key-value pairs set on <code>node()</code>,
-<code>py()</code>/<code>pyn()</code>, <code>rn()</code>,
-<code>shn()</code>, <code>jln()</code>, or <code>qn()</code>. You
-provide explicit values for each variable.</li>
+key-value pairs set on <code>node()</code>, <code>pyn()</code>,
+<code>rn()</code>, <code>shn()</code>, <code>jln()</code>, or
+<code>qn()</code>. You provide explicit values for each variable.</li>
 <li><strong><code>keep_env</code></strong> is a pipeline-wide list of
 variable <em>names</em> passed through <code>nix_options</code>. It
 forwards existing host environment variables by name without specifying
@@ -319,7 +318,7 @@ their values.</li>
 </tr>
 <tr>
 <td style="text-align: left;"><strong>Where</strong></td>
-<td style="text-align: left;"><code>node()</code>, <code>py()</code>,
+<td style="text-align: left;"><code>node()</code>, <code>pyn()</code>,
 <code>rn()</code>, <code>shn()</code>, <code>jln()</code>,
 <code>qn()</code></td>
 <td style="text-align: left;"><code>nix_options</code> in

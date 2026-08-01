@@ -817,6 +817,34 @@ is_error(result)  -- true
 
 ---
 
+## Foreign Code Blocks (`<{ }>`)
+
+The `<{ ... }>` syntax embeds **verbatim foreign code** — R, Python, Julia, or shell scripts — inside T. Everything between `<{` and `}>` is captured as a raw string without T interpreting it at all. This is the mechanism that makes polyglot pipeline nodes possible.
+
+The `<{ }>` block is used as the `command` argument to pipeline node constructors:
+
+```t
+p = pipeline {
+  r_step = rn(
+    command = <{
+      library(dplyr)
+      mtcars |> filter(mpg > 20)
+    }>,
+    serializer = ^csv
+  )
+}
+```
+
+The R code inside `<{ ... }>` is stored verbatim. T never parses or executes it — T emits it into the Nix sandbox where the R runtime handles it when the node is built.
+
+Key properties:
+- **Opaque to T**: The lexer captures everything up to `}>` as a single token; T never inspects the foreign code's syntax.
+- **Required for non-T runtimes**: `rn()`, `pyn()`, `jln()`, `shn()`, and `qn()` all require their `command` to be wrapped in `<{ }>` (or use the `script` argument to point to an external file).
+- **Identifier extraction**: For pipeline dependency analysis, T scans `<{ }>` blocks to extract identifier-like tokens (words matching `[a-zA-Z_][a-zA-Z0-9_]*`), ignoring commented lines (`--` or `#`). This lets T detect cross-pipeline references.
+- **Not for T nodes**: Plain `node()` with `runtime = "T"` uses ordinary T expressions, not `<{ }>`.
+
+---
+
 ## Pipelines
 
 Pipelines define named computation nodes with automatic dependency resolution and provide the foundation for reproducible, polyglot workflows. You can see a complete, polyglot version of this example in the [`examples/polyglot_pipeline.t`](../examples/polyglot_pipeline.t) file. T supports R (`rn()`), Python (`pyn()`), Julia (`jln()`), Quarto (`qn()`), and Shell (`shn()`) nodes out of the box.
@@ -913,7 +941,7 @@ Pipeline features:
 - **Deterministic execution**: Same inputs always produce same outputs
 - **Cycle detection**: Circular dependencies are caught and reported
 - **Introspection**: `pipeline_nodes()`, `pipeline_deps()`, `pipeline_node()`
-- **Cross-language**: `node()`, `py()`/`pyn()`, `rn()`, and `shn()` enable execution in T, Python, R, and shell runtimes
+- **Cross-language**: `node()`, `pyn()`, `rn()`, `jln()`, `qn()`, and `shn()` enable execution in T, Python, R, Julia, Quarto, and shell runtimes
 - **Environment Variables**: Pass custom variables into Nix build sandboxes via `env_vars`
 - **Re-run**: `pipeline_run()` re-executes the pipeline
 

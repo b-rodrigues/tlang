@@ -1235,6 +1235,34 @@ is_error(result)  -- true
 
 ---
 
+## Foreign Code Blocks (`<{ }>`)
+
+The `<{ ... }>` syntax embeds **verbatim foreign code** — R, Python, Julia, or shell scripts — inside T. Everything between `<{` and `}>` is captured as a raw string without T interpreting it at all. This is the mechanism that makes polyglot pipeline nodes possible.
+
+The `<{ }>` block is used as the `command` argument to pipeline node constructors:
+
+```t
+p = pipeline {
+  r_step = rn(
+    command = <{
+      library(dplyr)
+      mtcars |> filter(mpg > 20)
+    }>,
+    serializer = ^csv
+  )
+}
+```
+
+The R code inside `<{ ... }>` is stored verbatim. T never parses or executes it — T emits it into the Nix sandbox where the R runtime handles it when the node is built.
+
+Key properties:
+- **Opaque to T**: The lexer captures everything up to `}>` as a single token; T never inspects the foreign code's syntax.
+- **Required for non-T runtimes**: `rn()`, `pyn()`, `jln()`, `shn()`, and `qn()` all require their `command` to be wrapped in `<{ }>` (or use the `script` argument to point to an external file).
+- **Identifier extraction**: For pipeline dependency analysis, T scans `<{ }>` blocks to extract identifier-like tokens (words matching `[a-zA-Z_][a-zA-Z0-9_]*`), ignoring commented lines (`--` or `#`). This lets T detect cross-pipeline references.
+- **Not for T nodes**: Plain `node()` with `runtime = "T"` uses ordinary T expressions, not `<{ }>`.
+
+---
+
 ## Pipelines
 
 Pipelines define named computation nodes with automatic dependency resolution and provide the foundation for reproducible, polyglot workflows. You can see a complete, polyglot version of this example in the [`examples/polyglot_pipeline.t`](../examples/polyglot_pipeline.t) file. T supports R (`rn()`), Python (`pyn()`), Julia (`jln()`), Quarto (`qn()`), and Shell (`shn()`) nodes out of the box.
@@ -1331,7 +1359,7 @@ Pipeline features:
 - **Deterministic execution**: Same inputs always produce same outputs
 - **Cycle detection**: Circular dependencies are caught and reported
 - **Introspection**: `pipeline_nodes()`, `pipeline_deps()`, `pipeline_node()`
-- **Cross-language**: `node()`, `py()`/`pyn()`, `rn()`, and `shn()` enable execution in T, Python, R, and shell runtimes
+- **Cross-language**: `node()`, `pyn()`, `rn()`, `jln()`, `qn()`, and `shn()` enable execution in T, Python, R, Julia, Quarto, and shell runtimes
 - **Environment Variables**: Pass custom variables into Nix build sandboxes via `env_vars`
 - **Re-run**: `pipeline_run()` re-executes the pipeline
 
@@ -4693,8 +4721,6 @@ include = "config.yml"
 
 ---
 
-### `py(command, script = NA, serializer = default, deserializer = default, env_vars = [:], functions = [], include = [], noop = false, flake = NA)`
-
 ### `pyn(command, script = NA, serializer = default, deserializer = default, env_vars = [:], functions = [], include = [], noop = false, flake = NA)`
 
 Configure a Python Pipeline Node. A convenience wrapper around `node()` with `runtime = "Python"`. Used directly within a `pipeline { ... }` block to execute Python code.
@@ -6764,7 +6790,7 @@ See [§4.4 of the Pipeline Tutorial](pipeline_tutorial.md#reading-back-a-nodes-r
 
 ## 20. Environment Variables
 
-Pipeline nodes can pass environment variables into the Nix build sandbox via the `env_vars` named argument on `node()`, `py()`/`pyn()`, and `rn()`. This allows nodes to configure their build-time execution environment without embedding those values directly into the command body.
+Pipeline nodes can pass environment variables into the Nix build sandbox via the `env_vars` named argument on `node()`, `pyn()`, `rn()`, `jln()`, `qn()`, and `shn()`. This allows nodes to configure their build-time execution environment without embedding those values directly into the command body.
 
 ```t
 p = pipeline {
@@ -18437,13 +18463,13 @@ The pipeline engine validates that only allowed variables are whitelisted and sa
 
 The `env_vars` parameter (on node-level functions) and `keep_env` (in `nix_options`) both inject environment variables into the Nix sandbox, but they serve different purposes:
 
-- **`env_vars`** is a per-node dictionary of key-value pairs set on `node()`, `py()`/`pyn()`, `rn()`, `shn()`, `jln()`, or `qn()`. You provide explicit values for each variable.
+- **`env_vars`** is a per-node dictionary of key-value pairs set on `node()`, `pyn()`, `rn()`, `shn()`, `jln()`, or `qn()`. You provide explicit values for each variable.
 - **`keep_env`** is a pipeline-wide list of variable *names* passed through `nix_options`. It forwards existing host environment variables by name without specifying their values.
 
 | | `env_vars` | `keep_env` |
 | :--- | :--- | :--- |
 | **Scope** | Per-node | Whole pipeline (all nodes) |
-| **Where** | `node()`, `py()`, `rn()`, `shn()`, `jln()`, `qn()` | `nix_options` in `t_make()`, `pipeline_run()`, `build_pipeline()`, `populate_pipeline()` |
+| **Where** | `node()`, `pyn()`, `rn()`, `shn()`, `jln()`, `qn()` | `nix_options` in `t_make()`, `pipeline_run()`, `build_pipeline()`, `populate_pipeline()` |
 | **What it does** | Sets env vars to explicit values you provide | Forwards existing host env vars by name |
 | **Type** | Dict (key-value pairs) | String or List of variable names |
 
@@ -20127,10 +20153,20 @@ p = pipeline {
     }>,
     serializer = ^pmml
   )
+
+  -- Running a Julia node that reads and summarizes the data
+  summary = jln(
+    command = <{
+      using DataFrames
+      df = CSV.read(data_path, DataFrame)
+      describe(df)
+    }>,
+    serializer = ^csv
+  )
 }
 ```
 
-Bare syntax (like `x = 10`) is automatically desugared to `x = node(command = 10, runtime = T, serializer = default, deserializer = default)`. You can also use `pyn()`, `rn()`, and `shn()` as shortcuts for Python, R, and shell runtimes. T enforces cross-runtime safety: if a node with a non-`T` runtime depends on a `T` node, or vice versa, you should specify an explicit `serializer`/`deserializer`.
+Bare syntax (like `x = 10`) is automatically desugared to `x = node(command = 10, runtime = T, serializer = default, deserializer = default)`. You can also use `pyn()`, `rn()`, `jln()`, `qn()`, and `shn()` as shortcuts for Python, R, Julia, Quarto, and shell runtimes. T enforces cross-runtime safety: if a node with a non-`T` runtime depends on a `T` node, or vice versa, you should specify an explicit `serializer`/`deserializer`.
 
 When an R node returns a `ggplot2` object, a Python node returns a `matplotlib` / `plotnine` plot object, or a Julia node returns a `TidierPlots.jl`, `Plots.jl`, or `Makie.jl` figure object, T preserves lightweight plot metadata for REPL inspection. Reading or printing those artifacts shows a structured summary with the plot class (`ggplot`, `matplotlib`, `plotnine`, `tidierplots`, `plotsjl`, or `makie`), runtime backend (`R`, `Python`, or `Julia`), title, labels, mappings when available, and layer information instead of a raw runtime-specific object dump.
 
@@ -20154,7 +20190,7 @@ p = pipeline {
 }
 ```
 
-When using `script`, the runtime is auto-detected from the file extension (`.R` → R, `.py` → Python, `.sh` → sh) if not explicitly set via the `runtime` argument. T reads the script file to extract identifier references, allowing the pipeline dependency graph to be built correctly from variables referenced in the external file.
+When using `script`, the runtime is auto-detected from the file extension (`.R` → R, `.py` → Python, `.jl` → Julia, `.sh` → sh, `.qmd` → Quarto) if not explicitly set via the `runtime` argument. T reads the script file to extract identifier references, allowing the pipeline dependency graph to be built correctly from variables referenced in the external file.
 
 ### Shell / Bash nodes with `shn()`
 
@@ -20186,6 +20222,29 @@ There are two useful modes:
 - **Shell mode**: provide raw shell source with `<{ ... }>` or a `.sh` `script`, optionally overriding the interpreter with `shell = "bash"` and `shell_args = ["-lc"]` when you need Bash-specific syntax.
 
 Shell nodes default to `serializer = text`, which makes them a good fit for reports, command output, and glue code between other pipeline nodes. For a full end-to-end example that mixes T, R, Python, and `sh`, see `tests/pipeline/polyglot_shell_pipeline.t` and `.github/workflows/polyglot-shell-pipeline.yml`.
+
+### Julia nodes with `jln()`
+
+Use `jln()` for pipeline steps written in Julia. It wraps `node(runtime = Julia, ...)`, just like `rn()` and `pyn()` wrap `node()` for R and Python. Julia packages are declared in `[jl-dependencies]` in `tproject.toml` and live in `julia_depot_sandbox_hook` during builds. To use the REPL debug node mode, the `tlang` companion package is automatically injected into every Julia node without manual declaration.
+
+```t
+p = pipeline {
+  raw = read_csv("data.csv")
+
+  julia_summary = jln(
+    command = <{
+      using DataFrames, Statistics
+      df = CSV.read(raw_path, DataFrame)
+      result = combine(groupby(df, :cyl),
+                       :mpg => mean => :avg_mpg)
+      result
+    }>,
+    serializer = ^csv
+  )
+}
+```
+
+Julia nodes default to `serializer = default`, which uses Julia's standard `Serialization` module to write `.jls` artifacts. Use `^csv`, `^arrow`, or `^json` for cross-runtime interchange with T, R, or Python nodes.
 
 ### Fetching Remote Assets
 
@@ -21658,6 +21717,34 @@ Python pipeline nodes work identically regardless of which resolver you chose.
 2. Re-run `uv lock --project python`.
 3. Re-run `t update` to regenerate `flake.nix`.
 4. Commit the updated `pyproject.toml` and `uv.lock`.
+
+### 3.5 Julia Dependencies
+
+Julia packages use the nixpkgs resolver. List them under `[jl-dependencies]`:
+
+```toml
+[jl-dependencies]
+version = "lts"
+packages = ["DataFrames", "CSV", "GLM"]
+```
+
+The `version` field defaults to `"lts"` (the current Julia long-term-support release). To pin a specific version, use the format `"1.10"` or `"1.11"`, which maps to the corresponding `julia_1_10` or `julia_1_11` attribute in nixpkgs.
+
+After editing, run `t update` to include the Julia packages in `flake.nix`. They are then available via `using` inside `jln()` nodes:
+
+```t
+p = pipeline {
+  julia_step = jln(
+    command = <{
+      using DataFrames, CSV
+      df = CSV.read("data.csv", DataFrame)
+      println(nrow(df))
+    }>
+  )
+}
+```
+
+The `tlang` companion package (for `debug_node`, `read_node` helpers, etc.) is automatically injected into every Julia node — no need to declare it.
 
 ## 4. Importing Packages
 
@@ -35540,7 +35627,23 @@ node B {
 
 This prevents runtime errors after long-running computations by catching interchange mismatches at the start of the build.
 
-## 5. Polyglot Support
+## 5. Serializer Runtime Dependencies
+
+Each serializer format may require specific runtime packages. T auto-detects which packages are needed based on the node's serializer and runtime, but these packages must still be declared in `tproject.toml` (unless `TLANG_AUTO_ADD_PIPELINE_DEPS=1` is set). The table below shows which packages each format pulls in per runtime:
+
+| Format | R packages | Python packages | Julia packages |
+|--------|-----------|----------------|---------------|
+| `^csv` | *(base R)* | `pandas` | `CSV`, `DataFrames` |
+| `^arrow` | `arrow` | `pandas`, `pyarrow` | `Arrow`, `DataFrames` |
+| `^json` | `jsonlite` | *(stdlib)* | `JSON` |
+| `^pmml` | `XML`, `jsonlite`, `r2pmml` | `numpy`, `pandas`, `pyarrow`, `scikit-learn`, `scipy`, `sklearn2pmml`, `statsmodels` | — |
+| `^onnx` | `onnx` | `onnxruntime`, `skl2onnx` | `ONNXRunTime`, `ONNX` |
+| `^text` | *(base R)* | *(stdlib)* | *(stdlib)* |
+| `default` | *(none)* | *(stdlib pickle)* | *(stdlib Serialization)* |
+
+The `^pmml` format also requires `jre` as a system tool (for R and Python). T automatically discovers scanning dependencies from your pipeline code and prompts you to add missing entries to `tproject.toml` before building.
+
+## 6. Polyglot Support
 
 For cross-language nodes, serializers provide the necessary glue code for the target runtime. For example, when using `^arrow` in an R node:
 

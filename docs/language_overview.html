@@ -926,6 +926,43 @@ a <code>ShellError</code> containing the <code>stderr</code> output.</p>
 <pre class="t"><code>result = ?&lt;{ls /nonexistent}&gt;
 is_error(result)  -- true</code></pre>
 <hr />
+<h2 id="foreign-code-blocks">Foreign Code Blocks
+(<code>&lt;{ }&gt;</code>)</h2>
+<p>The <code>&lt;{ ... }&gt;</code> syntax embeds <strong>verbatim
+foreign code</strong> — R, Python, Julia, or shell scripts — inside T.
+Everything between <code>&lt;{</code> and <code>}&gt;</code> is captured
+as a raw string without T interpreting it at all. This is the mechanism
+that makes polyglot pipeline nodes possible.</p>
+<p>The <code>&lt;{ }&gt;</code> block is used as the
+<code>command</code> argument to pipeline node constructors:</p>
+<pre class="t"><code>p = pipeline {
+  r_step = rn(
+    command = &lt;{
+      library(dplyr)
+      mtcars |&gt; filter(mpg &gt; 20)
+    }&gt;,
+    serializer = ^csv
+  )
+}</code></pre>
+<p>The R code inside <code>&lt;{ ... }&gt;</code> is stored verbatim. T
+never parses or executes it — T emits it into the Nix sandbox where the
+R runtime handles it when the node is built.</p>
+<p>Key properties: - <strong>Opaque to T</strong>: The lexer captures
+everything up to <code>}&gt;</code> as a single token; T never inspects
+the foreign code’s syntax. - <strong>Required for non-T
+runtimes</strong>: <code>rn()</code>, <code>pyn()</code>,
+<code>jln()</code>, <code>shn()</code>, and <code>qn()</code> all
+require their <code>command</code> to be wrapped in
+<code>&lt;{ }&gt;</code> (or use the <code>script</code> argument to
+point to an external file). - <strong>Identifier extraction</strong>:
+For pipeline dependency analysis, T scans <code>&lt;{ }&gt;</code>
+blocks to extract identifier-like tokens (words matching
+<code>[a-zA-Z_][a-zA-Z0-9_]*</code>), ignoring commented lines
+(<code>--</code> or <code>#</code>). This lets T detect cross-pipeline
+references. - <strong>Not for T nodes</strong>: Plain
+<code>node()</code> with <code>runtime = "T"</code> uses ordinary T
+expressions, not <code>&lt;{ }&gt;</code>.</p>
+<hr />
 <h2 id="pipelines">Pipelines</h2>
 <p>Pipelines define named computation nodes with automatic dependency
 resolution and provide the foundation for reproducible, polyglot
@@ -1034,9 +1071,9 @@ and reported</li>
 <li><strong>Introspection</strong>: <code>pipeline_nodes()</code>,
 <code>pipeline_deps()</code>, <code>pipeline_node()</code></li>
 <li><strong>Cross-language</strong>: <code>node()</code>,
-<code>py()</code>/<code>pyn()</code>, <code>rn()</code>, and
-<code>shn()</code> enable execution in T, Python, R, and shell
-runtimes</li>
+<code>pyn()</code>, <code>rn()</code>, <code>jln()</code>,
+<code>qn()</code>, and <code>shn()</code> enable execution in T, Python,
+R, Julia, Quarto, and shell runtimes</li>
 <li><strong>Environment Variables</strong>: Pass custom variables into
 Nix build sandboxes via <code>env_vars</code></li>
 <li><strong>Re-run</strong>: <code>pipeline_run()</code> re-executes the

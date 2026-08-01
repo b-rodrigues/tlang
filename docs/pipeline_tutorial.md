@@ -204,10 +204,20 @@ p = pipeline {
     }>,
     serializer = ^pmml
   )
+
+  -- Running a Julia node that reads and summarizes the data
+  summary = jln(
+    command = <{
+      using DataFrames
+      df = CSV.read(data_path, DataFrame)
+      describe(df)
+    }>,
+    serializer = ^csv
+  )
 }
 ```
 
-Bare syntax (like `x = 10`) is automatically desugared to `x = node(command = 10, runtime = T, serializer = default, deserializer = default)`. You can also use `pyn()`, `rn()`, and `shn()` as shortcuts for Python, R, and shell runtimes. T enforces cross-runtime safety: if a node with a non-`T` runtime depends on a `T` node, or vice versa, you should specify an explicit `serializer`/`deserializer`.
+Bare syntax (like `x = 10`) is automatically desugared to `x = node(command = 10, runtime = T, serializer = default, deserializer = default)`. You can also use `pyn()`, `rn()`, `jln()`, `qn()`, and `shn()` as shortcuts for Python, R, Julia, Quarto, and shell runtimes. T enforces cross-runtime safety: if a node with a non-`T` runtime depends on a `T` node, or vice versa, you should specify an explicit `serializer`/`deserializer`.
 
 When an R node returns a `ggplot2` object, a Python node returns a `matplotlib` / `plotnine` plot object, or a Julia node returns a `TidierPlots.jl`, `Plots.jl`, or `Makie.jl` figure object, T preserves lightweight plot metadata for REPL inspection. Reading or printing those artifacts shows a structured summary with the plot class (`ggplot`, `matplotlib`, `plotnine`, `tidierplots`, `plotsjl`, or `makie`), runtime backend (`R`, `Python`, or `Julia`), title, labels, mappings when available, and layer information instead of a raw runtime-specific object dump.
 
@@ -231,7 +241,7 @@ p = pipeline {
 }
 ```
 
-When using `script`, the runtime is auto-detected from the file extension (`.R` → R, `.py` → Python, `.sh` → sh) if not explicitly set via the `runtime` argument. T reads the script file to extract identifier references, allowing the pipeline dependency graph to be built correctly from variables referenced in the external file.
+When using `script`, the runtime is auto-detected from the file extension (`.R` → R, `.py` → Python, `.jl` → Julia, `.sh` → sh, `.qmd` → Quarto) if not explicitly set via the `runtime` argument. T reads the script file to extract identifier references, allowing the pipeline dependency graph to be built correctly from variables referenced in the external file.
 
 ### Shell / Bash nodes with `shn()`
 
@@ -263,6 +273,29 @@ There are two useful modes:
 - **Shell mode**: provide raw shell source with `<{ ... }>` or a `.sh` `script`, optionally overriding the interpreter with `shell = "bash"` and `shell_args = ["-lc"]` when you need Bash-specific syntax.
 
 Shell nodes default to `serializer = text`, which makes them a good fit for reports, command output, and glue code between other pipeline nodes. For a full end-to-end example that mixes T, R, Python, and `sh`, see `tests/pipeline/polyglot_shell_pipeline.t` and `.github/workflows/polyglot-shell-pipeline.yml`.
+
+### Julia nodes with `jln()`
+
+Use `jln()` for pipeline steps written in Julia. It wraps `node(runtime = Julia, ...)`, just like `rn()` and `pyn()` wrap `node()` for R and Python. Julia packages are declared in `[jl-dependencies]` in `tproject.toml` and live in `julia_depot_sandbox_hook` during builds. To use the REPL debug node mode, the `tlang` companion package is automatically injected into every Julia node without manual declaration.
+
+```t
+p = pipeline {
+  raw = read_csv("data.csv")
+
+  julia_summary = jln(
+    command = <{
+      using DataFrames, Statistics
+      df = CSV.read(raw_path, DataFrame)
+      result = combine(groupby(df, :cyl),
+                       :mpg => mean => :avg_mpg)
+      result
+    }>,
+    serializer = ^csv
+  )
+}
+```
+
+Julia nodes default to `serializer = default`, which uses Julia's standard `Serialization` module to write `.jls` artifacts. Use `^csv`, `^arrow`, or `^json` for cross-runtime interchange with T, R, or Python nodes.
 
 ### Fetching Remote Assets
 

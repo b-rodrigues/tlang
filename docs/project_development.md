@@ -287,6 +287,34 @@ Python pipeline nodes work identically regardless of which resolver you chose.
 3. Re-run `t update` to regenerate `flake.nix`.
 4. Commit the updated `pyproject.toml` and `uv.lock`.
 
+### 3.5 Julia Dependencies
+
+Julia packages use the nixpkgs resolver. List them under `[jl-dependencies]`:
+
+```toml
+[jl-dependencies]
+version = "lts"
+packages = ["DataFrames", "CSV", "GLM"]
+```
+
+The `version` field defaults to `"lts"` (the current Julia long-term-support release). To pin a specific version, use the format `"1.10"` or `"1.11"`, which maps to the corresponding `julia_1_10` or `julia_1_11` attribute in nixpkgs.
+
+After editing, run `t update` to include the Julia packages in `flake.nix`. They are then available via `using` inside `jln()` nodes:
+
+```t
+p = pipeline {
+  julia_step = jln(
+    command = <{
+      using DataFrames, CSV
+      df = CSV.read("data.csv", DataFrame)
+      println(nrow(df))
+    }>
+  )
+}
+```
+
+The `tlang` companion package (for `debug_node`, `read_node` helpers, etc.) is automatically injected into every Julia node — no need to declare it.
+
 ## 4. Importing Packages
 
 Once inside `nix develop`, you can use the `import` statement in your T scripts to load package functions.
