@@ -9597,7 +9597,7 @@ For datasets exceeding 2-3 GB:
 
 # Changelog
 
-## Unreleased
+## [0.54.3] - 2026-08-01
 
 ### Pipeline Validation Fixes
 
@@ -9611,8 +9611,6 @@ For datasets exceeding 2-3 GB:
   `build_pipeline`, `populate_pipeline`, `pipeline_validate`, and `t check`.
   A shell node with multiple dependencies also no longer trips the
   "single deserializer strategy" check.
-
-## [0.54.3] - 2026-07-30
 
 ### Pipeline Global Options — Pure Function
 

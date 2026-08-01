@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## [0.54.3] - 2026-08-01
 
 ### Pipeline Validation Fixes
 
@@ -14,8 +14,6 @@
   `build_pipeline`, `populate_pipeline`, `pipeline_validate`, and `t check`.
   A shell node with multiple dependencies also no longer trips the
   "single deserializer strategy" check.
-
-## [0.54.3] - 2026-07-30
 
 ### Pipeline Global Options — Pure Function
 
