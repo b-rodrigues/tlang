@@ -164,7 +164,7 @@ let math_package = {
 let base_package = {
   name = "base";
   description = "Assertions, NA handling, and error utilities";
-  functions = ["assert"; "is_na"; "na"; "na_int"; "na_float"; "na_bool"; "na_string"; "error"; "error_code"; "error_msg"; "warning_msg"; "error_context"; "serialize"; "deserialize"; "t_write_json"; "t_read_json"; "error_chain"; "set_seed"; "sample"];
+  functions = ["assert"; "is_na"; "na"; "na_int"; "na_float"; "na_bool"; "na_string"; "error"; "error_code"; "error_msg"; "warning_msg"; "error_context"; "serialize"; "deserialize"; "t_write_json"; "t_read_json"; "error_chain"; "set_seed"; "with_seed"; "sample"];
 }
 
 let chrono_package = {
@@ -781,6 +781,7 @@ let init_env () =
   let env = Deserialize.register env in
   let env = T_json.register env in
   let env = Set_seed.register env in
+  let env = With_seed.register ~eval_call:Eval.eval_call_immutable env in
   let env = Sample.register env in
   let env = Fetchurl.register env in
   let env = Prefetch.register env in

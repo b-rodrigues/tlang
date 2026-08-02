@@ -3,6 +3,17 @@ let state : Random.State.t ref = ref (Random.State.make_self_init ())
 let set_seed seed =
   state := Random.State.make [| seed |]
 
+let with_seed seed f =
+  let saved = Random.State.copy !state in
+  set_seed seed;
+  match f () with
+  | v ->
+      state := saved;
+      v
+  | exception e ->
+      state := saved;
+      raise e
+
 let uniform_bool () =
   Random.State.bool !state
 

@@ -7,7 +7,7 @@ Comprehensive guide to hardening T code with property-based testing using the **
 - [What Is Property-Based Testing?](#what-is-property-based-testing)
 - [Audience](#audience)
 - [Quick Start](#quick-start)
-- [Reproducibility with `set_seed`](#reproducibility-with-set_seed)
+- [Reproducibility](#reproducibility)
 - [Generator Specs](#generator-specs)
 - [Generators Reference](#generators-reference)
 - [Combinators](#combinators)
@@ -54,7 +54,7 @@ assert(prop_for_all(prop_gen_int_range(0, 100), \(x) x < 10, n = 20))
 
 `assert(prop_for_all(...))` is the recommended form: it works inside `t test` files, turning a failure into a test failure with the counterexample embedded in the message.
 
-## Reproducibility with `set_seed`
+## Reproducibility
 
 All generated values come from a single shared, seedable RNG. Seeding makes the entire run — including any counterexample — bit-for-bit reproducible:
 
@@ -67,6 +67,16 @@ assert(expect_equal(a, b))
 ```
 
 Always seed at the top of a property test file so failures are reproducible in CI and for whoever debugs them.
+
+### Scoping with `with_seed`
+
+`set_seed` changes the global RNG for the rest of the program. When you only want a *single* reproducible expression — leaving the surrounding stream untouched — use `with_seed(seed, thunk)`:
+
+```t
+with_seed(7, \(u) prop_for_all(prop_gen_int_range(0, 100), \(x) x >= 0, n = 20))
+```
+
+`with_seed` seeds the RNG for the duration of the thunk, then restores the previous state — even if the thunk raises. It nests, and it works with any RNG consumer (`sample`, `slice_sample`, generators). This is the recommended form inside larger programs where `set_seed` would perturb unrelated draws.
 
 ## Generator Specs
 

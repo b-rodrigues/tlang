@@ -594,7 +594,7 @@ Purpose: property-based testing primitives for hardening T's standard library an
 - `prop_gen_df` injects typed `NA` values into generated columns according to `na_prob` — the primary tool for catching verbs that mishandle missingness.
 - Combinators: `prop_map_gen(source, fn)`, `prop_such_that(source, pred, max_tries = 100)`, `prop_resize(source, n)`.
 - Shrinking is deterministic and only affects the reported message (never pass/fail): ints/strings/lists/vectors shrink toward minimal failing inputs; DataFrames report the original counterexample.
-- Standard usage: `set_seed(42)` then `assert(prop_for_all(prop_gen_int_range(0, 100), \(x) x >= 0))`.
+- Standard usage: `set_seed(42)` then `assert(prop_for_all(prop_gen_int_range(0, 100), \(x) x >= 0))`. For a scoped, single-expression run that leaves the surrounding RNG untouched, use `with_seed(seed, \(u) ...)`.
 
 Disambiguation rule of thumb for LLMs:
 - inside `select(...)`/selection-helper contexts, prefer the `colcraft` helper meaning;

@@ -1,4 +1,4 @@
-let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env _test test_env =
+let run_tests pass_count fail_count _failures _eval_string _eval_string_env _test test_env =
   Printf.printf "Popcraft — property-based testing:\n";
   let env = Packages.init_env () in
 
@@ -123,5 +123,47 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env _t
   test_env env "generator spec is structured dict"
     "prop_gen_int_range(1, 5)"
     "{`gen`: \"int_range\", `min`: 1, `max`: 5}";
+
+  (* with_seed — scoped RNG determinism *)
+  test_env env "with_seed scopes RNG, outer stream unaffected"
+    "set_seed(42)\na = sample([1, 2, 3, 4, 5], n = 3)\nset_seed(42)\nx = with_seed(1, \\(u) sample([1, 2, 3, 4, 5], n = 3))\nb = sample([1, 2, 3, 4, 5], n = 3)\nidentical(a, b)"
+    "true";
+  test_env env "with_seed is deterministic"
+    "identical(with_seed(42, \\(u) sample([1, 2, 3, 4, 5], n = 3)), with_seed(42, \\(u) sample([1, 2, 3, 4, 5], n = 3)))"
+    "true";
+  test_env env "with_seed nests and restores inner seed"
+    "identical(with_seed(1, \\(u) with_seed(2, \\(v) sample([1, 2, 3, 4, 5], n = 3))), with_seed(2, \\(u) sample([1, 2, 3, 4, 5], n = 3)))"
+    "true";
+  test_env env "with_seed propagates thunk error"
+    "with_seed(1, \\(u) error(\"boom\"))"
+    "boom";
+  test_env env "with_seed non-int seed errors"
+    "with_seed(\"42\", \\(u) 1)"
+    "expects an integer seed";
+  test_env env "with_seed non-function thunk errors"
+    "with_seed(42, 1)"
+    "expects a lambda or builtin as second argument";
+  test_env env "with_seed NA seed errors"
+    "with_seed(NA, \\(u) 1)"
+    "expects an integer seed";
+
+  (* with_seed — restore RNG after an exception escapes the thunk *)
+  let test_restore_after_error pass_count fail_count =
+    Rng.set_seed 1;
+    let before = Rng.sample_indices ~total:5 ~k:3 ~replace:false in
+    Rng.set_seed 1;
+    (match Rng.with_seed 99 (fun () -> failwith "boom") with
+     | _ -> ()
+     | exception _ -> ());
+    let after = Rng.sample_indices ~total:5 ~k:3 ~replace:false in
+    if before = after then begin
+      incr pass_count;
+      Printf.printf "  ✓ with_seed restores RNG state after thunk exception\n"
+    end else begin
+      incr fail_count;
+      Printf.printf "  ✗ with_seed restores RNG state after thunk exception\n"
+    end
+  in
+  test_restore_after_error pass_count fail_count;
 
   Printf.printf "\n"

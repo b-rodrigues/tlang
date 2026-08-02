@@ -963,6 +963,32 @@ sample([1, 2, 3, 4, 5], n = 3)
 
 ---
 
+### `with_seed(seed, thunk)`
+
+Runs a one-parameter lambda (the argument is ignored) with the global random number generator scoped to `seed`, then restores the previous RNG state. Outer random draws are unaffected, making this the natural way to scope determinism to a single expression — e.g. a reproducible `prop_for_all` run or a reproducible sample.
+
+**Parameters:**
+
+- `seed` — Integer seed value to scope the RNG to.
+- `thunk` — One-parameter lambda evaluated under `seed`. The argument is ignored; the lambda form makes the body lazy.
+
+**Returns:**
+
+The result of evaluating `thunk` (any type).
+
+**Examples:**
+```t
+with_seed(42, \(u) sample([1, 2, 3, 4, 5], n = 3))
+with_seed(42, \(u) prop_for_all(prop_gen_int_range(0, 100), \(x) x >= 0))
+```
+
+**Notes:**
+
+- `with_seed` is exception-safe: if the thunk raises, the RNG state is still restored.
+- Nesting works: `with_seed(1, \(u) with_seed(2, \(v) ...))` restores the outer seed after the inner scope.
+
+---
+
 ### `sample(x, n = 1, replace = false)`
 
 Draw a random sample of size n from a Vector or List, with or without replacement.
