@@ -1,7 +1,5 @@
 open Ast
 
-let fmt v = "`" ^ Utils.value_to_string v ^ "`"
-
 (** Extract the generator kind tag from a generator spec value. *)
 let spec_gen = function
   | VDict pairs ->
@@ -29,11 +27,6 @@ let float_field name spec =
   match field name spec with
   | Some v -> to_float v
   | None -> None
-
-let bool_field name spec =
-  match field name spec with
-  | Some (VBool b) -> Some b
-  | _ -> None
 
 (** Pick the typed NA that matches a generator's value type. Used for
     NA injection inside [prop_gen_df]. *)

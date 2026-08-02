@@ -31,11 +31,14 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env _t
   test_env env "prop_for_all resize overrides df nrows"
     "prop_for_all(prop_resize(prop_gen_df([x: prop_gen_int_range(0, 0)], nrows = 3), 5), \\(df) nrow(df) == 5, n = 10)"
     "PASS";
+  test_env env "prop_for_all resize propagates through choice"
+    "prop_for_all(prop_resize(prop_gen_choice([prop_gen_vector(prop_gen_int_range(0, 0), 3), prop_gen_vector(prop_gen_int_range(1, 1), 7)]), 5), \\(v) length(v) == 5, n = 10)"
+    "PASS";
   test_env env "prop_for_all PASS df nrows respected"
     "prop_for_all(prop_gen_df([x: prop_gen_float_range(0.0, 100.0)], nrows = 50), \\(df) nrow(df) == 50, n = 10)"
     "PASS";
   test_env env "prop_for_all PASS multi-byte string chars"
-    "prop_for_all(prop_gen_string_from(\"\\xCE\\xBB\", 1, 1), \\(s) str_nchar(s) == 2, n = 5)"
+    "prop_for_all(prop_gen_string_from(\"\\xCE\\xBB\", 1, 1), \\(s) s == \"\\xCE\\xBB\", n = 5)"
     "PASS";
 
   (* FAIL cases *)

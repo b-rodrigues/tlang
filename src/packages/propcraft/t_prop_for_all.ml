@@ -23,7 +23,9 @@ let take_prefix k items =
 (* Rewrite a generator spec so that container sizes (vector/list length,
    df row count) are forced to `n`. This is what makes prop_resize
    override the source's own `n`/`nrows` instead of silently doing
-   nothing. *)
+   nothing. Container specs are rewritten directly; wrapper specs
+   (map/such_that/resize/choice/frequency) are recursed into so the size
+   propagates through composition. *)
 let rec force_size_in_spec spec n =
   match spec with
   | VDict pairs ->
@@ -46,6 +48,17 @@ let rec force_size_in_spec spec n =
                   if String.equal k "source" then (k, force_size_in_spec v n)
                   else (k, v))
                 pairs)
+       | Some (VString ("choice" | "frequency")) ->
+           (match field "gens" spec with
+            | Some (VList items) ->
+                VDict
+                  (List.map
+                     (fun (k, v) ->
+                       if String.equal k "gens" then
+                         (k, VList (List.map (fun (name, g) -> (name, force_size_in_spec g n)) items))
+                       else (k, v))
+                     pairs)
+            | _ -> spec)
        | _ -> spec)
   | _ -> spec
 
