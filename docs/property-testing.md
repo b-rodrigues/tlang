@@ -116,7 +116,7 @@ df_gen = prop_gen_df(
 |----------|---------|
 | `prop_map_gen(source, fn)` | Draw a value from `source`, apply `fn`, yield the result |
 | `prop_such_that(source, pred, max_tries = 100)` | Keep drawing until `pred` holds; fails after `max_tries` |
-| `prop_resize(source, n)` | Fixed-size draw; `n` is used as the size hint for `df`/`list`/`vector` generators |
+| `prop_resize(source, n)` | Override the size of nested `df`/`list`/`vector` generators to `n` |
 
 Example — generate only even numbers:
 

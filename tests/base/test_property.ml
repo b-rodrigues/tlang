@@ -25,8 +25,17 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env _t
     "PASS";
   test_env env "prop_for_all PASS resize"
     "prop_for_all(prop_resize(prop_gen_int_range(0, 100), 5), \\(x) x >= 0, n = 20)" "PASS";
+  test_env env "prop_for_all resize overrides vector length"
+    "prop_for_all(prop_resize(prop_gen_vector(prop_gen_int_range(0, 0), 3), 5), \\(v) length(v) == 5, n = 10)"
+    "PASS";
+  test_env env "prop_for_all resize overrides df nrows"
+    "prop_for_all(prop_resize(prop_gen_df([x: prop_gen_int_range(0, 0)], nrows = 3), 5), \\(df) nrow(df) == 5, n = 10)"
+    "PASS";
   test_env env "prop_for_all PASS df nrows respected"
     "prop_for_all(prop_gen_df([x: prop_gen_float_range(0.0, 100.0)], nrows = 50), \\(df) nrow(df) == 50, n = 10)"
+    "PASS";
+  test_env env "prop_for_all PASS multi-byte string chars"
+    "prop_for_all(prop_gen_string_from(\"\\xCE\\xBB\", 1, 1), \\(s) str_nchar(s) == 2, n = 5)"
     "PASS";
 
   (* FAIL cases *)
@@ -44,6 +53,9 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env _t
   test_env env "prop_for_all error predicate fails"
     "set_seed(1)\nprop_for_all(prop_gen_int_range(0, 5), \\(x) error(\"boom\"), n = 5)"
     "raised: boom";
+  test_env env "prop_for_all Expect_hold fails"
+    "set_seed(1)\nprop_for_all(prop_gen_int_range(0, 5), \\(x) expect_equal(NA, 1), n = 5)"
+    "failed: `actual` is NA, cannot compare";
   test_env env "prop_for_all non-function property fails"
     "set_seed(1)\nprop_for_all(prop_gen_int_range(0, 5), 42, n = 5)" "STOP(";
   test_env env "prop_for_all shrink=false still reports"
@@ -57,6 +69,12 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env _t
   test_env env "prop_gen_df NA injection renders NA"
     "set_seed(7)\nprop_for_all(prop_gen_df([x: prop_gen_float_range(0.0, 100.0)], nrows = 30, na_prob = 1.0), \\(df) false, n = 1)"
     "NA(Float)";
+  test_env env "prop_gen_df factor NA renders typed"
+    "set_seed(7)\nprop_for_all(prop_gen_df([grp: prop_gen_factor([\"a\", \"b\"])], nrows = 10, na_prob = 1.0), \\(df) false, n = 1)"
+    "NA(String)";
+  test_env env "prop_gen_df mixed factor + NA builds"
+    "prop_for_all(prop_gen_df([grp: prop_gen_factor([\"a\", \"b\"])], nrows = 10, na_prob = 0.5), \\(df) nrow(df) == 10, n = 5)"
+    "PASS";
 
   (* Generator / combinator validation *)
   test_env env "prop_such_that exhaustion fails"

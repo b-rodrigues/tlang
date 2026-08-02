@@ -4989,7 +4989,7 @@ g         -- {`gen`: "int_range", `min`: 1, `max`: 5}
 |----------|---------|
 | `prop_map_gen(source, fn)` | Transform each drawn value with `fn` |
 | `prop_such_that(source, pred, max_tries = 100)` | Keep drawing until `pred` holds (fails after `max_tries`) |
-| `prop_resize(source, n)` | Fixed-size draw (size hint used by `df`/`list`/`vector` generators) |
+| `prop_resize(source, n)` | Override the size of nested `df`/`list`/`vector` generators to `n` |
 
 ### Finding NA-handling bugs
 

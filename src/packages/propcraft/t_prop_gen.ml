@@ -517,15 +517,17 @@ let prop_such_that =
 (*
 --# Resize a generator
 --#
---# Returns a generator spec that draws from `source` with the default
---# size (number of rows/elements) overridden to `n`.
+--# Returns a generator spec that draws from `source` with the size
+--# (number of elements/rows) of nested vector, list, and df generators
+--# overridden to `n`. Generators that do not carry their own size are
+--# unaffected.
 --#
 --# @name prop_resize
 --# @param source :: Dict The generator to resize.
---# @param n :: Int New size for nested vector/list/factor/df generators.
+--# @param n :: Int New size for nested vector/list/df generators.
 --# @return :: Dict A generator spec.
 --# @example
---#   g = prop_resize(prop_gen_vector(prop_gen_int()), 20)
+--#   g = prop_resize(prop_gen_vector(prop_gen_int(), 3), 20)
 --# @family propcraft
 --# @seealso prop_map_gen
 --# @export

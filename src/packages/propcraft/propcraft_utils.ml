@@ -43,19 +43,48 @@ let rec na_for_spec spec =
   | Some "float_range" -> NAFloat
   | Some "bool" -> NABool
   | Some "string" -> NAString
+  | Some "factor" -> NAString
   | Some ("map" | "such_that" | "resize") ->
       (match field "source" spec with
        | Some src -> na_for_spec src
        | None -> NAGeneric)
+  | Some ("choice" | "frequency") ->
+      (match field "gens" spec with
+       | Some (VList items) ->
+           (match List.map (fun (_, g) -> na_for_spec g) items with
+            | [] -> NAGeneric
+            | first :: rest when List.for_all (fun x -> x = first) rest -> first
+            | _ -> NAGeneric)
+       | _ -> NAGeneric)
   | _ -> NAGeneric
+
+(** Split a string into UTF-8 characters. Continuation bytes (0x80-0xBF)
+    are merged into the preceding lead byte, so multi-byte characters are
+    preserved intact. *)
+let utf8_chars s =
+  let n = String.length s in
+  let char_length c =
+    let c = Char.code c in
+    if c land 0x80 = 0x00 then 1
+    else if c land 0xE0 = 0xC0 then 2
+    else if c land 0xF0 = 0xE0 then 3
+    else if c land 0xF8 = 0xF0 then 4
+    else 1
+  in
+  let rec go i acc =
+    if i >= n then List.rev acc
+    else
+      let len = min n (i + char_length s.[i]) in
+      go len (String.sub s i (len - i) :: acc)
+  in
+  go 0 []
 
 (** Extract a list of strings from a "chars"-style field. Accepts a
     VString (each character is a candidate) or a List/Vector of
     VStrings. Returns None if any element is not a VString. *)
 let string_list_field name spec =
   match field name spec with
-  | Some (VString s) ->
-      Some (String.to_seq s |> List.of_seq |> List.map (String.make 1))
+  | Some (VString s) -> Some (utf8_chars s)
   | Some (VList items) ->
       let rec go acc = function
         | [] -> Some (List.rev acc)

@@ -20,6 +20,35 @@ let take_prefix k items =
   in
   go 0 [] items
 
+(* Rewrite a generator spec so that container sizes (vector/list length,
+   df row count) are forced to `n`. This is what makes prop_resize
+   override the source's own `n`/`nrows` instead of silently doing
+   nothing. *)
+let rec force_size_in_spec spec n =
+  match spec with
+  | VDict pairs ->
+      (match field "gen" spec with
+       | Some (VString ("vector" | "list")) ->
+           VDict
+             (List.map
+                (fun (k, v) -> if String.equal k "n" then (k, VInt n) else (k, v))
+                pairs)
+       | Some (VString "df") ->
+           VDict
+             (List.map
+                (fun (k, v) ->
+                  if String.equal k "nrows" then (k, VInt n) else (k, v))
+                pairs)
+       | Some (VString ("map" | "such_that" | "resize")) ->
+           VDict
+             (List.map
+                (fun (k, v) ->
+                  if String.equal k "source" then (k, force_size_in_spec v n)
+                  else (k, v))
+                pairs)
+       | _ -> spec)
+  | _ -> spec
+
 let rec draw_many ~eval_call ~env ~size elem n acc =
   if n <= 0 then Ok (List.rev acc)
   else
@@ -189,7 +218,7 @@ and draw_value ~eval_call ~env ~size (spec : value) : (value, value) result =
       (match field "source" spec with
        | Some src ->
            let n = match int_field "n" spec with Some n when n >= 0 -> n | _ -> size in
-           draw_value ~eval_call ~env ~size:n src
+           draw_value ~eval_call ~env ~size:n (force_size_in_spec src n)
        | None ->
            Error (Error.type_error "prop_for_all: resize spec requires a `source` field."))
   | Some other ->
@@ -314,7 +343,7 @@ let cap_candidates candidates =
 let outcome_of = function
   | VBool true -> `Pass
   | VExpect Expect_pass -> `Pass
-  | VExpect (Expect_hold _) -> `Hold
+  | VExpect (Expect_hold msg) -> `Hold msg
   | VBool false -> `False
   | VExpect (Expect_stop msg) -> `Stop msg
   | VNA _ -> `NA
@@ -322,7 +351,7 @@ let outcome_of = function
   | other -> `Other other
 
 let is_failure = function
-  | `Pass | `Hold -> false
+  | `Pass -> false
   | _ -> true
 
 let shrink_minimal ~eval_call ~env property input =
@@ -358,7 +387,13 @@ let run_property ~eval_call ~env ~n ~shrink spec property =
       | Ok input ->
           let result = eval_call env property [(None, Ast.mk_expr (Value input))] in
           (match outcome_of result with
-           | `Pass | `Hold -> loop (i + 1)
+           | `Pass -> loop (i + 1)
+           | `Hold msg ->
+               let shrunk =
+                 if shrink then shrink_minimal ~eval_call ~env property input else input
+               in
+               failure_message ~n ~i ~input ~shrunk
+                 ~reason:(Printf.sprintf "failed: %s" msg)
            | `False ->
                let shrunk =
                  if shrink then shrink_minimal ~eval_call ~env property input else input
@@ -395,7 +430,9 @@ let run_property ~eval_call ~env ~n ~shrink spec property =
 --# Draws `n` values from the `gen` generator spec (using the shared
 --# seeded RNG — call set_seed first for reproducible runs) and evaluates
 --# `property` on each. The property may return a Bool, an Expect value
---# from testcraft (e.g. expect_equal), or an Error (treated as failure).
+--# from testcraft (e.g. expect_equal), or an Error. A property passes
+--# only when it returns `true` or `Expect_pass`; `false`, `Expect_stop`,
+--# `Expect_hold`, NA, and Error are all treated as failures.
 --# On the first failure, a deterministic shrunk counterexample is
 --# reported via an Expect_stop value, so `assert(prop_for_all(...))`
 --# works inside test files run by `t test`.
