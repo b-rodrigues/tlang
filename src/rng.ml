@@ -3,6 +3,21 @@ let state : Random.State.t ref = ref (Random.State.make_self_init ())
 let set_seed seed =
   state := Random.State.make [| seed |]
 
+let uniform_bool () =
+  Random.State.bool !state
+
+let uniform_int_range ~min ~max =
+  if max <= min then min
+  else min + Random.State.int !state (max - min + 1)
+
+let uniform_float_range ~min ~max =
+  if max <= min then min
+  else min +. Random.State.float !state (max -. min)
+
+let uniform_pick (items : 'a array) : 'a option =
+  if Array.length items = 0 then None
+  else Some items.(Random.State.int !state (Array.length items))
+
 let sample_indices ~total ~k ~replace =
   if (not replace || total <= 0) && k > total then None
   else if k < 0 then None

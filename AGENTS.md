@@ -529,6 +529,21 @@ runner's expected output.
 **Cause**: Tests calling `build_pipeline(p)` trigger a real Nix build. This may fail in sandboxed environments if the local `t-lang` source cannot be resolved.
 **Fix**: Prefer `populate_pipeline(p, build=false)` for unit tests that only verify Nix emission or dependency analysis. Reserve `build_pipeline` for full integration tests in `tests/integration/`.
 
+### 5. `nix develop` fails with "don't know how to recreate store derivation"
+**Symptoms**: `nix develop` aborts with
+`error: don't know how to recreate store derivation '/nix/store/<hash>-nix-shell.drv'!`
+and every subsequent `nix develop`-wrapped command (build/test/REPL) fails the same way.
+**Cause**: The Nix store derivation backing the dev shell was garbage-collected out of
+the store while the flake's evaluation cache still references it. This typically appears
+after a `nix-store --gc` run or when the store is under memory pressure.
+**Fix**: Clear Nix's evaluation cache so the shell derivation is recreated on next use:
+```bash
+rm -rf ~/.cache/nix/eval-cache-*
+nix develop
+```
+After clearing the cache the shell (and its wrapped commands such as `dune build`,
+`dune runtest`, and `t`) works again. This is safe — the cache is only a speed-up.
+
 ---
 
 ## Documentation Requirements

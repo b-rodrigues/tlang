@@ -213,6 +213,16 @@ Pipeline nodes can be dynamically expanded into multiple branches using `map_pat
 ### Introspection with `explain()`
 T values and pipelines are highly introspectable. The **`explain`** package provides the `explain()` function, which can be called on any object to get a detailed summary of its structure, metadata, and status. It is the recommended way to "look inside" your data and nodes in the REPL.
 
+### Property-Based Testing with `popcraft`
+For hardening T's standard library and reusable packages, the **`popcraft`** package provides property-based testing: state an invariant and `prop_for_all(gen, property)` checks it over many generated inputs, reporting a deterministic shrunk counterexample on failure. Generators are structured Dicts (`prop_gen_int_range`, `prop_gen_df`, `prop_gen_string_from`, ...) and all draws use the seeded RNG, so `set_seed(n)` reproduces failures exactly.
+
+```t
+set_seed(42)
+assert(prop_for_all(prop_gen_int_range(0, 100), \(x) x >= 0))
+```
+
+See the [Property-Based Testing guide](docs/property-testing.md) for details.
+
 ---
 
 ## Quick Start & Installation
