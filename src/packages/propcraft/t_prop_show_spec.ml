@@ -88,166 +88,207 @@ and collect results =
   in
   go [] results
 
-(* Render a generator spec into T source. Closure-carrying kinds and
-   unknown kinds are explicit errors. *)
-let rec render_spec (spec : value) : (string, string) result =
-  match spec_gen spec with
-  | None -> Error "invalid generator spec (missing `gen` field)."
-  | Some "int" ->
-      let min = match int_field "min" spec with Some m -> m | None -> -10 in
-      let max = match int_field "max" spec with Some m -> m | None -> 10 in
-      Ok (Printf.sprintf "prop_gen_int(min = %d, max = %d)" min max)
-  | Some "int_range" ->
-      (match int_field "min" spec, int_field "max" spec with
-       | Some min, Some max -> Ok (Printf.sprintf "prop_gen_int_range(%d, %d)" min max)
-       | _ -> Error "int_range spec is missing `min` or `max`.")
-  | Some "between" ->
-      (match int_field "min" spec, int_field "max" spec with
-       | Some min, Some max -> Ok (Printf.sprintf "prop_gen_between(%d, %d)" min max)
-       | _ -> Error "between spec is missing `min` or `max`.")
-  | Some "float_range" ->
-      (match float_field "min" spec, float_field "max" spec with
-       | Some min, Some max ->
-           Ok (Printf.sprintf "prop_gen_float_range(%s, %s)"
-                 (string_of_float min) (string_of_float max))
-       | _ -> Error "float_range spec is missing `min` or `max`.")
-  | Some "bool" -> Ok "prop_gen_bool()"
-  | Some "string" ->
-      (match field "chars" spec, int_field "min_len" spec, int_field "max_len" spec with
-       | Some chars_value, Some min_len, Some max_len ->
-           (match string_list_field "chars" (VDict [ ("chars", chars_value) ]) with
-            | Some chars ->
-                (match List.map (fun c -> Ok (quote c)) chars |> collect with
-                 | Error e -> Error e
-                 | Ok parts ->
-                     Ok
-                       (Printf.sprintf "prop_gen_string_from([%s], %d, %d)"
-                          (String.concat ", " parts) min_len max_len))
-            | None -> Error "string spec has a non-renderable `chars` field.")
-       | _ -> Error "string spec is missing `chars`, `min_len`, or `max_len`.")
-  | Some "factor" ->
-      (match field "levels" spec with
-       | Some levels_value ->
-           (match string_list_field "levels" (VDict [ ("levels", levels_value) ]) with
-            | Some levels ->
-                (match List.map (fun l -> Ok (quote l)) levels |> collect with
-                 | Error e -> Error e
-                 | Ok parts ->
-                     Ok (Printf.sprintf "prop_gen_factor([%s])" (String.concat ", " parts)))
-            | None -> Error "factor spec has a non-renderable `levels` field.")
-       | None -> Error "factor spec is missing `levels`.")
-  | Some "one_of" ->
-      (match field "values" spec with
-       | Some (VList items) ->
-           (match List.map (fun (_, v) -> t_literal v) items |> collect with
-            | Error e -> Error e
-            | Ok parts -> Ok (Printf.sprintf "prop_gen_one_of([%s])" (String.concat ", " parts)))
-       | Some (VVector arr) ->
-           let parts = List.map t_literal (Array.to_list arr) |> collect in
-           (match parts with
-            | Error e -> Error e
-            | Ok parts -> Ok (Printf.sprintf "prop_gen_one_of([%s])" (String.concat ", " parts)))
-       | _ -> Error "one_of spec is missing `values`.")
-  | Some "choice" ->
-      (match field "gens" spec with
-       | Some (VList gens) ->
-           (match List.map (fun (_, g) -> render_spec g) gens |> collect with
-            | Error e -> Error e
-            | Ok parts -> Ok (Printf.sprintf "prop_gen_choice([%s])" (String.concat ", " parts)))
-       | _ -> Error "choice spec is missing `gens`.")
-  | Some "frequency" ->
-      (match field "weights" spec, field "gens" spec with
-       | Some (VVector weights), Some (VList gens)
-         when Array.length weights = List.length gens ->
-           let parts =
-             List.map2
-               (fun w g ->
-                 match w, g with
-                 | VInt w, (_, g) ->
-                     (match render_spec g with
-                      | Error e -> Error e
-                      | Ok gs -> Ok (Printf.sprintf "[%d, %s]" w gs))
-                 | _ -> Error "frequency spec has a non-Int weight.")
-               (Array.to_list weights) gens
-             |> collect
-           in
-           (match parts with
-            | Error e -> Error e
-            | Ok parts -> Ok (Printf.sprintf "prop_gen_frequency([%s])" (String.concat ", " parts)))
-       | _ -> Error "frequency spec requires matching `weights` and `gens`.")
-  | Some "vector" | Some "list" as kind ->
-      let name = if kind = Some "vector" then "prop_gen_vector" else "prop_gen_list" in
-      (match field "elem" spec, int_field "n" spec with
-       | Some elem, Some n ->
-           (match render_spec elem with
-            | Error e -> Error e
-            | Ok es -> Ok (Printf.sprintf "%s(%s, %d)" name es n))
-       | _ -> Error (Printf.sprintf "%s spec requires `elem` and `n`." name))
-  | Some "date_range" ->
-      (match field "mode" spec with
-       | Some (VString "date") ->
-           (match int_field "start_day" spec, int_field "end_day" spec with
-            | Some start_day, Some end_day ->
-                Ok
-                  (Printf.sprintf
-                     "prop_gen_date_range(parse_date(%s, \"%s\"), parse_date(%s, \"%s\"))"
-                     (quote (render_date start_day)) "%Y-%m-%d"
-                     (quote (render_date end_day)) "%Y-%m-%d")
-            | _ -> Error "date_range date spec requires `start_day` and `end_day`.")
-       | Some (VString "datetime") ->
-           (match int_field "start_micros" spec, int_field "end_micros" spec with
-            | Some start_m, Some end_m ->
-                let tz = match field "tz" spec with Some (VString s) -> Some s | _ -> None in
-                let bound micros =
-                  let args =
-                    Printf.sprintf "%s, \"%s\""
-                      (quote (render_datetime_string (Int64.of_int micros))) "%Y-%m-%d %H:%M:%S"
-                  in
-                  let args =
-                    match tz with
-                    | Some name -> args ^ Printf.sprintf ", tz = %s" (quote name)
-                    | None -> args
-                  in
-                  Printf.sprintf "parse_datetime(%s)" args
-                in
-                Ok
-                  (Printf.sprintf "prop_gen_date_range(%s, %s)"
-                     (bound start_m) (bound end_m))
-            | _ -> Error "date_range datetime spec requires `start_micros` and `end_micros`.")
-       | _ -> Error "date_range spec requires a `mode` field.")
-  | Some "df" ->
-      (match field "columns" spec, int_field "nrows" spec with
-       | Some (VDict columns), Some nrows ->
-           let na_prob = match float_field "na_prob" spec with Some p -> p | None -> 0.1 in
-           (match
-              List.map
-                (fun (name, g) ->
-                  if not (is_valid_ident name) then
-                    Error (Printf.sprintf "cannot render column name `%s` as a bare identifier." name)
-                  else
-                    match render_spec g with
-                    | Error e -> Error e
-                    | Ok gs -> Ok (Printf.sprintf "%s: %s" name gs))
-                columns
-              |> collect
-            with
+(* ── Per-generator-kinds renderers ──────────────────────────────────── *)
+
+and render_int spec =
+  let min = match int_field "min" spec with Some m -> m | None -> -10 in
+  let max = match int_field "max" spec with Some m -> m | None -> 10 in
+  Ok (Printf.sprintf "prop_gen_int(min = %d, max = %d)" min max)
+
+and render_int_range spec =
+  match int_field "min" spec, int_field "max" spec with
+  | Some min, Some max -> Ok (Printf.sprintf "prop_gen_int_range(%d, %d)" min max)
+  | _ -> Error "int_range spec is missing `min` or `max`."
+
+and render_between spec =
+  match int_field "min" spec, int_field "max" spec with
+  | Some min, Some max -> Ok (Printf.sprintf "prop_gen_between(%d, %d)" min max)
+  | _ -> Error "between spec is missing `min` or `max`."
+
+and render_float_range spec =
+  match float_field "min" spec, float_field "max" spec with
+  | Some min, Some max ->
+      Ok (Printf.sprintf "prop_gen_float_range(%s, %s)"
+            (string_of_float min) (string_of_float max))
+  | _ -> Error "float_range spec is missing `min` or `max`."
+
+and render_bool _spec = Ok "prop_gen_bool()"
+
+and render_string spec =
+  match field "chars" spec, int_field "min_len" spec, int_field "max_len" spec with
+  | Some chars_value, Some min_len, Some max_len ->
+      (match string_list_field "chars" (VDict [ ("chars", chars_value) ]) with
+       | Some chars ->
+           (match List.map (fun c -> Ok (quote c)) chars |> collect with
             | Error e -> Error e
             | Ok parts ->
-                Ok
-                  (Printf.sprintf "prop_gen_df([%s], nrows = %d, na_prob = %s)"
-                     (String.concat ", " parts) nrows (string_of_float na_prob)))
-       | _ -> Error "df spec requires a non-empty `columns` Dict and `nrows`.")
-  | Some "resize" ->
-      (match field "source" spec, int_field "n" spec with
-       | Some source, Some n ->
-           (match render_spec source with
+                Ok (Printf.sprintf "prop_gen_string_from([%s], %d, %d)"
+                      (String.concat ", " parts) min_len max_len))
+       | None -> Error "string spec has a non-renderable `chars` field.")
+  | _ -> Error "string spec is missing `chars`, `min_len`, or `max_len`."
+
+and render_factor spec =
+  match field "levels" spec with
+  | Some levels_value ->
+      (match string_list_field "levels" (VDict [ ("levels", levels_value) ]) with
+       | Some levels ->
+           (match List.map (fun l -> Ok (quote l)) levels |> collect with
             | Error e -> Error e
-            | Ok ss -> Ok (Printf.sprintf "prop_resize(%s, %d)" ss n))
-       | _ -> Error "resize spec requires `source` and `n`.")
-  | Some ("map" | "such_that" | "fn") as kind ->
-      let name = match kind with Some "map" -> "map" | Some "such_that" -> "such_that" | _ -> "fn" in
-      Error (Printf.sprintf "cannot render a `%s` generator spec: it captures a closure." name)
-  | Some other -> Error (Printf.sprintf "unknown generator kind `%s`." other)
+            | Ok parts ->
+                Ok (Printf.sprintf "prop_gen_factor([%s])" (String.concat ", " parts)))
+       | None -> Error "factor spec has a non-renderable `levels` field.")
+  | None -> Error "factor spec is missing `levels`."
+
+and render_one_of spec =
+  match field "values" spec with
+  | Some (VList items) ->
+      (match List.map (fun (_, v) -> t_literal v) items |> collect with
+       | Error e -> Error e
+       | Ok parts -> Ok (Printf.sprintf "prop_gen_one_of([%s])" (String.concat ", " parts)))
+  | Some (VVector arr) ->
+      let parts = List.map t_literal (Array.to_list arr) |> collect in
+      (match parts with
+       | Error e -> Error e
+       | Ok parts -> Ok (Printf.sprintf "prop_gen_one_of([%s])" (String.concat ", " parts)))
+  | _ -> Error "one_of spec is missing `values`."
+
+and render_choice spec =
+  match field "gens" spec with
+  | Some (VList gens) ->
+      (match List.map (fun (_, g) -> render_spec g) gens |> collect with
+       | Error e -> Error e
+       | Ok parts -> Ok (Printf.sprintf "prop_gen_choice([%s])" (String.concat ", " parts)))
+  | _ -> Error "choice spec is missing `gens`."
+
+and render_frequency spec =
+  match field "weights" spec, field "gens" spec with
+  | Some (VVector weights), Some (VList gens)
+    when Array.length weights = List.length gens ->
+      let parts =
+        List.map2
+          (fun w g ->
+            match w, g with
+            | VInt w, (_, g) ->
+                (match render_spec g with
+                 | Error e -> Error e
+                 | Ok gs -> Ok (Printf.sprintf "[%d, %s]" w gs))
+            | _ -> Error "frequency spec has a non-Int weight.")
+          (Array.to_list weights) gens
+        |> collect
+      in
+      (match parts with
+       | Error e -> Error e
+       | Ok parts -> Ok (Printf.sprintf "prop_gen_frequency([%s])" (String.concat ", " parts)))
+  | _ -> Error "frequency spec requires matching `weights` and `gens`."
+
+and render_vector_or_list spec =
+  let name =
+    match spec_gen spec with
+    | Some "vector" -> "prop_gen_vector"
+    | _ -> "prop_gen_list"
+  in
+  match field "elem" spec, int_field "n" spec with
+  | Some elem, Some n ->
+      (match render_spec elem with
+       | Error e -> Error e
+       | Ok es -> Ok (Printf.sprintf "%s(%s, %d)" name es n))
+  | _ -> Error (Printf.sprintf "%s spec requires `elem` and `n`." name)
+
+and render_date_range spec =
+  match field "mode" spec with
+  | Some (VString "date") ->
+      (match int_field "start_day" spec, int_field "end_day" spec with
+       | Some start_day, Some end_day ->
+           Ok (Printf.sprintf
+                 "prop_gen_date_range(parse_date(%s, \"%s\"), parse_date(%s, \"%s\"))"
+                 (quote (render_date start_day)) "%Y-%m-%d"
+                 (quote (render_date end_day)) "%Y-%m-%d")
+       | _ -> Error "date_range date spec requires `start_day` and `end_day`.")
+  | Some (VString "datetime") ->
+      (match int_field "start_micros" spec, int_field "end_micros" spec with
+       | Some start_m, Some end_m ->
+           let tz = match field "tz" spec with Some (VString s) -> Some s | _ -> None in
+           let bound micros =
+             let args =
+               Printf.sprintf "%s, \"%s\""
+                 (quote (render_datetime_string (Int64.of_int micros))) "%Y-%m-%d %H:%M:%S"
+             in
+             let args =
+               match tz with
+               | Some name -> args ^ Printf.sprintf ", tz = %s" (quote name)
+               | None -> args
+             in
+             Printf.sprintf "parse_datetime(%s)" args
+           in
+           Ok (Printf.sprintf "prop_gen_date_range(%s, %s)" (bound start_m) (bound end_m))
+       | _ -> Error "date_range datetime spec requires `start_micros` and `end_micros`.")
+  | _ -> Error "date_range spec requires a `mode` field."
+
+and render_df spec =
+  match field "columns" spec, int_field "nrows" spec with
+  | Some (VDict columns), Some nrows ->
+      let na_prob = match float_field "na_prob" spec with Some p -> p | None -> 0.1 in
+      (match
+         List.map
+           (fun (name, g) ->
+             if not (is_valid_ident name) then
+               Error (Printf.sprintf "cannot render column name `%s` as a bare identifier." name)
+             else
+               match render_spec g with
+               | Error e -> Error e
+               | Ok gs -> Ok (Printf.sprintf "%s: %s" name gs))
+           columns
+         |> collect
+       with
+       | Error e -> Error e
+       | Ok parts ->
+           Ok (Printf.sprintf "prop_gen_df([%s], nrows = %d, na_prob = %s)"
+                 (String.concat ", " parts) nrows (string_of_float na_prob)))
+  | _ -> Error "df spec requires a non-empty `columns` Dict and `nrows`."
+
+and render_resize spec =
+  match field "source" spec, int_field "n" spec with
+  | Some source, Some n ->
+      (match render_spec source with
+       | Error e -> Error e
+       | Ok ss -> Ok (Printf.sprintf "prop_resize(%s, %d)" ss n))
+  | _ -> Error "resize spec requires `source` and `n`."
+
+(* ── Dispatch table ────────────────────────────────────────────────── *)
+
+and renderers : (string * (value -> (string, string) result)) list = [
+  "int",          render_int;
+  "int_range",    render_int_range;
+  "between",      render_between;
+  "float_range",  render_float_range;
+  "bool",         render_bool;
+  "string",       render_string;
+  "factor",       render_factor;
+  "one_of",       render_one_of;
+  "choice",       render_choice;
+  "frequency",    render_frequency;
+  "vector",       render_vector_or_list;
+  "list",         render_vector_or_list;
+  "date_range",   render_date_range;
+  "df",           render_df;
+  "resize",       render_resize;
+]
+
+(* ── Top-level dispatch ─────────────────────────────────────────────── *)
+
+(* Render a generator spec into T source. Closure-carrying kinds and
+   unknown kinds are explicit errors. *)
+and render_spec (spec : value) : (string, string) result =
+  match spec_gen spec with
+  | None -> Error "invalid generator spec (missing `gen` field)."
+  | Some kind ->
+      (match List.assoc_opt kind renderers with
+       | Some renderer -> renderer spec
+       | None ->
+           (match kind with
+            | "map" | "such_that" | "fn" ->
+                Error (Printf.sprintf "cannot render a `%s` generator spec: it captures a closure." kind)
+            | _ -> Error (Printf.sprintf "unknown generator kind `%s`." kind)))
 
 (*
 --# Render a generator spec back to T source
