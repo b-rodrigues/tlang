@@ -345,12 +345,15 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env _test 
   test_env env "prop_gen_between arity error"
     "prop_gen_between()"
     "expects 2 arguments but received 0";
-  test_env env "prop_gen_between nested in list shrinks to generic floor (not lower bound)"
-    "set_seed(3)\nprop_for_all(prop_gen_list(prop_gen_between(100, 200), 5), \\(xs) false, n = 1)"
-    "(shrunk): [0]";
-  test_env env "prop_gen_between nested in choice shrinks to generic floor"
-    "set_seed(3)\nprop_for_all(prop_gen_choice([prop_gen_between(100, 200), prop_gen_between(300, 400)]), \\(x) false, n = 1)"
-    "0";
+  test_env env "prop_gen_between nested in list shrinks toward lower bound"
+    "set_seed(42)\nprop_for_all(prop_gen_list(prop_gen_between(100, 200), 5), \\(xs) false, n = 1)"
+    "(shrunk): [100]";
+  test_env env "prop_gen_between nested in vector shrinks toward lower bound"
+    "set_seed(42)\nprop_for_all(prop_gen_vector(prop_gen_between(100, 200), 5), \\(xs) false, n = 1)"
+    "(shrunk): Vector[100]";
+  test_env env "prop_gen_between nested in choice shrinks toward lower bound"
+    "set_seed(42)\nprop_for_all(prop_gen_choice([prop_gen_between(100, 200), prop_gen_between(300, 400)]), \\(x) false, n = 1)"
+    "(shrunk): 100";
 
   (* prop_gen_dict — Dict generator *)
   test_env env "prop_gen_dict spec is inspectable dict"

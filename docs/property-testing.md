@@ -149,9 +149,7 @@ prop_for_all(prop_gen_between(100, 200), \(x) x <= 100, n = 20)
 -- counterexample: 154 (shrunk): 101
 ```
 
-Without `prop_gen_between`, the same test with `prop_gen_int_range` would shrink the counterexample toward 0 — potentially below the meaningful domain. Column generators inside `prop_gen_df` shrink toward the column's lower bound.
-
-**Shrinker scope:** Generator-aware shrinking applies only at the top level and for DataFrame columns. Inside composite generators (list, vector, choice, frequency), values shrink toward the standard canonical floors (0, 0.0, false, "") regardless of the element's generator spec.
+Without `prop_gen_between`, the same test with `prop_gen_int_range` would shrink the counterexample toward 0 — potentially below the meaningful domain. Column generators inside `prop_gen_df` and `prop_gen_dict` shrink toward the column's lower bound. The shrink strategy propagates through composite generators (`list`, `vector`, `choice`, `frequency`), so nested `between` values inside composites also shrink toward their lower bound.
 
 ### `prop_show_spec` — introspection
 

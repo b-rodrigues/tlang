@@ -496,7 +496,7 @@ let shrink_string s =
     |> List.sort_uniq compare
     |> List.filter (fun c -> c <> s)
 
-let rec shrink_list items =
+let rec shrink_list ?(shrink_elem = shrink_value) items =
   let len = List.length items in
   if len = 0 then []
   else
@@ -510,7 +510,7 @@ let rec shrink_list items =
     let elem_wise =
       List.mapi
         (fun i (_, v) ->
-          shrink_value v
+          shrink_elem v
           |> List.map (fun sv ->
                  List.mapi (fun j (n2, v2) -> if j = i then (n2, sv) else (n2, v2)) items))
         items
@@ -699,10 +699,10 @@ let failure_message ~name ~n ~runs ~k ~counterexamples =
 
 (* Derive the value-shrink function from the top-level generator spec so
    domain floors apply during shrinking: a `between` spec shrinks toward
-   its `min` at every step, and a `df` spec canonicalizes `between`
-   column cells to that column's `min` instead of zero. Nested values
-   keep the generic structural shrink. *)
-let spec_shrink_v spec =
+   its `min`, a `df`/`dict` spec shrinks between-column cells to that
+   column's `min`, and composite specs (`list`, `vector`, `choice`,
+   `frequency`) propagate the shrink strategy of their element(s). *)
+let rec spec_shrink_v spec =
   match spec_gen spec with
   | Some "between" ->
       let min = match int_field "min" spec with Some m -> m | None -> 0 in
@@ -763,6 +763,52 @@ let spec_shrink_v spec =
             |> List.sort_uniq compare
             |> List.map (fun d -> VDict d)
         | _ -> shrink_value v)
+  | Some "list" ->
+      let elem_shrink_v =
+        match field "elem" spec with
+        | Some elem_spec -> spec_shrink_v elem_spec
+        | None -> shrink_value
+      in
+      (fun v ->
+        match v with
+        | VList items ->
+            List.map (fun l -> VList l) (shrink_list ~shrink_elem:elem_shrink_v items)
+        | _ -> shrink_value v)
+  | Some "vector" ->
+      let elem_shrink_v =
+        match field "elem" spec with
+        | Some elem_spec -> spec_shrink_v elem_spec
+        | None -> shrink_value
+      in
+      (fun v ->
+        match v with
+        | VVector arr ->
+            let items = Array.to_list arr |> List.map (fun v -> (None, v)) in
+            shrink_list ~shrink_elem:elem_shrink_v items
+            |> List.map (fun l -> VVector (Array.of_list (List.map snd l)))
+        | _ -> shrink_value v)
+  | Some "choice" ->
+      let branch_shrinks =
+        match field "gens" spec with
+        | Some (VList gens) ->
+            gens |> List.map (fun (_, g) -> spec_shrink_v g)
+        | _ -> [ shrink_value ]
+      in
+      (fun v ->
+        branch_shrinks
+        |> List.concat_map (fun sh -> sh v)
+        |> List.sort_uniq compare)
+  | Some "frequency" ->
+      let branch_shrinks =
+        match field "gens" spec, field "weights" spec with
+        | Some (VList gens), _ ->
+            gens |> List.map (fun (_, g) -> spec_shrink_v g)
+        | _ -> [ shrink_value ]
+      in
+      (fun v ->
+        branch_shrinks
+        |> List.concat_map (fun sh -> sh v)
+        |> List.sort_uniq compare)
   | _ -> shrink_value
 
 let run_property ~eval_call ~env ~n ~shrink ~shrink_verify ~max_counterexamples
