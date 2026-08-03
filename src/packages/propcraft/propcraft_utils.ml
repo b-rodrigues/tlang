@@ -30,6 +30,16 @@ let float_field name spec =
 
 (** Pick the typed NA that matches a generator's value type. Used for
     NA injection inside [prop_gen_df]. *)
+let na_of_value = function
+  | VInt _ -> NAInt
+  | VFloat _ -> NAFloat
+  | VBool _ -> NABool
+  | VString _ -> NAString
+  | VDate _ -> NADate
+  | VDatetime _ -> NADatetime
+  | VFactor _ -> NAString
+  | _ -> NAGeneric
+
 let rec na_for_spec spec =
   match spec_gen spec with
   | Some ("int" | "int_range") -> NAInt
@@ -37,6 +47,28 @@ let rec na_for_spec spec =
   | Some "bool" -> NABool
   | Some "string" -> NAString
   | Some "factor" -> NAString
+  | Some "one_of" ->
+      (match field "values" spec with
+       | Some (VList items) ->
+           (match
+              List.find_opt
+                (fun (_, v) -> match v with VNA _ -> false | _ -> true)
+                items
+            with
+            | Some (_, v) -> na_of_value v
+            | None -> NAGeneric)
+       | Some (VVector arr) ->
+           (match
+              Array.to_list arr
+              |> List.find_opt (fun v -> match v with VNA _ -> false | _ -> true)
+            with
+            | Some v -> na_of_value v
+            | None -> NAGeneric)
+       | _ -> NAGeneric)
+  | Some "date_range" ->
+      (match field "mode" spec with
+       | Some (VString "datetime") -> NADatetime
+       | _ -> NADate)
   | Some ("map" | "such_that" | "resize") ->
       (match field "source" spec with
        | Some src -> na_for_spec src

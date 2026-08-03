@@ -40,6 +40,24 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
   test_env env "prop_for_all PASS multi-byte string chars"
     "prop_for_all(prop_gen_string_from(\"\\xCE\\xBB\", 1, 1), \\(s) s == \"\\xCE\\xBB\", n = 5)"
     "PASS";
+  test_env env "prop_for_all PASS one_of ints"
+    "prop_for_all(prop_gen_one_of([10, 20, 30]), \\(v) v == 10 || v == 20 || v == 30, n = 30)"
+    "PASS";
+  test_env env "prop_for_all PASS one_of strings"
+    "prop_for_all(prop_gen_one_of([\"a\", \"b\"]), \\(s) s == \"a\" || s == \"b\", n = 30)"
+    "PASS";
+  test_env env "prop_for_all PASS one_of dates"
+    "prop_for_all(prop_gen_one_of([ymd(\"2020-01-01\"), ymd(\"2021-01-01\")]), \\(d) year(d) == 2020 || year(d) == 2021, n = 20)"
+    "PASS";
+  test_env env "prop_for_all PASS date_range"
+    "prop_for_all(prop_gen_date_range(ymd(\"2020-01-01\"), ymd(\"2020-12-31\")), \\(d) year(d) == 2020, n = 30)"
+    "PASS";
+  test_env env "prop_for_all PASS date_range inclusive endpoints"
+    "set_seed(7)\nprop_for_all(prop_gen_date_range(ymd(\"2020-01-01\"), ymd(\"2020-01-01\")), \\(d) d == ymd(\"2020-01-01\"), n = 5)"
+    "PASS";
+  test_env env "prop_for_all PASS datetime_range"
+    "prop_for_all(prop_gen_date_range(ymd_hms(\"2020-06-01 00:00:00\"), ymd_hms(\"2020-06-01 23:59:59\")), \\(d) year(d) == 2020 && month(d) == 6, n = 30)"
+    "PASS";
 
   (* FAIL cases *)
   test_env env "prop_for_all STOP on false"
@@ -67,6 +85,18 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
   test_env env "prop_for_all reproducible across runs"
     "set_seed(42)\na = prop_for_all(prop_gen_int_range(0, 100), \\(x) x < 10, n = 20)\nset_seed(42)\nb = prop_for_all(prop_gen_int_range(0, 100), \\(x) x < 10, n = 20)\na == b"
     "true";
+  test_env env "prop_for_all max_counterexamples shows several"
+    "set_seed(42)\nprop_for_all(prop_gen_int_range(0, 100), \\(x) x < 10, n = 20, max_counterexamples = 3)"
+    "showing 3 counterexamples";
+  test_env env "prop_for_all max_counterexamples numbers blocks"
+    "set_seed(42)\nprop_for_all(prop_gen_int_range(0, 100), \\(x) x < 10, n = 20, max_counterexamples = 3)"
+    "counterexample #1: 54";
+  test_env env "prop_for_all max_counterexamples dedupes repeats"
+    "set_seed(42)\nprop_for_all(prop_gen_int_range(5, 5), \\(x) false, n = 10, max_counterexamples = 3)"
+    "Property failed after 10 of 10 runs (showing 1 counterexample).\n  counterexample #1: 5\n  (shrunk): 0\n  predicate: returned false";
+  test_env env "prop_for_all max_counterexamples must be positive"
+    "prop_for_all(prop_gen_int_range(0, 5), \\(x) true, n = 10, max_counterexamples = 0)"
+    "expects `max_counterexamples` to be a positive Int";
 
   (* df NA injection *)
   test_env env "prop_gen_df NA injection renders NA"
@@ -77,6 +107,9 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
     "NA(String)";
   test_env env "prop_gen_df mixed factor + NA builds"
     "prop_for_all(prop_gen_df([grp: prop_gen_factor([\"a\", \"b\"])], nrows = 10, na_prob = 0.5), \\(df) nrow(df) == 10, n = 5)"
+    "PASS";
+  test_env env "prop_gen_df large batch draw smoke test"
+    "prop_for_all(prop_gen_df([a: prop_gen_int_range(0, 100), b: prop_gen_float_range(0.0, 100.0), c: prop_gen_string_from(\"abc\", 1, 3), d: prop_gen_bool(), e: prop_gen_factor([\"x\", \"y\"])], nrows = 1000, na_prob = 0.1), \\(df) nrow(df) == 1000 && ncol(df) == 5, n = 5)"
     "PASS";
 
   (* DataFrame shrinking *)
@@ -121,6 +154,105 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
   test_env env "prop_gen_int unknown named arg errors"
     "prop_gen_int(bogus = 1)"
     "received unknown named argument `bogus`";
+  test_env env "prop_gen_one_of empty list errors"
+    "prop_gen_one_of([])"
+    "expects a non-empty List or Vector of values";
+  test_env env "prop_gen_one_of non-list errors"
+    "prop_gen_one_of(1)"
+    "expects a List or Vector, got Int";
+  test_env env "prop_gen_date_range inverted bounds errors"
+    "prop_gen_date_range(ymd(\"2020-01-01\"), ymd(\"2019-01-01\"))"
+    "requires `end` to be on or after `start`";
+  test_env env "prop_gen_date_range inverted datetime bounds errors"
+    "prop_gen_date_range(ymd_hms(\"2020-06-02 00:00:00\"), ymd_hms(\"2020-06-01 00:00:00\"))"
+    "requires `end` to be on or after `start`";
+  test_env env "prop_gen_date_range mixed date/datetime errors"
+    "prop_gen_date_range(ymd(\"2020-01-01\"), ymd_hms(\"2020-01-01 00:00:00\"))"
+    "both bounds to be Dates or both to be Datetimes";
+  test_env env "prop_gen_date_range non-date bounds errors"
+    "prop_gen_date_range(ymd(\"2020-01-01\"), 1)"
+    "expects Date or Datetime bounds, got Date and Int";
+
+  (* prop_gen_df_from — schema-derived generators *)
+  test_env env "prop_gen_df_from round-trips nrows and columns"
+    "mt = to_dataframe([x: [1, 2, 3], s: [\"a\", \"b\", \"c\"]])\nprop_for_all(prop_gen_df_from(mt, nrows = 10), \\(df) nrow(df) == 10 && ncol(df) == 2, n = 5)"
+    "PASS";
+  test_env env "prop_gen_df_from infers int column"
+    "prop_gen_df_from(to_dataframe([x: [1, 2, 3]]))"
+    "{`gen`: \"int_range\", `min`: 1, `max`: 3}";
+  test_env env "prop_gen_df_from infers float column"
+    "prop_gen_df_from(to_dataframe([y: [1.5, 2.5]]))"
+    "{`gen`: \"float_range\", `min`: 1.5, `max`: 2.5}";
+  test_env env "prop_gen_df_from constant float uses one_of"
+    "prop_gen_df_from(to_dataframe([c: [2.0, 2.0]]))"
+    "{`gen`: \"one_of\", `values`: [2.]}";
+  test_env env "prop_gen_df_from infers string distinct values"
+    "prop_gen_df_from(to_dataframe([s: [\"a\", \"b\", \"a\"]]))"
+    "{`gen`: \"one_of\", `values`: [\"a\", \"b\"]}";
+  test_env env "prop_gen_df_from infers factor levels"
+    "prop_gen_df_from(to_dataframe([f: to_factor([\"b\", \"a\", \"b\"])]))"
+    "{`gen`: \"factor\", `levels`: [\"a\", \"b\"]}";
+  test_env env "prop_gen_df_from infers date range"
+    "prop_gen_df_from(to_dataframe([d: [ymd(\"2020-01-01\"), ymd(\"2020-01-02\")]]))"
+    "{`gen`: \"date_range\", `mode`: \"date\", `start_day`: 18262, `end_day`: 18263}";
+  test_env env "prop_gen_df_from infers datetime range"
+    "prop_gen_df_from(to_dataframe([dt: [ymd_hms(\"2020-06-01 00:00:00\"), ymd_hms(\"2020-06-01 12:00:00\")]]))"
+    "{`gen`: \"date_range\", `mode`: \"datetime\"";
+  test_env env "prop_gen_df_from infers bool column"
+    "prop_gen_df_from(to_dataframe([b: [true, false]]))"
+    "{`gen`: \"bool\"}";
+  test_env env "prop_gen_df_from mixed-schema round-trip"
+    "dd = to_dataframe([x: [1, 2, 3], f: to_factor([\"b\", \"a\", \"b\"]), d: [ymd(\"2020-01-01\"), ymd(\"2020-01-02\"), ymd(\"2021-06-15\")], b: [true, false, true]])\nprop_for_all(prop_gen_df_from(dd, nrows = 10), \\(df) nrow(df) == 10 && ncol(df) == 4, n = 5)"
+    "PASS";
+  test_env env "prop_gen_df_from NA-only column errors"
+    "prop_gen_df_from(to_dataframe([x: [NA, NA]]))"
+    "cannot infer a type for column `x`: no non-NA values";
+  test_env env "prop_gen_df_from empty df errors"
+    "prop_gen_df_from(to_dataframe([]))"
+    "expects a DataFrame with at least one column";
+  test_env env "prop_gen_df_from non-dataframe errors"
+    "prop_gen_df_from(1)"
+    "expects a DataFrame, got Int";
+  test_env env "prop_gen_df_from unknown named arg errors"
+    "prop_gen_df_from(to_dataframe([x: [1]]), bogus = 1)"
+    "received unknown named argument `bogus`";
+
+  (* prop_gen_fn — custom function generators *)
+  test_env env "prop_for_all PASS custom fn generator"
+    "prop_for_all(prop_gen_fn(\\(n) n * 2), \\(v) v % 2 == 0 && v >= 0, n = 20)"
+    "PASS";
+  test_env env "prop_gen_fn receives default size"
+    "prop_for_all(prop_gen_fn(\\(n) n), \\(v) v == 30, n = 5)"
+    "PASS";
+  test_env env "prop_gen_fn composes inside df columns"
+    "prop_for_all(prop_gen_df([w: prop_gen_fn(\\(n) 7)], nrows = 5, na_prob = 0.0), \\(df) nrow(df) == 5, n = 3)"
+    "PASS";
+  test_env env "prop_gen_fn spec is inspectable dict"
+    "prop_gen_fn(\\(n) n)"
+    "{`gen`: \"fn\", `fn`: \\(n) -> <function>}";
+  test_env env "prop_gen_fn arity error"
+    "prop_gen_fn()"
+    "expects 1 arguments but received 0";
+
+  (* prop_stats — generator probe *)
+  test_env env "prop_stats counts runs and value types"
+    "prop_stats(prop_gen_int_range(0, 100), n = 10)"
+    "{`n_runs`: 10, `n_errors`: 0, `value_types`: {`Int`: 10}";
+  test_env env "prop_stats counts draw errors"
+    "prop_stats(prop_such_that(prop_gen_int_range(0, 0), \\(x) x == 1), n = 5)"
+    "{`n_runs`: 0, `n_errors`: 5, `value_types`: {`Error`: 5}";
+  test_env env "prop_stats records df row sizes"
+    "prop_stats(prop_gen_df([x: prop_gen_int_range(0, 5)], nrows = 8), n = 6)"
+    "value_types`: {`DataFrame`: 6}, `nested_sizes`: {`df`: [8, 8, 8, 8, 8, 8]}";
+  test_env env "prop_stats records vector sizes"
+    "prop_stats(prop_gen_vector(prop_gen_int_range(0, 10), 5), n = 10)"
+    "nested_sizes`: {`vector`: [5, 5, 5, 5, 5, 5, 5, 5, 5, 5]}";
+  test_env env "prop_stats unknown named arg errors"
+    "prop_stats(prop_gen_int(), bogus = 1)"
+    "received unknown named argument `bogus`";
+  test_env env "prop_stats n must be positive"
+    "prop_stats(prop_gen_int(), n = 0)"
+    "expects `n` to be a positive Int";
 
   (* assert integration — how prop_for_all is used inside `t test` files *)
   test_env env "assert around passing prop_for_all"

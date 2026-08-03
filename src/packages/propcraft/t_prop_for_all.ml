@@ -69,6 +69,101 @@ let rec draw_many ~eval_call ~env ~size elem n acc =
     | Ok v -> draw_many ~eval_call ~env ~size elem (n - 1) (v :: acc)
     | Error err -> Error err
 
+(* Fast path for per-cell drawing inside [prop_gen_df]: leaf scalar specs
+   (int/int_range/float_range/bool/string/factor/one_of/date_range) have
+   all their parameters known up front, so draw_column can close over them
+   and emit nrows cells with a tight loop instead of re-dispatching through
+   draw_value per cell. Returns None for container/wrapper specs, which keep
+   the generic draw_many path. Draw order and RNG consumption are identical
+   to the generic path, so seeded runs stay reproducible. *)
+and leaf_drawer (spec : value) : (unit -> value) option =
+  match spec_gen spec with
+  | Some "int" ->
+      let min = match int_field "min" spec with Some m -> m | None -> -10 in
+      let max = match int_field "max" spec with Some m -> m | None -> 10 in
+      Some (fun () -> VInt (Rng.uniform_int_range ~min ~max))
+  | Some "int_range" ->
+      (match int_field "min" spec, int_field "max" spec with
+       | Some min, Some max ->
+           Some (fun () -> VInt (Rng.uniform_int_range ~min ~max))
+       | _ -> None)
+  | Some "float_range" ->
+      (match float_field "min" spec, float_field "max" spec with
+       | Some min, Some max ->
+           Some (fun () -> VFloat (Rng.uniform_float_range ~min ~max))
+       | _ -> None)
+  | Some "bool" -> Some (fun () -> VBool (Rng.uniform_bool ()))
+  | Some "string" ->
+      (match field "chars" spec, int_field "min_len" spec, int_field "max_len" spec with
+       | Some chars_value, Some min_len, Some max_len ->
+           (match string_list_field "chars" (VDict [ ("chars", chars_value) ]) with
+            | Some char_set when char_set <> [] ->
+                let arr = Array.of_list char_set in
+                Some (fun () ->
+                    let len = Rng.uniform_int_range ~min:min_len ~max:max_len in
+                    let buf = Buffer.create len in
+                    for _ = 1 to len do
+                      match Rng.uniform_pick arr with
+                      | Some c -> Buffer.add_string buf c
+                      | None -> ()
+                    done;
+                    VString (Buffer.contents buf))
+            | _ -> None)
+       | _ -> None)
+  | Some "factor" ->
+      (match field "levels" spec with
+       | Some levels_value ->
+           (match string_list_field "levels" (VDict [ ("levels", levels_value) ]) with
+            | Some levels when levels <> [] ->
+                let nlevels = List.length levels in
+                Some
+                  (fun () ->
+                    VFactor
+                      (Rng.uniform_int_range ~min:0 ~max:(nlevels - 1), levels, false))
+            | _ -> None)
+       | None -> None)
+  | Some "one_of" ->
+      (match field "values" spec with
+       | Some (VList items) when items <> [] ->
+           let arr = Array.of_list items in
+           Some
+             (fun () ->
+               match Rng.uniform_pick arr with
+               | Some (_, v) -> v
+               | None -> VNA NAGeneric)
+       | Some (VVector arr) when Array.length arr > 0 ->
+           Some
+             (fun () ->
+               match Rng.uniform_pick arr with
+               | Some v -> v
+               | None -> VNA NAGeneric)
+       | _ -> None)
+  | Some "date_range" ->
+      (match field "mode" spec with
+       | Some (VString "date") ->
+           (match int_field "start_day" spec, int_field "end_day" spec with
+            | Some start_day, Some end_day ->
+                Some (fun () -> VDate (Rng.uniform_int_range ~min:start_day ~max:end_day))
+            | _ -> None)
+       | Some (VString "datetime") ->
+           (match int_field "start_micros" spec, int_field "end_micros" spec with
+            | Some start_m, Some end_m ->
+                let tz =
+                  match field "tz" spec with
+                  | Some (VString s) -> Some s
+                  | _ -> None
+                in
+                Some
+                  (fun () ->
+                    VDatetime
+                      ( Rng.uniform_int64_range
+                          ~min:(Int64.of_int start_m)
+                          ~max:(Int64.of_int end_m),
+                        tz ))
+            | _ -> None)
+       | _ -> None)
+  | _ -> None
+
 (* Draw a single value from a generator spec. *)
 and draw_value ~eval_call ~env ~size (spec : value) : (value, value) result =
   match spec_gen spec with
@@ -174,7 +269,57 @@ and draw_value ~eval_call ~env ~size (spec : value) : (value, value) result =
                          "prop_for_all: factor spec requires a non-empty `levels` list."))
        | None ->
            Error (Error.type_error "prop_for_all: factor spec requires a `levels` field."))
-  | Some "df" ->
+  | Some "one_of" ->
+      (match field "values" spec with
+       | Some (VList items) when items <> [] ->
+           (match Rng.uniform_pick (Array.of_list items) with
+            | Some (_, v) -> Ok v
+            | None ->
+                Error (Error.value_error "prop_for_all: one_of spec has no values."))
+       | Some (VVector arr) when Array.length arr > 0 ->
+           (match Rng.uniform_pick arr with
+            | Some v -> Ok v
+            | None ->
+                Error (Error.value_error "prop_for_all: one_of spec has no values."))
+       | _ ->
+           Error (Error.type_error
+                    "prop_for_all: one_of spec requires a non-empty `values` List or Vector."))
+  | Some "date_range" ->
+      (match field "mode" spec with
+       | Some (VString "date") ->
+           (match int_field "start_day" spec, int_field "end_day" spec with
+            | Some start_day, Some end_day ->
+                Ok (VDate (Rng.uniform_int_range ~min:start_day ~max:end_day))
+            | _ ->
+                Error (Error.type_error
+                         "prop_for_all: date_range spec requires `start_day` and `end_day` Int fields."))
+       | Some (VString "datetime") ->
+           (match int_field "start_micros" spec, int_field "end_micros" spec with
+            | Some start_m, Some end_m ->
+                let tz =
+                  match field "tz" spec with
+                  | Some (VString s) -> Some s
+                  | _ -> None
+                in
+                Ok
+                  (VDatetime
+                     ( Rng.uniform_int64_range
+                         ~min:(Int64.of_int start_m)
+                         ~max:(Int64.of_int end_m),
+                       tz ))
+            | _ ->
+                Error (Error.type_error
+                         "prop_for_all: date_range spec requires `start_micros` and `end_micros` Int fields."))
+       | _ ->
+           Error (Error.type_error
+                    "prop_for_all: date_range spec requires a `mode` field."))
+   | Some "fn" ->
+       (match field "fn" spec with
+        | Some fn ->
+            Ok (eval_call env fn [(None, Ast.mk_expr (Value (VInt size)))])
+        | None ->
+            Error (Error.type_error "prop_for_all: fn spec requires a `fn` field."))
+   | Some "df" ->
       (match field "columns" spec with
        | Some (VDict columns) when columns <> [] ->
            let nrows =
@@ -239,20 +384,33 @@ and draw_value ~eval_call ~env ~size (spec : value) : (value, value) result =
                (Printf.sprintf "prop_for_all: unknown generator kind `%s`." other))
 
 and draw_column ~eval_call ~env ~size ~nrows ~na_prob gen_spec =
-  match draw_many ~eval_call ~env ~size gen_spec nrows [] with
-  | Error err -> Error err
-  | Ok vals ->
+  match leaf_drawer gen_spec with
+  | Some draw ->
       let na = na_for_spec gen_spec in
-      let col =
-        Array.of_list
-          (List.map
-             (fun v ->
-               if na_prob > 0.0 && Rng.uniform_float_range ~min:0.0 ~max:1.0 < na_prob
-               then VNA na
-               else v)
-             vals)
-      in
+      let col = Array.make nrows (VNA na) in
+      for i = 0 to nrows - 1 do
+        col.(i) <- draw ()
+      done;
+      if na_prob > 0.0 then
+        for i = 0 to nrows - 1 do
+          if Rng.uniform_float_range ~min:0.0 ~max:1.0 < na_prob then col.(i) <- VNA na
+        done;
       Ok col
+  | None ->
+      (match draw_many ~eval_call ~env ~size gen_spec nrows [] with
+       | Error err -> Error err
+       | Ok vals ->
+           let na = na_for_spec gen_spec in
+           let col =
+             Array.of_list
+               (List.map
+                  (fun v ->
+                    if na_prob > 0.0 && Rng.uniform_float_range ~min:0.0 ~max:1.0 < na_prob
+                    then VNA na
+                    else v)
+                  vals)
+           in
+           Ok col)
 
 and draw_columns ~eval_call ~env ~size ~nrows ~na_prob columns =
   let rec go acc = function
@@ -451,64 +609,84 @@ let shrink_minimal ~eval_call ~env property input =
   in
   go input
 
-let failure_message ~n ~i ~input ~shrunk ~reason =
-  let input_s = render_value input in
-  let shrunk_s = render_value shrunk in
-  (* Compare rendered forms rather than structural equality: VDataFrame wraps
-     an Arrow_table whose structural `=` is unreliable (floats, mutable native
-     handles). Render-string comparison is also what shrink_dataframe uses. *)
-  let shrunk_s = if shrunk_s = input_s then input_s else shrunk_s in
-  VExpect
-    (Expect_stop
-       (Printf.sprintf
-          "Property failed after %d of %d runs.\n  counterexample: %s\n  (shrunk): %s\n  predicate: %s"
-          i n input_s shrunk_s reason))
+let failure_message ~n ~runs ~k ~counterexamples =
+  (* counterexamples are passed in discovery order (first failure first). *)
+  let block i (input, shrunk, reason) =
+    let input_s = render_value input in
+    let shrunk_s = render_value shrunk in
+    (* Compare rendered forms rather than structural equality: VDataFrame wraps
+       an Arrow_table whose structural `=` is unreliable (floats, mutable native
+       handles). Render-string comparison is also what shrink_dataframe uses. *)
+    let shrunk_s = if shrunk_s = input_s then input_s else shrunk_s in
+    if k = 1 then
+      Printf.sprintf "  counterexample: %s\n  (shrunk): %s\n  predicate: %s"
+        input_s shrunk_s reason
+    else
+      Printf.sprintf "  counterexample #%d: %s\n  (shrunk): %s\n  predicate: %s"
+        (i + 1) input_s shrunk_s reason
+  in
+  let blocks = String.concat "\n" (List.mapi block counterexamples) in
+  let shown =
+    match List.length counterexamples with
+    | 1 -> "1 counterexample"
+    | m -> Printf.sprintf "%d counterexamples" m
+  in
+  let header =
+    if k = 1 then
+      Printf.sprintf "Property failed after %d of %d runs." runs n
+    else
+      Printf.sprintf "Property failed after %d of %d runs (showing %s)."
+        runs n shown
+  in
+  VExpect (Expect_stop (Printf.sprintf "%s\n%s" header blocks))
 
-let run_property ~eval_call ~env ~n ~shrink spec property =
-  let rec loop i =
-    if i > n then VExpect Expect_pass
+let run_property ~eval_call ~env ~n ~shrink ~max_counterexamples spec property =
+  let rec loop i counterexamples =
+    if List.length counterexamples >= max_counterexamples then
+      failure_message ~n ~runs:(i - 1) ~k:max_counterexamples
+        ~counterexamples:(List.rev counterexamples)
+    else if i > n then
+      (match counterexamples with
+       | [] -> VExpect Expect_pass
+       | _ ->
+           failure_message ~n ~runs:(i - 1) ~k:max_counterexamples
+             ~counterexamples:(List.rev counterexamples))
     else
       match draw_value ~eval_call ~env ~size:default_size spec with
       | Error err -> err
       | Ok input ->
           let result = eval_call env property [(None, Ast.mk_expr (Value input))] in
+          let record_failure reason =
+            (* Count only render-distinct counterexamples; shrink only the ones
+               we actually keep, so duplicates don't pay for shrink work. *)
+            let already =
+              List.exists
+                (fun (inp, _, _) -> render_value inp = render_value input)
+                counterexamples
+            in
+            if already then loop (i + 1) counterexamples
+            else
+              let shrunk =
+                if shrink then shrink_minimal ~eval_call ~env property input else input
+              in
+              loop (i + 1) ((input, shrunk, reason) :: counterexamples)
+          in
           (match outcome_of result with
-           | `Pass -> loop (i + 1)
-           | `Hold msg ->
-               let shrunk =
-                 if shrink then shrink_minimal ~eval_call ~env property input else input
-               in
-               failure_message ~n ~i ~input ~shrunk
-                 ~reason:(Printf.sprintf "failed: %s" msg)
-           | `False ->
-               let shrunk =
-                 if shrink then shrink_minimal ~eval_call ~env property input else input
-               in
-               failure_message ~n ~i ~input ~shrunk ~reason:"returned false"
-           | `Stop msg ->
-               let shrunk =
-                 if shrink then shrink_minimal ~eval_call ~env property input else input
-               in
-               failure_message ~n ~i ~input ~shrunk ~reason:(Printf.sprintf "failed: %s" msg)
+           | `Pass -> loop (i + 1) counterexamples
+           | `Hold msg -> record_failure (Printf.sprintf "failed: %s" msg)
+           | `False -> record_failure "returned false"
+           | `Stop msg -> record_failure (Printf.sprintf "failed: %s" msg)
            | `NA ->
-               let shrunk =
-                 if shrink then shrink_minimal ~eval_call ~env property input else input
-               in
-               failure_message ~n ~i ~input ~shrunk
-                 ~reason:"returned NA (property must handle missingness explicitly)"
-           | `Error err ->
-               let shrunk =
-                 if shrink then shrink_minimal ~eval_call ~env property input else input
-               in
-               failure_message ~n ~i ~input ~shrunk
-                 ~reason:(Printf.sprintf "raised: %s" err.message)
+               record_failure
+                 "returned NA (property must handle missingness explicitly)"
+           | `Error err -> record_failure (Printf.sprintf "raised: %s" err.message)
            | `Other other ->
-               failure_message ~n ~i ~input ~shrunk:input
-                 ~reason:(Printf.sprintf
-                            "returned %s (expected Bool or an Expect value)"
-                            (Utils.type_name other)))
+               record_failure
+                 (Printf.sprintf
+                    "returned %s (expected Bool or an Expect value)"
+                    (Utils.type_name other)))
   in
-  loop 1
+  loop 1 []
 
 (*
 --# Check a property over generated values
@@ -527,6 +705,7 @@ let run_property ~eval_call ~env ~n ~shrink spec property =
 --# @param gen :: Dict A generator spec (see prop_gen_int, prop_gen_df, ...).
 --# @param property :: Function A function from a generated value to Bool or Expect.
 --# @param n :: Int = 100 Number of values to draw.
+--# @param max_counterexamples :: Int = 1 Number of render-distinct failing inputs to report.
 --# @param shrink :: Bool = true Whether to report a shrunk counterexample.
 --# @return :: Expect Expect_pass on success, Expect_stop on failure.
 --# @example
@@ -539,14 +718,122 @@ let run_property ~eval_call ~env ~n ~shrink spec property =
 --# @seealso expect_equal, set_seed
 --# @export
 *)
+
+(*
+--# Probe a generator's behaviour
+--#
+--# Draws `n` values from `gen`, ramping the generation size from 1 to
+--# `n`, and returns a Dict summarizing what was produced: run counts,
+--# the value types observed, the sizes of any Vector/List/DataFrame
+--# values, and the wall-clock time spent.
+--#
+--# @name prop_stats
+--# @param gen :: Dict A generator spec (see prop_gen_int, prop_gen_df, ...).
+--# @param n :: Int = 100 Number of draws (also the max size ramp).
+--# @return :: Dict { n_runs, n_errors, value_types, nested_sizes, elapsed_ms }.
+--# @example
+--#   prop_stats(prop_gen_df([x: prop_gen_int_range(0, 10)]), n = 20)
+--# @family propcraft
+--# @seealso prop_for_all
+--# @export
+*)
+let prop_stats ~eval_call =
+  make_builtin_named ~name:"prop_stats" ~variadic:true 1 (fun named_args env ->
+    let unknown =
+      List.filter
+        (fun (n, _) ->
+          match n with
+          | None | Some "n" -> false
+          | Some _ -> true)
+        named_args
+    in
+    match unknown with
+    | (Some arg_name, _) :: _ ->
+        Error.type_error
+          (Printf.sprintf "Function `prop_stats` received unknown named argument `%s`."
+             arg_name)
+    | _ ->
+        let n =
+          match Math_common.optional_named_arg "n" named_args with
+          | Some (VInt i) when i > 0 -> Ok i
+          | Some (VInt _) ->
+              Error
+                (Error.value_error
+                   "Function `prop_stats` expects `n` to be a positive Int.")
+          | Some other ->
+              Error
+                (Error.type_error
+                   (Printf.sprintf "Function `prop_stats` expects `n` to be an Int, got %s."
+                      (Utils.type_name other)))
+          | None -> Ok 100
+        in
+        (match n, Math_common.positional_args_without [ "n" ] named_args with
+         | Ok n, [gen_spec] ->
+             let start = Sys.time () in
+             let n_runs = ref 0 in
+             let n_errors = ref 0 in
+             let type_counts = Hashtbl.create 8 in
+             let sizes_by_kind = Hashtbl.create 4 in
+             let bump counts key =
+               let c =
+                 match Hashtbl.find_opt counts key with
+                 | Some c -> c
+                 | None -> 0
+               in
+               Hashtbl.replace counts key (c + 1)
+             in
+             let record_size kind size =
+               let sizes =
+                 match Hashtbl.find_opt sizes_by_kind kind with
+                 | Some sizes -> sizes
+                 | None -> []
+               in
+               Hashtbl.replace sizes_by_kind kind (sizes @ [ size ])
+             in
+             for i = 1 to n do
+               match draw_value ~eval_call ~env ~size:i gen_spec with
+               | Error err ->
+                   incr n_errors;
+                   bump type_counts (Utils.type_name err)
+               | Ok v ->
+                   incr n_runs;
+                   bump type_counts (Utils.type_name v);
+                   (match v with
+                    | VVector a -> record_size "vector" (Array.length a)
+                    | VList l -> record_size "list" (List.length l)
+                    | VDataFrame df -> record_size "df" (Arrow_table.num_rows df.arrow_table)
+                    | _ -> ())
+             done;
+             let elapsed_ms = (Sys.time () -. start) *. 1000.0 in
+             let value_types =
+               VDict
+                 (Hashtbl.fold (fun k c acc -> (k, VInt c) :: acc) type_counts [])
+             in
+             let nested_sizes =
+               VDict
+                 (Hashtbl.fold
+                    (fun kind sizes acc ->
+                      (kind, VList (List.map (fun s -> (None, VInt s)) sizes)) :: acc)
+                    sizes_by_kind [])
+             in
+             VDict
+               [ ("n_runs", VInt !n_runs);
+                 ("n_errors", VInt !n_errors);
+                 ("value_types", value_types);
+                 ("nested_sizes", nested_sizes);
+                 ("elapsed_ms", VFloat elapsed_ms) ]
+         | Error err, _ -> err
+         | _, args -> Error.arity_error_named "prop_stats" 1 (List.length args)))
+
 let register ~eval_call env =
+  let env = Env.add "prop_stats" (prop_stats ~eval_call) env in
   Env.add "prop_for_all"
     (make_builtin_named ~name:"prop_for_all" ~variadic:true 2 (fun named_args env ->
        let unknown =
          List.filter
            (fun (n, _) ->
              match n with
-             | None | Some ("n" | "shrink") -> false
+             | None | Some ("n" | "shrink" | "max_counterexamples") -> false
              | Some _ -> true)
            named_args
        in
@@ -570,16 +857,32 @@ let register ~eval_call env =
                          (Utils.type_name other)))
              | None -> Ok 100
            in
+           let max_counterexamples =
+             match Math_common.optional_named_arg "max_counterexamples" named_args with
+             | Some (VInt i) when i > 0 -> Ok i
+             | Some (VInt _) ->
+                 Error
+                   (Error.value_error
+                      "Function `prop_for_all` expects `max_counterexamples` to be a positive Int.")
+             | Some other ->
+                 Error
+                   (Error.type_error
+                      (Printf.sprintf
+                         "Function `prop_for_all` expects `max_counterexamples` to be an Int, got %s."
+                         (Utils.type_name other)))
+             | None -> Ok 1
+           in
            let shrink =
              match Math_common.get_bool_flag "shrink" true named_args with
              | Ok b -> Ok b
              | Error err -> Error err
            in
-           (match n, shrink,
-                  Math_common.positional_args_without [ "n"; "shrink" ] named_args with
-            | Ok n, Ok shrink, [gen; property] ->
-                run_property ~eval_call ~env ~n ~shrink gen property
-            | Error err, _, _ | _, Error err, _ -> err
-            | _, _, args ->
+           (match n, max_counterexamples, shrink,
+                  Math_common.positional_args_without
+                    [ "n"; "shrink"; "max_counterexamples" ] named_args with
+            | Ok n, Ok max_counterexamples, Ok shrink, [gen; property] ->
+                run_property ~eval_call ~env ~n ~shrink ~max_counterexamples gen property
+            | Error err, _, _, _ | _, Error err, _, _ | _, _, Error err, _ -> err
+            | _, _, _, args ->
                 Error.arity_error_named "prop_for_all" 2 (List.length args))))
     env

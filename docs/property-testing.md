@@ -103,7 +103,51 @@ Because they are data, you can store them in variables, pass them around, and co
 | `prop_gen_vector` | `prop_gen_vector(elem_gen, n)` | Vector of `n` draws |
 | `prop_gen_list` | `prop_gen_list(elem_gen, n)` | List of `n` draws |
 | `prop_gen_factor` | `prop_gen_factor(levels)` | One of the given factor levels |
+| `prop_gen_one_of` | `prop_gen_one_of(values)` | Uniformly pick one value from a non-empty List or Vector of values |
+| `prop_gen_date_range` | `prop_gen_date_range(start, end)` | Date (or Datetime) drawn uniformly in an inclusive range; bounds must be both Dates or both Datetimes |
 | `prop_gen_df` | `prop_gen_df(columns, nrows = 30, na_prob = 0.1)` | DataFrame with generated columns and optional NA injection |
+| `prop_gen_df_from` | `prop_gen_df_from(df, nrows = 30, na_prob = 0.1)` | DataFrame matching a sample's columns, with generators inferred from the sample |
+| `prop_gen_fn` | `prop_gen_fn(fn)` | Draw a value by calling `fn(size)` with the current generation size |
+
+### `prop_gen_df_from` — schema-derived generators
+
+Instead of hand-writing a `columns` Dict, derive it from a real DataFrame:
+
+```t
+mtcars_gen = prop_gen_df_from(mtcars, nrows = 100)
+```
+
+Each column's generator is inferred from the non-`NA` sample values: `Int`/`Float` bounds come from the observed min/max (a constant float column falls back to a single-value `one_of`), `String`s are drawn from the observed distinct values, `Factor` columns keep their levels, and `Date`/`Datetime` columns keep their observed range (and timezone). An empty DataFrame, an all-`NA` column, and unsupported column types raise explicit errors.
+
+This is the fastest way to property-test verbs against your own real-world schemas — combine with the row-count invariant:
+
+```t
+assert(prop_for_all(
+  prop_gen_df_from(mtcars, nrows = 40, na_prob = 0.1),
+  \(df) nrow(mutate(df, $z = $mpg * 2)) == nrow(df)))
+```
+
+### `prop_gen_fn` — custom generators
+
+For domain-specific generation, wrap any callable: popcraft calls `fn(size)` (with the current generation size, `30` by default and propagated through `prop_resize`):
+
+```t
+cube_gen = prop_gen_fn(\(n) n * n * n)
+```
+
+`fn` receives the current generation size (`30` by default, propagated through `prop_resize`) and may call other generators, read variables, or draw from the shared RNG — the value it returns is the drawn value.
+
+### `prop_stats` — probing a generator
+
+To sanity-check a generator without writing a property, probe it:
+
+```t
+prop_stats(prop_gen_df_from(mtcars, nrows = 50), n = 20)
+-- {`n_runs`: 20, `n_errors`: 0, `value_types`: {`DataFrame`: 20},
+--  `nested_sizes`: {`df`: [1, 2, ..., 20]}, `elapsed_ms`: ...}
+```
+
+`prop_stats(gen, n = 100)` ramps the generation size from `1` to `n` and returns a `Dict` with `n_runs`, `n_errors`, `value_types` (per-type counts), `nested_sizes` (observed Vector/List/DataFrame lengths), and `elapsed_ms`. A high `n_errors` means the generator is malformed for some sizes.
 
 ### `prop_gen_df` and NA injection
 
@@ -147,6 +191,19 @@ even_gen = prop_such_that(prop_gen_int_range(1, 10), \(x) x % 2 == 0)
 | `Error` | Fail — report counterexample with the raised error text |
 | `NA` | Fail — "property must handle missingness explicitly" |
 | anything else | Fail — "expected Bool or an Expect value" |
+
+By default `prop_for_all` stops at the first failure. Pass `max_counterexamples = k` to collect up to `k` render-distinct failing inputs (each shrunk) and report them as numbered blocks:
+
+```t
+set_seed(42)
+prop_for_all(prop_gen_int_range(0, 100), \(x) x < 10, n = 20, max_counterexamples = 3)
+-- Expect_stop: Property failed after 3 of 20 runs (showing 3 counterexamples).
+--   counterexample #1: 54
+--   (shrunk): 13
+--   predicate: returned false
+--   counterexample #2: 91
+--   ...
+```
 
 The `NA` rule is deliberate (see the *Death to Null* policy): generated frames may contain `NA`, and a property that cannot handle it must say so rather than silently pass.
 
@@ -226,4 +283,5 @@ test("nrow is stable under mutate", function() {
 
 ## Roadmap
 
-- **v2**: `prop_gen_df_from(df)` — schema-driven generators derived from a sample DataFrame; custom generators from user-defined functions.
+- **v2 — shipped**: `prop_gen_df_from(df)` schema-driven generators derived from a sample DataFrame; custom generators via `prop_gen_fn`; `prop_gen_one_of`, `prop_gen_date_range`, `prop_gen_df_from`, `prop_gen_fn`, and `prop_stats` shipped in the `more-propcraft` round.
+- **v3 ideas**: generator introspection (render a generator spec back to a `.t` fragment), property macros (shrink-verified invariants), and a `prop_between(min, max)` integral-range convenience.

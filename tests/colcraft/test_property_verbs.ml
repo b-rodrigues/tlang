@@ -53,4 +53,9 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env _t
     "set_seed(1)\nprop_for_all(prop_gen_df([g: prop_gen_factor([\"a\", \"b\"]), x: prop_gen_int_range(1, 5)], nrows = 40, na_prob = 0.2), \\(df) nrow(fill(df, $x)) == nrow(df), n = 25)"
     "PASS";
 
+  (* schema-derived generators round-trip verb invariants *)
+  test_env env "prop_gen_df_from round-trips mutate row count"
+    "mt = to_dataframe([x: [1, 2, 3], s: [\"a\", \"b\", \"c\"], f: to_factor([\"p\", \"q\", \"p\"])])\nset_seed(1)\nprop_for_all(prop_gen_df_from(mt, nrows = 40, na_prob = 0.2), \\(df) nrow(mutate(df, $z = $x * 2)) == nrow(df), n = 25)"
+    "PASS";
+
   Printf.printf "\n"
