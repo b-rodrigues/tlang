@@ -551,6 +551,151 @@ let prop_gen_df =
          | args -> Error.arity_error_named "prop_gen_df" 1 (List.length args)))
 
 (*
+--# Generate a DataFrame matching an existing sample
+--#
+--# Returns a generator spec producing a DataFrame with the same columns
+--# as `df`, inferring a per-column generator from the sample values: Int
+--# and Float bounds come from the observed min/max, Strings are drawn
+--# from the observed distinct values, Factors keep their levels, and
+--# Dates/Datetimes keep their observed range (and timezone).
+--#
+--# @name prop_gen_df_from
+--# @param df :: DataFrame The sample data frame to match.
+--# @param nrows :: Int = 30 Number of rows to draw.
+--# @param na_prob :: Float = 0.1 Probability a cell is NA (0 to 1).
+--# @return :: Dict A generator spec.
+--# @example
+--#   g = prop_gen_df_from(read_csv("mtcars.csv"), nrows = 100)
+--# @family propcraft
+--# @seealso prop_gen_df
+--# @export
+*)
+let prop_gen_df_from =
+  make_builtin_named ~name:"prop_gen_df_from" ~variadic:true 1 (fun named_args _env ->
+    match check_unknown_named "prop_gen_df_from" [ "nrows"; "na_prob" ] named_args with
+    | Error err -> err
+    | Ok () ->
+        (match Math_common.positional_args_without [ "nrows"; "na_prob" ] named_args with
+         | [VDataFrame df] ->
+             let infer_column name (values : value array) =
+               let non_na =
+                 Array.to_list values
+                 |> List.filter (function VNA _ -> false | _ -> true)
+               in
+               match non_na with
+               | [] ->
+                   Error
+                     (Error.value_error
+                        (Printf.sprintf
+                           "Function `prop_gen_df_from` cannot infer a type for column `%s`: no non-NA values."
+                           name))
+               | first :: rest ->
+                   let col_name type_str = Printf.sprintf "column `%s` (%s)" name type_str in
+                   (match first with
+                    | VInt _ ->
+                        (match List.filter_map (function VInt i -> Some i | _ -> None) (first :: rest) with
+                         | i :: ints ->
+                             let min_v = List.fold_left min i ints in
+                             let max_v = List.fold_left max i ints in
+                             Ok (gen "int_range" [ ("min", VInt min_v); ("max", VInt max_v) ])
+                         | [] -> Error (Error.value_error (Printf.sprintf "cannot infer a type for %s." (col_name "Int"))))
+                    | VFloat _ ->
+                        (match List.filter_map (function VFloat f -> Some f | _ -> None) (first :: rest) with
+                         | f :: floats ->
+                             let min_v = List.fold_left Float.min f floats in
+                             let max_v = List.fold_left Float.max f floats in
+                             if max_v > min_v then
+                               Ok (gen "float_range" [ ("min", VFloat min_v); ("max", VFloat max_v) ])
+                             else
+                               Ok (gen "one_of" [ ("values", VList [ (None, VFloat min_v) ]) ])
+                         | [] -> Error (Error.value_error (Printf.sprintf "cannot infer a type for %s." (col_name "Float"))))
+                    | VBool _ -> Ok (gen "bool" [])
+                    | VString _ ->
+                        let distinct =
+                          List.sort_uniq compare
+                            (List.filter_map (function VString s -> Some s | _ -> None) (first :: rest))
+                        in
+                        Ok
+                          (gen "one_of"
+                             [ ("values", VList (List.map (fun s -> (None, VString s)) distinct)) ])
+                    | VFactor (_, levels, _) ->
+                        Ok
+                          (gen "factor"
+                             [ ("levels", VList (List.map (fun l -> (None, VString l)) levels)) ])
+                    | VDate _ ->
+                        (match List.filter_map (function VDate d -> Some d | _ -> None) (first :: rest) with
+                         | d :: days ->
+                             let min_v = List.fold_left min d days in
+                             let max_v = List.fold_left max d days in
+                             Ok
+                               (gen "date_range"
+                                  [ ("mode", VString "date");
+                                    ("start_day", VInt min_v);
+                                    ("end_day", VInt max_v) ])
+                         | [] -> Error (Error.value_error (Printf.sprintf "cannot infer a type for %s." (col_name "Date"))))
+                    | VDatetime (_, tz) ->
+                        (match
+                           List.filter_map
+                             (function VDatetime (m, _) -> Some m | _ -> None)
+                             (first :: rest)
+                         with
+                         | m :: micros ->
+                             let min_v = List.fold_left Int64.min m micros in
+                             let max_v = List.fold_left Int64.max m micros in
+                             Ok
+                               (gen "date_range"
+                                  [ ("mode", VString "datetime");
+                                    ("start_micros", VInt (Int64.to_int min_v));
+                                    ("end_micros", VInt (Int64.to_int max_v));
+                                    ("tz",
+                                     (match tz with
+                                      | Some s -> VString s
+                                      | None -> VNA NAGeneric)) ])
+                         | [] ->
+                             Error
+                               (Error.value_error
+                                  (Printf.sprintf "cannot infer a type for %s." (col_name "Datetime"))))
+                    | other ->
+                        Error
+                          (Error.type_error
+                             (Printf.sprintf
+                                "Function `prop_gen_df_from` cannot infer a type for column `%s`: unsupported value type %s."
+                                name (Utils.type_name other))))
+             in
+             (match nonneg_int_arg "prop_gen_df_from" "nrows" 30 named_args,
+                    prob_float_arg "prop_gen_df_from" "na_prob" 0.1 named_args with
+              | Error err, _ | _, Error err -> err
+              | Ok nrows, Ok na_prob ->
+                  let columns = Arrow_bridge.table_to_value_columns df.arrow_table in
+                  if columns = [] then
+                    Error.value_error
+                      "Function `prop_gen_df_from` expects a DataFrame with at least one column."
+                  else
+                    let specs =
+                      List.map (fun (name, values) -> (name, infer_column name values)) columns
+                    in
+                    let rec collect_ok = function
+                      | [] -> Ok []
+                      | (_, Error e) :: _ -> Error e
+                      | (name, Ok spec) :: rest ->
+                          (match collect_ok rest with
+                           | Error e -> Error e
+                           | Ok specs -> Ok ((name, spec) :: specs))
+                    in
+                    (match collect_ok specs with
+                     | Error e -> e
+                     | Ok specs ->
+                         gen "df"
+                           [ ("columns", VDict specs);
+                             ("nrows", VInt nrows);
+                             ("na_prob", VFloat na_prob) ]))
+         | [other] ->
+             Error.type_error
+               (Printf.sprintf "Function `prop_gen_df_from` expects a DataFrame, got %s."
+                  (Utils.type_name other))
+         | args -> Error.arity_error_named "prop_gen_df_from" 1 (List.length args)))
+
+(*
 --# Transform a generated value
 --#
 --# Returns a generator spec that draws a value from `source`, applies
@@ -649,6 +794,7 @@ let register env =
   let env = Env.add "prop_gen_one_of" prop_gen_one_of env in
   let env = Env.add "prop_gen_date_range" prop_gen_date_range env in
   let env = Env.add "prop_gen_df" prop_gen_df env in
+  let env = Env.add "prop_gen_df_from" prop_gen_df_from env in
   let env = Env.add "prop_map_gen" prop_map_gen env in
   let env = Env.add "prop_such_that" prop_such_that env in
   let env = Env.add "prop_resize" prop_resize env in

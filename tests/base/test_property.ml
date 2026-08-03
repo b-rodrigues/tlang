@@ -158,6 +158,50 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
     "prop_gen_date_range(ymd(\"2020-01-01\"), 1)"
     "expects Date or Datetime bounds, got Date and Int";
 
+  (* prop_gen_df_from — schema-derived generators *)
+  test_env env "prop_gen_df_from round-trips nrows and columns"
+    "mt = to_dataframe([x: [1, 2, 3], s: [\"a\", \"b\", \"c\"]])\nprop_for_all(prop_gen_df_from(mt, nrows = 10), \\(df) nrow(df) == 10 && ncol(df) == 2, n = 5)"
+    "PASS";
+  test_env env "prop_gen_df_from infers int column"
+    "prop_gen_df_from(to_dataframe([x: [1, 2, 3]]))"
+    "{`gen`: \"int_range\", `min`: 1, `max`: 3}";
+  test_env env "prop_gen_df_from infers float column"
+    "prop_gen_df_from(to_dataframe([y: [1.5, 2.5]]))"
+    "{`gen`: \"float_range\", `min`: 1.5, `max`: 2.5}";
+  test_env env "prop_gen_df_from constant float uses one_of"
+    "prop_gen_df_from(to_dataframe([c: [2.0, 2.0]]))"
+    "{`gen`: \"one_of\", `values`: [2.]}";
+  test_env env "prop_gen_df_from infers string distinct values"
+    "prop_gen_df_from(to_dataframe([s: [\"a\", \"b\", \"a\"]]))"
+    "{`gen`: \"one_of\", `values`: [\"a\", \"b\"]}";
+  test_env env "prop_gen_df_from infers factor levels"
+    "prop_gen_df_from(to_dataframe([f: to_factor([\"b\", \"a\", \"b\"])]))"
+    "{`gen`: \"factor\", `levels`: [\"a\", \"b\"]}";
+  test_env env "prop_gen_df_from infers date range"
+    "prop_gen_df_from(to_dataframe([d: [ymd(\"2020-01-01\"), ymd(\"2020-01-02\")]]))"
+    "{`gen`: \"date_range\", `mode`: \"date\", `start_day`: 18262, `end_day`: 18263}";
+  test_env env "prop_gen_df_from infers datetime range"
+    "prop_gen_df_from(to_dataframe([dt: [ymd_hms(\"2020-06-01 00:00:00\"), ymd_hms(\"2020-06-01 12:00:00\")]]))"
+    "{`gen`: \"date_range\", `mode`: \"datetime\"";
+  test_env env "prop_gen_df_from infers bool column"
+    "prop_gen_df_from(to_dataframe([b: [true, false]]))"
+    "{`gen`: \"bool\"}";
+  test_env env "prop_gen_df_from mixed-schema round-trip"
+    "dd = to_dataframe([x: [1, 2, 3], f: to_factor([\"b\", \"a\", \"b\"]), d: [ymd(\"2020-01-01\"), ymd(\"2020-01-02\"), ymd(\"2021-06-15\")], b: [true, false, true]])\nprop_for_all(prop_gen_df_from(dd, nrows = 10), \\(df) nrow(df) == 10 && ncol(df) == 4, n = 5)"
+    "PASS";
+  test_env env "prop_gen_df_from NA-only column errors"
+    "prop_gen_df_from(to_dataframe([x: [NA, NA]]))"
+    "cannot infer a type for column `x`: no non-NA values";
+  test_env env "prop_gen_df_from empty df errors"
+    "prop_gen_df_from(to_dataframe([]))"
+    "expects a DataFrame with at least one column";
+  test_env env "prop_gen_df_from non-dataframe errors"
+    "prop_gen_df_from(1)"
+    "expects a DataFrame, got Int";
+  test_env env "prop_gen_df_from unknown named arg errors"
+    "prop_gen_df_from(to_dataframe([x: [1]]), bogus = 1)"
+    "received unknown named argument `bogus`";
+
   (* assert integration — how prop_for_all is used inside `t test` files *)
   test_env env "assert around passing prop_for_all"
     "set_seed(42)\nassert(prop_for_all(prop_gen_int_range(0, 100), \\(x) x >= 0, n = 20))"
