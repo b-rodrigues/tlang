@@ -439,9 +439,12 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env _test 
   test_env env "prop_test macro missing property errors"
     "prop_test([name: \"x\"], prop_gen_int())"
     "expects `macro` to have a `property` field";
-  test_env env "prop_macro non-callable property errors"
+  test_env env "prop_macro accepts non-callable property (defers to eval_call)"
     "prop_macro(\"x\", 42)"
-    "expects `property` to be a function, got Int";
+    "{`name`: \"x\", `property`: 42}";
+  test_env env "prop_test non-callable macro property errors at invocation"
+    "set_seed(1)\nprop_test(prop_macro(\"x\", 42), prop_gen_int(), n = 3)"
+    "predicate: raised: Value of type Int is not callable";
   test_env env "prop_macro non-string name errors"
     "prop_macro(1, \\(x) true)"
     "expects `name` to be a String, got Int";

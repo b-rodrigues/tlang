@@ -921,16 +921,7 @@ let prop_macro =
   make_builtin ~name:"prop_macro" 2 (fun args _env ->
     match args with
     | [VString name; property] ->
-        let is_callable = function
-          | VLambda _ | VBuiltin _ | VSymbol _ | VExpr _ | VQuo _ -> true
-          | _ -> false
-        in
-        if not (is_callable property) then
-          Error.type_error
-            (Printf.sprintf "Function `prop_macro` expects `property` to be a function, got %s."
-               (Utils.type_name property))
-        else
-          VDict [ ("name", VString name); ("property", property) ]
+        VDict [ ("name", VString name); ("property", property) ]
     | [other; _] ->
         Error.type_error
           (Printf.sprintf "Function `prop_macro` expects `name` to be a String, got %s."
