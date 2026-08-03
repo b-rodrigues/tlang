@@ -589,7 +589,115 @@ let run_property ~eval_call ~env ~n ~shrink spec property =
 --# @seealso expect_equal, set_seed
 --# @export
 *)
+
+(*
+--# Probe a generator's behaviour
+--#
+--# Draws `n` values from `gen`, ramping the generation size from 1 to
+--# `n`, and returns a Dict summarizing what was produced: run counts,
+--# the value types observed, the sizes of any Vector/List/DataFrame
+--# values, and the wall-clock time spent.
+--#
+--# @name prop_stats
+--# @param gen :: Dict A generator spec (see prop_gen_int, prop_gen_df, ...).
+--# @param n :: Int = 100 Number of draws (also the max size ramp).
+--# @return :: Dict { n_runs, n_errors, value_types, nested_sizes, elapsed_ms }.
+--# @example
+--#   prop_stats(prop_gen_df([x: prop_gen_int_range(0, 10)]), n = 20)
+--# @family propcraft
+--# @seealso prop_for_all
+--# @export
+*)
+let prop_stats ~eval_call =
+  make_builtin_named ~name:"prop_stats" ~variadic:true 1 (fun named_args env ->
+    let unknown =
+      List.filter
+        (fun (n, _) ->
+          match n with
+          | None | Some "n" -> false
+          | Some _ -> true)
+        named_args
+    in
+    match unknown with
+    | (Some arg_name, _) :: _ ->
+        Error.type_error
+          (Printf.sprintf "Function `prop_stats` received unknown named argument `%s`."
+             arg_name)
+    | _ ->
+        let n =
+          match Math_common.optional_named_arg "n" named_args with
+          | Some (VInt i) when i > 0 -> Ok i
+          | Some (VInt _) ->
+              Error
+                (Error.value_error
+                   "Function `prop_stats` expects `n` to be a positive Int.")
+          | Some other ->
+              Error
+                (Error.type_error
+                   (Printf.sprintf "Function `prop_stats` expects `n` to be an Int, got %s."
+                      (Utils.type_name other)))
+          | None -> Ok 100
+        in
+        (match n, Math_common.positional_args_without [ "n" ] named_args with
+         | Ok n, [gen_spec] ->
+             let start = Sys.time () in
+             let n_runs = ref 0 in
+             let n_errors = ref 0 in
+             let type_counts = Hashtbl.create 8 in
+             let sizes_by_kind = Hashtbl.create 4 in
+             let bump counts key =
+               let c =
+                 match Hashtbl.find_opt counts key with
+                 | Some c -> c
+                 | None -> 0
+               in
+               Hashtbl.replace counts key (c + 1)
+             in
+             let record_size kind size =
+               let sizes =
+                 match Hashtbl.find_opt sizes_by_kind kind with
+                 | Some sizes -> sizes
+                 | None -> []
+               in
+               Hashtbl.replace sizes_by_kind kind (sizes @ [ size ])
+             in
+             for i = 1 to n do
+               match draw_value ~eval_call ~env ~size:i gen_spec with
+               | Error err ->
+                   incr n_errors;
+                   bump type_counts (Utils.type_name err)
+               | Ok v ->
+                   incr n_runs;
+                   bump type_counts (Utils.type_name v);
+                   (match v with
+                    | VVector a -> record_size "vector" (Array.length a)
+                    | VList l -> record_size "list" (List.length l)
+                    | VDataFrame df -> record_size "df" df.arrow_table.nrows
+                    | _ -> ())
+             done;
+             let elapsed_ms = (Sys.time () -. start) *. 1000.0 in
+             let value_types =
+               VDict
+                 (Hashtbl.fold (fun k c acc -> (k, VInt c) :: acc) type_counts [])
+             in
+             let nested_sizes =
+               VDict
+                 (Hashtbl.fold
+                    (fun kind sizes acc ->
+                      (kind, VList (List.map (fun s -> (None, VInt s)) sizes)) :: acc)
+                    sizes_by_kind [])
+             in
+             VDict
+               [ ("n_runs", VInt !n_runs);
+                 ("n_errors", VInt !n_errors);
+                 ("value_types", value_types);
+                 ("nested_sizes", nested_sizes);
+                 ("elapsed_ms", VFloat elapsed_ms) ]
+         | Error err, _ -> err
+         | _, args -> Error.arity_error_named "prop_stats" 1 (List.length args)))
+
 let register ~eval_call env =
+  let env = Env.add "prop_stats" (prop_stats ~eval_call) env in
   Env.add "prop_for_all"
     (make_builtin_named ~name:"prop_for_all" ~variadic:true 2 (fun named_args env ->
        let unknown =

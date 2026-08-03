@@ -219,6 +219,26 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
     "prop_gen_fn()"
     "expects 1 arguments but received 0";
 
+  (* prop_stats — generator probe *)
+  test_env env "prop_stats counts runs and value types"
+    "prop_stats(prop_gen_int_range(0, 100), n = 10)"
+    "{`n_runs`: 10, `n_errors`: 0, `value_types`: {`Int`: 10}";
+  test_env env "prop_stats counts draw errors"
+    "prop_stats(prop_such_that(prop_gen_int_range(0, 0), \\(x) x == 1), n = 5)"
+    "{`n_runs`: 0, `n_errors`: 5, `value_types`: {`Error`: 5}";
+  test_env env "prop_stats records df row sizes"
+    "prop_stats(prop_gen_df([x: prop_gen_int_range(0, 5)], nrows = 8), n = 6)"
+    "value_types`: {`DataFrame`: 6}, `nested_sizes`: {`df`: [8, 8, 8, 8, 8, 8]}";
+  test_env env "prop_stats records vector sizes"
+    "prop_stats(prop_gen_vector(prop_gen_int_range(0, 10), 5), n = 10)"
+    "nested_sizes`: {`vector`: [5, 5, 5, 5, 5, 5, 5, 5, 5, 5]}";
+  test_env env "prop_stats unknown named arg errors"
+    "prop_stats(prop_gen_int(), bogus = 1)"
+    "received unknown named argument `bogus`";
+  test_env env "prop_stats n must be positive"
+    "prop_stats(prop_gen_int(), n = 0)"
+    "expects `n` to be a positive Int";
+
   (* assert integration — how prop_for_all is used inside `t test` files *)
   test_env env "assert around passing prop_for_all"
     "set_seed(42)\nassert(prop_for_all(prop_gen_int_range(0, 100), \\(x) x >= 0, n = 20))"
