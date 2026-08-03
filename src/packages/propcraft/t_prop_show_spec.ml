@@ -103,7 +103,7 @@ let rec render_spec (spec : value) : (string, string) result =
        | _ -> Error "int_range spec is missing `min` or `max`.")
   | Some "between" ->
       (match int_field "min" spec, int_field "max" spec with
-       | Some min, Some max -> Ok (Printf.sprintf "prop_between(%d, %d)" min max)
+       | Some min, Some max -> Ok (Printf.sprintf "prop_gen_between(%d, %d)" min max)
        | _ -> Error "between spec is missing `min` or `max`.")
   | Some "float_range" ->
       (match float_field "min" spec, float_field "max" spec with

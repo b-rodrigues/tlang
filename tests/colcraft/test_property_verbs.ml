@@ -1,5 +1,5 @@
-(* Dogfooding: exercise colcraft and stats verbs with prop_macro / prop_test
-   over multiple generated DataFrame generators. Macros codify a property
+(* Dogfooding: exercise colcraft and stats verbs with prop_named / prop_test
+   over multiple generated DataFrame generators. Named properties codify a property
    once; prop_test runs it against several generator specs. *)
 
 let run_tests _pass_count _fail_count _failures _eval_string eval_string_env _test test_env =
@@ -13,18 +13,18 @@ let run_tests _pass_count _fail_count _failures _eval_string eval_string_env _te
 
   let (_, env) =
     eval_string_env {|
-      m_mutate   = prop_macro("mutate_preserves_nrow",   \(df) nrow(mutate(df, $z = $x * 2)) == nrow(df))
-      m_arrange  = prop_macro("arrange_preserves_nrow",   \(df) nrow(arrange(df, $x)) == nrow(df))
-      m_filter   = prop_macro("filter_leq_input",         \(df) nrow(filter(df, $x > 50)) <= nrow(df))
-      m_gsum     = prop_macro("group_summarize_equals_n", \(df) to_integer(sum((df |> group_by($g) |> summarize($cnt = n())).cnt)) == nrow(df))
-      m_distinct = prop_macro("distinct_gte_input",       \(df) nrow(distinct(df)) <= nrow(df))
-      m_head     = prop_macro("head_slices_to_5",         \(df) nrow(head(df, 5)) == 5)
-      m_slice    = prop_macro("slice_sample_keeps_5",     \(df) nrow(slice_sample(df, n = 5)) == 5)
-      m_mean     = prop_macro("mean_in_range",            \(df) is_na(mean(df |> pull("x"), na_rm = true)) || (mean(df |> pull("x"), na_rm = true) >= 0.0 && mean(df |> pull("x"), na_rm = true) <= 100.0))
-      m_sd       = prop_macro("sd_nonnegative",           \(df) is_na(sd(df |> pull("x"), na_rm = true)) || sd(df |> pull("x"), na_rm = true) >= 0.0)
-      m_join     = prop_macro("left_join_preserves_nrow", \(df) nrow(left_join(df, right, by = $g)) == nrow(df))
-      m_fill     = prop_macro("fill_preserves_nrow",      \(df) nrow(fill(df, $x)) == nrow(df))
-      m_df_from  = prop_macro("df_from_mutate_preserves", \(df) nrow(mutate(df, $z = $x * 2)) == nrow(df))
+      m_mutate   = prop_named("mutate_preserves_nrow",   \(df) nrow(mutate(df, $z = $x * 2)) == nrow(df))
+      m_arrange  = prop_named("arrange_preserves_nrow",   \(df) nrow(arrange(df, $x)) == nrow(df))
+      m_filter   = prop_named("filter_leq_input",         \(df) nrow(filter(df, $x > 50)) <= nrow(df))
+      m_gsum     = prop_named("group_summarize_equals_n", \(df) to_integer(sum((df |> group_by($g) |> summarize($cnt = n())).cnt)) == nrow(df))
+      m_distinct = prop_named("distinct_gte_input",       \(df) nrow(distinct(df)) <= nrow(df))
+      m_head     = prop_named("head_slices_to_5",         \(df) nrow(head(df, 5)) == 5)
+      m_slice    = prop_named("slice_sample_keeps_5",     \(df) nrow(slice_sample(df, n = 5)) == 5)
+      m_mean     = prop_named("mean_in_range",            \(df) is_na(mean(df |> pull("x"), na_rm = true)) || (mean(df |> pull("x"), na_rm = true) >= 0.0 && mean(df |> pull("x"), na_rm = true) <= 100.0))
+      m_sd       = prop_named("sd_nonnegative",           \(df) is_na(sd(df |> pull("x"), na_rm = true)) || sd(df |> pull("x"), na_rm = true) >= 0.0)
+      m_join     = prop_named("left_join_preserves_nrow", \(df) nrow(left_join(df, right, by = $g)) == nrow(df))
+      m_fill     = prop_named("fill_preserves_nrow",      \(df) nrow(fill(df, $x)) == nrow(df))
+      m_df_from  = prop_named("df_from_mutate_preserves", \(df) nrow(mutate(df, $z = $x * 2)) == nrow(df))
     |} env
   in
 

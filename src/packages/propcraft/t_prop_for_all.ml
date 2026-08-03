@@ -901,42 +901,42 @@ let prop_stats ~eval_call =
 (*
 --# Name a reusable property
 --#
---# Bundles a property function under a `name` into an immutable macro
---# Dict. Macros are plain values (no global registry): pass the result
+--# Bundles a property function under a `name` into an immutable named property
+--# Dict. Named properties are plain values (no global registry): pass the result
 --# to prop_test to run it against a generator. Failure reports are
---# prefixed with the macro's name.
+--# prefixed with the property's name.
 --#
---# @name prop_macro
+--# @name prop_named
 --# @param name :: String The property's display name.
 --# @param property :: Function A function from a generated value to Bool or Expect.
 --# @return :: Dict { name, property }.
 --# @example
---#   monotone = prop_macro("monotone", \(x) x <= 100)
---#   assert(prop_test(monotone, prop_between(0, 200)))
+--#   monotone = prop_named("monotone", \(x) x <= 100)
+--#   assert(prop_test(monotone, prop_gen_between(0, 200)))
 --# @family propcraft
 --# @seealso prop_test, prop_for_all
 --# @export
 *)
-let prop_macro =
-  make_builtin ~name:"prop_macro" 2 (fun args _env ->
+let prop_named =
+  make_builtin ~name:"prop_named" 2 (fun args _env ->
     match args with
     | [VString name; property] ->
         VDict [ ("name", VString name); ("property", property) ]
     | [other; _] ->
         Error.type_error
-          (Printf.sprintf "Function `prop_macro` expects `name` to be a String, got %s."
+          (Printf.sprintf "Function `prop_named` expects `name` to be a String, got %s."
              (Utils.type_name other))
-    | _ -> Error.arity_error_named "prop_macro" 2 (List.length args))
+    | _ -> Error.arity_error_named "prop_named" 2 (List.length args))
 
 (*
---# Run a named property macro
+--# Run a named property
 --#
---# Runs the property captured by a `prop_macro` Dict against values
+--# Runs the property captured by a `prop_named` Dict against values
 --# drawn from `gen`, mirroring prop_for_all's parameters. A failing
---# report is prefixed with the macro's name.
+--# report is prefixed with the property's name.
 --#
 --# @name prop_test
---# @param macro :: Dict A macro built by prop_macro.
+--# @param named :: Dict A named property built by prop_named.
 --# @param gen :: Dict A generator spec (see prop_gen_int, prop_gen_df, ...).
 --# @param n :: Int = 100 Number of values to draw.
 --# @param max_counterexamples :: Int = 1 Number of render-distinct failing inputs to report.
@@ -946,10 +946,10 @@ let prop_macro =
 --# @return :: Expect Expect_pass on success, Expect_stop on failure.
 --# @example
 --#   set_seed(42)
---#   monotone = prop_macro("monotone", \(x) x <= 100)
---#   assert(prop_test(monotone, prop_between(0, 200)))
+--#   monotone = prop_named("monotone", \(x) x <= 100)
+--#   assert(prop_test(monotone, prop_gen_between(0, 200)))
 --# @family propcraft
---# @seealso prop_macro, prop_for_all
+--# @seealso prop_named, prop_for_all
 --# @export
 *)
 let prop_test ~eval_call =
@@ -1019,18 +1019,18 @@ let prop_test ~eval_call =
                           ~max_counterexamples ~name gen property
                     | _, None ->
                         Error.type_error
-                          "Function `prop_test` expects `macro` to have a `property` field."
-                    | Some other, _ ->
-                        Error.type_error
-                          (Printf.sprintf
-                             "Function `prop_test` expects `macro` to have a String `name`, got %s."
-                             (Utils.type_name other))
-                    | None, _ ->
-                        Error.type_error
-                          "Function `prop_test` expects `macro` to have a `name` field.")
-               | other ->
-                   Error.type_error
-                     (Printf.sprintf "Function `prop_test` expects a macro Dict, got %s."
+                           "Function `prop_test` expects a named property to have a `property` field."
+                     | Some other, _ ->
+                         Error.type_error
+                           (Printf.sprintf
+                              "Function `prop_test` expects a named property to have a String `name`, got %s."
+                              (Utils.type_name other))
+                     | None, _ ->
+                         Error.type_error
+                           "Function `prop_test` expects a named property to have a `name` field.")
+                | other ->
+                    Error.type_error
+                      (Printf.sprintf "Function `prop_test` expects a named property Dict, got %s."
                         (Utils.type_name other)))
          | Error err, _, _, _, _ | _, Error err, _, _, _
          | _, _, Error err, _, _ | _, _, _, Error err, _ -> err
@@ -1040,7 +1040,7 @@ let prop_test ~eval_call =
 let register ~eval_call env =
   let env = Env.add "prop_stats" (prop_stats ~eval_call) env in
   let env = Env.add "prop_test" (prop_test ~eval_call) env in
-  Env.add "prop_macro" prop_macro env
+  Env.add "prop_named" prop_named env
   |> fun env ->
   Env.add "prop_for_all"
     (make_builtin_named ~name:"prop_for_all" ~variadic:true 2 (fun named_args env ->

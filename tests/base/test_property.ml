@@ -308,51 +308,57 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env _test 
     "prop_stats(prop_gen_int(), n = 0)"
     "expects `n` to be a positive Int";
 
-  (* prop_between — bounded int generator with in-domain shrinking *)
+  (* prop_gen_between — bounded int generator with in-domain shrinking *)
   test_env env "prop_for_all PASS between draws in-domain"
-    "prop_for_all(prop_between(100, 200), \\(x) x >= 100 && x <= 200, n = 40)"
+    "prop_for_all(prop_gen_between(100, 200), \\(x) x >= 100 && x <= 200, n = 40)"
     "PASS";
   test_env env "prop_for_all PASS between single-value range"
-    "set_seed(3)\nprop_for_all(prop_between(7, 7), \\(x) x == 7, n = 20)"
+    "set_seed(3)\nprop_for_all(prop_gen_between(7, 7), \\(x) x == 7, n = 20)"
     "PASS";
   test_env env "prop_for_all PASS between shrinks toward min"
-    "set_seed(42)\nprop_for_all(prop_between(100, 200), \\(x) x <= 100, n = 20)"
+    "set_seed(42)\nprop_for_all(prop_gen_between(100, 200), \\(x) x <= 100, n = 20)"
     "(shrunk): 101";
   test_env env "prop_for_all PASS between df column shrinks to min"
-    "set_seed(3)\nprop_for_all(prop_gen_df([x: prop_between(100, 200)], nrows = 30, na_prob = 0.0), \\(df) nrow(df) < 30, n = 1)"
+    "set_seed(3)\nprop_for_all(prop_gen_df([x: prop_gen_between(100, 200)], nrows = 30, na_prob = 0.0), \\(df) nrow(df) < 30, n = 1)"
     "<Int> 100, 100, 100, 100, 100, 100, 100, 100";
   test_env env "prop_for_all PASS between df column draws in-domain"
-    "prop_for_all(prop_gen_df([x: prop_between(100, 200)], nrows = 20, na_prob = 0.0), \\(df) nrow(df |> filter($x >= 100 && $x <= 200)) == nrow(df), n = 10)"
+    "prop_for_all(prop_gen_df([x: prop_gen_between(100, 200)], nrows = 20, na_prob = 0.0), \\(df) nrow(df |> filter($x >= 100 && $x <= 200)) == nrow(df), n = 10)"
     "PASS";
   test_env env "prop_for_all between df column NA type is NA(Int)"
-    "set_seed(7)\nprop_for_all(prop_gen_df([x: prop_between(100, 200)], nrows = 30, na_prob = 1.0), \\(df) false, n = 1)"
+    "set_seed(7)\nprop_for_all(prop_gen_df([x: prop_gen_between(100, 200)], nrows = 30, na_prob = 1.0), \\(df) false, n = 1)"
     "<NA> NA(Int), NA(Int)";
   test_env env "prop_for_all all-NA between df shrinks to 0 rows"
-    "set_seed(7)\nprop_for_all(prop_gen_df([x: prop_between(100, 200)], nrows = 30, na_prob = 1.0), \\(df) false, n = 1)"
+    "set_seed(7)\nprop_for_all(prop_gen_df([x: prop_gen_between(100, 200)], nrows = 30, na_prob = 1.0), \\(df) false, n = 1)"
     "DataFrame(0 rows x 1 cols)";
-  test_env env "prop_between fast-path batch is reproducible"
-    "set_seed(42)\na = prop_for_all(prop_gen_df([x: prop_between(100, 200)], nrows = 20, na_prob = 0.1), \\(df) false, n = 3)\nset_seed(42)\nb = prop_for_all(prop_gen_df([x: prop_between(100, 200)], nrows = 20, na_prob = 0.1), \\(df) false, n = 3)\na == b"
+  test_env env "prop_gen_between fast-path batch is reproducible"
+    "set_seed(42)\na = prop_for_all(prop_gen_df([x: prop_gen_between(100, 200)], nrows = 20, na_prob = 0.1), \\(df) false, n = 3)\nset_seed(42)\nb = prop_for_all(prop_gen_df([x: prop_gen_between(100, 200)], nrows = 20, na_prob = 0.1), \\(df) false, n = 3)\na == b"
     "true";
-  test_env env "prop_between spec is inspectable dict"
-    "prop_between(100, 200)"
+  test_env env "prop_gen_between spec is inspectable dict"
+    "prop_gen_between(100, 200)"
     "{`gen`: \"between\", `min`: 100, `max`: 200}";
-  test_env env "prop_between inverted bounds errors"
-    "prop_between(5, 1)"
+  test_env env "prop_gen_between inverted bounds errors"
+    "prop_gen_between(5, 1)"
     "requires max >= min, got [5, 1]";
-  test_env env "prop_between non-int bounds errors"
-    "prop_between(\"a\", 1)"
+  test_env env "prop_gen_between non-int bounds errors"
+    "prop_gen_between(\"a\", 1)"
     "expects Int bounds, got String";
-  test_env env "prop_between arity error"
-    "prop_between()"
+  test_env env "prop_gen_between arity error"
+    "prop_gen_between()"
     "expects 2 arguments but received 0";
+  test_env env "prop_gen_between nested in list shrinks to generic floor (not lower bound)"
+    "set_seed(3)\nprop_for_all(prop_gen_list(prop_gen_between(100, 200), 5), \\(xs) false, n = 1)"
+    "(shrunk): [0]";
+  test_env env "prop_gen_between nested in choice shrinks to generic floor"
+    "set_seed(3)\nprop_for_all(prop_gen_choice([prop_gen_between(100, 200), prop_gen_between(300, 400)]), \\(x) false, n = 1)"
+    "0";
 
   (* prop_show_spec — generator introspection *)
   test_env env "prop_show_spec renders int_range"
     "prop_show_spec(prop_gen_int_range(0, 100))"
     "prop_gen_int_range(0, 100)";
   test_env env "prop_show_spec renders between"
-    "prop_show_spec(prop_between(100, 200))"
-    "prop_between(100, 200)";
+    "prop_show_spec(prop_gen_between(100, 200))"
+    "prop_gen_between(100, 200)";
   test_env env "prop_show_spec renders int with defaults"
     "prop_show_spec(prop_gen_int())"
     "prop_gen_int(min = -10, max = 10)";
@@ -384,8 +390,8 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env _test 
     "prop_show_spec(prop_gen_date_range(ymd_hms(\"2020-06-01 00:00:00\"), ymd_hms(\"2020-06-01 23:59:59\")))"
     "prop_gen_date_range(parse_datetime(\\\"2020-06-01 00:00:00.000000\\\", \\\"%Y-%m-%d %H:%M:%S\\\"), parse_datetime(\\\"2020-06-01 23:59:59.000000\\\", \\\"%Y-%m-%d %H:%M:%S\\\"))";
   test_env env "prop_show_spec renders df"
-    "prop_show_spec(prop_gen_df([x: prop_between(100, 200)], nrows = 5, na_prob = 0.0))"
-    "prop_gen_df([x: prop_between(100, 200)], nrows = 5, na_prob = 0.)";
+    "prop_show_spec(prop_gen_df([x: prop_gen_between(100, 200)], nrows = 5, na_prob = 0.0))"
+    "prop_gen_df([x: prop_gen_between(100, 200)], nrows = 5, na_prob = 0.)";
   test_env env "prop_show_spec closure map errors"
     "prop_show_spec(prop_map_gen(prop_gen_int_range(0, 5), \\(v) v))"
     "cannot render a `map` generator spec: it captures a closure";
@@ -399,7 +405,7 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env _test 
   (* prop_show_spec round-trip — rendered source must rebuild an
      equivalent generator (identical seeded draw streams) *)
   assert_roundtrip "prop_show_spec round-trip int_range" "" "prop_gen_int_range(0, 100)";
-  assert_roundtrip "prop_show_spec round-trip between" "" "prop_between(100, 200)";
+  assert_roundtrip "prop_show_spec round-trip between" "" "prop_gen_between(100, 200)";
   assert_roundtrip "prop_show_spec round-trip one_of" "" "prop_gen_one_of([10, 20])";
   assert_roundtrip "prop_show_spec round-trip choice" ""
     "prop_gen_choice([prop_gen_int_range(0, 5), prop_gen_bool()])";
@@ -409,58 +415,58 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env _test 
   assert_roundtrip "prop_show_spec round-trip date_range" ""
     "prop_gen_date_range(ymd(\"2020-01-01\"), ymd(\"2021-06-15\"))";
   assert_roundtrip "prop_show_spec round-trip df with between column" ""
-    "prop_gen_df([x: prop_between(100, 200), b: prop_gen_bool()], nrows = 5, na_prob = 0.1)";
+    "prop_gen_df([x: prop_gen_between(100, 200), b: prop_gen_bool()], nrows = 5, na_prob = 0.1)";
 
-  (* prop_macro / prop_test — named property macros *)
-  test_env env "prop_macro returns inspectable dict"
-    "prop_macro(\"bounded\", \\(x) x <= 100)"
+  (* prop_named / prop_test — named properties *)
+  test_env env "prop_named returns inspectable dict"
+    "prop_named(\"bounded\", \\(x) x <= 100)"
     "{`name`: \"bounded\", `property`: \\(x) -> <function>}";
   test_env env "prop_test PASS via macro"
-    "set_seed(42)\nprop_test(prop_macro(\"nonneg\", \\(x) x >= 0), prop_between(0, 200))"
+    "set_seed(42)\nprop_test(prop_named(\"nonneg\", \\(x) x >= 0), prop_gen_between(0, 200))"
     "PASS";
   test_env env "prop_test failure report includes macro name"
-    "set_seed(42)\nprop_test(prop_macro(\"monotone\", \\(x) x <= 100), prop_between(100, 200))"
+    "set_seed(42)\nprop_test(prop_named(\"monotone\", \\(x) x <= 100), prop_gen_between(100, 200))"
     "STOP(Property monotone failed after";
   test_env env "prop_test failure shrinks toward min"
-    "set_seed(42)\nprop_test(prop_macro(\"monotone\", \\(x) x <= 100), prop_between(100, 200))"
+    "set_seed(42)\nprop_test(prop_named(\"monotone\", \\(x) x <= 100), prop_gen_between(100, 200))"
     "(shrunk): 101";
   test_env env "prop_test accepts n and shrink_verify named args"
-    "set_seed(42)\nprop_test(prop_macro(\"nonneg\", \\(x) x >= 0), prop_between(0, 200), n = 20, shrink_verify = true)"
+    "set_seed(42)\nprop_test(prop_named(\"nonneg\", \\(x) x >= 0), prop_gen_between(0, 200), n = 20, shrink_verify = true)"
     "PASS";
   test_env env "prop_test accepts max_counterexamples"
-    "set_seed(42)\nprop_test(prop_macro(\"small\", \\(x) x < 150), prop_between(0, 200), n = 20, max_counterexamples = 2)"
+    "set_seed(42)\nprop_test(prop_named(\"small\", \\(x) x < 150), prop_gen_between(0, 200), n = 20, max_counterexamples = 2)"
     "STOP(Property small failed after 4 of 20 runs (showing 2 counterexamples)";
   test_env env "prop_test unknown named arg errors"
-    "set_seed(42)\nprop_test(prop_macro(\"nonneg\", \\(x) x >= 0), prop_between(0, 200), bogus = 1)"
+    "set_seed(42)\nprop_test(prop_named(\"nonneg\", \\(x) x >= 0), prop_gen_between(0, 200), bogus = 1)"
     "received unknown named argument `bogus`";
   test_env env "prop_test non-macro first arg errors"
     "prop_test(42, prop_gen_int())"
-    "Function `prop_test` expects a macro Dict, got Int";
+    "Function `prop_test` expects a named property Dict, got Int";
   test_env env "prop_test macro missing property errors"
     "prop_test([name: \"x\"], prop_gen_int())"
-    "expects `macro` to have a `property` field";
-  test_env env "prop_macro accepts non-callable property (defers to eval_call)"
-    "prop_macro(\"x\", 42)"
+    "expects a named property to have a `property` field";
+  test_env env "prop_named accepts non-callable property (defers to eval_call)"
+    "prop_named(\"x\", 42)"
     "{`name`: \"x\", `property`: 42}";
   test_env env "prop_test non-callable macro property errors at invocation"
-    "set_seed(1)\nprop_test(prop_macro(\"x\", 42), prop_gen_int(), n = 3)"
+    "set_seed(1)\nprop_test(prop_named(\"x\", 42), prop_gen_int(), n = 3)"
     "predicate: raised: Value of type Int is not callable";
-  test_env env "prop_macro non-string name errors"
-    "prop_macro(1, \\(x) true)"
+  test_env env "prop_named non-string name errors"
+    "prop_named(1, \\(x) true)"
     "expects `name` to be a String, got Int";
-  test_env env "prop_macro arity error"
-    "prop_macro(\"x\")"
+  test_env env "prop_named arity error"
+    "prop_named(\"x\")"
     "expects 2 arguments but received 1";
 
   (* shrink_verify — opt-in exhaustive candidate verification *)
   test_env env "prop_for_all shrink_verify flag accepted"
-    "set_seed(42)\nprop_for_all(prop_between(0, 200), \\(x) x >= 0, n = 20, shrink_verify = true)"
+    "set_seed(42)\nprop_for_all(prop_gen_between(0, 200), \\(x) x >= 0, n = 20, shrink_verify = true)"
     "PASS";
   test_env env "prop_for_all shrink_verify non-bool errors"
-    "prop_for_all(prop_between(0, 200), \\(x) x >= 0, n = 20, shrink_verify = 1)"
+    "prop_for_all(prop_gen_between(0, 200), \\(x) x >= 0, n = 20, shrink_verify = 1)"
     "Flag `shrink_verify` must be Bool, but received Int";
   test_env env "prop_test shrink_verify non-bool errors"
-    "set_seed(42)\nprop_test(prop_macro(\"nonneg\", \\(x) x >= 0), prop_between(0, 200), shrink_verify = \"yes\")"
+    "set_seed(42)\nprop_test(prop_named(\"nonneg\", \\(x) x >= 0), prop_gen_between(0, 200), shrink_verify = \"yes\")"
     "Flag `shrink_verify` must be Bool, but received String";
   let blocker_dict =
     "d = [k1: 100, k2: 100, k3: 100, k4: 100, k5: 100, k6: 100, k7: 100, k8: 100, k9: 100, k10: 100, \

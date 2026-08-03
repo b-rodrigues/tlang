@@ -5043,10 +5043,10 @@ prop_stats(prop_gen_df_from(mtcars, nrows = 50), n = 20)
 -- {`n_runs`: 20, `n_errors`: 0, `value_types`: {`DataFrame`: 20},
 --  `nested_sizes`: {`df`: [1, 2, ..., 20]}, `elapsed_ms`: ...}
 ```
-### `prop_between(min, max)`
+### `prop_gen_between(min, max)`
 
-**Bounded integer generator with in-domain shrinking.** Like `prop_gen_int_range(min, max)`, but shrinks counterexamples toward `min` (the
-"floor") rather than toward 0. Use this when the property's domain has a natural lower bound and you want minimal counterexamples that are
+**Bounded integer generator with in-domain shrinking.** Like `prop_gen_int_range(min, max)`, but shrinks counterexamples toward the lower bound
+rather than toward 0. Use this when the property's domain has a natural lower bound and you want minimal counterexamples that are
 still within the valid range.
 
 | Parameter | Type | Default | Description |
@@ -5055,19 +5055,19 @@ still within the valid range.
 | `max` | Int | — | Upper bound (inclusive). |
 
 ```t
-prop_between(100, 200)
+prop_gen_between(100, 200)
 -- {`gen`: "between", `min`: 100, `max`: 200}
 ```
 
 ### `prop_show_spec(spec)`
 
 **Render a generator spec as T source text.** Takes any generator Dict (from `prop_gen_int_range`, `prop_gen_df`, etc.) and returns a
-string of valid T code that rebuilds a behaviorally identical generator — same draws under the same seed.
+string of valid T code that rebuilds an equivalent generator — same draws under the same seed.
 
 ```t
 prop_show_spec(prop_gen_int_range(0, 100))  -- "prop_gen_int_range(0, 100)"
-prop_show_spec(prop_gen_df([x: prop_between(1, 5)], nrows = 3, na_prob = 0.0))
--- "prop_gen_df([x: prop_between(1, 5)], nrows = 3, na_prob = 0.)"
+prop_show_spec(prop_gen_df([x: prop_gen_between(1, 5)], nrows = 3, na_prob = 0.0))
+-- "prop_gen_df([x: prop_gen_between(1, 5)], nrows = 3, na_prob = 0.)"
 ```
 
 Closure-based generators (`map`, `such_that`, `fn`) produce an explicit error since they cannot be rendered:
@@ -5076,9 +5076,9 @@ prop_show_spec(prop_map_gen(prop_gen_int_range(0, 5), \(v) v))
 -- Error: cannot render a `map` generator spec: it captures a closure.
 ```
 
-### `prop_macro(name, property)`
+### `prop_named(name, property)`
 
-**Create a named property macro.** Macros are plain immutable Dicts — no global registry. Pass the result to `prop_test`.
+**Create a named property.** Named properties are plain immutable Dicts — no global registry. Pass the result to `prop_test`.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
@@ -5086,8 +5086,19 @@ prop_show_spec(prop_map_gen(prop_gen_int_range(0, 5), \(v) v))
 | `property` | Callable | — | Predicate receiving a generated value, returning Bool. |
 
 ```t
-m = prop_macro("positive", \(x) x > 0)
+m = prop_named("positive", \(x) x > 0)
 -- {`name`: "positive", `property`: \(x) -> <function>}
+```
+
+### `prop_test(named, gen, n = 100, max_counterexamples = 1, shrink = true, shrink_verify = false)`
+
+**Run a named property against a generator.** Behaves identically to `prop_for_all` but takes a prebuilt named property Dict instead of an
+anonymous predicate, and prefixes failure reports with the property's name.
+
+```t
+set_seed(42)
+m = prop_named("bounded", \(x) x >= 0)
+prop_test(m, prop_gen_between(0, 200), n = 20)  -- PASS
 ```
 
 ### `prop_test(macro, gen, n = 100, max_counterexamples = 1, shrink = true, shrink_verify = false)`
@@ -5097,8 +5108,8 @@ anonymous predicate, and prefixes failure reports with the macro's name.
 
 ```t
 set_seed(42)
-m = prop_macro("bounded", \(x) x >= 0)
-prop_test(m, prop_between(0, 200), n = 20)  -- PASS
+m = prop_named("bounded", \(x) x >= 0)
+prop_test(m, prop_gen_between(0, 200), n = 20)  -- PASS
 ```
 
 ### `shrink_verify = true` (opt-in on `prop_for_all` and `prop_test`)

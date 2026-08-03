@@ -235,12 +235,12 @@ let testcraft_package = {
 let propcraft_package = {
   name = "propcraft";
   description = "Property-based testing: generators, combinators, and prop_for_all";
-  functions = ["prop_gen_int"; "prop_gen_int_range"; "prop_between"; "prop_gen_float_range";
+  functions = ["prop_gen_int"; "prop_gen_int_range"; "prop_gen_between"; "prop_gen_float_range";
                "prop_gen_bool"; "prop_gen_string_from"; "prop_gen_choice"; "prop_gen_frequency";
                "prop_gen_vector"; "prop_gen_list"; "prop_gen_factor"; "prop_gen_one_of";
                "prop_gen_date_range"; "prop_gen_df"; "prop_gen_df_from"; "prop_gen_fn";
                "prop_map_gen"; "prop_such_that"; "prop_resize";
-               "prop_for_all"; "prop_stats"; "prop_show_spec"; "prop_macro"; "prop_test"];
+               "prop_for_all"; "prop_stats"; "prop_show_spec"; "prop_named"; "prop_test"];
 }
 
 (** All standard packages *)
