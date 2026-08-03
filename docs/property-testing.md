@@ -2,6 +2,8 @@
 
 Comprehensive guide to hardening T code with property-based testing using the **popcraft** package.
 
+> **New:** See also the [Property Testing Cookbook](./property-testing-cookbook.md) for reusable patterns and a step-by-step guide to writing your first property test.
+
 ## Table of Contents
 
 - [What Is Property-Based Testing?](#what-is-property-based-testing)
