@@ -137,6 +137,39 @@ let prop_gen_int_range =
     | _ -> Error.arity_error_named "prop_gen_int_range" 2 (List.length args))
 
 (*
+--# Generate a random Int within domain bounds
+--#
+--# Returns a generator spec producing Int values drawn uniformly from
+--# [min, max] inclusive. Shrinking stays inside the domain: counterexamples
+--# shrink toward `min` (e.g. 137 -> 118 -> ... -> 101), never below it.
+--#
+--# @name prop_between
+--# @param min :: Int Lower bound (inclusive).
+--# @param max :: Int Upper bound (inclusive).
+--# @return :: Dict A generator spec.
+--# @example
+--#   assert(prop_for_all(prop_between(100, 200), \(x) x >= 100 && x <= 200))
+--# @family propcraft
+--# @seealso prop_gen_int, prop_gen_int_range
+--# @export
+*)
+let prop_between =
+  make_builtin ~name:"prop_between" 2 (fun args _env ->
+    match args with
+    | [VInt min; VInt max] ->
+        if max < min then
+          Error.value_error
+            (Printf.sprintf "Function `prop_between` requires max >= min, got [%d, %d]."
+               min max)
+        else
+          gen "between" [ ("min", VInt min); ("max", VInt max) ]
+    | [other; _] ->
+        Error.type_error
+          (Printf.sprintf "Function `prop_between` expects Int bounds, got %s."
+             (Utils.type_name other))
+    | _ -> Error.arity_error_named "prop_between" 2 (List.length args))
+
+(*
 --# Generate a random Float in a range
 --#
 --# Returns a generator spec producing Float values drawn uniformly from
@@ -805,6 +838,7 @@ let prop_resize =
 let register env =
   let env = Env.add "prop_gen_int" prop_gen_int env in
   let env = Env.add "prop_gen_int_range" prop_gen_int_range env in
+  let env = Env.add "prop_between" prop_between env in
   let env = Env.add "prop_gen_float_range" prop_gen_float_range env in
   let env = Env.add "prop_gen_bool" prop_gen_bool env in
   let env = Env.add "prop_gen_string_from" prop_gen_string_from env in
