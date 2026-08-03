@@ -40,6 +40,24 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
   test_env env "prop_for_all PASS multi-byte string chars"
     "prop_for_all(prop_gen_string_from(\"\\xCE\\xBB\", 1, 1), \\(s) s == \"\\xCE\\xBB\", n = 5)"
     "PASS";
+  test_env env "prop_for_all PASS one_of ints"
+    "prop_for_all(prop_gen_one_of([10, 20, 30]), \\(v) v == 10 || v == 20 || v == 30, n = 30)"
+    "PASS";
+  test_env env "prop_for_all PASS one_of strings"
+    "prop_for_all(prop_gen_one_of([\"a\", \"b\"]), \\(s) s == \"a\" || s == \"b\", n = 30)"
+    "PASS";
+  test_env env "prop_for_all PASS one_of dates"
+    "prop_for_all(prop_gen_one_of([ymd(\"2020-01-01\"), ymd(\"2021-01-01\")]), \\(d) year(d) == 2020 || year(d) == 2021, n = 20)"
+    "PASS";
+  test_env env "prop_for_all PASS date_range"
+    "prop_for_all(prop_gen_date_range(ymd(\"2020-01-01\"), ymd(\"2020-12-31\")), \\(d) year(d) == 2020, n = 30)"
+    "PASS";
+  test_env env "prop_for_all PASS date_range inclusive endpoints"
+    "set_seed(7)\nprop_for_all(prop_gen_date_range(ymd(\"2020-01-01\"), ymd(\"2020-01-01\")), \\(d) d == ymd(\"2020-01-01\"), n = 5)"
+    "PASS";
+  test_env env "prop_for_all PASS datetime_range"
+    "prop_for_all(prop_gen_date_range(ymd_hms(\"2020-06-01 00:00:00\"), ymd_hms(\"2020-06-01 23:59:59\")), \\(d) year(d) == 2020 && month(d) == 6, n = 30)"
+    "PASS";
 
   (* FAIL cases *)
   test_env env "prop_for_all STOP on false"
@@ -121,6 +139,24 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
   test_env env "prop_gen_int unknown named arg errors"
     "prop_gen_int(bogus = 1)"
     "received unknown named argument `bogus`";
+  test_env env "prop_gen_one_of empty list errors"
+    "prop_gen_one_of([])"
+    "expects a non-empty List or Vector of values";
+  test_env env "prop_gen_one_of non-list errors"
+    "prop_gen_one_of(1)"
+    "expects a List or Vector, got Int";
+  test_env env "prop_gen_date_range inverted bounds errors"
+    "prop_gen_date_range(ymd(\"2020-01-01\"), ymd(\"2019-01-01\"))"
+    "requires `end` to be on or after `start`";
+  test_env env "prop_gen_date_range inverted datetime bounds errors"
+    "prop_gen_date_range(ymd_hms(\"2020-06-02 00:00:00\"), ymd_hms(\"2020-06-01 00:00:00\"))"
+    "requires `end` to be on or after `start`";
+  test_env env "prop_gen_date_range mixed date/datetime errors"
+    "prop_gen_date_range(ymd(\"2020-01-01\"), ymd_hms(\"2020-01-01 00:00:00\"))"
+    "both bounds to be Dates or both to be Datetimes";
+  test_env env "prop_gen_date_range non-date bounds errors"
+    "prop_gen_date_range(ymd(\"2020-01-01\"), 1)"
+    "expects Date or Datetime bounds, got Date and Int";
 
   (* assert integration — how prop_for_all is used inside `t test` files *)
   test_env env "assert around passing prop_for_all"

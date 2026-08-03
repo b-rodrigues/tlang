@@ -174,6 +174,50 @@ and draw_value ~eval_call ~env ~size (spec : value) : (value, value) result =
                          "prop_for_all: factor spec requires a non-empty `levels` list."))
        | None ->
            Error (Error.type_error "prop_for_all: factor spec requires a `levels` field."))
+  | Some "one_of" ->
+      (match field "values" spec with
+       | Some (VList items) when items <> [] ->
+           (match Rng.uniform_pick (Array.of_list items) with
+            | Some (_, v) -> Ok v
+            | None ->
+                Error (Error.value_error "prop_for_all: one_of spec has no values."))
+       | Some (VVector arr) when Array.length arr > 0 ->
+           (match Rng.uniform_pick arr with
+            | Some v -> Ok v
+            | None ->
+                Error (Error.value_error "prop_for_all: one_of spec has no values."))
+       | _ ->
+           Error (Error.type_error
+                    "prop_for_all: one_of spec requires a non-empty `values` List or Vector."))
+  | Some "date_range" ->
+      (match field "mode" spec with
+       | Some (VString "date") ->
+           (match int_field "start_day" spec, int_field "end_day" spec with
+            | Some start_day, Some end_day ->
+                Ok (VDate (Rng.uniform_int_range ~min:start_day ~max:end_day))
+            | _ ->
+                Error (Error.type_error
+                         "prop_for_all: date_range spec requires `start_day` and `end_day` Int fields."))
+       | Some (VString "datetime") ->
+           (match int_field "start_micros" spec, int_field "end_micros" spec with
+            | Some start_m, Some end_m ->
+                let tz =
+                  match field "tz" spec with
+                  | Some (VString s) -> Some s
+                  | _ -> None
+                in
+                Ok
+                  (VDatetime
+                     ( Rng.uniform_int64_range
+                         ~min:(Int64.of_int start_m)
+                         ~max:(Int64.of_int end_m),
+                       tz ))
+            | _ ->
+                Error (Error.type_error
+                         "prop_for_all: date_range spec requires `start_micros` and `end_micros` Int fields."))
+       | _ ->
+           Error (Error.type_error
+                    "prop_for_all: date_range spec requires a `mode` field."))
   | Some "df" ->
       (match field "columns" spec with
        | Some (VDict columns) when columns <> [] ->

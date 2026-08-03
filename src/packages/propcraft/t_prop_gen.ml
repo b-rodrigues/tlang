@@ -415,6 +415,96 @@ let prop_gen_factor =
     | _ -> Error.arity_error_named "prop_gen_factor" 1 (List.length args))
 
 (*
+--# Generate a value chosen from a fixed set
+--#
+--# Returns a generator spec that picks one value uniformly at random from
+--# `values` on each draw.
+--#
+--# @name prop_gen_one_of
+--# @param values :: List[Any] | Vector[Any] The candidate values.
+--# @return :: Dict A generator spec.
+--# @example
+--#   g = prop_gen_one_of(["red", "green", "blue"])
+--# @family propcraft
+--# @seealso prop_gen_choice
+--# @export
+*)
+let prop_gen_one_of =
+  make_builtin ~name:"prop_gen_one_of" 1 (fun args _env ->
+    match args with
+    | [values_value] ->
+        (match values_value with
+         | VList [] ->
+             Error.value_error
+               "Function `prop_gen_one_of` expects a non-empty List or Vector of values."
+         | VList items ->
+             gen "one_of" [ ("values", VList items) ]
+         | VVector arr when Array.length arr = 0 ->
+             Error.value_error
+               "Function `prop_gen_one_of` expects a non-empty List or Vector of values."
+         | VVector arr ->
+             gen "one_of" [ ("values", VVector arr) ]
+         | other ->
+             Error.type_error
+               (Printf.sprintf
+                  "Function `prop_gen_one_of` expects a List or Vector, got %s."
+                  (Utils.type_name other)))
+    | _ -> Error.arity_error_named "prop_gen_one_of" 1 (List.length args))
+
+(*
+--# Generate a Date or Datetime in a range
+--#
+--# Returns a generator spec that draws a Date uniformly between `start`
+--# and `end` (inclusive). Bounds must be both Dates or both Datetimes; a
+--# Datetime range keeps the start bound's timezone. Use `parse_date`,
+--# `today`, or `parse_datetime` to build bounds.
+--#
+--# @name prop_gen_date_range
+--# @param start :: Date | Datetime Lower bound (inclusive).
+--# @param end :: Date | Datetime Upper bound (inclusive).
+--# @return :: Dict A generator spec.
+--# @example
+--#   g = prop_gen_date_range(parse_date("2020-01-01"), parse_date("2020-12-31"))
+--# @family propcraft
+--# @seealso prop_gen_int_range, parse_date, today
+--# @export
+*)
+let prop_gen_date_range =
+  make_builtin ~name:"prop_gen_date_range" 2 (fun args _env ->
+    match args with
+    | [VDate start_day; VDate end_day] ->
+        if end_day < start_day then
+          Error.value_error
+            "Function `prop_gen_date_range` requires `end` to be on or after `start`."
+        else
+          gen "date_range"
+            [ ("mode", VString "date");
+              ("start_day", VInt start_day);
+              ("end_day", VInt end_day) ]
+    | [VDatetime (start_micros, tz); VDatetime (end_micros, _)] ->
+        if Int64.compare end_micros start_micros < 0 then
+          Error.value_error
+            "Function `prop_gen_date_range` requires `end` to be on or after `start`."
+        else
+          gen "date_range"
+            [ ("mode", VString "datetime");
+              ("start_micros", VInt (Int64.to_int start_micros));
+              ("end_micros", VInt (Int64.to_int end_micros));
+              ("tz",
+               (match tz with
+                | Some s -> VString s
+                | None -> VNA NAGeneric)) ]
+    | [VDate _; VDatetime _] | [VDatetime _; VDate _] ->
+        Error.type_error
+          "Function `prop_gen_date_range` expects both bounds to be Dates or both to be Datetimes."
+    | [a; b] ->
+        Error.type_error
+          (Printf.sprintf
+             "Function `prop_gen_date_range` expects Date or Datetime bounds, got %s and %s."
+             (Utils.type_name a) (Utils.type_name b))
+    | _ -> Error.arity_error_named "prop_gen_date_range" 2 (List.length args))
+
+(*
 --# Generate a random DataFrame
 --#
 --# Returns a generator spec producing a DataFrame with one column per
@@ -556,6 +646,8 @@ let register env =
   let env = Env.add "prop_gen_vector" prop_gen_vector env in
   let env = Env.add "prop_gen_list" prop_gen_list env in
   let env = Env.add "prop_gen_factor" prop_gen_factor env in
+  let env = Env.add "prop_gen_one_of" prop_gen_one_of env in
+  let env = Env.add "prop_gen_date_range" prop_gen_date_range env in
   let env = Env.add "prop_gen_df" prop_gen_df env in
   let env = Env.add "prop_map_gen" prop_map_gen env in
   let env = Env.add "prop_such_that" prop_such_that env in

@@ -25,6 +25,24 @@ let uniform_float_range ~min ~max =
   if max <= min then min
   else min +. Random.State.float !state (max -. min)
 
+(* Uniform int64 in [min, max], inclusive. Handles the full 2^64 span via
+   two 32-bit halves with rejection when the range exceeds 2^63 - 1 (only
+   reachable for pathological full-int64 ranges). *)
+let uniform_int64_range ~min ~max =
+  if max <= min then min
+  else
+    let span = Int64.sub max min in
+    if span >= Int64.zero && Int64.succ span > Int64.zero then
+      Int64.add min (Random.State.int64 !state (Int64.succ span))
+    else
+      let rec go () =
+        let half () = Random.State.int64 !state 0x1_0000_0000L in
+        let offset = Int64.logor (Int64.shift_left (half ()) 32) (half ()) in
+        if Int64.unsigned_compare offset (Int64.succ span) < 0 then offset
+        else go ()
+      in
+      Int64.add min (go ())
+
 let uniform_pick (items : 'a array) : 'a option =
   if Array.length items = 0 then None
   else Some items.(Random.State.int !state (Array.length items))
