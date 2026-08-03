@@ -107,6 +107,7 @@ Because they are data, you can store them in variables, pass them around, and co
 | `prop_gen_one_of` | `prop_gen_one_of(values)` | Uniformly pick one value from a non-empty List or Vector of values |
 | `prop_gen_date_range` | `prop_gen_date_range(start, end)` | Date (or Datetime) drawn uniformly in an inclusive range; bounds must be both Dates or both Datetimes |
 | `prop_gen_df` | `prop_gen_df(columns, nrows = 30, na_prob = 0.1)` | DataFrame with generated columns and optional NA injection |
+| `prop_gen_dict` | `prop_gen_dict(columns, na_prob = 0.1)` | Dict with one value per column and optional NA injection |
 | `prop_gen_df_from` | `prop_gen_df_from(df, nrows = 30, na_prob = 0.1)` | DataFrame matching a sample's columns, with generators inferred from the sample |
 | `prop_gen_fn` | `prop_gen_fn(fn)` | Draw a value by calling `fn(size)` with the current generation size |
 

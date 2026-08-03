@@ -352,6 +352,30 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env _test 
     "set_seed(3)\nprop_for_all(prop_gen_choice([prop_gen_between(100, 200), prop_gen_between(300, 400)]), \\(x) false, n = 1)"
     "0";
 
+  (* prop_gen_dict — Dict generator *)
+  test_env env "prop_gen_dict spec is inspectable dict"
+    "prop_gen_dict([x: prop_gen_int_range(0, 5)])"
+    "{`gen`: \"dict\"";
+  test_env env "prop_for_all PASS dict draws in-domain"
+    "prop_for_all(prop_gen_dict([x: prop_gen_int_range(0, 100)], na_prob = 0.0), \\(d) d.x >= 0 && d.x <= 100, n = 40)"
+    "PASS";
+  test_env env "prop_for_all dict between column shrinks toward min"
+    "set_seed(42)\nprop_for_all(prop_gen_dict([x: prop_gen_between(100, 200)], na_prob = 0.0), \\(d) d.x <= 100, n = 20)"
+    "(shrunk): {`x`: 101}";
+  test_env env "prop_for_all dict NA injection makes NA values"
+    "set_seed(42)\nprop_for_all(prop_gen_dict([x: prop_gen_int_range(0, 100)], na_prob = 1.0), \\(d) false, n = 1)"
+    "{`x`: NA(Int)}";
+  test_env env "prop_show_spec renders dict"
+    "prop_show_spec(prop_gen_dict([x: prop_gen_between(100, 200)], na_prob = 0.0))"
+    "prop_gen_dict([x: prop_gen_between(100, 200)], na_prob = 0.)";
+  test_env env "prop_gen_dict multiple columns round-trip"
+    "prop_for_all(prop_gen_dict([x: prop_gen_int_range(0, 5), s: prop_gen_one_of([\"a\", \"b\"])], na_prob = 0.0), \\(d) d.x >= 0 && d.x <= 5 && (d.s == \"a\" || d.s == \"b\"), n = 20)"
+    "PASS";
+  test_env env "prop_gen_dict non-dict columns errors"
+    "prop_gen_dict(1)"
+    "expects `columns` to be a Dict";
+  assert_roundtrip "prop_show_spec round-trip dict" "" "prop_gen_dict([x: prop_gen_between(100, 200), s: prop_gen_one_of([\"a\", \"b\"])], na_prob = 0.0)";
+
   (* prop_show_spec — generator introspection *)
   test_env env "prop_show_spec renders int_range"
     "prop_show_spec(prop_gen_int_range(0, 100))"

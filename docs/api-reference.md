@@ -5023,6 +5023,7 @@ g         -- {`gen`: "int_range", `min`: 1, `max`: 5}
 | `prop_gen_one_of(values)` | Uniformly pick one value from a non-empty List or Vector of values |
 | `prop_gen_date_range(start, end)` | Date (or Datetime) drawn uniformly in an inclusive range; bounds must be both Dates or both Datetimes, and the timezone is preserved |
 | `prop_gen_df(columns, nrows = 30, na_prob = 0.1)` | DataFrame with generated columns; `na_prob` injects typed `NA` values into columns |
+| `prop_gen_dict(columns, na_prob = 0.1)` | Dict with one generated value per column; `na_prob` probability of NA per column value |
 | `prop_gen_df_from(df, nrows = 30, na_prob = 0.1)` | DataFrame with the same columns as `df`, inferring each column's generator from the sample values |
 | `prop_gen_fn(fn)` | Draw a value by calling `fn(size)` with the current generation size |
 
@@ -5057,6 +5058,20 @@ still within the valid range.
 ```t
 prop_gen_between(100, 200)
 -- {`gen`: "between", `min`: 100, `max`: 200}
+```
+
+### `prop_gen_dict(columns, na_prob = 0.1)`
+
+**Generate a Dict of values**, one per column.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `columns` | Dict | — | Mapping of `name: generator_spec` pairs. |
+| `na_prob` | Float | `0.1` | Probability that any given column value is NA. |
+
+```t
+prop_gen_dict([x: prop_gen_int_range(0, 100), s: prop_gen_one_of(["a", "b"])])
+-- {`gen`: "dict", `columns`: ..., `na_prob`: 0.1}
 ```
 
 ### `prop_show_spec(spec)`

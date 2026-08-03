@@ -246,6 +246,28 @@ and render_df spec =
                  (String.concat ", " parts) nrows (string_of_float na_prob)))
   | _ -> Error "df spec requires a non-empty `columns` Dict and `nrows`."
 
+and render_dict spec =
+  match field "columns" spec with
+  | Some (VDict columns) when columns <> [] ->
+      let na_prob = match float_field "na_prob" spec with Some p -> p | None -> 0.1 in
+      (match
+         List.map
+           (fun (name, g) ->
+             if not (is_valid_ident name) then
+               Error (Printf.sprintf "cannot render column name `%s` as a bare identifier." name)
+             else
+               match render_spec g with
+               | Error e -> Error e
+               | Ok gs -> Ok (Printf.sprintf "%s: %s" name gs))
+           columns
+         |> collect
+       with
+       | Error e -> Error e
+       | Ok parts ->
+           Ok (Printf.sprintf "prop_gen_dict([%s], na_prob = %s)"
+                 (String.concat ", " parts) (string_of_float na_prob)))
+  | _ -> Error "dict spec requires a non-empty `columns` Dict."
+
 and render_resize spec =
   match field "source" spec, int_field "n" spec with
   | Some source, Some n ->
@@ -271,6 +293,7 @@ and renderers : (string * (value -> (string, string) result)) list = [
   "list",         render_vector_or_list;
   "date_range",   render_date_range;
   "df",           render_df;
+  "dict",         render_dict;
   "resize",       render_resize;
 ]
 

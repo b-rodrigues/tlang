@@ -352,6 +352,31 @@ and draw_value ~eval_call ~env ~size (spec : value) : (value, value) result =
        | _ ->
            Error (Error.type_error
                     "prop_for_all: df spec requires a non-empty `columns` Dict."))
+  | Some "dict" ->
+      (match field "columns" spec with
+       | Some (VDict columns) when columns <> [] ->
+           let na_prob =
+             match float_field "na_prob" spec with
+             | Some p -> max 0.0 (min 1.0 p)
+             | None -> 0.1
+           in
+           let rec go acc = function
+             | [] -> Ok (VDict (List.rev acc))
+             | (name, col_spec) :: rest ->
+                 (match draw_value ~eval_call ~env ~size col_spec with
+                  | Ok v ->
+                      let v =
+                        if na_prob > 0.0 && Rng.uniform_float_range ~min:0.0 ~max:1.0 < na_prob
+                        then VNA (na_for_spec col_spec)
+                        else v
+                      in
+                      go ((name, v) :: acc) rest
+                  | Error err -> Error err)
+           in
+           go [] columns
+       | _ ->
+           Error (Error.type_error
+                    "prop_for_all: dict spec requires a non-empty `columns` Dict."))
   | Some "map" ->
       (match field "source" spec, field "fn" spec with
        | Some src, Some fn ->
@@ -700,9 +725,43 @@ let spec_shrink_v spec =
             (fun cname -> List.assoc_opt cname mins)
         | _ -> fun _ -> None
       in
+       (fun v ->
+         match v with
+         | VDataFrame df -> shrink_dataframe ~cell_min df
+         | _ -> shrink_value v)
+  | Some "dict" ->
+      let cell_min =
+        match field "columns" spec with
+        | Some (VDict columns) ->
+            let mins =
+              List.filter_map
+                (fun (cname, cspec) ->
+                  match spec_gen cspec, int_field "min" cspec with
+                  | Some "between", Some m -> Some (cname, m)
+                  | _ -> None)
+                columns
+            in
+            (fun cname -> List.assoc_opt cname mins)
+        | _ -> fun _ -> None
+      in
       (fun v ->
         match v with
-        | VDataFrame df -> shrink_dataframe ~cell_min df
+        | VDict pairs ->
+            List.concat_map
+              (fun (k, v) ->
+                let shrunk =
+                  match v, cell_min k with
+                  | VInt i, Some min ->
+                      List.map (fun x -> VInt x) (shrink_toward_min min i)
+                  | _ -> shrink_value v
+                in
+                shrunk
+                |> List.map (fun sv ->
+                       List.map (fun (k2, v2) -> if k2 = k then (k2, sv) else (k2, v2)) pairs))
+              pairs
+            |> List.filter (fun d -> d <> pairs)
+            |> List.sort_uniq compare
+            |> List.map (fun d -> VDict d)
         | _ -> shrink_value v)
   | _ -> shrink_value
 

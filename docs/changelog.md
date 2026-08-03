@@ -19,6 +19,7 @@
 - **`prop_show_spec(spec)`**: Render any generator spec back to valid T source. The rendered output rebuilds a behaviorally equivalent generator (identical draws under the same seed). Closure-based generators produce an explicit error.
 - **`prop_named(name, property)` + `prop_test(named, gen, ...)`**: Named properties as plain immutable Dicts — no global registry. Define a property once (`m = prop_named("mutate_preserves_nrow", \(df) ...)`) and test it against multiple generators. Failure reports prefix the property name (`STOP(Property mutate_preserves_nrow failed...)`).
 - **`shrink_verify = true` opt-in**: Exhaustive shrink re-verification. By default, per-level shrink candidates are capped at 32 for performance. When `shrink_verify = true`, every candidate at the fixpoint is re-checked uncapped, guaranteeing the reported counterexample is truly minimal.
+- **`prop_gen_dict(columns, na_prob = 0.1)`**: Dict generator — produces a Dict with one value per column. Shares the column-spec format and leaf batched fast path as `prop_gen_df`. Between-column cells within dicts shrink toward their column's lower bound.
 
 ## [0.54.3] - 2026-08-01
 
