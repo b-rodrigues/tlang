@@ -15,6 +15,10 @@
 - **Reproducible by default**: All draws use the shared seeded RNG. `set_seed(n)` before a run reproduces the exact same values and counterexample on any machine, every run.
 - **`with_seed(seed, thunk)`**: New base-package function that seeds the RNG for a single expression and restores the previous state afterwards — exception-safe and nestable. Scope determinism to one `prop_for_all` or one `sample` without perturbing surrounding random draws.
 - **Deterministic shrinking**: On failure, ints/strings/lists/vectors shrink toward minimal failing inputs; DataFrames shrink by halving rows down to the empty frame and then minimizing cells to canonical values per column type. Shrinking only affects the reported message, never whether a run passes.
+- **`prop_between(min, max)`**: Bounded integer generator with in-domain shrinking. For properties that have a natural lower bound, counterexamples shrink toward `min` (the "floor") rather than toward 0. Inside `prop_gen_df`, between-column cells canonicalize to `VInt min` so the shrinker minimizes within range.
+- **`prop_show_spec(spec)`**: Render any generator spec back to valid T source. The rendered output rebuilds a behaviorally equivalent generator (identical draws under the same seed). Closure-based generators produce an explicit error.
+- **`prop_macro(name, property)` + `prop_test(macro, gen, ...)`**: Named property macros as plain immutable Dicts — no global registry. Define a property once (`m = prop_macro("mutate_preserves_nrow", \(df) ...)`) and test it against multiple generators. Failure reports prefix the macro name (`STOP(Property mutate_preserves_nrow failed...)`).
+- **`shrink_verify = true` opt-in**: Exhaustive shrink re-verification. By default, per-level shrink candidates are capped at 32 for performance. When `shrink_verify = true`, every candidate at the fixpoint is re-checked uncapped, guaranteeing the reported counterexample is truly minimal.
 
 ## [0.54.3] - 2026-08-01
 

@@ -95,6 +95,7 @@ Because they are data, you can store them in variables, pass them around, and co
 |-----------|-----------|----------|
 | `prop_gen_int` | `prop_gen_int(min = -10, max = 10)` | Random Int in `[min, max]` |
 | `prop_gen_int_range` | `prop_gen_int_range(min, max)` | Random Int in `[min, max]` |
+| `prop_between` | `prop_between(min, max)` | Random Int in `[min, max]`, **shrinks toward `min`** instead of 0 |
 | `prop_gen_float_range` | `prop_gen_float_range(min, max)` | Random Float in `[min, max)` |
 | `prop_gen_bool` | `prop_gen_bool()` | Random Bool |
 | `prop_gen_string_from` | `prop_gen_string_from(chars, min_len, max_len)` | Random String over `chars` (a String, List, or Vector), length in `[min_len, max_len]` |
@@ -136,6 +137,59 @@ cube_gen = prop_gen_fn(\(n) n * n * n)
 ```
 
 `fn` receives the current generation size (`30` by default, propagated through `prop_resize`) and may call other generators, read variables, or draw from the shared RNG — the value it returns is the drawn value.
+
+### `prop_between` — in-domain shrinking
+
+For properties where the domain has a natural lower bound (e.g., "the value must be ≥ 100"), use `prop_between(min, max)`. Draws are identical to `prop_gen_int_range(min, max)`, but shrinking pushes values toward `min` rather than toward 0:
+
+```t
+set_seed(42)
+prop_for_all(prop_between(100, 200), \(x) x <= 100, n = 20)
+-- counterexample: 154 (shrunk): 101
+```
+
+Without `prop_between`, the same test with `prop_gen_int_range` would shrink the counterexample toward 0 — potentially below the meaningful domain. Column generators inside `prop_gen_df` shrink toward the column's `min` value.
+
+### `prop_show_spec` — introspection
+
+Render any generator spec back to valid T source. Useful for debugging generative pipelines, logging, and verifying composition:
+
+```t
+prop_show_spec(prop_gen_df([x: prop_between(1, 5), s: prop_gen_one_of(["a", "b"])], nrows = 3))
+-- "prop_gen_df([x: prop_between(1, 5), s: prop_gen_one_of([\"a\", \"b\"])], nrows = 3, na_prob = 0.)"
+```
+
+The rendered output is behaviorally equivalent to the original: same seed produces identical draws. Closure-based generators (`map`, `such_that`, `fn`) produce explicit errors since they capture callables that cannot be serialized.
+
+### Named property macros: `prop_macro` + `prop_test`
+
+Instead of repeating the same predicate with different generators inline, build a named **macro** and reuse it:
+
+```t
+m = prop_macro("mutate_preserves_nrow", \(df) nrow(mutate(df, $z = $x * 2)) == nrow(df))
+set_seed(1)
+prop_test(m, prop_gen_df([x: prop_gen_float_range(0.0, 100.0)], nrows = 40, na_prob = 0.2), n = 25)
+prop_test(m, prop_gen_df([x: prop_gen_int_range(0, 100)], nrows = 40, na_prob = 0.2), n = 25)
+```
+
+Macros are plain immutable Dicts (`{name, property}`) — no global registry. Failure reports prefix the macro name:
+
+```
+STOP(Property mutate_preserves_nrow failed after 1 of 25 runs.
+  counterexample: DataFrame(...)
+  ...)
+```
+
+### `shrink_verify` — opt-in exhaustive shrinking
+
+By default, the greedy shrinker caps per-level candidate lists at 32 for performance. This is sufficient for most workloads. When shrinking a deeply nested value (large Dict or DataFrame) and the reported counterexample seems suspiciously large, opt in to exhaustive verification:
+
+```t
+prop_for_all(gen, predicate, n = 20, shrink_verify = true)
+prop_test(macro, gen, n = 20, shrink_verify = true)
+```
+
+With `shrink_verify = true`, every candidate at the shrink fixpoint is re-verified without the 32-cap, ensuring the reported counterexample is truly minimal. Accepts `Bool` only; defaults to `false`.
 
 ### `prop_stats` — probing a generator
 
@@ -283,5 +337,5 @@ test("nrow is stable under mutate", function() {
 
 ## Roadmap
 
-- **v2 — shipped**: `prop_gen_df_from(df)` schema-driven generators derived from a sample DataFrame; custom generators via `prop_gen_fn`; `prop_gen_one_of`, `prop_gen_date_range`, `prop_gen_df_from`, `prop_gen_fn`, and `prop_stats` shipped in the `more-propcraft` round.
-- **v3 ideas**: generator introspection (render a generator spec back to a `.t` fragment), property macros (shrink-verified invariants), and a `prop_between(min, max)` integral-range convenience.
+- **v2 — shipped**: `prop_gen_df_from(df)` schema-driven generators derived from a sample DataFrame; custom generators via `prop_gen_fn`; `prop_gen_one_of`, `prop_gen_date_range`, `prop_gen_df_from`, `prop_gen_fn`, and `prop_stats`.
+- **v3 — shipped**: `prop_between(min, max)` in-domain shrinking; `prop_show_spec(spec)` generator introspection (render to T source); `prop_macro(name, property)` + `prop_test(macro, gen, ...)` named reusable macros with shrink-verified invariants; `shrink_verify = true` opt-in exhaustive shrink re-verification.
