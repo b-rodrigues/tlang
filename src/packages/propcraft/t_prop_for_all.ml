@@ -626,13 +626,17 @@ let failure_message ~n ~runs ~k ~counterexamples =
         (i + 1) input_s shrunk_s reason
   in
   let blocks = String.concat "\n" (List.mapi block counterexamples) in
+  let shown =
+    match List.length counterexamples with
+    | 1 -> "1 counterexample"
+    | m -> Printf.sprintf "%d counterexamples" m
+  in
   let header =
     if k = 1 then
       Printf.sprintf "Property failed after %d of %d runs." runs n
     else
-      Printf.sprintf
-        "Property failed after %d of %d runs (showing %d counterexamples)."
-        runs n (List.length counterexamples)
+      Printf.sprintf "Property failed after %d of %d runs (showing %s)."
+        runs n shown
   in
   VExpect (Expect_stop (Printf.sprintf "%s\n%s" header blocks))
 
@@ -652,46 +656,32 @@ let run_property ~eval_call ~env ~n ~shrink ~max_counterexamples spec property =
       | Error err -> err
       | Ok input ->
           let result = eval_call env property [(None, Ast.mk_expr (Value input))] in
-          let record_failure shrunk reason =
-            (* Count only render-distinct counterexamples. *)
+          let record_failure reason =
+            (* Count only render-distinct counterexamples; shrink only the ones
+               we actually keep, so duplicates don't pay for shrink work. *)
             let already =
               List.exists
                 (fun (inp, _, _) -> render_value inp = render_value input)
                 counterexamples
             in
             if already then loop (i + 1) counterexamples
-            else loop (i + 1) ((input, shrunk, reason) :: counterexamples)
+            else
+              let shrunk =
+                if shrink then shrink_minimal ~eval_call ~env property input else input
+              in
+              loop (i + 1) ((input, shrunk, reason) :: counterexamples)
           in
           (match outcome_of result with
            | `Pass -> loop (i + 1) counterexamples
-           | `Hold msg ->
-               let shrunk =
-                 if shrink then shrink_minimal ~eval_call ~env property input else input
-               in
-               record_failure shrunk (Printf.sprintf "failed: %s" msg)
-           | `False ->
-               let shrunk =
-                 if shrink then shrink_minimal ~eval_call ~env property input else input
-               in
-               record_failure shrunk "returned false"
-           | `Stop msg ->
-               let shrunk =
-                 if shrink then shrink_minimal ~eval_call ~env property input else input
-               in
-               record_failure shrunk (Printf.sprintf "failed: %s" msg)
+           | `Hold msg -> record_failure (Printf.sprintf "failed: %s" msg)
+           | `False -> record_failure "returned false"
+           | `Stop msg -> record_failure (Printf.sprintf "failed: %s" msg)
            | `NA ->
-               let shrunk =
-                 if shrink then shrink_minimal ~eval_call ~env property input else input
-               in
-               record_failure shrunk
+               record_failure
                  "returned NA (property must handle missingness explicitly)"
-           | `Error err ->
-               let shrunk =
-                 if shrink then shrink_minimal ~eval_call ~env property input else input
-               in
-               record_failure shrunk (Printf.sprintf "raised: %s" err.message)
+           | `Error err -> record_failure (Printf.sprintf "raised: %s" err.message)
            | `Other other ->
-               record_failure input
+               record_failure
                  (Printf.sprintf
                     "returned %s (expected Bool or an Expect value)"
                     (Utils.type_name other)))
@@ -811,7 +801,7 @@ let prop_stats ~eval_call =
                    (match v with
                     | VVector a -> record_size "vector" (Array.length a)
                     | VList l -> record_size "list" (List.length l)
-                    | VDataFrame df -> record_size "df" df.arrow_table.nrows
+                    | VDataFrame df -> record_size "df" (Arrow_table.num_rows df.arrow_table)
                     | _ -> ())
              done;
              let elapsed_ms = (Sys.time () -. start) *. 1000.0 in

@@ -93,7 +93,7 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
     "counterexample #1: 54";
   test_env env "prop_for_all max_counterexamples dedupes repeats"
     "set_seed(42)\nprop_for_all(prop_gen_int_range(5, 5), \\(x) false, n = 10, max_counterexamples = 3)"
-    "Property failed after 10 of 10 runs (showing 1 counterexamples)";
+    "Property failed after 10 of 10 runs (showing 1 counterexample).\n  counterexample #1: 5\n  (shrunk): 0\n  predicate: returned false";
   test_env env "prop_for_all max_counterexamples must be positive"
     "prop_for_all(prop_gen_int_range(0, 5), \\(x) true, n = 10, max_counterexamples = 0)"
     "expects `max_counterexamples` to be a positive Int";
