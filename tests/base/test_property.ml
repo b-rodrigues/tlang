@@ -85,6 +85,18 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
   test_env env "prop_for_all reproducible across runs"
     "set_seed(42)\na = prop_for_all(prop_gen_int_range(0, 100), \\(x) x < 10, n = 20)\nset_seed(42)\nb = prop_for_all(prop_gen_int_range(0, 100), \\(x) x < 10, n = 20)\na == b"
     "true";
+  test_env env "prop_for_all max_counterexamples shows several"
+    "set_seed(42)\nprop_for_all(prop_gen_int_range(0, 100), \\(x) x < 10, n = 20, max_counterexamples = 3)"
+    "showing 3 counterexamples";
+  test_env env "prop_for_all max_counterexamples numbers blocks"
+    "set_seed(42)\nprop_for_all(prop_gen_int_range(0, 100), \\(x) x < 10, n = 20, max_counterexamples = 3)"
+    "counterexample #1: 54";
+  test_env env "prop_for_all max_counterexamples dedupes repeats"
+    "set_seed(42)\nprop_for_all(prop_gen_int_range(5, 5), \\(x) false, n = 10, max_counterexamples = 3)"
+    "Property failed after 10 of 10 runs (showing 1 counterexamples)";
+  test_env env "prop_for_all max_counterexamples must be positive"
+    "prop_for_all(prop_gen_int_range(0, 5), \\(x) true, n = 10, max_counterexamples = 0)"
+    "expects `max_counterexamples` to be a positive Int";
 
   (* df NA injection *)
   test_env env "prop_gen_df NA injection renders NA"

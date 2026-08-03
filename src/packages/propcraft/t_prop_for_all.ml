@@ -501,64 +501,94 @@ let shrink_minimal ~eval_call ~env property input =
   in
   go input
 
-let failure_message ~n ~i ~input ~shrunk ~reason =
-  let input_s = render_value input in
-  let shrunk_s = render_value shrunk in
-  (* Compare rendered forms rather than structural equality: VDataFrame wraps
-     an Arrow_table whose structural `=` is unreliable (floats, mutable native
-     handles). Render-string comparison is also what shrink_dataframe uses. *)
-  let shrunk_s = if shrunk_s = input_s then input_s else shrunk_s in
-  VExpect
-    (Expect_stop
-       (Printf.sprintf
-          "Property failed after %d of %d runs.\n  counterexample: %s\n  (shrunk): %s\n  predicate: %s"
-          i n input_s shrunk_s reason))
+let failure_message ~n ~runs ~k ~counterexamples =
+  (* counterexamples are passed in discovery order (first failure first). *)
+  let block i (input, shrunk, reason) =
+    let input_s = render_value input in
+    let shrunk_s = render_value shrunk in
+    (* Compare rendered forms rather than structural equality: VDataFrame wraps
+       an Arrow_table whose structural `=` is unreliable (floats, mutable native
+       handles). Render-string comparison is also what shrink_dataframe uses. *)
+    let shrunk_s = if shrunk_s = input_s then input_s else shrunk_s in
+    if k = 1 then
+      Printf.sprintf "  counterexample: %s\n  (shrunk): %s\n  predicate: %s"
+        input_s shrunk_s reason
+    else
+      Printf.sprintf "  counterexample #%d: %s\n  (shrunk): %s\n  predicate: %s"
+        (i + 1) input_s shrunk_s reason
+  in
+  let blocks = String.concat "\n" (List.mapi block counterexamples) in
+  let header =
+    if k = 1 then
+      Printf.sprintf "Property failed after %d of %d runs." runs n
+    else
+      Printf.sprintf
+        "Property failed after %d of %d runs (showing %d counterexamples)."
+        runs n (List.length counterexamples)
+  in
+  VExpect (Expect_stop (Printf.sprintf "%s\n%s" header blocks))
 
-let run_property ~eval_call ~env ~n ~shrink spec property =
-  let rec loop i =
-    if i > n then VExpect Expect_pass
+let run_property ~eval_call ~env ~n ~shrink ~max_counterexamples spec property =
+  let rec loop i counterexamples =
+    if List.length counterexamples >= max_counterexamples then
+      failure_message ~n ~runs:(i - 1) ~k:max_counterexamples
+        ~counterexamples:(List.rev counterexamples)
+    else if i > n then
+      (match counterexamples with
+       | [] -> VExpect Expect_pass
+       | _ ->
+           failure_message ~n ~runs:(i - 1) ~k:max_counterexamples
+             ~counterexamples:(List.rev counterexamples))
     else
       match draw_value ~eval_call ~env ~size:default_size spec with
       | Error err -> err
       | Ok input ->
           let result = eval_call env property [(None, Ast.mk_expr (Value input))] in
+          let record_failure shrunk reason =
+            (* Count only render-distinct counterexamples. *)
+            let already =
+              List.exists
+                (fun (inp, _, _) -> render_value inp = render_value input)
+                counterexamples
+            in
+            if already then loop (i + 1) counterexamples
+            else loop (i + 1) ((input, shrunk, reason) :: counterexamples)
+          in
           (match outcome_of result with
-           | `Pass -> loop (i + 1)
+           | `Pass -> loop (i + 1) counterexamples
            | `Hold msg ->
                let shrunk =
                  if shrink then shrink_minimal ~eval_call ~env property input else input
                in
-               failure_message ~n ~i ~input ~shrunk
-                 ~reason:(Printf.sprintf "failed: %s" msg)
+               record_failure shrunk (Printf.sprintf "failed: %s" msg)
            | `False ->
                let shrunk =
                  if shrink then shrink_minimal ~eval_call ~env property input else input
                in
-               failure_message ~n ~i ~input ~shrunk ~reason:"returned false"
+               record_failure shrunk "returned false"
            | `Stop msg ->
                let shrunk =
                  if shrink then shrink_minimal ~eval_call ~env property input else input
                in
-               failure_message ~n ~i ~input ~shrunk ~reason:(Printf.sprintf "failed: %s" msg)
+               record_failure shrunk (Printf.sprintf "failed: %s" msg)
            | `NA ->
                let shrunk =
                  if shrink then shrink_minimal ~eval_call ~env property input else input
                in
-               failure_message ~n ~i ~input ~shrunk
-                 ~reason:"returned NA (property must handle missingness explicitly)"
+               record_failure shrunk
+                 "returned NA (property must handle missingness explicitly)"
            | `Error err ->
                let shrunk =
                  if shrink then shrink_minimal ~eval_call ~env property input else input
                in
-               failure_message ~n ~i ~input ~shrunk
-                 ~reason:(Printf.sprintf "raised: %s" err.message)
+               record_failure shrunk (Printf.sprintf "raised: %s" err.message)
            | `Other other ->
-               failure_message ~n ~i ~input ~shrunk:input
-                 ~reason:(Printf.sprintf
-                            "returned %s (expected Bool or an Expect value)"
-                            (Utils.type_name other)))
+               record_failure input
+                 (Printf.sprintf
+                    "returned %s (expected Bool or an Expect value)"
+                    (Utils.type_name other)))
   in
-  loop 1
+  loop 1 []
 
 (*
 --# Check a property over generated values
@@ -577,6 +607,7 @@ let run_property ~eval_call ~env ~n ~shrink spec property =
 --# @param gen :: Dict A generator spec (see prop_gen_int, prop_gen_df, ...).
 --# @param property :: Function A function from a generated value to Bool or Expect.
 --# @param n :: Int = 100 Number of values to draw.
+--# @param max_counterexamples :: Int = 1 Number of render-distinct failing inputs to report.
 --# @param shrink :: Bool = true Whether to report a shrunk counterexample.
 --# @return :: Expect Expect_pass on success, Expect_stop on failure.
 --# @example
@@ -704,7 +735,7 @@ let register ~eval_call env =
          List.filter
            (fun (n, _) ->
              match n with
-             | None | Some ("n" | "shrink") -> false
+             | None | Some ("n" | "shrink" | "max_counterexamples") -> false
              | Some _ -> true)
            named_args
        in
@@ -728,16 +759,32 @@ let register ~eval_call env =
                          (Utils.type_name other)))
              | None -> Ok 100
            in
+           let max_counterexamples =
+             match Math_common.optional_named_arg "max_counterexamples" named_args with
+             | Some (VInt i) when i > 0 -> Ok i
+             | Some (VInt _) ->
+                 Error
+                   (Error.value_error
+                      "Function `prop_for_all` expects `max_counterexamples` to be a positive Int.")
+             | Some other ->
+                 Error
+                   (Error.type_error
+                      (Printf.sprintf
+                         "Function `prop_for_all` expects `max_counterexamples` to be an Int, got %s."
+                         (Utils.type_name other)))
+             | None -> Ok 1
+           in
            let shrink =
              match Math_common.get_bool_flag "shrink" true named_args with
              | Ok b -> Ok b
              | Error err -> Error err
            in
-           (match n, shrink,
-                  Math_common.positional_args_without [ "n"; "shrink" ] named_args with
-            | Ok n, Ok shrink, [gen; property] ->
-                run_property ~eval_call ~env ~n ~shrink gen property
-            | Error err, _, _ | _, Error err, _ -> err
-            | _, _, args ->
+           (match n, max_counterexamples, shrink,
+                  Math_common.positional_args_without
+                    [ "n"; "shrink"; "max_counterexamples" ] named_args with
+            | Ok n, Ok max_counterexamples, Ok shrink, [gen; property] ->
+                run_property ~eval_call ~env ~n ~shrink ~max_counterexamples gen property
+            | Error err, _, _, _ | _, Error err, _, _ | _, _, Error err, _ -> err
+            | _, _, _, args ->
                 Error.arity_error_named "prop_for_all" 2 (List.length args))))
     env
