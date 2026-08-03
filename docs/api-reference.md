@@ -4965,7 +4965,7 @@ set_seed(42)
 assert(prop_for_all(prop_gen_int_range(0, 100), \(x) x >= 0))
 ```
 
-### `prop_for_all(gen, property, n = 100, shrink = true)`
+### `prop_for_all(gen, property, n = 100, max_counterexamples = 1, shrink = true)`
 
 Draw `n` values from the generator spec `gen` and evaluate `property` on each. The property may return:
 
@@ -4985,6 +4985,17 @@ assert(prop_for_all(prop_gen_int_range(0, 100), \(x) x < 10, n = 20))
 ```
 
 A property that returns `NA` fails with a message telling you to handle missingness explicitly. `shrink = false` disables shrinking (the counterexample is reported unshrunk).
+
+`max_counterexamples` controls how many render-distinct failing inputs are collected and reported. The default (`1`) stops at the first failure with the classic single-counterexample message; a value greater than `1` keeps drawing (up to `n` runs) and reports each distinct counterexample as a numbered block, shrinking each:
+
+```t
+set_seed(42)
+prop_for_all(prop_gen_int_range(0, 100), \(x) x < 10, n = 20, max_counterexamples = 3)
+-- Expect_stop: Property failed after 3 of 20 runs (showing 3 counterexamples).
+--   counterexample #1: 54
+--   (shrunk): 13
+--   ...
+```
 
 Shrinking is deterministic and affects only the reported message: ints/floats/strings/lists/vectors/dicts shrink toward minimal values, and DataFrames shrink by halving the row count down to the empty frame and then minimizing individual cells to canonical values per column type (`Int` → `0`, `Float` → `0.0`, `Bool` → `false`, `String` → `""`, `Factor` → first level), leaving `NA` cells untouched.
 
@@ -5009,7 +5020,11 @@ g         -- {`gen`: "int_range", `min`: 1, `max`: 5}
 | `prop_gen_vector(elem_gen, n)` | Vector of `n` draws |
 | `prop_gen_list(elem_gen, n)` | List of `n` draws |
 | `prop_gen_factor(levels)` | Factor level String |
+| `prop_gen_one_of(values)` | Uniformly pick one value from a non-empty List or Vector of values |
+| `prop_gen_date_range(start, end)` | Date (or Datetime) drawn uniformly in an inclusive range; bounds must be both Dates or both Datetimes, and the timezone is preserved |
 | `prop_gen_df(columns, nrows = 30, na_prob = 0.1)` | DataFrame with generated columns; `na_prob` injects typed `NA` values into columns |
+| `prop_gen_df_from(df, nrows = 30, na_prob = 0.1)` | DataFrame with the same columns as `df`, inferring each column's generator from the sample values |
+| `prop_gen_fn(fn)` | Draw a value by calling `fn(size)` with the current generation size |
 
 ### Combinators
 
@@ -5018,6 +5033,16 @@ g         -- {`gen`: "int_range", `min`: 1, `max`: 5}
 | `prop_map_gen(source, fn)` | Transform each drawn value with `fn` |
 | `prop_such_that(source, pred, max_tries = 100)` | Keep drawing until `pred` holds (fails after `max_tries`) |
 | `prop_resize(source, n)` | Override the size of nested `df`/`list`/`vector` generators to `n` |
+
+### `prop_stats(gen, n = 100)`
+
+Probes a generator without writing a property: draws `n` values (ramping the generation size from `1` to `n`) and returns a `Dict` with `n_runs`, `n_errors`, `value_types` (per-type counts), `nested_sizes` (observed Vector/List/DataFrame lengths), and `elapsed_ms`. Useful for sanity-checking custom and `prop_gen_df_from` generators:
+
+```t
+prop_stats(prop_gen_df_from(mtcars, nrows = 50), n = 20)
+-- {`n_runs`: 20, `n_errors`: 0, `value_types`: {`DataFrame`: 20},
+--  `nested_sizes`: {`df`: [1, 2, ..., 20]}, `elapsed_ms`: ...}
+```
 
 ### Finding NA-handling bugs
 
