@@ -341,7 +341,78 @@ and shrink_value v =
       shrink_list (Array.to_list arr |> List.map (fun v -> (None, v)))
       |> List.map (fun l -> VVector (Array.of_list (List.map snd l)))
   | VDict pairs -> List.map (fun d -> VDict d) (shrink_dict pairs)
+  | VDataFrame df -> shrink_dataframe df
   | _ -> []
+
+(* Shrink a DataFrame counterexample: first reduce the row count by
+   taking halving row prefixes (down to the empty frame), then minimize
+   individual cells to canonical values derived from the column's own
+   values (Int -> 0, Float -> 0.0, Bool -> false, String -> "", Factor ->
+   first level). NA cells are left untouched. Candidate frames are
+   rebuilt through Arrow_bridge, so column types are preserved. *)
+and shrink_dataframe df =
+  let arrow_table = df.arrow_table in
+  let group_keys = df.group_keys in
+  let nrows = Arrow_table.num_rows arrow_table in
+  let columns = Arrow_bridge.table_to_value_columns arrow_table in
+  let rebuild cols n =
+    match Arrow_bridge.table_from_value_columns cols n with
+    | Ok table -> Some (VDataFrame { df with arrow_table = table })
+    | Error _ -> None
+  in
+  let row_candidates =
+    let rec go k acc =
+      if k <= 0 then List.rev acc
+      else
+        let cols = List.map (fun (name, col) -> (name, Array.sub col 0 k)) columns in
+        let acc' = match rebuild cols k with Some v -> v :: acc | None -> acc in
+        go (k / 2) acc'
+    in
+    let halves = go (nrows / 2) [] in
+    match rebuild (List.map (fun (name, col) -> (name, Array.sub col 0 0)) columns) 0 with
+    | Some empty -> empty :: halves
+    | None -> halves
+  in
+  let cell_candidates =
+    let minimal_of = function
+      | VInt _ -> Some (VInt 0)
+      | VFloat _ -> Some (VFloat 0.0)
+      | VBool _ -> Some (VBool false)
+      | VString _ -> Some (VString "")
+      | VFactor (_, levels, ordered) -> Some (VFactor (0, levels, ordered))
+      | v -> Some v
+    in
+    List.concat_map
+      (fun (name, col) ->
+        Array.to_list
+          (Array.mapi
+             (fun i cell ->
+               match cell with
+               | VNA _ -> []
+               | _ ->
+                   (match minimal_of cell with
+                    | Some minimal when minimal = cell -> []
+                    | Some minimal ->
+                        let new_col = Array.copy col in
+                        new_col.(i) <- minimal;
+                        (match
+                           rebuild
+                             (List.map
+                                (fun (n2, c2) -> if n2 = name then (n2, new_col) else (n2, c2))
+                                columns)
+                             nrows
+                         with
+                        | Some v -> [ v ]
+                        | None -> [])
+                    | None -> []))
+             col)
+          |> List.concat)
+      columns
+  in
+  let current_s = render_dataframe arrow_table group_keys in
+  (row_candidates @ cell_candidates)
+  |> List.filter (fun c -> render_value c <> current_s)
+  |> List.sort_uniq compare
 
 let cap_candidates candidates =
   let rec take i acc = function

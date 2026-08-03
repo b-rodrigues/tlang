@@ -4986,6 +4986,8 @@ assert(prop_for_all(prop_gen_int_range(0, 100), \(x) x < 10, n = 20))
 
 A property that returns `NA` fails with a message telling you to handle missingness explicitly. `shrink = false` disables shrinking (the counterexample is reported unshrunk).
 
+Shrinking is deterministic and affects only the reported message: ints/floats/strings/lists/vectors/dicts shrink toward minimal values, and DataFrames shrink by halving the row count down to the empty frame and then minimizing individual cells to canonical values per column type (`Int` → `0`, `Float` → `0.0`, `Bool` → `false`, `String` → `""`, `Factor` → first level), leaving `NA` cells untouched.
+
 ### Generator specs
 
 Generators are ordinary structured `Dict` values, not closures. You can inspect them, store them in variables, and combine them:

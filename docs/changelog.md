@@ -11,7 +11,7 @@
 - **Combinators**: `prop_map_gen(source, fn)`, `prop_such_that(source, pred, max_tries = 100)`, and `prop_resize(source, n)`.
 - **Reproducible by default**: All draws use the shared seeded RNG. `set_seed(n)` before a run reproduces the exact same values and counterexample on any machine, every run.
 - **`with_seed(seed, thunk)`**: New base-package function that seeds the RNG for a single expression and restores the previous state afterwards — exception-safe and nestable. Scope determinism to one `prop_for_all` or one `sample` without perturbing surrounding random draws.
-- **Deterministic shrinking**: On failure, ints/strings/lists/vectors shrink toward minimal failing inputs; shrinking only affects the reported message, never whether a run passes.
+- **Deterministic shrinking**: On failure, ints/strings/lists/vectors shrink toward minimal failing inputs; DataFrames shrink by halving rows down to the empty frame and then minimizing cells to canonical values per column type. Shrinking only affects the reported message, never whether a run passes.
 
 ## [0.54.3] - 2026-08-01
 

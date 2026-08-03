@@ -159,8 +159,9 @@ When a property fails, popcraft attempts to find a **smaller input that still fa
 - Strings shrink by trimming characters.
 - Lists/Vectors shrink by truncating prefixes and shrinking elements.
 - Dicts shrink field-by-field.
+- DataFrames shrink by halving the row count (down to the empty frame) and then minimizing individual cells to canonical values derived from each column's type (`Int` → `0`, `Float` → `0.0`, `Bool` → `false`, `String` → `""`, `Factor` → first level). `NA` cells are left untouched.
 
-Shrinking is deterministic and only affects the **message** — it never changes whether a run passes or fails. Pass `shrink = false` to `prop_for_all` to disable it. DataFrames are not shrunk in this version; the original counterexample is reported as-is.
+Shrinking is deterministic and only affects the **message** — it never changes whether a run passes or fails. Pass `shrink = false` to `prop_for_all` to disable it.
 
 ## Finding NA-Handling Bugs
 
@@ -225,5 +226,4 @@ test("nrow is stable under mutate", function() {
 
 ## Roadmap
 
-- **v1.1**: DataFrame shrinking (row reduction, per-cell minimization).
 - **v2**: `prop_gen_df_from(df)` — schema-driven generators derived from a sample DataFrame; custom generators from user-defined functions.

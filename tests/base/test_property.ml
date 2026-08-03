@@ -79,6 +79,17 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
     "prop_for_all(prop_gen_df([grp: prop_gen_factor([\"a\", \"b\"])], nrows = 10, na_prob = 0.5), \\(df) nrow(df) == 10, n = 5)"
     "PASS";
 
+  (* DataFrame shrinking *)
+  test_env env "prop_for_all shrinks df rows to empty frame"
+    "set_seed(7)\nprop_for_all(prop_gen_df([x: prop_gen_float_range(0.0, 100.0)], nrows = 30, na_prob = 0.0), \\(df) false, n = 1)"
+    "DataFrame(0 rows x 1 cols)";
+  test_env env "prop_for_all minimizes df cells"
+    "set_seed(3)\nprop_for_all(prop_gen_df([x: prop_gen_int_range(1, 5), s: prop_gen_string_from(\"abc\", 1, 3)], nrows = 30, na_prob = 0.0), \\(df) nrow(df) < 30, n = 1)"
+    "<Int> 0, 0, 0, 0, 0, 0, 0, 0";
+  test_env env "prop_for_all minimizes df string cells"
+    "set_seed(3)\nprop_for_all(prop_gen_df([x: prop_gen_int_range(1, 5), s: prop_gen_string_from(\"abc\", 1, 3)], nrows = 30, na_prob = 0.0), \\(df) nrow(df) < 30, n = 1)"
+    "<String> \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\"";
+
   (* Generator / combinator validation *)
   test_env env "prop_such_that exhaustion fails"
     "prop_for_all(prop_such_that(prop_gen_int_range(0, 0), \\(x) x == 1), \\(x) true, n = 5)"

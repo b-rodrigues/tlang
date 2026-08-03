@@ -593,7 +593,7 @@ Purpose: property-based testing primitives for hardening T's standard library an
 - Generators are structured `Dict` specs (not closures): `prop_gen_int(min = -10, max = 10)`, `prop_gen_int_range(min, max)`, `prop_gen_float_range(min, max)`, `prop_gen_bool()`, `prop_gen_string_from(chars, min_len, max_len)`, `prop_gen_choice([g1, g2, ...])`, `prop_gen_frequency([[w, g], ...])`, `prop_gen_vector(elem, n)`, `prop_gen_list(elem, n)`, `prop_gen_factor(levels)`, `prop_gen_df(columns, nrows = 30, na_prob = 0.1)`.
 - `prop_gen_df` injects typed `NA` values into generated columns according to `na_prob` — the primary tool for catching verbs that mishandle missingness.
 - Combinators: `prop_map_gen(source, fn)`, `prop_such_that(source, pred, max_tries = 100)`, `prop_resize(source, n)`.
-- Shrinking is deterministic and only affects the reported message (never pass/fail): ints/strings/lists/vectors shrink toward minimal failing inputs; DataFrames report the original counterexample.
+- Shrinking is deterministic and only affects the reported message (never pass/fail): ints/strings/lists/vectors shrink toward minimal failing inputs; DataFrames shrink by halving rows down to the empty frame and then minimizing cells to canonical values per column type (`Int` → 0, `Float` → 0.0, `Bool` → false, `String` → "", `Factor` → first level), leaving NA cells untouched.
 - Standard usage: `set_seed(42)` then `assert(prop_for_all(prop_gen_int_range(0, 100), \(x) x >= 0))`. For a scoped, single-expression run that leaves the surrounding RNG untouched, use `with_seed(seed, \(u) ...)`.
 
 Disambiguation rule of thumb for LLMs:
