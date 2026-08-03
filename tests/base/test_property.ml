@@ -151,9 +151,12 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
   test_env env "with_seed non-int seed errors"
     "with_seed(\"42\", \\(u) 1)"
     "expects an integer seed";
+  test_env env "with_seed accepts named function() thunks"
+    "identical(with_seed(7, function(u) sample([1, 2, 3, 4, 5], n = 3)), with_seed(7, \\(u) sample([1, 2, 3, 4, 5], n = 3)))"
+    "true";
   test_env env "with_seed non-function thunk errors"
     "with_seed(42, 1)"
-    "expects a lambda or builtin as second argument";
+    "Value of type Int is not callable.";
   test_env env "with_seed NA seed errors"
     "with_seed(NA, \\(u) 1)"
     "expects an integer seed";

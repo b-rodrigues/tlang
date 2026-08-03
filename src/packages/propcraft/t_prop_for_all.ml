@@ -453,9 +453,11 @@ let shrink_minimal ~eval_call ~env property input =
 
 let failure_message ~n ~i ~input ~shrunk ~reason =
   let input_s = render_value input in
-  let shrunk_s =
-    if shrunk = input then input_s else render_value shrunk
-  in
+  let shrunk_s = render_value shrunk in
+  (* Compare rendered forms rather than structural equality: VDataFrame wraps
+     an Arrow_table whose structural `=` is unreliable (floats, mutable native
+     handles). Render-string comparison is also what shrink_dataframe uses. *)
+  let shrunk_s = if shrunk_s = input_s then input_s else shrunk_s in
   VExpect
     (Expect_stop
        (Printf.sprintf

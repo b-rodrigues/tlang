@@ -27,14 +27,12 @@ let register ~eval_call env =
   Env.add "with_seed"
     (make_builtin ~name:"with_seed" 2 (fun args _env ->
        match args with
-       | [VInt seed; (VLambda _ | VBuiltin _) as fn] ->
+       | [VInt seed; fn] ->
+           (* Delegate callability to eval_call, matching map/filter/prop_for_all:
+              it accepts VLambda, VBuiltin, and other callable values, and emits
+              the standard "not callable" error for anything else. *)
            Rng.with_seed seed (fun () ->
                eval_call env fn [ (None, Ast.mk_expr (Value (VNA NAGeneric))) ])
-       | [VInt _; other] ->
-           Error.type_error
-             (Printf.sprintf
-                "Function `with_seed` expects a lambda or builtin as second argument, got %s."
-                (Ast.Utils.type_name other))
        | [VNA _; _] ->
            Error.type_error "Function `with_seed` expects an integer seed.\nReceived NA."
        | [_; _] ->
