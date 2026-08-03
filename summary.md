@@ -594,6 +594,7 @@ Purpose: property-based testing primitives for hardening T's standard library an
 - `prop_gen_df` injects typed `NA` values into generated columns according to `na_prob` — the primary tool for catching verbs that mishandle missingness.
 - Combinators: `prop_map_gen(source, fn)`, `prop_such_that(source, pred, max_tries = 100)`, `prop_resize(source, n)`.
 - Shrinking is deterministic and only affects the reported message (never pass/fail): ints/strings/lists/vectors shrink toward minimal failing inputs; DataFrames shrink by halving rows down to the empty frame and then minimizing cells to canonical values per column type (`Int` → 0, `Float` → 0.0, `Bool` → false, `String` → "", `Factor` → first level), leaving NA cells untouched.
+- Dogfooding: popcraft property tests exercise the colcraft/stats verbs (`mutate`, `arrange`, `filter`, `group_by`+`summarize`, `distinct`, `head`, `slice_sample`, `left_join`, `fill`, `mean`, `sd`) over generated DataFrames with injected NAs, guarding row-count algebra and `na_rm` invariants.
 - Standard usage: `set_seed(42)` then `assert(prop_for_all(prop_gen_int_range(0, 100), \(x) x >= 0))`. For a scoped, single-expression run that leaves the surrounding RNG untouched, use `with_seed(seed, \(u) ...)`.
 
 Disambiguation rule of thumb for LLMs:

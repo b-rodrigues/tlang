@@ -24,9 +24,9 @@
    test_arrow_integration
    test_owl_bridge
    test_arrow_performance
-   test_colcraft_edge_cases
-   test_window_edge_cases
-   test_formula_edge_cases
+    test_colcraft_edge_cases
+    test_window_edge_cases
+    test_formula_edge_cases
    test_large_datasets
    test_error_recovery
    test_package_manager
@@ -50,8 +50,9 @@
     test_dataframe_diff test_model_diff test_scalar_diff test_generic_diff test_pipeline_diff test_builder_diff
      test_check test_fix test_ndjson
      test_expect_equal test_expect_more test_expect_condition test_expect_pipeline
-      test_expect_pass_fail_msg test_expect_ds_coverage
-      test_property
+       test_expect_pass_fail_msg test_expect_ds_coverage
+       test_property
+       test_property_verbs
       test_model_accessors test_drop_na_and_factors test_chrono_components
      test_trig_hyperbolic test_misc_functions
   )

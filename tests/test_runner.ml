@@ -145,6 +145,7 @@ let () =
   run "Test_expect_pass_fail_msg" Test_expect_pass_fail_msg.run_tests;
   run "Test_expect_ds_coverage" Test_expect_ds_coverage.run_tests;
   run_with_env "Test_property" Test_property.run_tests;
+  run_with_env "Test_property_verbs" Test_property_verbs.run_tests;
   run "Test_fetchurl" Test_fetchurl.run_tests;
 
   (* Domain-specific tests *)
