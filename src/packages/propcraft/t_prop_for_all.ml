@@ -69,6 +69,101 @@ let rec draw_many ~eval_call ~env ~size elem n acc =
     | Ok v -> draw_many ~eval_call ~env ~size elem (n - 1) (v :: acc)
     | Error err -> Error err
 
+(* Fast path for per-cell drawing inside [prop_gen_df]: leaf scalar specs
+   (int/int_range/float_range/bool/string/factor/one_of/date_range) have
+   all their parameters known up front, so draw_column can close over them
+   and emit nrows cells with a tight loop instead of re-dispatching through
+   draw_value per cell. Returns None for container/wrapper specs, which keep
+   the generic draw_many path. Draw order and RNG consumption are identical
+   to the generic path, so seeded runs stay reproducible. *)
+and leaf_drawer (spec : value) : (unit -> value) option =
+  match spec_gen spec with
+  | Some "int" ->
+      let min = match int_field "min" spec with Some m -> m | None -> -10 in
+      let max = match int_field "max" spec with Some m -> m | None -> 10 in
+      Some (fun () -> VInt (Rng.uniform_int_range ~min ~max))
+  | Some "int_range" ->
+      (match int_field "min" spec, int_field "max" spec with
+       | Some min, Some max ->
+           Some (fun () -> VInt (Rng.uniform_int_range ~min ~max))
+       | _ -> None)
+  | Some "float_range" ->
+      (match float_field "min" spec, float_field "max" spec with
+       | Some min, Some max ->
+           Some (fun () -> VFloat (Rng.uniform_float_range ~min ~max))
+       | _ -> None)
+  | Some "bool" -> Some (fun () -> VBool (Rng.uniform_bool ()))
+  | Some "string" ->
+      (match field "chars" spec, int_field "min_len" spec, int_field "max_len" spec with
+       | Some chars_value, Some min_len, Some max_len ->
+           (match string_list_field "chars" (VDict [ ("chars", chars_value) ]) with
+            | Some char_set when char_set <> [] ->
+                let arr = Array.of_list char_set in
+                Some (fun () ->
+                    let len = Rng.uniform_int_range ~min:min_len ~max:max_len in
+                    let buf = Buffer.create len in
+                    for _ = 1 to len do
+                      match Rng.uniform_pick arr with
+                      | Some c -> Buffer.add_string buf c
+                      | None -> ()
+                    done;
+                    VString (Buffer.contents buf))
+            | _ -> None)
+       | _ -> None)
+  | Some "factor" ->
+      (match field "levels" spec with
+       | Some levels_value ->
+           (match string_list_field "levels" (VDict [ ("levels", levels_value) ]) with
+            | Some levels when levels <> [] ->
+                let nlevels = List.length levels in
+                Some
+                  (fun () ->
+                    VFactor
+                      (Rng.uniform_int_range ~min:0 ~max:(nlevels - 1), levels, false))
+            | _ -> None)
+       | None -> None)
+  | Some "one_of" ->
+      (match field "values" spec with
+       | Some (VList items) when items <> [] ->
+           let arr = Array.of_list items in
+           Some
+             (fun () ->
+               match Rng.uniform_pick arr with
+               | Some (_, v) -> v
+               | None -> VNA NAGeneric)
+       | Some (VVector arr) when Array.length arr > 0 ->
+           Some
+             (fun () ->
+               match Rng.uniform_pick arr with
+               | Some v -> v
+               | None -> VNA NAGeneric)
+       | _ -> None)
+  | Some "date_range" ->
+      (match field "mode" spec with
+       | Some (VString "date") ->
+           (match int_field "start_day" spec, int_field "end_day" spec with
+            | Some start_day, Some end_day ->
+                Some (fun () -> VDate (Rng.uniform_int_range ~min:start_day ~max:end_day))
+            | _ -> None)
+       | Some (VString "datetime") ->
+           (match int_field "start_micros" spec, int_field "end_micros" spec with
+            | Some start_m, Some end_m ->
+                let tz =
+                  match field "tz" spec with
+                  | Some (VString s) -> Some s
+                  | _ -> None
+                in
+                Some
+                  (fun () ->
+                    VDatetime
+                      ( Rng.uniform_int64_range
+                          ~min:(Int64.of_int start_m)
+                          ~max:(Int64.of_int end_m),
+                        tz ))
+            | _ -> None)
+       | _ -> None)
+  | _ -> None
+
 (* Draw a single value from a generator spec. *)
 and draw_value ~eval_call ~env ~size (spec : value) : (value, value) result =
   match spec_gen spec with
@@ -289,20 +384,33 @@ and draw_value ~eval_call ~env ~size (spec : value) : (value, value) result =
                (Printf.sprintf "prop_for_all: unknown generator kind `%s`." other))
 
 and draw_column ~eval_call ~env ~size ~nrows ~na_prob gen_spec =
-  match draw_many ~eval_call ~env ~size gen_spec nrows [] with
-  | Error err -> Error err
-  | Ok vals ->
+  match leaf_drawer gen_spec with
+  | Some draw ->
       let na = na_for_spec gen_spec in
-      let col =
-        Array.of_list
-          (List.map
-             (fun v ->
-               if na_prob > 0.0 && Rng.uniform_float_range ~min:0.0 ~max:1.0 < na_prob
-               then VNA na
-               else v)
-             vals)
-      in
+      let col = Array.make nrows (VNA na) in
+      for i = 0 to nrows - 1 do
+        col.(i) <- draw ()
+      done;
+      if na_prob > 0.0 then
+        for i = 0 to nrows - 1 do
+          if Rng.uniform_float_range ~min:0.0 ~max:1.0 < na_prob then col.(i) <- VNA na
+        done;
       Ok col
+  | None ->
+      (match draw_many ~eval_call ~env ~size gen_spec nrows [] with
+       | Error err -> Error err
+       | Ok vals ->
+           let na = na_for_spec gen_spec in
+           let col =
+             Array.of_list
+               (List.map
+                  (fun v ->
+                    if na_prob > 0.0 && Rng.uniform_float_range ~min:0.0 ~max:1.0 < na_prob
+                    then VNA na
+                    else v)
+                  vals)
+           in
+           Ok col)
 
 and draw_columns ~eval_call ~env ~size ~nrows ~na_prob columns =
   let rec go acc = function

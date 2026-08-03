@@ -108,6 +108,9 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
   test_env env "prop_gen_df mixed factor + NA builds"
     "prop_for_all(prop_gen_df([grp: prop_gen_factor([\"a\", \"b\"])], nrows = 10, na_prob = 0.5), \\(df) nrow(df) == 10, n = 5)"
     "PASS";
+  test_env env "prop_gen_df large batch draw smoke test"
+    "prop_for_all(prop_gen_df([a: prop_gen_int_range(0, 100), b: prop_gen_float_range(0.0, 100.0), c: prop_gen_string_from(\"abc\", 1, 3), d: prop_gen_bool(), e: prop_gen_factor([\"x\", \"y\"])], nrows = 1000, na_prob = 0.1), \\(df) nrow(df) == 1000 && ncol(df) == 5, n = 5)"
+    "PASS";
 
   (* DataFrame shrinking *)
   test_env env "prop_for_all shrinks df rows to empty frame"
