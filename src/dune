@@ -59,7 +59,7 @@
     ; packages/strcraft
     string_ops
     ; packages/base
-    t_assert is_na na error_mod error_utils serialize deserialize t_json set_seed sample fetchurl prefetch
+    t_assert is_na na error_mod error_utils serialize deserialize t_json set_seed with_seed sample fetchurl prefetch
     ; packages/chrono
     chrono
     ; packages/dataframe
@@ -83,6 +83,8 @@
     intent_fields intent_get t_explain explain_json
     ; packages/testcraft
     testcraft_utils t_expect_equal t_expect_pass t_expect_fail t_expect_msg t_expect_relational t_expect_type t_expect_ds t_expect_condition t_expect_pipeline
+    ; packages/propcraft
+    propcraft_utils t_prop_gen t_prop_for_all
    ; package_manager
    version nixpkgs_date uv2nix_commit package_types toml_parser template_engine scaffold nix_generator renv_resolver r_description_resolver test_discovery package_doctor release_manager documentation_manager update_manager package_loader
    ; tdoc

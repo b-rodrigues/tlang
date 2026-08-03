@@ -23,6 +23,7 @@ Package-oriented guide to T's standard library.
 - [Pipeline Package](#pipeline-package) — Pipeline introspection
 - [Explain Package](#explain-package) — Introspection and debugging tools
 - [Testcraft Package](#testcraft-package) — Unit-testing primitives
+- [Propcraft Package](#propcraft-package) — Property-based testing primitives
 
 ---
 
@@ -959,6 +960,32 @@ Initializes the global random number generator with a given integer seed, enabli
 set_seed(42)
 sample([1, 2, 3, 4, 5], n = 3)
 ```
+
+---
+
+### `with_seed(seed, thunk)`
+
+Runs a one-parameter lambda (the argument is ignored) with the global random number generator scoped to `seed`, then restores the previous RNG state. Outer random draws are unaffected, making this the natural way to scope determinism to a single expression — e.g. a reproducible `prop_for_all` run or a reproducible sample.
+
+**Parameters:**
+
+- `seed` — Integer seed value to scope the RNG to.
+- `thunk` — One-parameter lambda evaluated under `seed`. The argument is ignored; the lambda form makes the body lazy.
+
+**Returns:**
+
+The result of evaluating `thunk` (any type).
+
+**Examples:**
+```t
+with_seed(42, \(u) sample([1, 2, 3, 4, 5], n = 3))
+with_seed(42, \(u) prop_for_all(prop_gen_int_range(0, 100), \(x) x >= 0))
+```
+
+**Notes:**
+
+- `with_seed` is exception-safe: if the thunk raises, the RNG state is still restored.
+- Nesting works: `with_seed(1, \(u) with_seed(2, \(v) ...))` restores the outer seed after the inner scope.
 
 ---
 
@@ -4915,6 +4942,106 @@ Pass if the node is computed and has a finished value.
 **Examples:**
 ```t
 assert(expect_computed(res.heavy_job))
+```
+
+---
+
+## Propcraft Package
+
+Purpose: property-based testing primitives for hardening T's standard library and user packages. Instead of hand-writing a few fixed test cases, you state a *property* that must hold for all generated inputs, and `prop_for_all` draws many inputs from a generator spec and checks the property on each.
+
+> **Audience**: lang/package-hardening tool. If you are testing a one-off data pipeline, prefer `assert`, `t check`, and `t diff` instead — they validate structure and outputs against your declared schema without the machinery of generators.
+
+### Why property-based testing?
+
+Fixed unit tests can only catch the cases you think of. Property-based tests check *invariants* — e.g. "mutating a DataFrame never changes its row count" — over hundreds of generated inputs, so they find edge cases (boundary values, missing values, empty inputs) you would never write by hand.
+
+### Reproducibility
+
+All draws use a shared seeded RNG. Call `set_seed(n)` before a run to make the sequence of generated values — and therefore any counterexample — fully reproducible across runs and machines.
+
+```t
+set_seed(42)
+assert(prop_for_all(prop_gen_int_range(0, 100), \(x) x >= 0))
+```
+
+### `prop_for_all(gen, property, n = 100, shrink = true)`
+
+Draw `n` values from the generator spec `gen` and evaluate `property` on each. The property may return:
+
+- `Bool` — `true` passes, `false` fails
+- an `Expect` value from testcraft — `Expect_pass` passes, `Expect_stop`/`Expect_hold` fail
+- an `Error` — treated as a failure (e.g. an unbound name or assertion inside the property)
+
+**Returns:** an `Expect` value. On the first failure a *deterministic shrunk counterexample* is reported, so `assert(prop_for_all(...))` works directly inside `t test` files:
+
+```t
+set_seed(42)
+assert(prop_for_all(prop_gen_int_range(0, 100), \(x) x < 10, n = 20))
+-- Error(AssertionError: Property failed after 1 of 20 runs.
+--   counterexample: 72
+--   (shrunk): 18
+--   predicate: returned false.)
+```
+
+A property that returns `NA` fails with a message telling you to handle missingness explicitly. `shrink = false` disables shrinking (the counterexample is reported unshrunk).
+
+Shrinking is deterministic and affects only the reported message: ints/floats/strings/lists/vectors/dicts shrink toward minimal values, and DataFrames shrink by halving the row count down to the empty frame and then minimizing individual cells to canonical values per column type (`Int` → `0`, `Float` → `0.0`, `Bool` → `false`, `String` → `""`, `Factor` → first level), leaving `NA` cells untouched.
+
+### Generator specs
+
+Generators are ordinary structured `Dict` values, not closures. You can inspect them, store them in variables, and combine them:
+
+```t
+g = prop_gen_int_range(1, 5)
+g         -- {`gen`: "int_range", `min`: 1, `max`: 5}
+```
+
+| Generator | Produces |
+|-----------|----------|
+| `prop_gen_int(min = -10, max = 10)` | Random Int in `[min, max]` |
+| `prop_gen_int_range(min, max)` | Random Int in `[min, max]` |
+| `prop_gen_float_range(min, max)` | Random Float in `[min, max)` |
+| `prop_gen_bool()` | Random Bool |
+| `prop_gen_string_from(chars, min_len, max_len)` | Random String from `chars` with length in `[min_len, max_len]` |
+| `prop_gen_choice([g1, g2, ...])` | Uniformly pick one of the listed generators |
+| `prop_gen_frequency([[w, g], ...])` | Pick a generator weighted by `w` |
+| `prop_gen_vector(elem_gen, n)` | Vector of `n` draws |
+| `prop_gen_list(elem_gen, n)` | List of `n` draws |
+| `prop_gen_factor(levels)` | Factor level String |
+| `prop_gen_df(columns, nrows = 30, na_prob = 0.1)` | DataFrame with generated columns; `na_prob` injects typed `NA` values into columns |
+
+### Combinators
+
+| Function | Purpose |
+|----------|---------|
+| `prop_map_gen(source, fn)` | Transform each drawn value with `fn` |
+| `prop_such_that(source, pred, max_tries = 100)` | Keep drawing until `pred` holds (fails after `max_tries`) |
+| `prop_resize(source, n)` | Override the size of nested `df`/`list`/`vector` generators to `n` |
+
+### Finding NA-handling bugs
+
+The killer feature for hardening data verbs: generate DataFrames with injected missingness and assert invariants still hold:
+
+```t
+set_seed(7)
+assert(prop_for_all(
+  prop_gen_df(
+    [x: prop_gen_float_range(0.0, 100.0),
+     grp: prop_gen_factor(["a", "b"])],
+    nrows = 40,
+    na_prob = 0.1),
+  \(df) nrow(mutate(df, $z = $x * 2)) == nrow(df)))
+```
+
+This catches verbs that drop rows when an NA flows through a `mutate` — a classic silent-corruption bug.
+
+### Working with Expect values
+
+Because `prop_for_all` returns an `Expect` value, you can combine it with testcraft:
+
+```t
+expect_pass(prop_for_all(prop_gen_int_range(0, 100), \(x) x >= 0))  -- true
 ```
 
 ---

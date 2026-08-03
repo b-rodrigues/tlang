@@ -92,7 +92,7 @@ let package_families = function
   | "stats" -> ["stats"; "descriptive-statistics"]
   | "base" -> ["base"; "json"; "serialization"]
   | "to_dataframe" | "dataframe" -> ["dataframe"; "to_dataframe"]
-  | "math" | "colcraft" | "pipeline" | "explain" | "chrono" | "lens" | "testcraft" as pkg -> [pkg]
+  | "math" | "colcraft" | "pipeline" | "explain" | "chrono" | "lens" | "testcraft" | "propcraft" as pkg -> [pkg]
   | _ -> []
 
 let dedup_sort_strings xs =
@@ -164,7 +164,7 @@ let math_package = {
 let base_package = {
   name = "base";
   description = "Assertions, NA handling, and error utilities";
-  functions = ["assert"; "is_na"; "na"; "na_int"; "na_float"; "na_bool"; "na_string"; "error"; "error_code"; "error_msg"; "warning_msg"; "error_context"; "serialize"; "deserialize"; "t_write_json"; "t_read_json"; "error_chain"; "set_seed"; "sample"];
+  functions = ["assert"; "is_na"; "na"; "na_int"; "na_float"; "na_bool"; "na_string"; "error"; "error_code"; "error_msg"; "warning_msg"; "error_context"; "serialize"; "deserialize"; "t_write_json"; "t_read_json"; "error_chain"; "set_seed"; "with_seed"; "sample"];
 }
 
 let chrono_package = {
@@ -232,6 +232,15 @@ let testcraft_package = {
                "expect_noop"; "expect_computed"];
 }
 
+let propcraft_package = {
+  name = "propcraft";
+  description = "Property-based testing: generators, combinators, and prop_for_all";
+  functions = ["prop_gen_int"; "prop_gen_int_range"; "prop_gen_float_range"; "prop_gen_bool";
+               "prop_gen_string_from"; "prop_gen_choice"; "prop_gen_frequency";
+               "prop_gen_vector"; "prop_gen_list"; "prop_gen_factor"; "prop_gen_df";
+               "prop_map_gen"; "prop_such_that"; "prop_resize"; "prop_for_all"];
+}
+
 (** All standard packages *)
 let all_packages = [
   core_package;
@@ -246,6 +255,7 @@ let all_packages = [
   explain_package;
   lens_package;
   testcraft_package;
+  propcraft_package;
 ]
 
 (** Convert a package to a T value *)
@@ -771,6 +781,7 @@ let init_env () =
   let env = Deserialize.register env in
   let env = T_json.register env in
   let env = Set_seed.register env in
+  let env = With_seed.register ~eval_call:Eval.eval_call_immutable env in
   let env = Sample.register env in
   let env = Fetchurl.register env in
   let env = Prefetch.register env in
@@ -1001,6 +1012,9 @@ let init_env () =
   let env = T_expect_ds.register env in
   let env = T_expect_condition.register env in
   let env = T_expect_pipeline.register env in
+  (* Propcraft package *)
+  let env = T_prop_gen.register env in
+  let env = T_prop_for_all.register ~eval_call:Eval.eval_call_immutable env in
   (* Phase 7: Pretty-print and packages *)
   (* Using Pretty_print.register fully qualified *)
   let env = Pretty_print.register env in

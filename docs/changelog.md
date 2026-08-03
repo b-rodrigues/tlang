@@ -1,5 +1,18 @@
 # Changelog
 
+## [Unreleased]
+
+### Popcraft — Property-Based Testing
+
+- **New `popcraft` package**: Property-based testing primitives for hardening T's standard library and user packages. Instead of hand-writing fixed cases, state an invariant and `prop_for_all` checks it over many generated inputs, reporting a deterministic shrunk counterexample on failure.
+- **`prop_for_all(gen, property, n = 100, shrink = true)`**: Draws `n` values from a generator spec and evaluates the property on each. The property may return a `Bool`, an `Expect` value, or an `Error`. Returns an `Expect` value, so `assert(prop_for_all(...))` works directly inside `t test` files.
+- **Generator specs** are inspectable structured Dicts (not closures): `prop_gen_int`, `prop_gen_int_range`, `prop_gen_float_range`, `prop_gen_bool`, `prop_gen_string_from`, `prop_gen_choice`, `prop_gen_frequency`, `prop_gen_vector`, `prop_gen_list`, `prop_gen_factor`, and `prop_gen_df`.
+- **`prop_gen_df` with typed NA injection**: `prop_gen_df(columns, nrows = 30, na_prob = 0.1)` generates DataFrames and injects typed `NA` values (`NAInt`/`NAFloat`/`NABool`/`NAString`) into columns according to `na_prob` — the fastest way to catch data verbs that silently corrupt or drop rows on missing input.
+- **Combinators**: `prop_map_gen(source, fn)`, `prop_such_that(source, pred, max_tries = 100)`, and `prop_resize(source, n)`.
+- **Reproducible by default**: All draws use the shared seeded RNG. `set_seed(n)` before a run reproduces the exact same values and counterexample on any machine, every run.
+- **`with_seed(seed, thunk)`**: New base-package function that seeds the RNG for a single expression and restores the previous state afterwards — exception-safe and nestable. Scope determinism to one `prop_for_all` or one `sample` without perturbing surrounding random draws.
+- **Deterministic shrinking**: On failure, ints/strings/lists/vectors shrink toward minimal failing inputs; DataFrames shrink by halving rows down to the empty frame and then minimizing cells to canonical values per column type. Shrinking only affects the reported message, never whether a run passes.
+
 ## [0.54.3] - 2026-08-01
 
 ### Pipeline Validation Fixes
