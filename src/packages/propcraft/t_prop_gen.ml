@@ -696,6 +696,28 @@ let prop_gen_df_from =
          | args -> Error.arity_error_named "prop_gen_df_from" 1 (List.length args)))
 
 (*
+--# Generate a value via a custom function
+--#
+--# Returns a generator spec that draws a value by calling `fn(size)`
+--# with the current generation size, so generators can build on each
+--# other or on domain logic. `fn` may be any callable value.
+--#
+--# @name prop_gen_fn
+--# @param fn :: Function A function from the current size to a value.
+--# @return :: Dict A generator spec.
+--# @example
+--#   g = prop_gen_fn(\(n) n * 2)
+--# @family propcraft
+--# @seealso prop_map_gen
+--# @export
+*)
+let prop_gen_fn =
+  make_builtin ~name:"prop_gen_fn" 1 (fun args _env ->
+    match args with
+    | [fn] -> gen "fn" [ ("fn", fn) ]
+    | _ -> Error.arity_error_named "prop_gen_fn" 1 (List.length args))
+
+(*
 --# Transform a generated value
 --#
 --# Returns a generator spec that draws a value from `source`, applies
@@ -795,6 +817,7 @@ let register env =
   let env = Env.add "prop_gen_date_range" prop_gen_date_range env in
   let env = Env.add "prop_gen_df" prop_gen_df env in
   let env = Env.add "prop_gen_df_from" prop_gen_df_from env in
+  let env = Env.add "prop_gen_fn" prop_gen_fn env in
   let env = Env.add "prop_map_gen" prop_map_gen env in
   let env = Env.add "prop_such_that" prop_such_that env in
   let env = Env.add "prop_resize" prop_resize env in

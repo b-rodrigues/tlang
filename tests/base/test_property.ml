@@ -202,6 +202,23 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
     "prop_gen_df_from(to_dataframe([x: [1]]), bogus = 1)"
     "received unknown named argument `bogus`";
 
+  (* prop_gen_fn — custom function generators *)
+  test_env env "prop_for_all PASS custom fn generator"
+    "prop_for_all(prop_gen_fn(\\(n) n * 2), \\(v) v % 2 == 0 && v >= 0, n = 20)"
+    "PASS";
+  test_env env "prop_gen_fn receives default size"
+    "prop_for_all(prop_gen_fn(\\(n) n), \\(v) v == 30, n = 5)"
+    "PASS";
+  test_env env "prop_gen_fn composes inside df columns"
+    "prop_for_all(prop_gen_df([w: prop_gen_fn(\\(n) 7)], nrows = 5, na_prob = 0.0), \\(df) nrow(df) == 5, n = 3)"
+    "PASS";
+  test_env env "prop_gen_fn spec is inspectable dict"
+    "prop_gen_fn(\\(n) n)"
+    "{`gen`: \"fn\", `fn`: \\(n) -> <function>}";
+  test_env env "prop_gen_fn arity error"
+    "prop_gen_fn()"
+    "expects 1 arguments but received 0";
+
   (* assert integration — how prop_for_all is used inside `t test` files *)
   test_env env "assert around passing prop_for_all"
     "set_seed(42)\nassert(prop_for_all(prop_gen_int_range(0, 100), \\(x) x >= 0, n = 20))"

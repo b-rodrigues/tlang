@@ -218,7 +218,13 @@ and draw_value ~eval_call ~env ~size (spec : value) : (value, value) result =
        | _ ->
            Error (Error.type_error
                     "prop_for_all: date_range spec requires a `mode` field."))
-  | Some "df" ->
+   | Some "fn" ->
+       (match field "fn" spec with
+        | Some fn ->
+            Ok (eval_call env fn [(None, Ast.mk_expr (Value (VInt size)))])
+        | None ->
+            Error (Error.type_error "prop_for_all: fn spec requires a `fn` field."))
+   | Some "df" ->
       (match field "columns" spec with
        | Some (VDict columns) when columns <> [] ->
            let nrows =
