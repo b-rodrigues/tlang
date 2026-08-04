@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Language & Bug Fixes
+
+- **`%name%` infix operators**: Any function can now be called infix with `%name%` syntax, R-style. For example `d %within% interval(start, end)` is equivalent to `%within%(d, interval(start, end))`. The lexer only treats `%name%` as an infix operator when a `%` is immediately followed by an identifier, so plain modulo (`a % b`) is unaffected.
+- **Datetime rendering**: UTC and timezone-less `Datetime` values now render with a plain `Z` suffix (`Datetime(2024-01-15T09:30:00Z)`) instead of `Z[UTC]`. Named timezones render as `Datetime(2024-01-15T09:30:00[Europe/Lisbon])`.
+- **UTF-8 string operations**: `str_nchar`, `str_substring`, `slice`, and `char_at` now operate on Unicode code points instead of raw bytes. Multi-byte characters are never split, and `str_substring(s, 0, str_nchar(s))` round-trips any string.
+- **`days_in_month` validation**: `days_in_month(year, month)` now raises an explicit `ValueError` when `month` is outside `[1, 12]` instead of silently misbehaving.
+
 ### Popcraft — Property-Based Testing
 
 - **New `popcraft` package**: Property-based testing primitives for hardening T's standard library and user packages. Instead of hand-writing fixed cases, state an invariant and `prop_for_all` checks it over many generated inputs, reporting a deterministic shrunk counterexample on failure.

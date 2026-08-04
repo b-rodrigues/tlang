@@ -24,7 +24,7 @@ let run_tests _pass_count _fail_count _failures _eval_string eval_string_env _te
       m_to_date_id       = prop_named("to_date_id",         \(d) to_date(d) == d)
       m_period_roundtrip = prop_named("period_roundtrip",   \(d) (d + make_period(days = 5)) - d == make_period(days = 5))
       m_period_monotone  = prop_named("period_monotone",    \(d) d + make_period(days = 1) > d)
-      m_within_iv        = prop_named("within_iv",          \(d) `%within%`(d, interval(ymd("1999-01-01"), ymd("2025-12-31"))))
+      m_within_iv        = prop_named("within_iv",          \(d) d %within% interval(ymd("1999-01-01"), ymd("2025-12-31")))
       m_dt_hour          = prop_named("dt_hour",            \(dt) hour(dt) >= 0 && hour(dt) <= 23)
       m_dt_minute        = prop_named("dt_minute",          \(dt) minute(dt) >= 0 && minute(dt) <= 59)
       m_dt_second        = prop_named("dt_second",          \(dt) second(dt) >= 0.0 && second(dt) < 60.0)

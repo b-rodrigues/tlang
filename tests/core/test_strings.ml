@@ -20,11 +20,16 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
   test "length vector of strings" "length([\"a\", \"bc\"])" "2";
   test "nchar string" "str_nchar(\"hello\")" "5";
   test "nchar vector" "str_nchar([\"a\", \"bc\"])" "[1, 2]";
-  
+  test "nchar counts unicode code points" "str_nchar(\"h\u{00E9}llo\")" "5";
+  test "nchar counts multibyte CJK" "str_nchar(\"\u{65E5}\u{672C}\u{8A9E}\")" "3";
+
   Printf.printf "  Substrings:\n";
   test "substring simple" "str_substring(\"hello\", 1, 3)" "\"el\"";
   test "slice alias" "slice(\"hello\", 0, 5)" "\"hello\"";
   test "char_at" "char_at(\"abc\", 1)" "\"b\"";
+  test "substring utf8 never splits characters" "str_substring(\"\u{65E5}\u{672C}\u{8A9E}\", 0, 2)" "\"\u{65E5}\u{672C}\"";
+  test "substring utf8 self roundtrip" "str_substring(\"h\u{00E9}llo\", 0, str_nchar(\"h\u{00E9}llo\"))" "\"h\u{00E9}llo\"";
+  test "char_at utf8 returns whole character" "char_at(\"h\u{00E9}llo\", 1)" "\"\u{00E9}\"";
   test "substring out of bounds" "str_substring(\"a\", 0, 2)" {|Error(ValueError: "Invalid substring indices.")|};
   
   Printf.printf "  Search:\n";

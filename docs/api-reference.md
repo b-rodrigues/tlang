@@ -2540,6 +2540,11 @@ Format temporal values as strings using `strftime`-style patterns.
 
 Construct temporal intervals and test membership.
 
+`%within%` can be used as an infix operator: `d %within% interval(start, end)`
+desugars to `%within%(d, interval(start, end))`. Any function name can be used
+infix with `%name%` syntax (R-style), resolving to the same-named builtin or
+user function.
+
 ---
 
 ### `years(n)` / `months(n)` / `weeks(n)` / `days(n)` / `hours(n)` / `minutes(n)` / `seconds(n)`

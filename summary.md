@@ -196,7 +196,9 @@ seq(1, 10, by = 2)
 match([1, 2]) { [h, ..t] => h, [] => 0 }
 ```
 
-String literals support escape sequences: `\n` (newline), `\r` (carriage return), `\t` (tab), `\\` (backslash), `\"` (double quote), `\xHH` (hex byte, e.g. `\x48` for `H`).
+String literals support escape sequences: `\n` (newline), `\r` (carriage return), `\t` (tab), `\\` (backslash), `\"` (double quote), `\xHH` (hex byte, e.g. `\x48` for `H`). `str_nchar`, `str_substring`, `slice`, and `char_at` operate on Unicode code points, not raw bytes.
+
+Any function can be called as an R-style `%name%` infix operator: `d %within% interval(start, end)` is equivalent to `%within%(d, interval(start, end))`. The lexer only interprets `%name%` as an infix operator when a `%` is immediately followed by an identifier, so modulo (`a % b`) is unaffected.
 
 ### Type annotations and inference
 
@@ -477,6 +479,7 @@ Purpose: parsing, constructing, formatting, extracting, and reasoning about date
 - Period accessors: `period_years(p)`, `period_months(p)`, `period_days(p)`, `period_hours(p)`, `period_minutes(p)`, `period_seconds(p)`
 - Coercion and formatting: `to_date(x)`, `to_datetime(x)`, `format_date(x, format = na())`, `format_datetime(x, format = na())`
 - Rounding and timezone labeling: `floor_date(x, unit)`, `ceiling_date(x, unit)`, `round_date(x, unit)`, `with_tz(x, tz)`, `force_tz(x, tz)`
+- Intervals: `interval(start, end)`; `%within%(x, interval)` also works as an infix operator: `d %within% interval(start, end)` (part of the general `%name%` infix-operator syntax)
 
 Current implementation note: timezone relabeling should be treated as a **current implementation limitation**; `with_tz()` and `force_tz()` are presently label-oriented rather than full offset-conversion logic.
 

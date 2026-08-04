@@ -196,7 +196,7 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env _test 
     "Date(2000-01-01)";
   test_env env "prop_for_all shrinks datetime to start bound"
     "set_seed(1)\nprop_for_all(prop_gen_date_range(ymd_hms(\"2020-01-01 00:00:00\"), ymd_hms(\"2024-12-31 23:59:59\")), \\(dt) dt >= ymd_hms(\"2022-06-01 00:00:00\"), n = 30)"
-    "Datetime(2020-01-01T00:00:00Z[UTC])";
+    "Datetime(2020-01-01T00:00:00Z)";
   test_env env "prop_for_all shrinks date in a df column"
     "set_seed(1)\nprop_for_all(prop_gen_df([d: prop_gen_ymd(2000, 2024)], nrows = 20, na_prob = 0.0), \\(df) false, n = 1)"
     "DataFrame(0 rows x 1 cols)";

@@ -1,5 +1,35 @@
 open Ast
 
+(* UTF-8 helpers: T strings index by character (code point), not byte.
+   A lead byte encodes its own length; continuation bytes (0x80-0xBF) are
+   merged into the preceding lead byte. Malformed bytes are treated as
+   single characters so results stay total on arbitrary input. *)
+
+let utf8_char_length c =
+  let c = Char.code c in
+  if c land 0x80 = 0x00 then 1
+  else if c land 0xE0 = 0xC0 then 2
+  else if c land 0xF0 = 0xE0 then 3
+  else if c land 0xF8 = 0xF0 then 4
+  else 1
+
+let utf8_char_count s =
+  let n = String.length s in
+  let rec go i acc =
+    if i >= n then acc
+    else go (i + utf8_char_length s.[i]) (acc + 1)
+  in
+  go 0 0
+
+let utf8_char_to_byte s char_index =
+  let n = String.length s in
+  let rec go i remaining =
+    if i >= n then None
+    else if remaining = 0 then Some i
+    else go (i + utf8_char_length s.[i]) (remaining - 1)
+  in
+  go 0 char_index
+
 (* Helper: Unary Vectorization *)
 let vectorize_unary op args env =
   match args with
@@ -68,11 +98,13 @@ let is_empty_impl args env = vectorize_unary is_empty_scalar args env
 let substring_scalar args _env =
   match args with
   | [VString s; VInt start; VInt end_] ->
-      let len = String.length s in
-      if start < 0 || end_ > len || start > end_ then
+      let char_count = utf8_char_count s in
+      if start < 0 || end_ > char_count || start > end_ then
         Error.value_error "Invalid substring indices."
       else
-        VString (String.sub s start (end_ - start))
+        let start_byte = Option.value (utf8_char_to_byte s start) ~default:(String.length s) in
+        let end_byte = Option.value (utf8_char_to_byte s end_) ~default:(String.length s) in
+        VString (String.sub s start_byte (end_byte - start_byte))
   | _ -> Error.type_error "str_substring expects (string, int, int)."
 
 let substring_impl args env = vectorize_ternary substring_scalar args env
@@ -80,11 +112,12 @@ let substring_impl args env = vectorize_ternary substring_scalar args env
 let char_at_scalar args _env =
   match args with
   | [VString s; VInt i] ->
-      let len = String.length s in
-      if i < 0 || i >= len then
+      let char_count = utf8_char_count s in
+      if i < 0 || i >= char_count then
         Error.value_error "Index out of bounds."
       else
-        VString (String.make 1 (String.get s i))
+        let byte = Option.value (utf8_char_to_byte s i) ~default:(String.length s) in
+        VString (String.sub s byte (utf8_char_length s.[byte]))
   | _ -> Error.type_error "char_at expects (string, int)."
 
 let char_at_impl args env = vectorize_binary char_at_scalar args env
@@ -646,7 +679,7 @@ let str_flatten_impl named_args _env =
 
 let nchar_scalar args _env =
   match args with
-  | [VString s] -> VInt (String.length s)
+  | [VString s] -> VInt (utf8_char_count s)
   | _ -> Error.type_error "str_nchar expects a string."
 
 let nchar_impl args env = vectorize_unary nchar_scalar args env
@@ -772,7 +805,8 @@ let strsplit_impl args _env =
 (*
 --# Get character count
 --#
---# Returns the number of characters in a string. Vectorized.
+--# Returns the number of characters (Unicode code points) in a string.
+--# Multi-byte UTF-8 characters count as a single character. Vectorized.
 --#
 --# @name str_nchar
 --# @param x :: String | Vector[String] The input string(s).
@@ -799,6 +833,8 @@ let strsplit_impl args _env =
 --# Extract substring
 --#
 --# Returns the part of the string between `start` and `end` indices.
+--# Indices are character-based (Unicode code points), so multi-byte UTF-8
+--# characters are never split.
 --#
 --# @name str_substring
 --# @param s :: String The input string.
@@ -827,6 +863,8 @@ let strsplit_impl args _env =
 --# Get character at index
 --#
 --# Returns a single-character string at the specified index.
+--# Index is character-based (Unicode code point), so a multi-byte UTF-8
+--# character is returned whole.
 --#
 --# @name char_at
 --# @param s :: String The input string.
