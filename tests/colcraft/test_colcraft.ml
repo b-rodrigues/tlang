@@ -212,6 +212,26 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     {|n_distinct([to_float("NaN"), to_float("NaN"), 1.0])|}
     "2";
 
+  Printf.printf "Phase 4 — Bug-fix regressions (drop_na / joins / distinct):\n";
+  test "drop_na keeps all rows when only date columns present"
+    "d = to_dataframe([[x: ymd(\"2024-01-01\"), y: 1], [x: ymd(\"2024-01-02\"), y: 2]]); drop_na(d) |> nrow"
+    "2";
+  test "drop_na removes rows with NA in date DataFrames"
+    "d = to_dataframe([[x: ymd(\"2024-01-01\"), y: NA], [x: ymd(\"2024-01-02\"), y: 2]]); drop_na(d) |> nrow"
+    "1";
+  test "drop_na on a specific date column keeps rows"
+    "d = to_dataframe([[x: ymd(\"2024-01-01\"), y: NA], [x: ymd(\"2024-01-02\"), y: 2]]); drop_na(d, $x) |> nrow"
+    "2";
+  test "left_join matches integer key to float key of same value"
+    {|left_join(to_dataframe([[id: 1, x: "a"]]), to_dataframe([[id: 1.0, y: "b"]]), by = "id") |> pull("y")|}
+    "Vector[\"b\"]";
+  test "left_join leaves float and integer keys unmatchable when unequal"
+    {|left_join(to_dataframe([[id: 1, x: "a"]]), to_dataframe([[id: 2.0, y: "b"]]), by = "id") |> pull("y")|}
+    "Vector[NA]";
+  test "distinct deduplicates repeated NaN rows consistently with n_distinct"
+    {|distinct(to_dataframe([[x: to_float("NaN")], [x: to_float("NaN")]]), $x) |> nrow|}
+    "1";
+
   test "n public arity remains zero-arg"
     {|n(1, 2)|}
     {|Error(ArityError: "Function `n` expects 0 arguments but received 2.")|};

@@ -30,6 +30,24 @@ let utf8_char_to_byte s char_index =
   in
   go 0 char_index
 
+let utf8_byte_to_char s byte_index =
+  let n = String.length s in
+  let rec go i acc =
+    if i >= byte_index || i >= n then acc
+    else go (i + utf8_char_length s.[i]) (acc + 1)
+  in
+  go 0 0
+
+let utf8_chars s =
+  let n = String.length s in
+  let rec go i acc =
+    if i >= n then List.rev acc
+    else
+      let len = utf8_char_length s.[i] in
+      go (i + len) (String.sub s i len :: acc)
+  in
+  go 0 []
+
 (* Helper: Unary Vectorization *)
 let vectorize_unary op args env =
   match args with
@@ -133,7 +151,10 @@ let index_of_scalar args _env =
           else find (idx + 1)
         with Not_found -> -1
       in
-      if sub = "" then VInt 0 else VInt (find 0)
+      if sub = "" then VInt 0
+      else
+        let byte_idx = find 0 in
+        if byte_idx < 0 then VInt (-1) else VInt (utf8_byte_to_char s byte_idx)
   | _ -> Error.type_error "index_of expects (string, string)."
 
 let index_of_impl args env = vectorize_binary index_of_scalar args env
@@ -144,14 +165,15 @@ let last_index_of_scalar args _env =
       let sub_len = String.length sub in
       let s_len = String.length s in
       if sub_len > s_len then VInt (-1)
-      else if sub = "" then VInt s_len
+      else if sub = "" then VInt (utf8_char_count s)
       else
         let rec find i =
           if i < 0 then -1
           else if String.sub s i sub_len = sub then i
           else find (i - 1)
         in
-        VInt (find (s_len - sub_len))
+        let byte_idx = find (s_len - sub_len) in
+        if byte_idx < 0 then VInt (-1) else VInt (utf8_byte_to_char s byte_idx)
   | _ -> Error.type_error "last_index_of expects (string, string)."
 
 let last_index_of_impl args env = vectorize_binary last_index_of_scalar args env
@@ -558,18 +580,24 @@ let string_named_or_positional function_name name named_args position default =
        | None -> Ok default)
 
 let repeat_to_length pad needed =
+  (* Pad to a target character width, never splitting a multi-byte character. *)
   if needed <= 0 then ""
   else
-    let pad_len = String.length pad in
-    let rec loop remaining acc =
+    let pad_chars = utf8_chars pad in
+    let pad_char_count = List.length pad_chars in
+    let buf = Buffer.create (max 16 (needed * 4)) in
+    let rec loop remaining =
       if remaining <= 0 then
-        String.concat "" (List.rev acc)
-      else if remaining >= pad_len then
-        loop (remaining - pad_len) (pad :: acc)
-      else
-        loop 0 (String.sub pad 0 remaining :: acc)
+        Buffer.contents buf
+      else if remaining >= pad_char_count then begin
+        List.iter (Buffer.add_string buf) pad_chars;
+        loop (remaining - pad_char_count)
+      end else begin
+        List.iteri (fun i c -> if i < remaining then Buffer.add_string buf c) pad_chars;
+        Buffer.contents buf
+      end
     in
-    loop needed []
+    loop needed
 
 let map_string_value function_name fn value =
   let rec apply = function
@@ -599,7 +627,7 @@ let str_pad_impl named_args _env =
              Error.value_error "Function `str_pad` pad must not be empty."
            else
              map_string_value "str_pad" (fun s ->
-               let len = String.length s in
+               let len = utf8_char_count s in
                if len >= width then
                  VString s
                else
@@ -634,23 +662,29 @@ let str_trunc_impl named_args _env =
              Error.value_error "Function `str_trunc` width must be non-negative."
            else
              map_string_value "str_trunc" (fun s ->
-               let len = String.length s in
+               let chars = utf8_chars s in
+               let len = List.length chars in
+               let ellipsis_chars = utf8_chars ellipsis in
+               let ellipsis_len = List.length ellipsis_chars in
+               let take_prefix n =
+                 List.filteri (fun i _ -> i < n) chars |> String.concat ""
+               in
+               let take_suffix n =
+                 List.filteri (fun i _ -> i >= len - n) chars |> String.concat ""
+               in
                if len <= width then
                  VString s
-               else if width <= String.length ellipsis then
-                 VString (String.sub ellipsis 0 width)
+               else if width <= ellipsis_len then
+                 VString (String.concat "" (List.filteri (fun i _ -> i < width) ellipsis_chars))
                else
-                 let keep = width - String.length ellipsis in
+                 let keep = width - ellipsis_len in
                  match side with
-                 | "right" -> VString (String.sub s 0 keep ^ ellipsis)
-                 | "left" -> VString (ellipsis ^ String.sub s (len - keep) keep)
+                 | "right" -> VString (take_prefix keep ^ ellipsis)
+                 | "left" -> VString (ellipsis ^ take_suffix keep)
                  | "center" ->
                      let left_keep = keep / 2 in
                      let right_keep = keep - left_keep in
-                     VString
-                       (String.sub s 0 left_keep
-                        ^ ellipsis
-                        ^ String.sub s (len - right_keep) right_keep)
+                     VString (take_prefix left_keep ^ ellipsis ^ take_suffix right_keep)
                  | _ ->
                      Error.value_error
                        (Printf.sprintf "Function `str_trunc` side must be \"left\", \"right\", or \"center\", got %S." side)
@@ -742,7 +776,7 @@ let strsplit_impl args _env =
   let do_split s sep =
     let parts =
       if sep = "" then
-        List.init (String.length s) (fun i -> VString (String.make 1 s.[i]))
+        List.map (fun c -> VString c) (utf8_chars s)
       else if String.length sep = 1 then
         List.map (fun p -> VString p) (String.split_on_char sep.[0] s)
       else begin
@@ -877,12 +911,14 @@ let strsplit_impl args _env =
 (*
 --# Find index of substring
 --#
---# Returns the index of the first occurrence of `sub` in `s`, or -1 if not found.
+--# Returns the character index of the first occurrence of `sub` in `s`,
+--# or -1 if not found. Indices are character-based (Unicode code points),
+--# matching `str_substring` and `char_at`.
 --#
 --# @name index_of
 --# @param s :: String The search string.
 --# @param sub :: String The substring to find.
---# @return :: Int The index of the first occurrence.
+--# @return :: Int The character index of the first occurrence.
 --# @family string
 --# @export
 *)
@@ -890,12 +926,13 @@ let strsplit_impl args _env =
 (*
 --# Find last index of substring
 --#
---# Returns the index of the last occurrence of `sub` in `s`, or -1 if not found.
+--# Returns the character index of the last occurrence of `sub` in `s`,
+--# or -1 if not found. Indices are character-based (Unicode code points).
 --#
 --# @name last_index_of
 --# @param s :: String The search string.
 --# @param sub :: String The substring to find.
---# @return :: Int The index of the last occurrence.
+--# @return :: Int The character index of the last occurrence.
 --# @family string
 --# @export
 *)
@@ -1030,7 +1067,8 @@ let strsplit_impl args _env =
 --# Split a string on a delimiter
 --#
 --# Splits a string into a list of substrings on each occurrence of `sep`.
---# If `sep` is empty, splits into individual characters.
+--# If `sep` is empty, splits into individual characters (Unicode code
+--# points — multi-byte characters are never split).
 --# Works transparently on ShellResult values (splits stdout).
 --#
 --# @name str_split
@@ -1077,7 +1115,9 @@ let strsplit_impl args _env =
 (*
 --# Pad strings to a target width
 --#
---# Pads strings on the left, right, or both sides until they reach a requested width.
+--# Pads strings on the left, right, or both sides until they reach a requested
+--# width. Width is measured in characters (Unicode code points), so multi-byte
+--# UTF-8 strings are padded correctly and never split.
 --#
 --# @name str_pad
 --# @family string
@@ -1086,7 +1126,9 @@ let strsplit_impl args _env =
 (*
 --# Truncate strings for display
 --#
---# Shortens strings to a maximum width and appends an ellipsis when needed.
+--# Shortens strings to a maximum character width and appends an ellipsis when
+--# needed. Width is measured in characters (Unicode code points), so multi-byte
+--# UTF-8 strings are never split mid-character.
 --#
 --# @name str_trunc
 --# @family string

@@ -1526,7 +1526,7 @@ Compute quantile/percentile (p between 0 and 1), with optional non-negative obse
 
 #### `mode(x)`
 
-Return the most frequent value. Does not currently support `na_rm`.
+Return the most frequent value. Values are compared with type-aware, NaN-aware equality, so different types never collide. Ties break deterministically by first occurrence in input order. Does not currently support `na_rm`.
 
 ---
 
@@ -2023,7 +2023,7 @@ ungrouped = df |> group_by($dept) |> ungroup()
 
 #### `left_join(x, y, by = NA)` / `inner_join` / `full_join` / `semi_join` / `anti_join`
 
-Join two DataFrames.
+Join two DataFrames. Join keys are normalized so that integer `1` and float `1.0` match, mirroring R's coercion-to-character semantics.
 
 **Parameters:**
 
@@ -2052,13 +2052,13 @@ Count occurrences of unique values.
 
 #### `distinct(df, ...columns)`
 
-Keep only unique rows.
+Keep only unique rows. Repeated `NaN` values collapse to a single row, consistent with `n_distinct`.
 
 ---
 
 #### `drop_na(df, ...columns)`
 
-Drop rows containing NA values in the specified columns.
+Drop rows containing NA values in the specified columns. Works across all column types, including date, datetime, dictionary, and list columns.
 
 ---
 
@@ -2613,19 +2613,19 @@ Remove whitespace.
 
 ### `str_lines(s)` / `str_words(s)` / `str_split(s, sep)`
 
-Split strings into parts. `str_lines` splits on newlines; `str_words` splits on any whitespace.
+Split strings into parts. `str_lines` splits on newlines; `str_words` splits on any whitespace. With an empty separator, `str_split(s, "")` splits into individual Unicode code points (multi-byte characters are never torn apart).
 
 ---
 
 ### `str_pad(s, width, side = "left", pad = " ")`
 
-Pad strings to a fixed width.
+Pad strings to a fixed width. Width is measured in characters (Unicode code points), not bytes.
 
 ---
 
 ### `str_trunc(s, width, side = "right", ellipsis = "...")`
 
-Truncate strings with an ellipsis.
+Truncate strings with an ellipsis. Width is measured in characters (Unicode code points); truncation never splits a multi-byte character in half.
 
 ---
 

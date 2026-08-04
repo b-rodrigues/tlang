@@ -35,7 +35,10 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
   Printf.printf "  Search:\n";
   test "index_of found" "index_of(\"hello\", \"l\")" "2";
   test "index_of not found" "index_of(\"hello\", \"z\")" "-1";
+  test "index_of returns character index for multibyte" "index_of(\"h\u{00E9}llo\", \"llo\")" "2";
   test "last_index_of found" "last_index_of(\"hello\", \"l\")" "3";
+  test "last_index_of returns character index for multibyte" "last_index_of(\"h\u{00E9}llo\", \"l\")" "3";
+  test "last_index_of empty needle returns char count" "last_index_of(\"h\u{00E9}llo\", \"\")" "5";
   test "contains false" "contains(\"team\", \"i\")" "false"; 
   test "contains true" "contains(\"team\", \"ea\")" "true";
   test "starts_with true" "starts_with(\"prefix\", \"pre\")" "true";
@@ -94,5 +97,22 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
   test "str_trunc right" "str_trunc(\"abcdefgh\", 5)" "\"ab...\"";
   test "str_flatten collapse" "str_flatten([\"a\", \"b\", \"c\"], collapse = \"-\")" "\"a-b-c\"";
   test "str_count regex" "str_count(\"banana\", \"a\")" "3";
+
+  Printf.printf "  UTF-8 regressions:\n";
+  test "str_split empty separator splits code points not bytes"
+    "str_split(\"h\u{00E9}llo\", \"\")"
+    "[\"h\", \"\u{00E9}\", \"l\", \"l\", \"o\"]";
+  test "str_pad counts characters not bytes"
+    "str_pad(\"\u{00E9}\", 3, side = \"left\", pad = \"x\")"
+    "\"xx\u{00E9}\"";
+  test "str_trunc keeps full multibyte string at char width"
+    "str_trunc(\"\u{00E9}llo\", 4)"
+    "\"\u{00E9}llo\"";
+  test "str_trunc never splits a multibyte character"
+    "str_trunc(\"\u{65E5}\u{672C}\u{8A9E}\", 2)"
+    "\"..\"";
+  test "index_of empty needle returns zero"
+    "index_of(\"h\u{00E9}llo\", \"\")"
+    "0";
 
   print_newline ()

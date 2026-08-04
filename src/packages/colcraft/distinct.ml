@@ -18,12 +18,12 @@ let distinct_impl (named_args : (string option * value) list) _env =
         | None -> Array.make nrows (VNA NAGeneric)
       ) keys in
       
-      let seen = Hashtbl.create nrows in
+      let seen = Value_hash.ValueListHash.create nrows in
       let row_indices = ref [] in
       for i = 0 to nrows - 1 do
         let key_vals = List.map (fun col -> col.(i)) key_col_values in
-        if not (Hashtbl.mem seen key_vals) then begin
-          Hashtbl.add seen key_vals true;
+        if not (Value_hash.ValueListHash.mem seen key_vals) then begin
+          Value_hash.ValueListHash.add seen key_vals true;
           row_indices := i :: !row_indices
         end
       done;

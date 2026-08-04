@@ -8,6 +8,13 @@
 - **Datetime rendering**: UTC and timezone-less `Datetime` values now render with a plain `Z` suffix (`Datetime(2024-01-15T09:30:00Z)`) instead of `Z[UTC]`. Named timezones render as `Datetime(2024-01-15T09:30:00[Europe/Lisbon])`.
 - **UTF-8 string operations**: `str_nchar`, `str_substring`, `slice`, and `char_at` now operate on Unicode code points instead of raw bytes. Multi-byte characters are never split, and `str_substring(s, 0, str_nchar(s))` round-trips any string.
 - **`days_in_month` validation**: `days_in_month(year, month)` now raises an explicit `ValueError` when `month` is outside `[1, 12]` instead of silently misbehaving.
+- **`index_of` / `last_index_of` are character-indexed**: `index_of(s, needle)` and `last_index_of(s, needle)` now return character (Unicode code point) indices instead of raw byte offsets, so multi-byte characters count as one position. `last_index_of(s, "")` returns the character count.
+- **`str_split` with empty separator splits on code points**: `str_split(s, "")` splits into individual Unicode code points rather than raw bytes, so multi-byte characters are never torn apart.
+- **`str_pad` / `str_trunc` count characters**: widths are measured in characters rather than bytes, and truncation never splits a multi-byte character in half.
+- **`drop_na` handles every column type**: date, datetime, dictionary, list, and NA columns now correctly contribute to missingness detection, so `drop_na` no longer silently keeps or drops rows on non-scalar data.
+- **Joins normalize integer and float keys**: `left_join`, `inner_join`, `right_join`, `full_join`, `anti_join`, and `semi_join` treat integer `1` and float `1.0` as the same key, matching R's coercion-to-character semantics.
+- **`distinct` is NaN-aware**: repeated `NaN` rows collapse to a single row, consistent with `n_distinct`.
+- **`mode` uses typed keys and deterministic tie-breaking**: values of different types no longer collide (`mode([1, 1, "1"])` is `1`), and ties break by first occurrence in input order.
 
 ### Popcraft — Property-Based Testing
 

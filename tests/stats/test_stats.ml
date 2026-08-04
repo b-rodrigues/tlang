@@ -105,6 +105,24 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
   test "normalize" "normalize([10, 20, 30])" "Vector[0., 0.5, 1.]";
   print_newline ();
 
+  Printf.printf "Phase 5 — Stats: mode() regressions:\n";
+  test "mode typed keys do not collide across types"
+    "mode([1, 1, \"1\"])"
+    "1";
+  test "mode deterministic tie-break by first occurrence"
+    "mode([1, 1, 2, 2])"
+    "1";
+  test "mode tie-break honors input order"
+    "mode([2, 2, 1, 1])"
+    "2";
+  test "mode keeps integer and float distinct"
+    "mode([1, 1.0, 2])"
+    "1";
+  test "mode of NA values returns NA deterministically"
+    "mode([NA, NA])"
+    "NA";
+  print_newline ();
+
   print_newline ();
 
   Printf.printf "Phase 5 — Stats: lm():\n";
