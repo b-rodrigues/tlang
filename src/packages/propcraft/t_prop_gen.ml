@@ -137,6 +137,39 @@ let prop_gen_int_range =
     | _ -> Error.arity_error_named "prop_gen_int_range" 2 (List.length args))
 
 (*
+--# Generate a random Int within domain bounds
+--#
+--# Returns a generator spec producing Int values drawn uniformly from
+--# [min, max] inclusive. Shrinking stays inside the domain: counterexamples
+--# shrink toward `min` (e.g. 137 -> 118 -> ... -> 101), never below it.
+--#
+--# @name prop_gen_between
+--# @param min :: Int Lower bound (inclusive).
+--# @param max :: Int Upper bound (inclusive).
+--# @return :: Dict A generator spec.
+--# @example
+--#   assert(prop_for_all(prop_gen_between(100, 200), \(x) x >= 100 && x <= 200))
+--# @family propcraft
+--# @seealso prop_gen_int, prop_gen_int_range
+--# @export
+*)
+let prop_gen_between =
+  make_builtin ~name:"prop_gen_between" 2 (fun args _env ->
+    match args with
+    | [VInt min; VInt max] ->
+        if max < min then
+          Error.value_error
+            (Printf.sprintf "Function `prop_gen_between` requires max >= min, got [%d, %d]."
+               min max)
+        else
+          gen "between" [ ("min", VInt min); ("max", VInt max) ]
+    | [other; _] ->
+        Error.type_error
+          (Printf.sprintf "Function `prop_gen_between` expects Int bounds, got %s."
+             (Utils.type_name other))
+    | _ -> Error.arity_error_named "prop_gen_between" 2 (List.length args))
+
+(*
 --# Generate a random Float in a range
 --#
 --# Returns a generator spec producing Float values drawn uniformly from
@@ -551,6 +584,47 @@ let prop_gen_df =
          | args -> Error.arity_error_named "prop_gen_df" 1 (List.length args)))
 
 (*
+--# Generate a Dict
+--#
+--# Returns a generator spec producing a Dict with one generated value
+--# per column. Each column's generator draws one value; `na_prob`
+--# controls the probability that any given column value is NA.
+--#
+--# @name prop_gen_dict
+--# @param columns :: Dict { name :: String : gen_spec :: Dict } A Dict mapping column names to generator specs.
+--# @param na_prob :: Float = 0.1 Probability of a column value being NA.
+--# @return :: Dict A generator spec.
+--# @example
+--#   prop_gen_dict([x: prop_gen_int_range(0, 100),
+--#                  name: prop_gen_string_from("abc", 1, 5)])
+--# @family propcraft
+--# @seealso prop_gen_df
+--# @export
+*)
+let prop_gen_dict =
+  make_builtin_named ~name:"prop_gen_dict" ~variadic:true 1 (fun named_args _env ->
+    match check_unknown_named "prop_gen_dict" [ "na_prob" ] named_args with
+    | Error err -> err
+    | Ok () ->
+        (match Math_common.positional_args_without [ "na_prob" ] named_args with
+         | [VDict columns] ->
+             if columns = [] then
+               Error.value_error
+                 "Function `prop_gen_dict` expects a non-empty Dict of columns."
+             else
+               (match prob_float_arg "prop_gen_dict" "na_prob" 0.1 named_args with
+                | Error err -> err
+                | Ok na_prob ->
+                    gen "dict"
+                      [ ("columns", VDict columns);
+                        ("na_prob", VFloat na_prob) ])
+         | [other] ->
+             Error.type_error
+               (Printf.sprintf "Function `prop_gen_dict` expects `columns` to be a Dict, got %s."
+                  (Utils.type_name other))
+         | args -> Error.arity_error_named "prop_gen_dict" 1 (List.length args)))
+
+(*
 --# Generate a DataFrame matching an existing sample
 --#
 --# Returns a generator spec producing a DataFrame with the same columns
@@ -805,6 +879,7 @@ let prop_resize =
 let register env =
   let env = Env.add "prop_gen_int" prop_gen_int env in
   let env = Env.add "prop_gen_int_range" prop_gen_int_range env in
+  let env = Env.add "prop_gen_between" prop_gen_between env in
   let env = Env.add "prop_gen_float_range" prop_gen_float_range env in
   let env = Env.add "prop_gen_bool" prop_gen_bool env in
   let env = Env.add "prop_gen_string_from" prop_gen_string_from env in
@@ -816,6 +891,7 @@ let register env =
   let env = Env.add "prop_gen_one_of" prop_gen_one_of env in
   let env = Env.add "prop_gen_date_range" prop_gen_date_range env in
   let env = Env.add "prop_gen_df" prop_gen_df env in
+  let env = Env.add "prop_gen_dict" prop_gen_dict env in
   let env = Env.add "prop_gen_df_from" prop_gen_df_from env in
   let env = Env.add "prop_gen_fn" prop_gen_fn env in
   let env = Env.add "prop_map_gen" prop_map_gen env in

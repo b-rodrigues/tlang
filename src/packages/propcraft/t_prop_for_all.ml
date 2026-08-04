@@ -87,6 +87,11 @@ and leaf_drawer (spec : value) : (unit -> value) option =
        | Some min, Some max ->
            Some (fun () -> VInt (Rng.uniform_int_range ~min ~max))
        | _ -> None)
+  | Some "between" ->
+      (match int_field "min" spec, int_field "max" spec with
+       | Some min, Some max ->
+           Some (fun () -> VInt (Rng.uniform_int_range ~min ~max))
+       | _ -> None)
   | Some "float_range" ->
       (match float_field "min" spec, float_field "max" spec with
        | Some min, Some max ->
@@ -179,6 +184,12 @@ and draw_value ~eval_call ~env ~size (spec : value) : (value, value) result =
        | _ ->
            Error (Error.type_error
                     "prop_for_all: int_range spec requires `min` and `max` Int fields."))
+  | Some "between" ->
+      (match int_field "min" spec, int_field "max" spec with
+       | Some min, Some max -> Ok (VInt (Rng.uniform_int_range ~min ~max))
+       | _ ->
+           Error (Error.type_error
+                    "prop_for_all: between spec requires `min` and `max` Int fields."))
   | Some "float_range" ->
       (match float_field "min" spec, float_field "max" spec with
        | Some min, Some max -> Ok (VFloat (Rng.uniform_float_range ~min ~max))
@@ -341,6 +352,31 @@ and draw_value ~eval_call ~env ~size (spec : value) : (value, value) result =
        | _ ->
            Error (Error.type_error
                     "prop_for_all: df spec requires a non-empty `columns` Dict."))
+  | Some "dict" ->
+      (match field "columns" spec with
+       | Some (VDict columns) when columns <> [] ->
+           let na_prob =
+             match float_field "na_prob" spec with
+             | Some p -> max 0.0 (min 1.0 p)
+             | None -> 0.1
+           in
+           let rec go acc = function
+             | [] -> Ok (VDict (List.rev acc))
+             | (name, col_spec) :: rest ->
+                 (match draw_value ~eval_call ~env ~size col_spec with
+                  | Ok v ->
+                      let v =
+                        if na_prob > 0.0 && Rng.uniform_float_range ~min:0.0 ~max:1.0 < na_prob
+                        then VNA (na_for_spec col_spec)
+                        else v
+                      in
+                      go ((name, v) :: acc) rest
+                  | Error err -> Error err)
+           in
+           go [] columns
+       | _ ->
+           Error (Error.type_error
+                    "prop_for_all: dict spec requires a non-empty `columns` Dict."))
   | Some "map" ->
       (match field "source" spec, field "fn" spec with
        | Some src, Some fn ->
@@ -435,6 +471,15 @@ let shrink_int i =
     List.sort_uniq compare [ 0; half_toward_zero i ]
     |> List.filter (fun c -> c <> i)
 
+(* Shrink an Int toward a domain floor instead of toward zero. Halving
+   from [i] toward [min] (inclusive) guarantees the shrink sequence stays
+   inside [min, i] and eventually reaches [min]. *)
+let shrink_toward_min min i =
+  if i <= min then []
+  else
+    let mid = min + ((i - min) / 2) in
+    List.sort_uniq compare [ min; mid ] |> List.filter (fun c -> c <> i)
+
 let shrink_float f =
   if f = 0.0 then []
   else List.sort_uniq compare [ 0.0; f /. 2.0 ] |> List.filter (fun c -> c <> f)
@@ -451,7 +496,7 @@ let shrink_string s =
     |> List.sort_uniq compare
     |> List.filter (fun c -> c <> s)
 
-let rec shrink_list items =
+let rec shrink_list ?(shrink_elem = shrink_value) items =
   let len = List.length items in
   if len = 0 then []
   else
@@ -465,7 +510,7 @@ let rec shrink_list items =
     let elem_wise =
       List.mapi
         (fun i (_, v) ->
-          shrink_value v
+          shrink_elem v
           |> List.map (fun sv ->
                  List.mapi (fun j (n2, v2) -> if j = i then (n2, sv) else (n2, v2)) items))
         items
@@ -499,16 +544,18 @@ and shrink_value v =
       shrink_list (Array.to_list arr |> List.map (fun v -> (None, v)))
       |> List.map (fun l -> VVector (Array.of_list (List.map snd l)))
   | VDict pairs -> List.map (fun d -> VDict d) (shrink_dict pairs)
-  | VDataFrame df -> shrink_dataframe df
+  | VDataFrame df -> shrink_dataframe ~cell_min:(fun _ -> None) df
   | _ -> []
 
 (* Shrink a DataFrame counterexample: first reduce the row count by
    taking halving row prefixes (down to the empty frame), then minimize
    individual cells to canonical values derived from the column's own
    values (Int -> 0, Float -> 0.0, Bool -> false, String -> "", Factor ->
-   first level). NA cells are left untouched. Candidate frames are
-   rebuilt through Arrow_bridge, so column types are preserved. *)
-and shrink_dataframe df =
+   first level). A `between` column canonicalizes to its `min` instead of
+   0, so its shrunk cells stay in-domain. NA cells are left untouched.
+   Candidate frames are rebuilt through Arrow_bridge, so column types are
+   preserved. *)
+and shrink_dataframe ~cell_min df =
   let arrow_table = df.arrow_table in
   let group_keys = df.group_keys in
   let nrows = Arrow_table.num_rows arrow_table in
@@ -532,8 +579,11 @@ and shrink_dataframe df =
     | None -> halves
   in
   let cell_candidates =
-    let minimal_of = function
-      | VInt _ -> Some (VInt 0)
+    let minimal_of name = function
+      | VInt _ ->
+          (match cell_min name with
+           | Some m -> Some (VInt m)
+           | None -> Some (VInt 0))
       | VFloat _ -> Some (VFloat 0.0)
       | VBool _ -> Some (VBool false)
       | VString _ -> Some (VString "")
@@ -548,7 +598,7 @@ and shrink_dataframe df =
                match cell with
                | VNA _ -> []
                | _ ->
-                   (match minimal_of cell with
+                   (match minimal_of name cell with
                     | Some minimal when minimal = cell -> []
                     | Some minimal ->
                         let new_col = Array.copy col in
@@ -596,20 +646,22 @@ let is_failure = function
   | `Pass -> false
   | _ -> true
 
-let shrink_minimal ~eval_call ~env property input =
+let shrink_minimal ~eval_call ~env ~shrink_v ~verify property input =
   let fails v =
     outcome_of (eval_call env property [(None, Ast.mk_expr (Value v))])
     |> is_failure
   in
   let rec go v =
-    let candidates = cap_candidates (shrink_value v) in
+    let candidates =
+      if verify then shrink_v v else cap_candidates (shrink_v v)
+    in
     match List.find_opt fails candidates with
     | Some c -> go c
     | None -> v
   in
   go input
 
-let failure_message ~n ~runs ~k ~counterexamples =
+let failure_message ~name ~n ~runs ~k ~counterexamples =
   (* counterexamples are passed in discovery order (first failure first). *)
   let block i (input, shrunk, reason) =
     let input_s = render_value input in
@@ -631,25 +683,146 @@ let failure_message ~n ~runs ~k ~counterexamples =
     | 1 -> "1 counterexample"
     | m -> Printf.sprintf "%d counterexamples" m
   in
+  let verb =
+    match name with
+    | Some m -> Printf.sprintf "Property %s failed" m
+    | None -> "Property failed"
+  in
   let header =
     if k = 1 then
-      Printf.sprintf "Property failed after %d of %d runs." runs n
+      Printf.sprintf "%s after %d of %d runs." verb runs n
     else
-      Printf.sprintf "Property failed after %d of %d runs (showing %s)."
-        runs n shown
+      Printf.sprintf "%s after %d of %d runs (showing %s)."
+        verb runs n shown
   in
   VExpect (Expect_stop (Printf.sprintf "%s\n%s" header blocks))
 
-let run_property ~eval_call ~env ~n ~shrink ~max_counterexamples spec property =
+(* Derive the value-shrink function from the top-level generator spec so
+   domain floors apply during shrinking: a `between` spec shrinks toward
+   its `min`, a `df`/`dict` spec shrinks between-column cells to that
+   column's `min`, and composite specs (`list`, `vector`, `choice`,
+   `frequency`) propagate the shrink strategy of their element(s). *)
+let rec spec_shrink_v spec =
+  match spec_gen spec with
+  | Some "between" ->
+      let min = match int_field "min" spec with Some m -> m | None -> 0 in
+      (fun v ->
+        match v with
+        | VInt i -> List.map (fun x -> VInt x) (shrink_toward_min min i)
+        | _ -> shrink_value v)
+  | Some "df" ->
+      let cell_min =
+        match field "columns" spec with
+        | Some (VDict columns) ->
+            let mins =
+              List.filter_map
+                (fun (cname, cspec) ->
+                  match spec_gen cspec, int_field "min" cspec with
+                  | Some "between", Some m -> Some (cname, m)
+                  | _ -> None)
+                columns
+            in
+            (fun cname -> List.assoc_opt cname mins)
+        | _ -> fun _ -> None
+      in
+       (fun v ->
+         match v with
+         | VDataFrame df -> shrink_dataframe ~cell_min df
+         | _ -> shrink_value v)
+  | Some "dict" ->
+      let cell_min =
+        match field "columns" spec with
+        | Some (VDict columns) ->
+            let mins =
+              List.filter_map
+                (fun (cname, cspec) ->
+                  match spec_gen cspec, int_field "min" cspec with
+                  | Some "between", Some m -> Some (cname, m)
+                  | _ -> None)
+                columns
+            in
+            (fun cname -> List.assoc_opt cname mins)
+        | _ -> fun _ -> None
+      in
+      (fun v ->
+        match v with
+        | VDict pairs ->
+            List.concat_map
+              (fun (k, v) ->
+                let shrunk =
+                  match v, cell_min k with
+                  | VInt i, Some min ->
+                      List.map (fun x -> VInt x) (shrink_toward_min min i)
+                  | _ -> shrink_value v
+                in
+                shrunk
+                |> List.map (fun sv ->
+                       List.map (fun (k2, v2) -> if k2 = k then (k2, sv) else (k2, v2)) pairs))
+              pairs
+            |> List.filter (fun d -> d <> pairs)
+            |> List.sort_uniq compare
+            |> List.map (fun d -> VDict d)
+        | _ -> shrink_value v)
+  | Some "list" ->
+      let elem_shrink_v =
+        match field "elem" spec with
+        | Some elem_spec -> spec_shrink_v elem_spec
+        | None -> shrink_value
+      in
+      (fun v ->
+        match v with
+        | VList items ->
+            List.map (fun l -> VList l) (shrink_list ~shrink_elem:elem_shrink_v items)
+        | _ -> shrink_value v)
+  | Some "vector" ->
+      let elem_shrink_v =
+        match field "elem" spec with
+        | Some elem_spec -> spec_shrink_v elem_spec
+        | None -> shrink_value
+      in
+      (fun v ->
+        match v with
+        | VVector arr ->
+            let items = Array.to_list arr |> List.map (fun v -> (None, v)) in
+            shrink_list ~shrink_elem:elem_shrink_v items
+            |> List.map (fun l -> VVector (Array.of_list (List.map snd l)))
+        | _ -> shrink_value v)
+  | Some "choice" ->
+      let branch_shrinks =
+        match field "gens" spec with
+        | Some (VList gens) ->
+            gens |> List.map (fun (_, g) -> spec_shrink_v g)
+        | _ -> [ shrink_value ]
+      in
+      (fun v ->
+        branch_shrinks
+        |> List.concat_map (fun sh -> sh v)
+        |> List.sort_uniq compare)
+  | Some "frequency" ->
+      let branch_shrinks =
+        match field "gens" spec, field "weights" spec with
+        | Some (VList gens), _ ->
+            gens |> List.map (fun (_, g) -> spec_shrink_v g)
+        | _ -> [ shrink_value ]
+      in
+      (fun v ->
+        branch_shrinks
+        |> List.concat_map (fun sh -> sh v)
+        |> List.sort_uniq compare)
+  | _ -> shrink_value
+
+let run_property ~eval_call ~env ~n ~shrink ~shrink_verify ~max_counterexamples
+    ?name spec property =
+  let shrink_v = spec_shrink_v spec in
   let rec loop i counterexamples =
     if List.length counterexamples >= max_counterexamples then
-      failure_message ~n ~runs:(i - 1) ~k:max_counterexamples
+      failure_message ~name ~n ~runs:(i - 1) ~k:max_counterexamples
         ~counterexamples:(List.rev counterexamples)
     else if i > n then
       (match counterexamples with
        | [] -> VExpect Expect_pass
        | _ ->
-           failure_message ~n ~runs:(i - 1) ~k:max_counterexamples
+           failure_message ~name ~n ~runs:(i - 1) ~k:max_counterexamples
              ~counterexamples:(List.rev counterexamples))
     else
       match draw_value ~eval_call ~env ~size:default_size spec with
@@ -667,7 +840,10 @@ let run_property ~eval_call ~env ~n ~shrink ~max_counterexamples spec property =
             if already then loop (i + 1) counterexamples
             else
               let shrunk =
-                if shrink then shrink_minimal ~eval_call ~env property input else input
+                if shrink then
+                  shrink_minimal ~eval_call ~env ~shrink_v ~verify:shrink_verify
+                    property input
+                else input
               in
               loop (i + 1) ((input, shrunk, reason) :: counterexamples)
           in
@@ -707,6 +883,8 @@ let run_property ~eval_call ~env ~n ~shrink ~max_counterexamples spec property =
 --# @param n :: Int = 100 Number of values to draw.
 --# @param max_counterexamples :: Int = 1 Number of render-distinct failing inputs to report.
 --# @param shrink :: Bool = true Whether to report a shrunk counterexample.
+--# @param shrink_verify :: Bool = false Re-check every shrink candidate (not just the
+--#   first 32) so the reported counterexample is guaranteed minimal.
 --# @return :: Expect Expect_pass on success, Expect_stop on failure.
 --# @example
 --#   set_seed(42)
@@ -825,15 +1003,157 @@ let prop_stats ~eval_call =
          | Error err, _ -> err
          | _, args -> Error.arity_error_named "prop_stats" 1 (List.length args)))
 
+(*
+--# Name a reusable property
+--#
+--# Bundles a property function under a `name` into an immutable named property
+--# Dict. Named properties are plain values (no global registry): pass the result
+--# to prop_test to run it against a generator. Failure reports are
+--# prefixed with the property's name.
+--#
+--# @name prop_named
+--# @param name :: String The property's display name.
+--# @param property :: Function A function from a generated value to Bool or Expect.
+--# @return :: Dict { name, property }.
+--# @example
+--#   monotone = prop_named("monotone", \(x) x <= 100)
+--#   assert(prop_test(monotone, prop_gen_between(0, 200)))
+--# @family propcraft
+--# @seealso prop_test, prop_for_all
+--# @export
+*)
+let prop_named =
+  make_builtin ~name:"prop_named" 2 (fun args _env ->
+    match args with
+    | [VString name; property] ->
+        VDict [ ("name", VString name); ("property", property) ]
+    | [other; _] ->
+        Error.type_error
+          (Printf.sprintf "Function `prop_named` expects `name` to be a String, got %s."
+             (Utils.type_name other))
+    | _ -> Error.arity_error_named "prop_named" 2 (List.length args))
+
+(*
+--# Run a named property
+--#
+--# Runs the property captured by a `prop_named` Dict against values
+--# drawn from `gen`, mirroring prop_for_all's parameters. A failing
+--# report is prefixed with the property's name.
+--#
+--# @name prop_test
+--# @param named :: Dict A named property built by prop_named.
+--# @param gen :: Dict A generator spec (see prop_gen_int, prop_gen_df, ...).
+--# @param n :: Int = 100 Number of values to draw.
+--# @param max_counterexamples :: Int = 1 Number of render-distinct failing inputs to report.
+--# @param shrink :: Bool = true Whether to report a shrunk counterexample.
+--# @param shrink_verify :: Bool = false Re-check every shrink candidate so the reported
+--#   counterexample is guaranteed minimal.
+--# @return :: Expect Expect_pass on success, Expect_stop on failure.
+--# @example
+--#   set_seed(42)
+--#   monotone = prop_named("monotone", \(x) x <= 100)
+--#   assert(prop_test(monotone, prop_gen_between(0, 200)))
+--# @family propcraft
+--# @seealso prop_named, prop_for_all
+--# @export
+*)
+let prop_test ~eval_call =
+  make_builtin_named ~name:"prop_test" ~variadic:true 2 (fun named_args env ->
+    let unknown =
+      List.filter
+        (fun (n, _) ->
+          match n with
+          | None | Some ("n" | "shrink" | "shrink_verify" | "max_counterexamples") -> false
+          | Some _ -> true)
+        named_args
+    in
+    match unknown with
+    | (Some arg_name, _) :: _ ->
+        Error.type_error
+          (Printf.sprintf "Function `prop_test` received unknown named argument `%s`."
+             arg_name)
+    | _ ->
+        let n =
+          match Math_common.optional_named_arg "n" named_args with
+          | Some (VInt i) when i > 0 -> Ok i
+          | Some (VInt _) ->
+              Error
+                (Error.value_error
+                   "Function `prop_test` expects `n` to be a positive Int.")
+          | Some other ->
+              Error
+                (Error.type_error
+                   (Printf.sprintf "Function `prop_test` expects `n` to be an Int, got %s."
+                      (Utils.type_name other)))
+          | None -> Ok 100
+        in
+        let max_counterexamples =
+          match Math_common.optional_named_arg "max_counterexamples" named_args with
+          | Some (VInt i) when i > 0 -> Ok i
+          | Some (VInt _) ->
+              Error
+                (Error.value_error
+                   "Function `prop_test` expects `max_counterexamples` to be a positive Int.")
+          | Some other ->
+              Error
+                (Error.type_error
+                   (Printf.sprintf
+                      "Function `prop_test` expects `max_counterexamples` to be an Int, got %s."
+                      (Utils.type_name other)))
+          | None -> Ok 1
+        in
+        let shrink =
+          match Math_common.get_bool_flag "shrink" true named_args with
+          | Ok b -> Ok b
+          | Error err -> Error err
+        in
+        let shrink_verify =
+          match Math_common.get_bool_flag "shrink_verify" false named_args with
+          | Ok b -> Ok b
+          | Error err -> Error err
+        in
+        (match n, max_counterexamples, shrink, shrink_verify,
+               Math_common.positional_args_without
+                 [ "n"; "shrink"; "shrink_verify"; "max_counterexamples" ] named_args with
+         | Ok n, Ok max_counterexamples, Ok shrink, Ok shrink_verify, [macro; gen] ->
+              (match macro with
+               | VDict pairs ->
+                   (match List.assoc_opt "name" pairs, List.assoc_opt "property" pairs with
+                    | Some (VString name), Some property ->
+                        run_property ~eval_call ~env ~n ~shrink ~shrink_verify
+                          ~max_counterexamples ~name gen property
+                    | _, None ->
+                        Error.type_error
+                           "Function `prop_test` expects a named property to have a `property` field."
+                     | Some other, _ ->
+                         Error.type_error
+                           (Printf.sprintf
+                              "Function `prop_test` expects a named property to have a String `name`, got %s."
+                              (Utils.type_name other))
+                     | None, _ ->
+                         Error.type_error
+                           "Function `prop_test` expects a named property to have a `name` field.")
+                | other ->
+                    Error.type_error
+                      (Printf.sprintf "Function `prop_test` expects a named property Dict, got %s."
+                        (Utils.type_name other)))
+         | Error err, _, _, _, _ | _, Error err, _, _, _
+         | _, _, Error err, _, _ | _, _, _, Error err, _ -> err
+         | _, _, _, _, args ->
+             Error.arity_error_named "prop_test" 2 (List.length args)))
+
 let register ~eval_call env =
   let env = Env.add "prop_stats" (prop_stats ~eval_call) env in
+  let env = Env.add "prop_test" (prop_test ~eval_call) env in
+  Env.add "prop_named" prop_named env
+  |> fun env ->
   Env.add "prop_for_all"
     (make_builtin_named ~name:"prop_for_all" ~variadic:true 2 (fun named_args env ->
        let unknown =
          List.filter
            (fun (n, _) ->
              match n with
-             | None | Some ("n" | "shrink" | "max_counterexamples") -> false
+             | None | Some ("n" | "shrink" | "shrink_verify" | "max_counterexamples") -> false
              | Some _ -> true)
            named_args
        in
@@ -877,12 +1197,19 @@ let register ~eval_call env =
              | Ok b -> Ok b
              | Error err -> Error err
            in
-           (match n, max_counterexamples, shrink,
+           let shrink_verify =
+             match Math_common.get_bool_flag "shrink_verify" false named_args with
+             | Ok b -> Ok b
+             | Error err -> Error err
+           in
+           (match n, max_counterexamples, shrink, shrink_verify,
                   Math_common.positional_args_without
-                    [ "n"; "shrink"; "max_counterexamples" ] named_args with
-            | Ok n, Ok max_counterexamples, Ok shrink, [gen; property] ->
-                run_property ~eval_call ~env ~n ~shrink ~max_counterexamples gen property
-            | Error err, _, _, _ | _, Error err, _, _ | _, _, Error err, _ -> err
-            | _, _, _, args ->
+                    [ "n"; "shrink"; "shrink_verify"; "max_counterexamples" ] named_args with
+            | Ok n, Ok max_counterexamples, Ok shrink, Ok shrink_verify, [gen; property] ->
+                run_property ~eval_call ~env ~n ~shrink ~shrink_verify ~max_counterexamples
+                  gen property
+            | Error err, _, _, _, _ | _, Error err, _, _, _
+            | _, _, Error err, _, _ | _, _, _, Error err, _ -> err
+            | _, _, _, _, args ->
                 Error.arity_error_named "prop_for_all" 2 (List.length args))))
     env

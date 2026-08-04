@@ -5023,6 +5023,7 @@ g         -- {`gen`: "int_range", `min`: 1, `max`: 5}
 | `prop_gen_one_of(values)` | Uniformly pick one value from a non-empty List or Vector of values |
 | `prop_gen_date_range(start, end)` | Date (or Datetime) drawn uniformly in an inclusive range; bounds must be both Dates or both Datetimes, and the timezone is preserved |
 | `prop_gen_df(columns, nrows = 30, na_prob = 0.1)` | DataFrame with generated columns; `na_prob` injects typed `NA` values into columns |
+| `prop_gen_dict(columns, na_prob = 0.1)` | Dict with one generated value per column; `na_prob` probability of NA per column value |
 | `prop_gen_df_from(df, nrows = 30, na_prob = 0.1)` | DataFrame with the same columns as `df`, inferring each column's generator from the sample values |
 | `prop_gen_fn(fn)` | Draw a value by calling `fn(size)` with the current generation size |
 
@@ -5042,6 +5043,100 @@ Probes a generator without writing a property: draws `n` values (ramping the gen
 prop_stats(prop_gen_df_from(mtcars, nrows = 50), n = 20)
 -- {`n_runs`: 20, `n_errors`: 0, `value_types`: {`DataFrame`: 20},
 --  `nested_sizes`: {`df`: [1, 2, ..., 20]}, `elapsed_ms`: ...}
+```
+### `prop_gen_between(min, max)`
+
+**Bounded integer generator with in-domain shrinking.** Like `prop_gen_int_range(min, max)`, but shrinks counterexamples toward the lower bound
+rather than toward 0. Use this when the property's domain has a natural lower bound and you want minimal counterexamples that are
+still within the valid range.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `min` | Int | — | Lower bound (inclusive). |
+| `max` | Int | — | Upper bound (inclusive). |
+
+```t
+prop_gen_between(100, 200)
+-- {`gen`: "between", `min`: 100, `max`: 200}
+```
+
+### `prop_gen_dict(columns, na_prob = 0.1)`
+
+**Generate a Dict of values**, one per column.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `columns` | Dict | — | Mapping of `name: generator_spec` pairs. |
+| `na_prob` | Float | `0.1` | Probability that any given column value is NA. |
+
+```t
+prop_gen_dict([x: prop_gen_int_range(0, 100), s: prop_gen_one_of(["a", "b"])])
+-- {`gen`: "dict", `columns`: ..., `na_prob`: 0.1}
+```
+
+### `prop_show_spec(spec)`
+
+**Render a generator spec as T source text.** Takes any generator Dict (from `prop_gen_int_range`, `prop_gen_df`, etc.) and returns a
+string of valid T code that rebuilds an equivalent generator — same draws under the same seed.
+
+```t
+prop_show_spec(prop_gen_int_range(0, 100))  -- "prop_gen_int_range(0, 100)"
+prop_show_spec(prop_gen_df([x: prop_gen_between(1, 5)], nrows = 3, na_prob = 0.0))
+-- "prop_gen_df([x: prop_gen_between(1, 5)], nrows = 3, na_prob = 0.)"
+```
+
+Closure-based generators (`map`, `such_that`, `fn`) produce an explicit error since they cannot be rendered:
+```t
+prop_show_spec(prop_map_gen(prop_gen_int_range(0, 5), \(v) v))
+-- Error: cannot render a `map` generator spec: it captures a closure.
+```
+
+### `prop_named(name, property)`
+
+**Create a named property.** Named properties are plain immutable Dicts — no global registry. Pass the result to `prop_test`.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `name` | String | — | Human-readable name used in failure reports. |
+| `property` | Callable | — | Predicate receiving a generated value, returning Bool. |
+
+```t
+m = prop_named("positive", \(x) x > 0)
+-- {`name`: "positive", `property`: \(x) -> <function>}
+```
+
+### `prop_test(named, gen, n = 100, max_counterexamples = 1, shrink = true, shrink_verify = false)`
+
+**Run a named property against a generator.** Behaves identically to `prop_for_all` but takes a prebuilt named property Dict instead of an
+anonymous predicate, and prefixes failure reports with the property's name.
+
+```t
+set_seed(42)
+m = prop_named("bounded", \(x) x >= 0)
+prop_test(m, prop_gen_between(0, 200), n = 20)  -- PASS
+```
+
+### `prop_test(macro, gen, n = 100, max_counterexamples = 1, shrink = true, shrink_verify = false)`
+
+**Run a named property macro against a generator.** Behaves identically to `prop_for_all` but takes a prebuilt macro Dict instead of an
+anonymous predicate, and prefixes failure reports with the macro's name.
+
+```t
+set_seed(42)
+m = prop_named("bounded", \(x) x >= 0)
+prop_test(m, prop_gen_between(0, 200), n = 20)  -- PASS
+```
+
+### `shrink_verify = true` (opt-in on `prop_for_all` and `prop_test`)
+
+**Opt-in exhaustive shrink verification.** By default, shrinking caps per-level candidate lists at 32 for performance. When
+`shrink_verify = true`, every candidate at the shrink fixpoint is re-verified (uncapped), ensuring the reported counterexample is truly
+minimal. Rarely needed; use when shrinking a deeply nested value (large dict or DataFrame) produces a suspiciously large counterexample.
+
+```t
+set_seed(42)
+prop_for_all(prop_gen_df([x: prop_gen_int_range(0, 100)], nrows = 100, na_prob = 0.0),
+             \(df) nrow(df) < 50, n = 20, shrink_verify = true)
 ```
 
 ### Finding NA-handling bugs

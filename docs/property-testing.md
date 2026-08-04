@@ -2,6 +2,8 @@
 
 Comprehensive guide to hardening T code with property-based testing using the **popcraft** package.
 
+> **New:** See also the [Property Testing Cookbook](./property-testing-cookbook.md) for reusable patterns and a step-by-step guide to writing your first property test.
+
 ## Table of Contents
 
 - [What Is Property-Based Testing?](#what-is-property-based-testing)
@@ -95,6 +97,7 @@ Because they are data, you can store them in variables, pass them around, and co
 |-----------|-----------|----------|
 | `prop_gen_int` | `prop_gen_int(min = -10, max = 10)` | Random Int in `[min, max]` |
 | `prop_gen_int_range` | `prop_gen_int_range(min, max)` | Random Int in `[min, max]` |
+| `prop_gen_between` | `prop_gen_between(min, max)` | Random Int in `[min, max]`, **shrinks toward the lower bound** instead of 0 |
 | `prop_gen_float_range` | `prop_gen_float_range(min, max)` | Random Float in `[min, max)` |
 | `prop_gen_bool` | `prop_gen_bool()` | Random Bool |
 | `prop_gen_string_from` | `prop_gen_string_from(chars, min_len, max_len)` | Random String over `chars` (a String, List, or Vector), length in `[min_len, max_len]` |
@@ -106,6 +109,7 @@ Because they are data, you can store them in variables, pass them around, and co
 | `prop_gen_one_of` | `prop_gen_one_of(values)` | Uniformly pick one value from a non-empty List or Vector of values |
 | `prop_gen_date_range` | `prop_gen_date_range(start, end)` | Date (or Datetime) drawn uniformly in an inclusive range; bounds must be both Dates or both Datetimes |
 | `prop_gen_df` | `prop_gen_df(columns, nrows = 30, na_prob = 0.1)` | DataFrame with generated columns and optional NA injection |
+| `prop_gen_dict` | `prop_gen_dict(columns, na_prob = 0.1)` | Dict with one value per column and optional NA injection |
 | `prop_gen_df_from` | `prop_gen_df_from(df, nrows = 30, na_prob = 0.1)` | DataFrame matching a sample's columns, with generators inferred from the sample |
 | `prop_gen_fn` | `prop_gen_fn(fn)` | Draw a value by calling `fn(size)` with the current generation size |
 
@@ -136,6 +140,59 @@ cube_gen = prop_gen_fn(\(n) n * n * n)
 ```
 
 `fn` receives the current generation size (`30` by default, propagated through `prop_resize`) and may call other generators, read variables, or draw from the shared RNG — the value it returns is the drawn value.
+
+### `prop_gen_between` — in-domain shrinking
+
+For properties where the domain has a natural lower bound (e.g., "the value must be ≥ 100"), use `prop_gen_between(min, max)`. Draws are identical to `prop_gen_int_range(min, max)`, but shrinking pushes values toward the lower bound rather than toward 0:
+
+```t
+set_seed(42)
+prop_for_all(prop_gen_between(100, 200), \(x) x <= 100, n = 20)
+-- counterexample: 154 (shrunk): 101
+```
+
+Without `prop_gen_between`, the same test with `prop_gen_int_range` would shrink the counterexample toward 0 — potentially below the meaningful domain. Column generators inside `prop_gen_df` and `prop_gen_dict` shrink toward the column's lower bound. The shrink strategy propagates through composite generators (`list`, `vector`, `choice`, `frequency`), so nested `between` values inside composites also shrink toward their lower bound.
+
+### `prop_show_spec` — introspection
+
+Render any generator spec back to valid T source. Useful for debugging generative pipelines, logging, and verifying composition:
+
+```t
+prop_show_spec(prop_gen_df([x: prop_gen_between(1, 5), s: prop_gen_one_of(["a", "b"])], nrows = 3))
+-- "prop_gen_df([x: prop_gen_between(1, 5), s: prop_gen_one_of([\"a\", \"b\"])], nrows = 3, na_prob = 0.)"
+```
+
+The rendered output is behaviorally equivalent to the original: same seed produces identical draws. Closure-based generators (`map`, `such_that`, `fn`) produce explicit errors since they capture callables that cannot be serialized. The output is intended for debugging and reproducibility, not serialization of arbitrary closures.
+
+### Named properties: `prop_named` + `prop_test`
+
+Instead of repeating the same predicate with different generators inline, build a **named property** and reuse it:
+
+```t
+m = prop_named("mutate_preserves_nrow", \(df) nrow(mutate(df, $z = $x * 2)) == nrow(df))
+set_seed(1)
+prop_test(m, prop_gen_df([x: prop_gen_float_range(0.0, 100.0)], nrows = 40, na_prob = 0.2), n = 25)
+prop_test(m, prop_gen_df([x: prop_gen_int_range(0, 100)], nrows = 40, na_prob = 0.2), n = 25)
+```
+
+Named properties are plain immutable Dicts (`{name, property}`) — no global registry. Failure reports prefix the property name:
+
+```
+STOP(Property mutate_preserves_nrow failed after 1 of 25 runs.
+  counterexample: DataFrame(...)
+  ...)
+```
+
+### `shrink_verify` — opt-in exhaustive shrinking
+
+By default, the greedy shrinker caps per-level candidate lists at 32 for performance. This is sufficient for most workloads. When shrinking a deeply nested value (large Dict or DataFrame) and the reported counterexample seems suspiciously large, opt in to exhaustive verification:
+
+```t
+prop_for_all(gen, predicate, n = 20, shrink_verify = true)
+prop_test(named, gen, n = 20, shrink_verify = true)
+```
+
+With `shrink_verify = true`, every candidate at the shrink fixpoint is re-verified without the 32-cap, ensuring the reported counterexample is truly minimal. Accepts `Bool` only; defaults to `false`. **May substantially increase shrinking time for large nested structures.**
 
 ### `prop_stats` — probing a generator
 
@@ -283,5 +340,5 @@ test("nrow is stable under mutate", function() {
 
 ## Roadmap
 
-- **v2 — shipped**: `prop_gen_df_from(df)` schema-driven generators derived from a sample DataFrame; custom generators via `prop_gen_fn`; `prop_gen_one_of`, `prop_gen_date_range`, `prop_gen_df_from`, `prop_gen_fn`, and `prop_stats` shipped in the `more-propcraft` round.
-- **v3 ideas**: generator introspection (render a generator spec back to a `.t` fragment), property macros (shrink-verified invariants), and a `prop_between(min, max)` integral-range convenience.
+- **v2 — shipped**: `prop_gen_df_from(df)` schema-driven generators derived from a sample DataFrame; custom generators via `prop_gen_fn`; `prop_gen_one_of`, `prop_gen_date_range`, `prop_gen_df_from`, `prop_gen_fn`, and `prop_stats`.
+- **v3 — shipped**: `prop_gen_between(min, max)` in-domain shrinking; `prop_show_spec(spec)` generator introspection (render to T source); `prop_named(name, property)` + `prop_test(named, gen, ...)` named reusable properties with shrink-verified invariants; `shrink_verify = true` opt-in exhaustive shrink re-verification.

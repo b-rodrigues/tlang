@@ -595,10 +595,15 @@ Purpose: property-based testing primitives for hardening T's standard library an
 - `prop_gen_fn(fn)` wraps an arbitrary callable as a generator: each draw calls `fn(size)` with the current generation size.
 - `prop_stats(gen, n = 100)` probes a generator (size ramp 1..n) and returns a Dict with `n_runs`, `n_errors`, `value_types`, `nested_sizes`, and `elapsed_ms` — useful for sanity-checking derived/custom generators.
 - `prop_gen_df` injects typed `NA` values into generated columns according to `na_prob` — the primary tool for catching verbs that mishandle missingness. Leaf scalar columns use a batched fast path so large frames draw quickly.
+- `prop_gen_dict(columns, na_prob = 0.1)`: Dict generator — one value per column, same column-spec format as `prop_gen_df`. Between-column cells shrink toward their column's lower bound.
 - Combinators: `prop_map_gen(source, fn)`, `prop_such_that(source, pred, max_tries = 100)`, `prop_resize(source, n)`.
 - Shrinking is deterministic and only affects the reported message (never pass/fail): ints/strings/lists/vectors shrink toward minimal failing inputs; DataFrames shrink by halving rows down to the empty frame and then minimizing cells to canonical values per column type (`Int` → 0, `Float` → 0.0, `Bool` → false, `String` → "", `Factor` → first level), leaving NA cells untouched.
 - Dogfooding: popcraft property tests exercise the colcraft/stats verbs (`mutate`, `arrange`, `filter`, `group_by`+`summarize`, `distinct`, `head`, `slice_sample`, `left_join`, `fill`, `mean`, `sd`) over generated DataFrames with injected NAs, guarding row-count algebra and `na_rm` invariants.
 - Standard usage: `set_seed(42)` then `assert(prop_for_all(prop_gen_int_range(0, 100), \(x) x >= 0))`. For a scoped, single-expression run that leaves the surrounding RNG untouched, use `with_seed(seed, \(u) ...)`.
+- `prop_gen_between(min, max)`: bounded int generator with in-domain shrinking — counterexamples shrink toward the lower bound (the "floor") instead of 0. Inside `prop_gen_df`, between-column cells minimize to `VInt min`.
+- `prop_show_spec(spec)`: render a generator spec back to T source text; the rendered output rebuilds a behaviorally equivalent generator (identical draws under the same seed).
+- `prop_named(name, property)` + `prop_test(named, gen, n = 100, max_counterexamples = 1, shrink = true, shrink_verify = false)`: named properties as plain Dicts — define once, test against many generators; failure reports include the property name.
+- `shrink_verify = true` (opt-in on `prop_for_all` and `prop_test`): exhaustive shrink re-verification uncaps the per-level candidate limit (default 32), guaranteeing the reported counterexample is truly minimal.
 
 Disambiguation rule of thumb for LLMs:
 - inside `select(...)`/selection-helper contexts, prefer the `colcraft` helper meaning;

@@ -42,7 +42,7 @@ let na_of_value = function
 
 let rec na_for_spec spec =
   match spec_gen spec with
-  | Some ("int" | "int_range") -> NAInt
+  | Some ("int" | "int_range" | "between") -> NAInt
   | Some "float_range" -> NAFloat
   | Some "bool" -> NABool
   | Some "string" -> NAString

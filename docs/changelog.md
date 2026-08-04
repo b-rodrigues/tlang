@@ -15,6 +15,13 @@
 - **Reproducible by default**: All draws use the shared seeded RNG. `set_seed(n)` before a run reproduces the exact same values and counterexample on any machine, every run.
 - **`with_seed(seed, thunk)`**: New base-package function that seeds the RNG for a single expression and restores the previous state afterwards — exception-safe and nestable. Scope determinism to one `prop_for_all` or one `sample` without perturbing surrounding random draws.
 - **Deterministic shrinking**: On failure, ints/strings/lists/vectors shrink toward minimal failing inputs; DataFrames shrink by halving rows down to the empty frame and then minimizing cells to canonical values per column type. Shrinking only affects the reported message, never whether a run passes.
+- **`prop_gen_between(min, max)`**: Bounded integer generator with in-domain shrinking. For properties that have a natural lower bound, counterexamples shrink toward the lower bound rather than toward 0. Inside `prop_gen_df`, between-column cells canonicalize to `VInt min` so the shrinker minimizes within range.
+- **`prop_show_spec(spec)`**: Render any generator spec back to valid T source. The rendered output rebuilds a behaviorally equivalent generator (identical draws under the same seed). Closure-based generators produce an explicit error.
+- **`prop_named(name, property)` + `prop_test(named, gen, ...)`**: Named properties as plain immutable Dicts — no global registry. Define a property once (`m = prop_named("mutate_preserves_nrow", \(df) ...)`) and test it against multiple generators. Failure reports prefix the property name (`STOP(Property mutate_preserves_nrow failed...)`).
+- **`shrink_verify = true` opt-in**: Exhaustive shrink re-verification. By default, per-level shrink candidates are capped at 32 for performance. When `shrink_verify = true`, every candidate at the fixpoint is re-checked uncapped, guaranteeing the reported counterexample is truly minimal.
+- **`prop_gen_dict(columns, na_prob = 0.1)`**: Dict generator — produces a Dict with one value per column. Shares the column-spec format and leaf batched fast path as `prop_gen_df`. Between-column cells within dicts shrink toward their column's lower bound.
+- **Shrinker propagation**: `between` shrink strategies now propagate through composite generators (`list`, `vector`, `choice`, `frequency`). Nested `prop_gen_between` values inside composites shrink toward their lower bound rather than toward 0.
+- **Dogfooding expanded**: Property tests now cover the `math`, `strcraft`, and `core` packages with invariants for arithmetic identities, string round-trips, idempotence, and functional primitives. New cookbook guide (`docs/property-testing-cookbook.md`) documents reusable property-test patterns.
 
 ## [0.54.3] - 2026-08-01
 
