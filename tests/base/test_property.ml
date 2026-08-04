@@ -112,6 +112,18 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env _test 
   test_env env "prop_for_all PASS datetime_range"
     "prop_for_all(prop_gen_date_range(ymd_hms(\"2020-06-01 00:00:00\"), ymd_hms(\"2020-06-01 23:59:59\")), \\(d) year(d) == 2020 && month(d) == 6, n = 30)"
     "PASS";
+  test_env env "prop_for_all PASS prop_gen_ymd year span"
+    "prop_for_all(prop_gen_ymd(2000, 2024), \\(d) year(d) >= 2000 && year(d) <= 2024, n = 30)"
+    "PASS";
+  test_env env "prop_for_all PASS prop_gen_ymd inclusive single year"
+    "set_seed(7)\nprop_for_all(prop_gen_ymd(2020, 2020), \\(d) year(d) == 2020, n = 5)"
+    "PASS";
+  test_env env "prop_for_all PASS prop_gen_ymd bounds respected"
+    "prop_for_all(prop_gen_ymd(2000, 2024), \\(d) d >= ymd(\"2000-01-01\") && d <= ymd(\"2024-12-31\"), n = 30)"
+    "PASS";
+  test_env env "prop_gen_ymd df column with NA injection"
+    "prop_for_all(prop_gen_df([d: prop_gen_ymd(2000, 2024)], nrows = 40, na_prob = 0.5), \\(df) nrow(df) == 40 && ncol(df) == 1, n = 5)"
+    "PASS";
 
   (* FAIL cases *)
   test_env env "prop_for_all STOP on false"
@@ -176,6 +188,18 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env _test 
   test_env env "prop_for_all minimizes df string cells"
     "set_seed(3)\nprop_for_all(prop_gen_df([x: prop_gen_int_range(1, 5), s: prop_gen_string_from(\"abc\", 1, 3)], nrows = 30, na_prob = 0.0), \\(df) nrow(df) < 30, n = 1)"
     "<String> \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\"";
+  test_env env "prop_for_all shrinks date to year-span floor"
+    "set_seed(1)\nprop_for_all(prop_gen_ymd(2000, 2024), \\(d) d >= ymd(\"2010-01-01\"), n = 30)"
+    "Date(2000-01-01)";
+  test_env env "prop_for_all shrinks date_range to start bound"
+    "set_seed(1)\nprop_for_all(prop_gen_date_range(ymd(\"2000-01-01\"), ymd(\"2024-12-31\")), \\(d) d >= ymd(\"2010-01-01\"), n = 30)"
+    "Date(2000-01-01)";
+  test_env env "prop_for_all shrinks datetime to start bound"
+    "set_seed(1)\nprop_for_all(prop_gen_date_range(ymd_hms(\"2020-01-01 00:00:00\"), ymd_hms(\"2024-12-31 23:59:59\")), \\(dt) dt >= ymd_hms(\"2022-06-01 00:00:00\"), n = 30)"
+    "Datetime(2020-01-01T00:00:00Z[UTC])";
+  test_env env "prop_for_all shrinks date in a df column"
+    "set_seed(1)\nprop_for_all(prop_gen_df([d: prop_gen_ymd(2000, 2024)], nrows = 20, na_prob = 0.0), \\(df) false, n = 1)"
+    "DataFrame(0 rows x 1 cols)";
 
   (* Generator / combinator validation *)
   test_env env "prop_such_that exhaustion fails"
@@ -226,6 +250,18 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env _test 
   test_env env "prop_gen_date_range non-date bounds errors"
     "prop_gen_date_range(ymd(\"2020-01-01\"), 1)"
     "expects Date or Datetime bounds, got Date and Int";
+  test_env env "prop_gen_ymd inverted years errors"
+    "prop_gen_ymd(2024, 2000)"
+    "requires `max_year` to be on or after `min_year`";
+  test_env env "prop_gen_ymd non-int bounds errors"
+    "prop_gen_ymd(\"2000\", 2024)"
+    "expects Int year bounds, got String and Int";
+  test_env env "prop_gen_ymd arity error"
+    "prop_gen_ymd(2000)"
+    "expects 2 arguments but received 1";
+  test_env env "prop_gen_ymd spec is inspectable dict"
+    "prop_gen_ymd(2000, 2024)"
+    "{`gen`: \"ymd_range\", `min_year`: 2000, `max_year`: 2024, `start_day`: 10957, `end_day`: 20088}";
 
   (* prop_gen_df_from — schema-derived generators *)
   test_env env "prop_gen_df_from round-trips nrows and columns"
@@ -413,6 +449,9 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env _test 
   test_env env "prop_show_spec renders date_range dates"
     "prop_show_spec(prop_gen_date_range(ymd(\"2020-01-01\"), ymd(\"2021-06-15\")))"
     "prop_gen_date_range(parse_date(\\\"2020-01-01\\\", \\\"%Y-%m-%d\\\"), parse_date(\\\"2021-06-15\\\", \\\"%Y-%m-%d\\\"))";
+  test_env env "prop_show_spec renders ymd_range"
+    "prop_show_spec(prop_gen_ymd(2000, 2024))"
+    "prop_gen_ymd(2000, 2024)";
   test_env env "prop_show_spec renders datetime range with tz arg"
     "prop_show_spec(prop_gen_date_range(ymd_hms(\"2020-06-01 00:00:00\"), ymd_hms(\"2020-06-01 23:59:59\")))"
     "prop_gen_date_range(parse_datetime(\\\"2020-06-01 00:00:00.000000\\\", \\\"%Y-%m-%d %H:%M:%S\\\"), parse_datetime(\\\"2020-06-01 23:59:59.000000\\\", \\\"%Y-%m-%d %H:%M:%S\\\"))";
@@ -441,6 +480,8 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env _test 
     "prop_resize(prop_gen_vector(prop_gen_int_range(0, 5), 3), 20)";
   assert_roundtrip "prop_show_spec round-trip date_range" ""
     "prop_gen_date_range(ymd(\"2020-01-01\"), ymd(\"2021-06-15\"))";
+  assert_roundtrip "prop_show_spec round-trip ymd_range" ""
+    "prop_gen_ymd(2000, 2024)";
   assert_roundtrip "prop_show_spec round-trip df with between column" ""
     "prop_gen_df([x: prop_gen_between(100, 200), b: prop_gen_bool()], nrows = 5, na_prob = 0.1)";
 

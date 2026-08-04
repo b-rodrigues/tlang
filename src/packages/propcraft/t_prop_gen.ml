@@ -538,6 +538,46 @@ let prop_gen_date_range =
     | _ -> Error.arity_error_named "prop_gen_date_range" 2 (List.length args))
 
 (*
+--# Generate a Date within a year span
+--#
+--# Returns a generator spec that draws a Date uniformly between January 1st
+--# of `min_year` and December 31st of `max_year` (both inclusive). Dates
+--# shrink toward `min_year`-01-01. Use `prop_gen_date_range` when you need
+--# arbitrary (non-year-aligned) bounds.
+--#
+--# @name prop_gen_ymd
+--# @param min_year :: Int Lower bound year (inclusive).
+--# @param max_year :: Int Upper bound year (inclusive).
+--# @return :: Dict A generator spec.
+--# @example
+--#   g = prop_gen_ymd(2000, 2024)
+--# @family propcraft
+--# @seealso prop_gen_date_range, make_date
+--# @export
+*)
+let prop_gen_ymd =
+  make_builtin ~name:"prop_gen_ymd" 2 (fun args _env ->
+    match args with
+    | [VInt min_year; VInt max_year] ->
+        if max_year < min_year then
+          Error.value_error
+            "Function `prop_gen_ymd` requires `max_year` to be on or after `min_year`."
+        else
+          let start_day = Chrono.days_from_civil min_year 1 1 in
+          let end_day = Chrono.days_from_civil max_year 12 31 in
+          gen "ymd_range"
+            [ ("min_year", VInt min_year);
+              ("max_year", VInt max_year);
+              ("start_day", VInt start_day);
+              ("end_day", VInt end_day) ]
+    | [a; b] ->
+        Error.type_error
+          (Printf.sprintf
+             "Function `prop_gen_ymd` expects Int year bounds, got %s and %s."
+             (Utils.type_name a) (Utils.type_name b))
+    | _ -> Error.arity_error_named "prop_gen_ymd" 2 (List.length args))
+
+(*
 --# Generate a random DataFrame
 --#
 --# Returns a generator spec producing a DataFrame with one column per
@@ -890,6 +930,7 @@ let register env =
   let env = Env.add "prop_gen_factor" prop_gen_factor env in
   let env = Env.add "prop_gen_one_of" prop_gen_one_of env in
   let env = Env.add "prop_gen_date_range" prop_gen_date_range env in
+  let env = Env.add "prop_gen_ymd" prop_gen_ymd env in
   let env = Env.add "prop_gen_df" prop_gen_df env in
   let env = Env.add "prop_gen_dict" prop_gen_dict env in
   let env = Env.add "prop_gen_df_from" prop_gen_df_from env in

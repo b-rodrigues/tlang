@@ -70,7 +70,8 @@ let rec draw_many ~eval_call ~env ~size elem n acc =
     | Error err -> Error err
 
 (* Fast path for per-cell drawing inside [prop_gen_df]: leaf scalar specs
-   (int/int_range/float_range/bool/string/factor/one_of/date_range) have
+   (int/int_range/float_range/bool/string/factor/one_of/date_range/
+   ymd_range) have
    all their parameters known up front, so draw_column can close over them
    and emit nrows cells with a tight loop instead of re-dispatching through
    draw_value per cell. Returns None for container/wrapper specs, which keep
@@ -143,31 +144,36 @@ and leaf_drawer (spec : value) : (unit -> value) option =
                | Some v -> v
                | None -> VNA NAGeneric)
        | _ -> None)
-  | Some "date_range" ->
-      (match field "mode" spec with
-       | Some (VString "date") ->
-           (match int_field "start_day" spec, int_field "end_day" spec with
-            | Some start_day, Some end_day ->
-                Some (fun () -> VDate (Rng.uniform_int_range ~min:start_day ~max:end_day))
-            | _ -> None)
-       | Some (VString "datetime") ->
-           (match int_field "start_micros" spec, int_field "end_micros" spec with
-            | Some start_m, Some end_m ->
-                let tz =
-                  match field "tz" spec with
-                  | Some (VString s) -> Some s
-                  | _ -> None
-                in
-                Some
-                  (fun () ->
-                    VDatetime
-                      ( Rng.uniform_int64_range
-                          ~min:(Int64.of_int start_m)
-                          ~max:(Int64.of_int end_m),
-                        tz ))
-            | _ -> None)
-       | _ -> None)
-  | _ -> None
+   | Some "date_range" ->
+       (match field "mode" spec with
+        | Some (VString "date") ->
+            (match int_field "start_day" spec, int_field "end_day" spec with
+             | Some start_day, Some end_day ->
+                 Some (fun () -> VDate (Rng.uniform_int_range ~min:start_day ~max:end_day))
+             | _ -> None)
+        | Some (VString "datetime") ->
+            (match int_field "start_micros" spec, int_field "end_micros" spec with
+             | Some start_m, Some end_m ->
+                 let tz =
+                   match field "tz" spec with
+                   | Some (VString s) -> Some s
+                   | _ -> None
+                 in
+                 Some
+                   (fun () ->
+                     VDatetime
+                       ( Rng.uniform_int64_range
+                           ~min:(Int64.of_int start_m)
+                           ~max:(Int64.of_int end_m),
+                         tz ))
+             | _ -> None)
+        | _ -> None)
+   | Some "ymd_range" ->
+       (match int_field "start_day" spec, int_field "end_day" spec with
+        | Some start_day, Some end_day ->
+            Some (fun () -> VDate (Rng.uniform_int_range ~min:start_day ~max:end_day))
+        | _ -> None)
+   | _ -> None
 
 (* Draw a single value from a generator spec. *)
 and draw_value ~eval_call ~env ~size (spec : value) : (value, value) result =
@@ -321,9 +327,16 @@ and draw_value ~eval_call ~env ~size (spec : value) : (value, value) result =
             | _ ->
                 Error (Error.type_error
                          "prop_for_all: date_range spec requires `start_micros` and `end_micros` Int fields."))
-       | _ ->
+        | _ ->
            Error (Error.type_error
                     "prop_for_all: date_range spec requires a `mode` field."))
+   | Some "ymd_range" ->
+       (match int_field "start_day" spec, int_field "end_day" spec with
+        | Some start_day, Some end_day ->
+            Ok (VDate (Rng.uniform_int_range ~min:start_day ~max:end_day))
+        | _ ->
+            Error (Error.type_error
+                     "prop_for_all: ymd_range spec requires `start_day` and `end_day` Int fields."))
    | Some "fn" ->
        (match field "fn" spec with
         | Some fn ->
@@ -544,6 +557,10 @@ and shrink_value v =
       shrink_list (Array.to_list arr |> List.map (fun v -> (None, v)))
       |> List.map (fun l -> VVector (Array.of_list (List.map snd l)))
   | VDict pairs -> List.map (fun d -> VDict d) (shrink_dict pairs)
+  | VDate days -> List.map (fun x -> VDate x) (shrink_int days)
+  | VDatetime (micros, tz) ->
+      let m = Int64.to_int micros in
+      List.map (fun x -> VDatetime (Int64.of_int x, tz)) (shrink_int m)
   | VDataFrame df -> shrink_dataframe ~cell_min:(fun _ -> None) df
   | _ -> []
 
@@ -588,6 +605,8 @@ and shrink_dataframe ~cell_min df =
       | VBool _ -> Some (VBool false)
       | VString _ -> Some (VString "")
       | VFactor (_, levels, ordered) -> Some (VFactor (0, levels, ordered))
+      | VDate _ -> Some (VDate 0)
+      | VDatetime (_, tz) -> Some (VDatetime (0L, tz))
       | v -> Some v
     in
     List.concat_map
@@ -710,6 +729,30 @@ let rec spec_shrink_v spec =
         match v with
         | VInt i -> List.map (fun x -> VInt x) (shrink_toward_min min i)
         | _ -> shrink_value v)
+  | Some "ymd_range" ->
+      let start_day = match int_field "start_day" spec with Some d -> d | None -> 0 in
+      (fun v ->
+        match v with
+        | VDate days -> List.map (fun x -> VDate x) (shrink_toward_min start_day days)
+        | _ -> shrink_value v)
+  | Some "date_range" ->
+      (match field "mode" spec with
+       | Some (VString "datetime") ->
+           let start_m = match int_field "start_micros" spec with Some m -> m | None -> 0 in
+           (fun v ->
+             match v with
+             | VDatetime (micros, tz) ->
+                 let m = Int64.to_int micros in
+                 List.map
+                   (fun x -> VDatetime (Int64.of_int x, tz))
+                   (shrink_toward_min start_m m)
+             | _ -> shrink_value v)
+       | _ ->
+           let start_day = match int_field "start_day" spec with Some d -> d | None -> 0 in
+           (fun v ->
+             match v with
+             | VDate days -> List.map (fun x -> VDate x) (shrink_toward_min start_day days)
+             | _ -> shrink_value v))
   | Some "df" ->
       let cell_min =
         match field "columns" spec with

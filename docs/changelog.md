@@ -22,6 +22,9 @@
 - **`prop_gen_dict(columns, na_prob = 0.1)`**: Dict generator — produces a Dict with one value per column. Shares the column-spec format and leaf batched fast path as `prop_gen_df`. Between-column cells within dicts shrink toward their column's lower bound.
 - **Shrinker propagation**: `between` shrink strategies now propagate through composite generators (`list`, `vector`, `choice`, `frequency`). Nested `prop_gen_between` values inside composites shrink toward their lower bound rather than toward 0.
 - **Dogfooding expanded**: Property tests now cover the `math`, `strcraft`, and `core` packages with invariants for arithmetic identities, string round-trips, idempotence, and functional primitives. New cookbook guide (`docs/property-testing-cookbook.md`) documents reusable property-test patterns.
+- **`prop_gen_ymd(min_year, max_year)`**: Calendar-day date generator — draws a `Date` uniformly across every day in the inclusive year range (February 29th at its real frequency). Counterexamples shrink toward `Date(min_year-01-01)`, keeping shrinks inside the date domain.
+- **In-domain date shrinking**: `Date`/`Datetime` values now shrink within their domain — `ymd_range` toward the year-span floor, `date_range` toward the start bound (micros 0 + preserved timezone for datetimes), and bare date cells inside `prop_gen_df` toward the epoch (1970-01-01 / micros 0).
+- **Chrono dogfooding**: Property tests now cover the `chrono` package — date-bound invariants (`day`, `month`, `quarter`, `semester`, `yday`, `isoweek`, `wday`, leap-year consistency), round-trips (`format_date`/`parse_date`, `ymd`, period arithmetic), `%within%` intervals, datetime components, and NA-hardening of `mutate`/`arrange` over date columns.
 
 ## [0.54.3] - 2026-08-01
 

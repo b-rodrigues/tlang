@@ -5022,6 +5022,7 @@ g         -- {`gen`: "int_range", `min`: 1, `max`: 5}
 | `prop_gen_factor(levels)` | Factor level String |
 | `prop_gen_one_of(values)` | Uniformly pick one value from a non-empty List or Vector of values |
 | `prop_gen_date_range(start, end)` | Date (or Datetime) drawn uniformly in an inclusive range; bounds must be both Dates or both Datetimes, and the timezone is preserved |
+| `prop_gen_ymd(min_year, max_year)` | Date drawn uniformly across all calendar days in `[min_year, max_year]`; shrinks toward the lower year bound |
 | `prop_gen_df(columns, nrows = 30, na_prob = 0.1)` | DataFrame with generated columns; `na_prob` injects typed `NA` values into columns |
 | `prop_gen_dict(columns, na_prob = 0.1)` | Dict with one generated value per column; `na_prob` probability of NA per column value |
 | `prop_gen_df_from(df, nrows = 30, na_prob = 0.1)` | DataFrame with the same columns as `df`, inferring each column's generator from the sample values |
@@ -5059,6 +5060,27 @@ still within the valid range.
 prop_gen_between(100, 200)
 -- {`gen`: "between", `min`: 100, `max`: 200}
 ```
+
+### `prop_gen_ymd(min_year, max_year)`
+
+**Year-month-day date generator.** Draws a `Date` uniformly across every calendar day in the inclusive year range
+`[min_year, max_year]` (so February 29th is drawn roughly 1/4 as often as other days, matching its real frequency).
+Counterexamples shrink toward `Date(min_year-01-01)`, keeping shrinks within the date domain.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `min_year` | Int | — | Lower year bound (inclusive). |
+| `max_year` | Int | — | Upper year bound (inclusive). |
+
+```t
+prop_gen_ymd(2000, 2024)
+-- {`gen`: "ymd_range", `min_year`: 2000, `max_year`: 2024,
+--  `start_day`: 10957, `end_day`: 20088}
+```
+
+The inspectable spec stores the day indices (days since 1970-01-01) computed with the same civil-date math used by the
+`chrono` package. Combine with `prop_gen_df([d: prop_gen_ymd(...), ...])` to exercise date columns, and add
+`na_prob` to harden properties against missing dates.
 
 ### `prop_gen_dict(columns, na_prob = 0.1)`
 

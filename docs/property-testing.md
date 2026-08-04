@@ -108,6 +108,7 @@ Because they are data, you can store them in variables, pass them around, and co
 | `prop_gen_factor` | `prop_gen_factor(levels)` | One of the given factor levels |
 | `prop_gen_one_of` | `prop_gen_one_of(values)` | Uniformly pick one value from a non-empty List or Vector of values |
 | `prop_gen_date_range` | `prop_gen_date_range(start, end)` | Date (or Datetime) drawn uniformly in an inclusive range; bounds must be both Dates or both Datetimes |
+| `prop_gen_ymd` | `prop_gen_ymd(min_year, max_year)` | Date drawn uniformly across all days in `[min_year, max_year]`, shrinks toward the lower year bound |
 | `prop_gen_df` | `prop_gen_df(columns, nrows = 30, na_prob = 0.1)` | DataFrame with generated columns and optional NA injection |
 | `prop_gen_dict` | `prop_gen_dict(columns, na_prob = 0.1)` | Dict with one value per column and optional NA injection |
 | `prop_gen_df_from` | `prop_gen_df_from(df, nrows = 30, na_prob = 0.1)` | DataFrame matching a sample's columns, with generators inferred from the sample |
@@ -152,6 +153,18 @@ prop_for_all(prop_gen_between(100, 200), \(x) x <= 100, n = 20)
 ```
 
 Without `prop_gen_between`, the same test with `prop_gen_int_range` would shrink the counterexample toward 0 — potentially below the meaningful domain. Column generators inside `prop_gen_df` and `prop_gen_dict` shrink toward the column's lower bound. The shrink strategy propagates through composite generators (`list`, `vector`, `choice`, `frequency`), so nested `between` values inside composites also shrink toward their lower bound.
+
+### `prop_gen_ymd` — calendar-day date generation
+
+`prop_gen_ymd(min_year, max_year)` draws a `Date` uniformly across every calendar day in the inclusive year range — February 29th appears with roughly its real-world frequency. Shrinking pushes counterexamples toward `Date(min_year-01-01)`, keeping shrinks inside the date domain:
+
+```t
+set_seed(42)
+prop_for_all(prop_gen_ymd(2000, 2024), \(d) d >= ymd("2010-01-01"), n = 20)
+-- counterexample: Date(2016-08-06) (shrunk): Date(2000-01-01)
+```
+
+`prop_gen_date_range` already handled explicit start/end bounds; `prop_gen_ymd` is the year-range convenience with the same in-domain shrinking (year-span floor). Bare `Date`/`Datetime` values inside dataframe cells shrink toward their epoch (1970-01-01 / micros 0) so `prop_gen_df([d: prop_gen_ymd(...), ...])` yields minimal date cells. Combine with `na_prob` to harden date-column verbs against `NA` dates.
 
 ### `prop_show_spec` — introspection
 
@@ -342,3 +355,4 @@ test("nrow is stable under mutate", function() {
 
 - **v2 — shipped**: `prop_gen_df_from(df)` schema-driven generators derived from a sample DataFrame; custom generators via `prop_gen_fn`; `prop_gen_one_of`, `prop_gen_date_range`, `prop_gen_df_from`, `prop_gen_fn`, and `prop_stats`.
 - **v3 — shipped**: `prop_gen_between(min, max)` in-domain shrinking; `prop_show_spec(spec)` generator introspection (render to T source); `prop_named(name, property)` + `prop_test(named, gen, ...)` named reusable properties with shrink-verified invariants; `shrink_verify = true` opt-in exhaustive shrink re-verification.
+- **v4 — shipped**: `prop_gen_ymd(min_year, max_year)` calendar-day date generator; in-domain shrinking for `Date`/`Datetime` (year-span floor, range start bound, and bare-date epoch minimization inside dataframe cells); chrono package dogfooding via `prop_test`.
