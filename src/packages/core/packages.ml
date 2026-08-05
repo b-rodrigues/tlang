@@ -1039,7 +1039,9 @@ let init_env () =
     (* Python serializers *)
     "write_pkl"; "read_pkl";
     (* Arrow serializers *)
-    "^arrow"; "^parquet";
+    "^arrow";
+    (* Parquet serializers *)
+    "write_parquet"; "read_parquet"; "^parquet";
     (* JSON serializers *)
     "write_json"; "read_json";
     (* PMML *)
