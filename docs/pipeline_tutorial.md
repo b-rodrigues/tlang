@@ -414,7 +414,7 @@ By default the settings are merged into every node. Pass `runtimes` and/or `node
 to restrict the merge to a subset; when both are given the target is their union:
 
 ```t
-# Only R nodes get the arrow serializer
+# Only R nodes get the IPC serializer
 q1 = set_pipeline_global_options(p, runtimes = ["rn"], serializer = ^ipc)
 
 # Only the named nodes become no-ops

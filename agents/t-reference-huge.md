@@ -6765,17 +6765,6 @@ m = prop_named("bounded", \(x) x >= 0)
 prop_test(m, prop_gen_between(0, 200), n = 20)  -- PASS
 ```
 
-### `prop_test(macro, gen, n = 100, max_counterexamples = 1, shrink = true, shrink_verify = false)`
-
-**Run a named property macro against a generator.** Behaves identically to `prop_for_all` but takes a prebuilt macro Dict instead of an
-anonymous predicate, and prefixes failure reports with the macro's name.
-
-```t
-set_seed(42)
-m = prop_named("bounded", \(x) x >= 0)
-prop_test(m, prop_gen_between(0, 200), n = 20)  -- PASS
-```
-
 ### `shrink_verify = true` (opt-in on `prop_for_all` and `prop_test`)
 
 **Opt-in exhaustive shrink verification.** By default, shrinking caps per-level candidate lists at 32 for performance. When
@@ -9505,7 +9494,7 @@ Now that you can work with numerical arrays, explore statistical modeling and re
 
 - **New `propcraft` package**: Property-based testing primitives for hardening T's standard library and user packages. Instead of hand-writing fixed cases, state an invariant and `prop_for_all` checks it over many generated inputs, reporting a deterministic shrunk counterexample on failure.
 - **`prop_for_all(gen, property, n = 100, max_counterexamples = 1, shrink = true)`**: Draws `n` values from a generator spec and evaluates the property on each. The property may return a `Bool`, an `Expect` value, or an `Error`. Returns an `Expect` value, so `assert(prop_for_all(...))` works directly inside `t test` files. `max_counterexamples = k` collects up to `k` distinct failing inputs (each shrunk) and reports them as numbered blocks.
-- **Generator specs** are inspectable structured Dicts (not closures): `prop_gen_int`, `prop_gen_int_range`, `prop_gen_float_range`, `prop_gen_bool`, `prop_gen_string_from`, `prop_gen_choice`, `prop_gen_frequency`, `prop_gen_vector`, `prop_gen_list`, `prop_gen_factor`, `prop_gen_one_of`, `prop_gen_date_range`, and `prop_gen_df`.
+- **Generator specs** are inspectable structured Dicts (not closures): `prop_gen_int`, `prop_gen_int_range`, `prop_gen_float_range`, `prop_gen_bool`, `prop_gen_string_from`, `prop_gen_choice`, `prop_gen_frequency`, `prop_gen_vector`, `prop_gen_list`, `prop_gen_factor`, `prop_gen_one_of`, `prop_gen_date_range`, `prop_gen_df`, `prop_gen_between`, `prop_gen_dict`, and `prop_gen_ymd`.
 - **`prop_gen_df_from(df, nrows = 30, na_prob = 0.1)`**: Derives a DataFrame generator from a real sample — Int/Float bounds from observed min/max, Strings from observed distinct values, Factors keep their levels, Dates/Datetimes keep their observed range and timezone. Empty frames, NA-only columns, and unsupported column types raise explicit errors.
 - **`prop_gen_fn(fn)`**: Wraps any callable as a generator; each draw calls `fn(size)` with the current generation size.
 - **`prop_stats(gen, n = 100)`**: Probes a generator (size ramp 1..n) and returns `n_runs`, `n_errors`, `value_types`, `nested_sizes`, and `elapsed_ms` — handy for sanity-checking derived and custom generators.
@@ -11536,6 +11525,11 @@ df = read_ipc("data.arrow")
 write_ipc(df, "data.arrow")
 ```
 
+The `.arrow` and `.feather` extensions are interchangeable — both denote the
+same Arrow IPC (Feather v2) byte format, and `read_ipc`/`write_ipc` accept any
+filename regardless of extension. Use whichever reads more clearly for your
+artifact.
+
 Within a pipeline, DataFrames passed between T, R, Python, and Julia nodes use
 Arrow IPC through the `^ipc` serializer — see the [Serializers](serializers.md)
 guide and the [Pipeline Tutorial](pipeline_tutorial.md) for details.
@@ -11549,10 +11543,10 @@ formats. Every T runtime (T, R, Python, Julia) can read and write both, and
 neither requires schema inference on load. The choice between them comes down
 to **one question**: *is this data a live hand-off, or a durable artifact?*
 
-- **Arrow IPC is the Arrow in-memory format flushed to disk.** Writing is
-  effectively a memory dump, so it is the fastest format to write and read by
-  a wide margin. In exchange, files are **uncompressed** by default and often
-  several times larger than Parquet.
+- **Arrow IPC serializes Arrow's in-memory columnar representation directly to
+  disk.** There is no extra encoding or compression step, so it is the fastest
+  format to write and read by a wide margin. In exchange, files are
+  **uncompressed** by default and often several times larger than Parquet.
 - **Parquet is a storage-optimized layout.** It applies block compression
   (snappy by default) and organizes data into row groups with column-level
   metadata, so files are smaller and readers can skip columns they do not need.
@@ -20789,7 +20783,7 @@ By default the settings are merged into every node. Pass `runtimes` and/or `node
 to restrict the merge to a subset; when both are given the target is their union:
 
 ```t
-# Only R nodes get the arrow serializer
+# Only R nodes get the IPC serializer
 q1 = set_pipeline_global_options(p, runtimes = ["rn"], serializer = ^ipc)
 
 # Only the named nodes become no-ops

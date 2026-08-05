@@ -1173,8 +1173,8 @@ let prop_test ~eval_call =
         (match n, max_counterexamples, shrink, shrink_verify,
                Math_common.positional_args_without
                  [ "n"; "shrink"; "shrink_verify"; "max_counterexamples" ] named_args with
-         | Ok n, Ok max_counterexamples, Ok shrink, Ok shrink_verify, [macro; gen] ->
-              (match macro with
+         | Ok n, Ok max_counterexamples, Ok shrink, Ok shrink_verify, [named; gen] ->
+              (match named with
                | VDict pairs ->
                    (match List.assoc_opt "name" pairs, List.assoc_opt "property" pairs with
                     | Some (VString name), Some property ->

@@ -5027,15 +5027,6 @@ reports with the property’s name.</p>
 m = prop_named(&quot;bounded&quot;, \(x) x &gt;= 0)
 prop_test(m, prop_gen_between(0, 200), n = 20)  -- PASS</code></pre>
 <h3
-id="prop_testmacro-gen-n-100-max_counterexamples-1-shrink-true-shrink_verify-false"><code>prop_test(macro, gen, n = 100, max_counterexamples = 1, shrink = true, shrink_verify = false)</code></h3>
-<p><strong>Run a named property macro against a generator.</strong>
-Behaves identically to <code>prop_for_all</code> but takes a prebuilt
-macro Dict instead of an anonymous predicate, and prefixes failure
-reports with the macro’s name.</p>
-<pre class="t"><code>set_seed(42)
-m = prop_named(&quot;bounded&quot;, \(x) x &gt;= 0)
-prop_test(m, prop_gen_between(0, 200), n = 20)  -- PASS</code></pre>
-<h3
 id="shrink_verify-true-opt-in-on-prop_for_all-and-prop_test"><code>shrink_verify = true</code>
 (opt-in on <code>prop_for_all</code> and <code>prop_test</code>)</h3>
 <p><strong>Opt-in exhaustive shrink verification.</strong> By default,

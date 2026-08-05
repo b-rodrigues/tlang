@@ -221,6 +221,11 @@ exactly. They are the ideal choice for passing large DataFrames between
 runtimes.</p>
 <pre class="t"><code>df = read_ipc(&quot;data.arrow&quot;)
 write_ipc(df, &quot;data.arrow&quot;)</code></pre>
+<p>The <code>.arrow</code> and <code>.feather</code> extensions are
+interchangeable — both denote the same Arrow IPC (Feather v2) byte
+format, and <code>read_ipc</code>/<code>write_ipc</code> accept any
+filename regardless of extension. Use whichever reads more clearly for
+your artifact.</p>
 <p>Within a pipeline, DataFrames passed between T, R, Python, and Julia
 nodes use Arrow IPC through the <code>^ipc</code> serializer — see the
 <a href="serializers.html">Serializers</a> guide and the <a
@@ -234,11 +239,11 @@ read and write both, and neither requires schema inference on load. The
 choice between them comes down to <strong>one question</strong>: <em>is
 this data a live hand-off, or a durable artifact?</em></p>
 <ul>
-<li><strong>Arrow IPC is the Arrow in-memory format flushed to
-disk.</strong> Writing is effectively a memory dump, so it is the
-fastest format to write and read by a wide margin. In exchange, files
-are <strong>uncompressed</strong> by default and often several times
-larger than Parquet.</li>
+<li><strong>Arrow IPC serializes Arrow’s in-memory columnar
+representation directly to disk.</strong> There is no extra encoding or
+compression step, so it is the fastest format to write and read by a
+wide margin. In exchange, files are <strong>uncompressed</strong> by
+default and often several times larger than Parquet.</li>
 <li><strong>Parquet is a storage-optimized layout.</strong> It applies
 block compression (snappy by default) and organizes data into row groups
 with column-level metadata, so files are smaller and readers can skip

@@ -5159,17 +5159,6 @@ m = prop_named("bounded", \(x) x >= 0)
 prop_test(m, prop_gen_between(0, 200), n = 20)  -- PASS
 ```
 
-### `prop_test(macro, gen, n = 100, max_counterexamples = 1, shrink = true, shrink_verify = false)`
-
-**Run a named property macro against a generator.** Behaves identically to `prop_for_all` but takes a prebuilt macro Dict instead of an
-anonymous predicate, and prefixes failure reports with the macro's name.
-
-```t
-set_seed(42)
-m = prop_named("bounded", \(x) x >= 0)
-prop_test(m, prop_gen_between(0, 200), n = 20)  -- PASS
-```
-
 ### `shrink_verify = true` (opt-in on `prop_for_all` and `prop_test`)
 
 **Opt-in exhaustive shrink verification.** By default, shrinking caps per-level candidate lists at 32 for performance. When

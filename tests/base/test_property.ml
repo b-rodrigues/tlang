@@ -315,6 +315,9 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env _test 
   test_env env "prop_gen_df_from unknown named arg errors"
     "prop_gen_df_from(to_dataframe([x: [1]]), bogus = 1)"
     "received unknown named argument `bogus`";
+  test_env env "prop_gen_df_from unsupported column type errors"
+    "prop_gen_df_from(to_dataframe([x: [to_dataframe([y: [1]]), to_dataframe([y: [2]])]]))"
+    "unsupported value type DataFrame";
 
   (* prop_gen_fn — custom function generators *)
   test_env env "prop_for_all PASS custom fn generator"
