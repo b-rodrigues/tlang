@@ -222,7 +222,13 @@ and render_date_range spec =
            in
            Ok (Printf.sprintf "prop_gen_date_range(%s, %s)" (bound start_m) (bound end_m))
        | _ -> Error "date_range datetime spec requires `start_micros` and `end_micros`.")
-  | _ -> Error "date_range spec requires a `mode` field."
+   | _ -> Error "date_range spec requires a `mode` field."
+
+and render_ymd_range spec =
+  match int_field "min_year" spec, int_field "max_year" spec with
+  | Some min_year, Some max_year ->
+      Ok (Printf.sprintf "prop_gen_ymd(%d, %d)" min_year max_year)
+  | _ -> Error "ymd_range spec requires `min_year` and `max_year` Int fields."
 
 and render_df spec =
   match field "columns" spec, int_field "nrows" spec with
@@ -292,6 +298,7 @@ and renderers : (string * (value -> (string, string) result)) list = [
   "vector",       render_vector_or_list;
   "list",         render_vector_or_list;
   "date_range",   render_date_range;
+  "ymd_range",    render_ymd_range;
   "df",           render_df;
   "dict",         render_dict;
   "resize",       render_resize;

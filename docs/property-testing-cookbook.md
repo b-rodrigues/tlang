@@ -47,13 +47,20 @@ prop_named("split_join", \(s) s == "" || str_join(str_split(s, ","), ",") == s)
 
 -- numeric conversion
 prop_named("int_float", \(x) to_integer(to_float(x)) == x)
+
+-- dates: format then parse recovers the original date
+prop_named("format_roundtrip", \(d) parse_date(format_date(d, "%Y-%m-%d"), "%Y-%m-%d") == d)
+
+-- dates: period arithmetic is invertible
+prop_named("period_roundtrip", \(d) (d + make_period(days = 5)) - d == make_period(days = 5))
 ```
 
 **Generator tips:**
 - For strings, `prop_gen_string_from("abc,", 0, 12)` provides strings that may contain the split delimiter
 - Guard against empty inputs where the operation is lossy (`""` → `[""]` → `""`, but `str_split("a", ",") |> str_join(",")` works)
+- For date round-trips, `prop_gen_ymd(2000, 2024)` draws real calendar days across a 25-year span
 
-**When to use:** strcraft (split/join, extract/replace), core (serialize/deserialize, to_X conversions), dataframe I/O (write_csv → read_csv).
+**When to use:** strcraft (split/join, extract/replace), core (serialize/deserialize, to_X conversions), dataframe I/O (write_csv → read_csv), chrono (format/parse, ymd, period arithmetic).
 
 ---
 
@@ -93,7 +100,20 @@ prop_named("abs_nonneg", \(x) abs(x) >= 0.0)
 
 **Generator:** `prop_gen_float_range(-100.0, 100.0)` for continuous functions, `prop_gen_int_range(-100, 100)` for integer-only operations.
 
-**When to use:** math (all trig/hyperbolic/exp functions), stats (sd ≥ 0, cor in [-1, 1]), core (length ≥ 0, ncol ≥ 0, nrow ≥ 0).
+**Date bounds:** `prop_gen_ymd(min_year, max_year)` draws calendar days uniformly across the year range, and counterexamples shrink to `Date(min_year-01-01)` (staying in-domain). Use it for chrono invariants:
+
+```t
+-- day-of-month always within the month's real length
+prop_named("day_bound", \(d) day(d) >= 1 && day(d) <= days_in_month(year(d), month(d)))
+
+-- leap-year flag consistent with February's length
+prop_named("leap_consistent", \(d) is_leap_year(year(d)) == (days_in_month(year(d), 2) == 29))
+
+-- weekday always in [1, 7]
+prop_named("wday_bound", \(d) wday(d) >= 1 && wday(d) <= 7)
+```
+
+**When to use:** math (all trig/hyperbolic/exp functions), stats (sd ≥ 0, cor in [-1, 1]), core (length ≥ 0, ncol ≥ 0, nrow ≥ 0), chrono (date-part bounds).
 
 ---
 

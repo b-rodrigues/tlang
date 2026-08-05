@@ -1526,7 +1526,7 @@ Compute quantile/percentile (p between 0 and 1), with optional non-negative obse
 
 #### `mode(x)`
 
-Return the most frequent value. Does not currently support `na_rm`.
+Return the most frequent value. Values are compared with type-aware, NaN-aware equality, so different types never collide. Ties break deterministically by first occurrence in input order. Does not currently support `na_rm`.
 
 ---
 
@@ -1839,7 +1839,12 @@ Data manipulation verbs and window functions.
 
 #### `select(to_dataframe, ...columns)`
 
-Select columns by name. Supports dollar-prefix NSE syntax.
+Select columns by name. Supports dollar-prefix NSE syntax and the selection
+helpers `starts_with`, `ends_with`, `contains`, `everything`, `where`,
+`all_of`, `any_of`, and `matches`. `matches` compiles its pattern with PCRE2 in
+UTF-8 mode, so `.` matches a code point and `\p{...}` Unicode property classes
+are supported (e.g. `select(df, matches("^\\p{L}+$"))`); `contains` performs a
+plain literal substring search.
 
 **Parameters:**
 
@@ -2023,7 +2028,7 @@ ungrouped = df |> group_by($dept) |> ungroup()
 
 #### `left_join(x, y, by = NA)` / `inner_join` / `full_join` / `semi_join` / `anti_join`
 
-Join two DataFrames.
+Join two DataFrames. Join keys are normalized so that integer `1` and float `1.0` match, mirroring R's coercion-to-character semantics.
 
 **Parameters:**
 
@@ -2052,13 +2057,13 @@ Count occurrences of unique values.
 
 #### `distinct(df, ...columns)`
 
-Keep only unique rows.
+Keep only unique rows. Repeated `NaN` values collapse to a single row, consistent with `n_distinct`.
 
 ---
 
 #### `drop_na(df, ...columns)`
 
-Drop rows containing NA values in the specified columns.
+Drop rows containing NA values in the specified columns. Works across all column types, including date, datetime, dictionary, and list columns.
 
 ---
 
@@ -2096,6 +2101,9 @@ Reshape DataFrames between long and wide formats.
 #### `separate(df, col, into, sep = "[^a-zA-Z0-9]+")` / `unite(df, col, ...from, sep = "_")`
 
 Split a column into multiple columns, or combine multiple columns into one.
+The `sep` pattern is compiled with PCRE2 in UTF-8 mode, so multibyte values are
+never torn. Split semantics match legacy `Str.split`: trailing empty tokens are
+dropped and an empty subject yields no tokens.
 
 ---
 
@@ -2540,6 +2548,11 @@ Format temporal values as strings using `strftime`-style patterns.
 
 Construct temporal intervals and test membership.
 
+`%within%` can be used as an infix operator: `d %within% interval(start, end)`
+desugars to `%within%(d, interval(start, end))`. Any function name can be used
+infix with `%name%` syntax (R-style), resolving to the same-named builtin or
+user function.
+
 ---
 
 ### `years(n)` / `months(n)` / `weeks(n)` / `days(n)` / `hours(n)` / `minutes(n)` / `seconds(n)`
@@ -2578,7 +2591,7 @@ Replace occurrences of a pattern. `str_replace` replaces **all** occurrences (gl
 
 ### `str_detect(string, pattern)` / `contains(s, sub)`
 
-Check if a pattern or substring exists.
+Check if a pattern or substring exists. `str_detect` compiles `pattern` as a PCRE2 regular expression in UTF-8 mode, so `.`, `[...]`, anchors, and `\p{...}` classes operate on Unicode code points — `str_detect("héllo", "^h.llo$")` is `true` and `str_extract_all("héllo", "\\p{L}")` returns `["h", "é", "l", "l", "o"]`. `contains` performs a plain substring search.
 
 ---
 
@@ -2590,13 +2603,13 @@ Check string boundaries.
 
 ### `str_extract(s, pattern)` / `str_extract_all(s, pattern)`
 
-Extract matching substrings. `str_extract` returns the first match; `str_extract_all` returns a List of all matches.
+Extract matching substrings using UTF-8-aware PCRE2 patterns (see `str_detect`). `str_extract` returns the first match; `str_extract_all` returns a List of all matches.
 
 ---
 
 ### `str_count(s, pattern)` / `str_nchar(s)`
 
-Count matches or total characters.
+Count regex matches (PCRE2, UTF-8 aware — each code point matched by `.` counts once) or total characters.
 
 ---
 
@@ -2608,19 +2621,19 @@ Remove whitespace.
 
 ### `str_lines(s)` / `str_words(s)` / `str_split(s, sep)`
 
-Split strings into parts. `str_lines` splits on newlines; `str_words` splits on any whitespace.
+Split strings into parts. `str_lines` splits on newlines; `str_words` splits on any whitespace. With an empty separator, `str_split(s, "")` splits into individual Unicode code points (multi-byte characters are never torn apart).
 
 ---
 
 ### `str_pad(s, width, side = "left", pad = " ")`
 
-Pad strings to a fixed width.
+Pad strings to a fixed width. Width is measured in characters (Unicode code points), not bytes.
 
 ---
 
 ### `str_trunc(s, width, side = "right", ellipsis = "...")`
 
-Truncate strings with an ellipsis.
+Truncate strings with an ellipsis. Width is measured in characters (Unicode code points); truncation never splits a multi-byte character in half.
 
 ---
 
@@ -2632,7 +2645,7 @@ Combine multiple strings into one.
 
 ### `to_lower(s)` / `to_upper(s)`
 
-Case normalization.
+Unicode-aware case mapping (not locale-dependent): `to_upper("éàüç")` is `"ÉÀÜÇ"`, `to_lower("ÉÀÜÇ")` is `"éàüç"`, and full case folding is applied where Unicode requires it (e.g. `to_upper("ß")` is `"SS"`). Multi-character mappings never split UTF-8 code points.
 
 ---
 
@@ -5022,6 +5035,7 @@ g         -- {`gen`: "int_range", `min`: 1, `max`: 5}
 | `prop_gen_factor(levels)` | Factor level String |
 | `prop_gen_one_of(values)` | Uniformly pick one value from a non-empty List or Vector of values |
 | `prop_gen_date_range(start, end)` | Date (or Datetime) drawn uniformly in an inclusive range; bounds must be both Dates or both Datetimes, and the timezone is preserved |
+| `prop_gen_ymd(min_year, max_year)` | Date drawn uniformly across all calendar days in `[min_year, max_year]`; shrinks toward the lower year bound |
 | `prop_gen_df(columns, nrows = 30, na_prob = 0.1)` | DataFrame with generated columns; `na_prob` injects typed `NA` values into columns |
 | `prop_gen_dict(columns, na_prob = 0.1)` | Dict with one generated value per column; `na_prob` probability of NA per column value |
 | `prop_gen_df_from(df, nrows = 30, na_prob = 0.1)` | DataFrame with the same columns as `df`, inferring each column's generator from the sample values |
@@ -5059,6 +5073,27 @@ still within the valid range.
 prop_gen_between(100, 200)
 -- {`gen`: "between", `min`: 100, `max`: 200}
 ```
+
+### `prop_gen_ymd(min_year, max_year)`
+
+**Year-month-day date generator.** Draws a `Date` uniformly across every calendar day in the inclusive year range
+`[min_year, max_year]` (so February 29th is drawn roughly 1/4 as often as other days, matching its real frequency).
+Counterexamples shrink toward `Date(min_year-01-01)`, keeping shrinks within the date domain.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `min_year` | Int | — | Lower year bound (inclusive). |
+| `max_year` | Int | — | Upper year bound (inclusive). |
+
+```t
+prop_gen_ymd(2000, 2024)
+-- {`gen`: "ymd_range", `min_year`: 2000, `max_year`: 2024,
+--  `start_day`: 10957, `end_day`: 20088}
+```
+
+The inspectable spec stores the day indices (days since 1970-01-01) computed with the same civil-date math used by the
+`chrono` package. Combine with `prop_gen_df([d: prop_gen_ymd(...), ...])` to exercise date columns, and add
+`na_prob` to harden properties against missing dates.
 
 ### `prop_gen_dict(columns, na_prob = 0.1)`
 

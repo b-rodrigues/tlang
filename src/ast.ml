@@ -1056,10 +1056,10 @@ module Utils = struct
         in
         let tz_suffix =
           match tz with
-          | Some name when name <> "" -> "[" ^ name ^ "]"
-          | _ -> "[UTC]"
+          | Some name when name <> "" && name <> "UTC" -> "[" ^ name ^ "]"
+          | _ -> "Z"
         in
-        "Datetime(" ^ base ^ frac ^ "Z" ^ tz_suffix ^ ")"
+        "Datetime(" ^ base ^ frac ^ tz_suffix ^ ")"
     | VList items ->
         let item_to_string = function
           | (Some name, v) -> name ^ ": " ^ value_to_string v

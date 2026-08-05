@@ -518,7 +518,7 @@ export let helper = 1
         Serialization.json_date_string (Chrono.days_from_civil 2024 1 15)
         = "2024-01-15"
         && Serialization.json_datetime_string micros (Some "UTC")
-           = "2024-01-15T08:09:10.000011Z[UTC]"
+           = "2024-01-15T08:09:10.000011Z"
       in
       write_text bad_header_path "not-a-header";
       let oc = open_out_bin mismatch_path in

@@ -69,6 +69,7 @@ let rec na_for_spec spec =
       (match field "mode" spec with
        | Some (VString "datetime") -> NADatetime
        | _ -> NADate)
+  | Some "ymd_range" -> NADate
   | Some ("map" | "such_that" | "resize") ->
       (match field "source" spec with
        | Some src -> na_for_spec src

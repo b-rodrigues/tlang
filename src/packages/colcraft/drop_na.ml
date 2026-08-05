@@ -54,7 +54,12 @@ let register env =
               | Some (FloatColumn a) -> Option.is_none a.(i)
               | Some (StringColumn a) -> Option.is_none a.(i)
               | Some (BoolColumn a) -> Option.is_none a.(i)
-              | _ -> true
+              | Some (DateColumn a) -> Option.is_none a.(i)
+              | Some (DatetimeColumn (a, _)) -> Option.is_none a.(i)
+              | Some (NAColumn _) -> true
+              | Some (DictionaryColumn (a, _, _)) -> Option.is_none a.(i)
+              | Some (ListColumn a) -> Option.is_none a.(i)
+              | None -> true
             ) cols_to_check in
             if not has_na then keeps := i :: !keeps
           done;

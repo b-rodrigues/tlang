@@ -73,6 +73,7 @@ let with_stmt_loc node pos =
 %token PIPE
 %token MAYBE_PIPE
 %token PLUS MINUS STAR SLASH PERCENT
+%token <string> PERCENT_IDENT
 %token COMMA_DOTDOTDOT
 
 /* ... */
@@ -113,7 +114,7 @@ let with_stmt_loc node pos =
 %left DOT_BITOR
 %left BITAND
 %left DOT_BITAND
-%nonassoc EQ NEQ LT GT LTE GTE IN
+%nonassoc EQ NEQ LT GT LTE GTE IN PERCENT_IDENT
 %nonassoc DOT_EQ DOT_NEQ DOT_LT DOT_GT DOT_LTE DOT_GTE
 %left PLUS MINUS
 %left DOT_PLUS DOT_MINUS
@@ -250,6 +251,8 @@ cmp_expr:
   | left = add_expr DOT_LTE right = add_expr { with_loc (BroadcastOp { op = LtEq; left; right }) $startpos }
   | left = add_expr DOT_GTE right = add_expr { with_loc (BroadcastOp { op = GtEq; left; right }) $startpos }
   | left = add_expr IN right = add_expr { with_loc (BinOp { op = In; left; right }) $startpos }
+  | left = add_expr name = PERCENT_IDENT right = add_expr
+    { with_loc (Call { fn = with_loc (Var name) $startpos; args = [(None, left); (None, right)] }) $startpos }
   ;
 
 add_expr:

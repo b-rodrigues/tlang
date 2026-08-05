@@ -18,12 +18,17 @@ let run_tests _pass_count _fail_count _failures _eval_string eval_string_env _te
       m_round_dev       = prop_named("round_dev",      \(x) abs(round(x) - x) <= 0.5)
       m_abs_nonneg      = prop_named("abs_nonneg",     \(x) abs(x) >= 0.0)
       m_sqrt_nonneg     = prop_named("sqrt_nonneg",    \(x) x < 0.0 || sqrt(x) >= 0.0)
+      m_pow_square      = prop_named("pow_square",     \(n) pow(n, 2) == n * n)
+      m_int_min_le_max  = prop_named("int_min_le_max", \(xs) min(xs) <= max(xs))
+      m_floor_round_ceil = prop_named("floor_round_ceil", \(x) floor(x) <= round(x) && round(x) <= ceiling(x))
     |} env
   in
 
   let float_domain   = "prop_gen_float_range(-100.0, 100.0)" in
   let pos_float      = "prop_gen_float_range(0.0, 100.0)" in
   let small_float    = "prop_gen_float_range(-10.0, 10.0)" in
+  let int_domain     = "prop_gen_int_range(-50, 50)" in
+  let int_pair       = "prop_gen_list(prop_gen_int_range(-50, 50), 2)" in
 
   test_env env "sqrt(x*x) == abs(x) on positive floats"
     (Printf.sprintf "set_seed(1)\nprop_test(m_sqrt_abs, %s, n = 30)" pos_float) "PASS";
@@ -57,5 +62,14 @@ let run_tests _pass_count _fail_count _failures _eval_string eval_string_env _te
 
   test_env env "sqrt(x) >= 0 for x >= 0"
     (Printf.sprintf "set_seed(1)\nprop_test(m_sqrt_nonneg, %s, n = 30)" float_domain) "PASS";
+
+  test_env env "pow(n, 2) == n * n on integers"
+    (Printf.sprintf "set_seed(1)\nprop_test(m_pow_square, %s, n = 30)" int_domain) "PASS";
+
+  test_env env "min(xs) <= max(xs) on integer pairs"
+    (Printf.sprintf "set_seed(1)\nprop_test(m_int_min_le_max, %s, n = 30)" int_pair) "PASS";
+
+  test_env env "floor(x) <= round(x) <= ceiling(x)"
+    (Printf.sprintf "set_seed(1)\nprop_test(m_floor_round_ceil, %s, n = 30)" float_domain) "PASS";
 
   Printf.printf "\n"

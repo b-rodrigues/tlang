@@ -9,7 +9,6 @@ ALIASES=(
   "py"
   "jl_node"
   "casewhen"
-  "add_diagnostics"
 )
 
 echo "Auditing for deprecated aliases..."

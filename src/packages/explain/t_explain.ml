@@ -390,7 +390,7 @@ let register env =
                 else if contains_sub text "default =" then
                   match String.split_on_char '=' text with
                   | _ :: right :: _ ->
-                      let cleaned = String.trim (List.hd (String.split_on_char ' ' (String.trim right))) in
+                      let cleaned = String.trim (match String.split_on_char ' ' (String.trim right) with h :: _ -> h | [] -> "") in
                       VString cleaned
                   | _ -> VNA NAGeneric
                 else if contains_sub text "defaults to" then

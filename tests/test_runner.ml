@@ -149,6 +149,8 @@ let () =
   run_with_env "Test_property_math" Test_property_math.run_tests;
   run_with_env "Test_property_strcraft" Test_property_strcraft.run_tests;
   run_with_env "Test_property_core" Test_property_core.run_tests;
+  run_with_env "Test_property_chrono" Test_property_chrono.run_tests;
+  run_with_env "Test_property_stats" Test_property_stats.run_tests;
   run "Test_fetchurl" Test_fetchurl.run_tests;
 
   (* Domain-specific tests *)
