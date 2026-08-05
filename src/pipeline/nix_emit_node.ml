@@ -398,6 +398,8 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
   let is_pmml_des   = is_fmt_in_des "pmml" in
   let is_onnx_ser   = is_ser "onnx" in
   let is_onnx_des   = is_fmt_in_des "onnx" in
+  let is_parquet_ser = is_ser "parquet" in
+  let is_parquet_des = is_fmt_in_des "parquet" in
 
   (* Helper: inject runtime-specific helper code into the node script. *)
   let make_injection ~enabled ~r_code ~py_code ~jl_code =
@@ -584,6 +586,43 @@ def py_write_arrow(df, path):
 def py_read_arrow(path):
     with pa.OSFile(path, 'rb') as f:
         return ipc.open_file(f).read_pandas()
+|} in
+
+  let t_parquet_r_code = {|
+r_write_parquet <- function(object, path) {
+  arrow::write_parquet(as.data.frame(object), path)
+}
+r_read_parquet <- function(path) {
+  arrow::read_parquet(path)
+}
+|} in
+
+  let t_parquet_jl_code = {|
+using Arrow, DataFrames
+function jl_write_parquet(df, path)
+    Arrow.write(path, df)
+end
+function jl_read_parquet(path)
+    Arrow.Table(path) |> DataFrame
+end
+|} in
+
+  let t_parquet_py_code = {|
+import pyarrow as pa
+import pyarrow.parquet as pq
+import pandas as pd
+
+def py_write_parquet(df, path):
+    if hasattr(df, 'to_arrow'):
+        table = df.to_arrow()
+    elif isinstance(df, pd.DataFrame):
+        table = pa.Table.from_pandas(df)
+    else:
+        table = df
+    pq.write_table(table, path)
+
+def py_read_parquet(path):
+    return pq.read_table(path).to_pandas()
 |} in
 
   let t_pmml_r_code = {|
@@ -1380,6 +1419,7 @@ end
   let json_injection   = make_injection ~enabled:(is_json_ser || is_json_des || deps <> [])  ~r_code:t_json_r_code  ~py_code:t_json_py_code ~jl_code:t_json_jl_code in
   let csv_injection    = make_injection ~enabled:(is_csv_ser   || is_csv_des)   ~r_code:t_csv_r_code   ~py_code:t_csv_py_code ~jl_code:t_csv_jl_code in
   let arrow_injection  = make_injection ~enabled:(is_arrow_ser || is_arrow_des) ~r_code:t_arrow_r_code ~py_code:t_arrow_py_code ~jl_code:t_arrow_jl_code in
+  let parquet_injection = make_injection ~enabled:(is_parquet_ser || is_parquet_des) ~r_code:t_parquet_r_code ~py_code:t_parquet_py_code ~jl_code:t_parquet_jl_code in
   let pmml_injection   = make_injection ~enabled:(is_pmml_ser  || is_pmml_des)  ~r_code:t_pmml_r_code  ~py_code:t_pmml_py_code ~jl_code:t_pmml_jl_code in
   let onnx_injection   = make_injection ~enabled:(is_onnx_ser  || is_onnx_des)  ~r_code:t_onnx_r_code  ~py_code:t_onnx_py_code ~jl_code:t_onnx_jl_code in
   let pickle_injection =
@@ -2114,10 +2154,10 @@ Base.setproperty!(ns::TlangNamespace, sym::Symbol, val) = (getfield(ns, :dict)[s
         let strategy = Nix_unparse.expr_to_string strategy_expr in
 
         let read_fns = match runtime with
-          | "R" -> [ "json", "r_read_json"; "arrow", "r_read_arrow"; "pmml", "r_read_pmml"; "onnx", "r_read_onnx"; "csv", "r_read_csv"; ]
-          | "Python" -> [ "json", "py_read_json"; "arrow", "py_read_arrow"; "pmml", "py_read_pmml"; "onnx", "py_read_onnx"; "csv", "py_read_csv"; ]
-          | "Julia" -> [ "json", "jl_read_json"; "arrow", "jl_read_arrow"; "pmml", "jl_read_pmml"; "onnx", "jl_read_onnx"; "csv", "jl_read_csv"; ]
-          | _ -> [ "json", "t_read_json"; "arrow", "read_arrow"; "pmml", "t_read_pmml"; "onnx", "t_read_onnx"; "csv", "read_csv"; ]
+          | "R" -> [ "json", "r_read_json"; "arrow", "r_read_arrow"; "parquet", "r_read_parquet"; "pmml", "r_read_pmml"; "onnx", "r_read_onnx"; "csv", "r_read_csv"; ]
+          | "Python" -> [ "json", "py_read_json"; "arrow", "py_read_arrow"; "parquet", "py_read_parquet"; "pmml", "py_read_pmml"; "onnx", "py_read_onnx"; "csv", "py_read_csv"; ]
+          | "Julia" -> [ "json", "jl_read_json"; "arrow", "jl_read_arrow"; "parquet", "jl_read_parquet"; "pmml", "jl_read_pmml"; "onnx", "jl_read_onnx"; "csv", "jl_read_csv"; ]
+          | _ -> [ "json", "t_read_json"; "arrow", "read_arrow"; "parquet", "read_parquet"; "pmml", "t_read_pmml"; "onnx", "t_read_onnx"; "csv", "read_csv"; ]
         in
         let des_node_val = eval_expr_safe strategy_expr in
         let des_fn = match get_format des_node_val with
@@ -2289,10 +2329,10 @@ EOF|} k (Nix_utils.nix_escape_indented_code expr_str)
   let uses_default_serializer = ser_s = "default" in
   let ser_call =
     let write_fns = match runtime with
-      | "R" -> [ "json", "r_write_json"; "arrow", "r_write_arrow"; "pmml", "r_write_pmml"; "onnx", "r_write_onnx"; "csv", "r_write_csv"; ]
-      | "Python" -> [ "json", "py_write_json"; "arrow", "py_write_arrow"; "pmml", "py_write_pmml"; "onnx", "py_write_onnx"; "csv", "py_write_csv"; ]
-      | "Julia" -> [ "json", "jl_write_json"; "arrow", "jl_write_arrow"; "pmml", "jl_write_pmml"; "onnx", "jl_write_onnx"; "csv", "jl_write_csv"; ]
-      | _ -> [ "json", "t_write_json"; "arrow", "write_arrow"; "pmml", "t_write_pmml"; "onnx", "t_write_onnx"; "csv", "write_csv"; "text", "write_text"; ]
+      | "R" -> [ "json", "r_write_json"; "arrow", "r_write_arrow"; "parquet", "r_write_parquet"; "pmml", "r_write_pmml"; "onnx", "r_write_onnx"; "csv", "r_write_csv"; ]
+      | "Python" -> [ "json", "py_write_json"; "arrow", "py_write_arrow"; "parquet", "py_write_parquet"; "pmml", "py_write_pmml"; "onnx", "py_write_onnx"; "csv", "py_write_csv"; ]
+      | "Julia" -> [ "json", "jl_write_json"; "arrow", "jl_write_arrow"; "parquet", "jl_write_parquet"; "pmml", "jl_write_pmml"; "onnx", "jl_write_onnx"; "csv", "jl_write_csv"; ]
+      | _ -> [ "json", "t_write_json"; "arrow", "write_arrow"; "parquet", "write_parquet"; "pmml", "t_write_pmml"; "onnx", "t_write_onnx"; "csv", "write_csv"; "text", "write_text"; ]
     in
     match get_format ser_val with
     | Some fmt ->
@@ -2872,11 +2912,12 @@ EOF
 %s
 %s
 %s
+%s
       mkdir -p $out
       %s
     '';
   };
- |} name name deps_inputs src_block env_var_block deps_nix_attrs deps_exports ext runtime_base_packages error_injection visualization_injection json_injection csv_injection arrow_injection pmml_injection onnx_injection pickle_injection imports_echo source_files hoisted_imports deps_script_lines quarto_read_node_substitutions assign_script_lines run_cmd
+ |} name name deps_inputs src_block env_var_block deps_nix_attrs deps_exports ext runtime_base_packages error_injection visualization_injection json_injection csv_injection arrow_injection parquet_injection pmml_injection onnx_injection pickle_injection imports_echo source_files hoisted_imports deps_script_lines quarto_read_node_substitutions assign_script_lines run_cmd
   in
   match flake_env_name with
   | None -> output

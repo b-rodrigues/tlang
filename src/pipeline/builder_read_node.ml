@@ -145,6 +145,10 @@ let read_standard_node_value cn =
     match Arrow_io.read_ipc cn.cn_path with
     | Ok v -> VDataFrame { arrow_table = v; group_keys = [] }
     | Error _ -> VComputedNode cn
+  else if cn.cn_serializer = "parquet" then
+    match Arrow_io.read_parquet cn.cn_path with
+    | Ok v -> VDataFrame { arrow_table = v; group_keys = [] }
+    | Error _ -> VComputedNode cn
   else if cn.cn_serializer = "csv" then
     (try
        let ch = open_in cn.cn_path in
@@ -216,6 +220,10 @@ let read_logged_node_value name cn =
     (match Arrow_io.read_ipc cn.cn_path with
      | Ok v -> VDataFrame { arrow_table = v; group_keys = [] }
      | Error msg -> Error.make_error ~context:[("runtime", VString cn.cn_runtime)] FileError (Printf.sprintf "Failed to read Arrow node `%s` from `%s`: %s" name cn.cn_path msg))
+  else if cn.cn_serializer = "parquet" then
+    (match Arrow_io.read_parquet cn.cn_path with
+     | Ok v -> VDataFrame { arrow_table = v; group_keys = [] }
+     | Error msg -> Error.make_error ~context:[("runtime", VString cn.cn_runtime)] FileError (Printf.sprintf "Failed to read Parquet node `%s` from `%s`: %s" name cn.cn_path msg))
   else if cn.cn_serializer = "csv" then
     (try
        let ch = open_in cn.cn_path in

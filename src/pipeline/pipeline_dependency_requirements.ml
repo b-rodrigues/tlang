@@ -109,6 +109,10 @@ let add_feature_requirement ~node_name ~runtime ~feature =
       { req with r_deps = add_list req.r_deps [ "arrow" ] }
   | "Python", "arrow" ->
       { req with py_deps = add_list req.py_deps [ "pandas"; "pyarrow" ] }
+  | "R", "parquet" ->
+      { req with r_deps = add_list req.r_deps [ "arrow" ] }
+  | "Python", "parquet" ->
+      { req with py_deps = add_list req.py_deps [ "pandas"; "pyarrow" ] }
   | "R", "pmml" ->
       {
         req with
@@ -134,6 +138,8 @@ let add_feature_requirement ~node_name ~runtime ~feature =
   | "Julia", "csv" ->
       { req with julia_deps = add_list req.julia_deps [ "CSV"; "DataFrames" ] }
   | "Julia", "arrow" ->
+      { req with julia_deps = add_list req.julia_deps [ "Arrow"; "DataFrames" ] }
+  | "Julia", "parquet" ->
       { req with julia_deps = add_list req.julia_deps [ "Arrow"; "DataFrames" ] }
   | _ ->
       empty_requirements

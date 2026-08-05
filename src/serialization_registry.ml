@@ -40,6 +40,7 @@ let init_builtins () =
       | "json" ->  (Some "r_write_json",   Some "r_read_json",   Some "py_write_json",   Some "py_read_json",  Some "jl_write_json",   Some "jl_read_json")
       | "pmml" ->  (Some "r_write_pmml",   Some "r_read_pmml",   Some "py_write_pmml",   Some "py_read_pmml",  Some "jl_write_pmml", Some "jl_read_pmml")
       | "onnx" ->  (Some "r_write_onnx",   Some "r_read_onnx",   Some "py_write_onnx",   Some "py_read_onnx",  Some "jl_write_onnx", Some "jl_read_onnx")
+      | "parquet" -> (Some "r_write_parquet", Some "r_read_parquet", Some "py_write_parquet", Some "py_read_parquet", Some "jl_write_parquet", Some "jl_read_parquet")
       | "text" ->  (Some "writeLines",     Some "readLines",     Some "lambda obj, path: open(path, 'w').write(str(obj))", Some "open", None, None)
       | _ -> (None, None, None, None, None, None)
     in
@@ -56,4 +57,4 @@ let init_builtins () =
     }
   in
   List.iter (fun name -> register name (mk_ser name))
-    ["csv"; "arrow"; "json"; "pmml"; "onnx"; "tlang"; "bin"; "text"]
+    ["csv"; "arrow"; "json"; "pmml"; "onnx"; "tlang"; "bin"; "text"; "parquet"]
