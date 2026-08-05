@@ -90,7 +90,7 @@
    ; tdoc
    tdoc_types tdoc_parser tdoc_registry tdoc_markdown tdoc_json
  )
- (libraries menhirLib otoml yojson xmlm unix str patience_diff)
+ (libraries menhirLib otoml yojson xmlm unix str patience_diff pcre2 uucp uutf)
 )
 
 (executable

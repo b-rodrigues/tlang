@@ -54,7 +54,7 @@
        test_property
        test_property_verbs
         test_property_math test_property_strcraft test_property_core
-        test_property_chrono
+        test_property_chrono test_property_stats
       test_model_accessors test_drop_na_and_factors test_chrono_components
      test_trig_hyperbolic test_misc_functions
   )

@@ -48,6 +48,23 @@ let utf8_chars s =
   in
   go 0 []
 
+(* Unicode-aware case mapping via the uucp Unicode character database.
+   Deterministic and locale-independent (unlike C toupper/tolower), so results
+   are reproducible across machines and environments. Multi-character mappings
+   (e.g. U+00DF 'ß' -> "SS") are expanded; malformed UTF-8 bytes pass through
+   unchanged. *)
+let utf8_case_map to_case s =
+  let b = Buffer.create (String.length s * 2) in
+  let add_uchar _acc _ = function
+    | `Uchar u ->
+        (match to_case u with
+         | `Self -> Uutf.Buffer.add_utf_8 b u
+         | `Uchars us -> List.iter (fun u' -> Uutf.Buffer.add_utf_8 b u') us)
+    | `Malformed bytes -> Buffer.add_string b bytes
+  in
+  ignore (Uutf.String.fold_utf_8 add_uchar () s);
+  Buffer.contents b
+
 (* Helper: Unary Vectorization *)
 let vectorize_unary op args env =
   match args with
@@ -208,8 +225,8 @@ let ends_with_impl args env = vectorize_binary ends_with_scalar args env
 let replace_scalar args _env =
   match args with
   | [VString s; VString old; VString new_] ->
-      let regex = Str.regexp_string old in
-      VString (Str.global_replace regex new_ s)
+      let regex = Pcre2.regexp ~flags:[`UTF] (Pcre2.quote old) in
+      VString (Pcre2.qreplace ~rex:regex ~templ:new_ s)
   | _ -> Error.type_error "str_replace expects (string, string, string)."
 
 let replace_impl args env = vectorize_ternary replace_scalar args env
@@ -217,22 +234,22 @@ let replace_impl args env = vectorize_ternary replace_scalar args env
 let replace_first_scalar args _env =
   match args with
   | [VString s; VString old; VString new_] ->
-      let regex = Str.regexp_string old in
-      VString (Str.replace_first regex new_ s)
+      let regex = Pcre2.regexp ~flags:[`UTF] (Pcre2.quote old) in
+      VString (Pcre2.qreplace_first ~rex:regex ~templ:new_ s)
   | _ -> Error.type_error "replace_first expects (string, string, string)."
 
 let replace_first_impl args env = vectorize_ternary replace_first_scalar args env
 
 let to_lower_scalar args _env =
   match args with
-  | [VString s] -> VString (String.lowercase_ascii s)
+  | [VString s] -> VString (utf8_case_map Uucp.Case.Map.to_lower s)
   | _ -> Error.type_error "to_lower expects a string."
 
 let to_lower_impl args env = vectorize_unary to_lower_scalar args env
 
 let to_upper_scalar args _env =
   match args with
-  | [VString s] -> VString (String.uppercase_ascii s)
+  | [VString s] -> VString (utf8_case_map Uucp.Case.Map.to_upper s)
   | _ -> Error.type_error "to_upper expects a string."
 
 let to_upper_impl args env = vectorize_unary to_upper_scalar args env
@@ -259,8 +276,8 @@ let rtrim s =
     String.sub s 0 (!i + 1)
 
 (* Pre-compiled regexes for lines/words — avoid recompiling on every call *)
-let re_crlf = Str.regexp "\r\n"
-let re_whitespace = Str.regexp "[ \t]+"
+let re_crlf = Pcre2.regexp ~flags:[`UTF] "\r\n"
+let re_whitespace = Pcre2.regexp ~flags:[`UTF] "[ \t]+"
 
 (*
 --# Trim whitespace
@@ -321,7 +338,7 @@ let trim_end_impl args env = vectorize_unary trim_end_scalar args env
 let lines_impl args _env =
   let do_lines s =
     (* Normalise \r\n to \n before splitting *)
-    let normalised = Str.global_replace re_crlf "\n" s in
+    let normalised = Pcre2.qreplace ~rex:re_crlf ~templ:"\n" s in
     (* Strip a single trailing newline if present *)
     let trimmed =
       let len = String.length normalised in
@@ -358,7 +375,7 @@ let words_impl args _env =
     let trimmed = String.trim s in
     if trimmed = "" then VList []
     else
-      let parts = Str.split re_whitespace trimmed in
+      let parts = Pcre2.split ~rex:re_whitespace ~max:(-1) trimmed in
       VList (List.map (fun w -> (None, VString w)) parts)
   in
   match args with
@@ -481,15 +498,18 @@ let length_scalar args _env =
 let length_impl args env = length_scalar args env
 
 let compile_regexp function_name pattern =
-  try Ok (Str.regexp pattern)
-  with Failure msg ->
-    Error (Error.value_error (Printf.sprintf "Function `%s` received an invalid regex: %s" function_name msg))
+  try Ok (Pcre2.regexp ~flags:[`UTF] pattern)
+  with
+  | Pcre2.Error (Pcre2.BadPattern (msg, _)) ->
+      Error (Error.value_error (Printf.sprintf "Function `%s` received an invalid regex: %s" function_name msg))
+  | Pcre2.Error _ ->
+      Error (Error.value_error (Printf.sprintf "Function `%s` received an invalid regex." function_name))
 
 (* Prefer the first capture group when present; otherwise fall back to the
    full regex match so plain patterns still behave intuitively. *)
-let regex_match_value s =
-  try Str.matched_group 1 s with
-  | Invalid_argument _ | Not_found -> Str.matched_string s
+let regex_match_value m =
+  try Pcre2.get_substring m 1 with
+  | Invalid_argument _ | Not_found -> Pcre2.get_substring m 0
 
 let all_regex_matches re s =
   let len = String.length s in
@@ -497,11 +517,15 @@ let all_regex_matches re s =
     if pos > len then
       List.rev acc
     else
-      match Str.search_forward re s pos with
-      | _ ->
-          let matched = regex_match_value s in
-          let end_pos = Str.match_end () in
-          let next_pos = if end_pos = pos then pos + 1 else end_pos in
+      match Pcre2.exec ~rex:re ~pos s with
+      | m ->
+          let matched = regex_match_value m in
+          let end_pos = snd (Pcre2.get_substring_ofs m 0) in
+          (* On a zero-width match, advance past the next code point so UTF-8
+             strings are never torn mid-character. *)
+          let next_pos =
+            if end_pos = pos && pos < len then pos + utf8_char_length s.[pos] else end_pos
+          in
           loop next_pos (matched :: acc)
       | exception Not_found -> List.rev acc
   in
@@ -513,8 +537,8 @@ let str_extract_scalar args _env =
       (match compile_regexp "str_extract" pattern with
        | Error err -> err
        | Ok re ->
-           (match Str.search_forward re s 0 with
-            | _ -> VString (regex_match_value s)
+           (match Pcre2.exec ~rex:re s with
+            | m -> VString (regex_match_value m)
             | exception Not_found -> VNA NAString))
   | [VNA _; _] | [_; VNA _] -> VNA NAString
   | _ -> Error.type_error "str_extract expects (String, String)."
@@ -540,10 +564,7 @@ let str_detect_scalar args _env =
   | [VString s; VString pattern] ->
       (match compile_regexp "str_detect" pattern with
        | Error err -> err
-       | Ok re ->
-           (match Str.search_forward re s 0 with
-            | _ -> VBool true
-            | exception Not_found -> VBool false))
+       | Ok re -> VBool (Pcre2.pmatch ~rex:re s))
   | [VNA _; _] | [_; VNA _] -> VNA NABool
   | _ -> Error.type_error "str_detect expects (String, String)."
 
@@ -1007,7 +1028,9 @@ let strsplit_impl args _env =
 (*
 --# Convert to lowercase
 --#
---# Converts all characters in the string to lowercase.
+--# Converts all characters in the string to lowercase, using the Unicode
+--# character database (deterministic and locale-independent). Multi-character
+--# mappings are expanded.
 --#
 --# @name to_lower
 --# @param s :: String The string to convert.
@@ -1019,7 +1042,9 @@ let strsplit_impl args _env =
 (*
 --# Convert to uppercase
 --#
---# Converts all characters in the string to uppercase.
+--# Converts all characters in the string to uppercase, using the Unicode
+--# character database (deterministic and locale-independent). Multi-character
+--# mappings are expanded (e.g. `ß` becomes `SS`).
 --#
 --# @name to_upper
 --# @param s :: String The string to convert.

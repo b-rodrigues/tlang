@@ -174,5 +174,30 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
 
   print_newline ();
 
+  Printf.printf "Edge Cases — Nested Verb Calls (NSE transform):\n";
+
+  (* Nested select() inside mutate() must evaluate to a DataFrame, not be
+     wrapped into a row-lambda by the NSE argument transform. *)
+  test_env env0 "nested select call as mutate first arg yields expected columns"
+    {|res = mutate(select(df, $value), $z = $value * 2); [ncol(res), nrow(res), res.z]|}
+    {|[2, 5, Vector[20, 40, 60, 80, 100]]|};
+
+  (* Nested arrange() inside arrange() must stay raw (idempotence via nesting). *)
+  test_env env0 "nested arrange call as arrange first arg stays raw"
+    {|identical(arrange(arrange(df, $value), $value), arrange(df, $value))|}
+    "true";
+
+  (* Named assign-from-DataFrame via nested select() must extract the column. *)
+  test_env env0 "nested select call as mutate named value assigns column"
+    {|res = mutate(df, $y = select(df, $value)); res.y|}
+    "Vector[10., 20., 30., 40., 50.]";
+
+  (* Bare string select() nested in mutate still works. *)
+  test_env env0 "nested string-select call as mutate first arg"
+    {|ncol(mutate(select(df, "value"), $z = 1))|}
+    "2";
+
+  print_newline ();
+
   (* Clean up *)
   (try Sys.remove csv_edge with _ -> ())

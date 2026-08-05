@@ -123,6 +123,8 @@
               ocamlVersion.findlib
               pkgs.dune_3
               ocamlVersion.menhir
+              ocamlVersion.pcre2
+              ocamlVersion.uucp
               # pkg-config — resolves C library flags for arrow-glib, gobject, glib
               pkgs.pkg-config
               pkgs.makeWrapper
@@ -385,6 +387,12 @@ chmod +x $out/bin/bisect-ppx-report
             ocamlVersion.lsp
             ocamlVersion.jsonrpc
             ocamlVersion.patience_diff
+
+            # Perl-compatible regex (PCRE2, UTF-8 aware) for strcraft; replaces byte-based Str
+            ocamlVersion.pcre2
+            # Unicode character database (deterministic case mapping) + UTF-8 codec
+            ocamlVersion.uucp
+            ocamlVersion.uutf
 
             # 2. Enhanced Development Tools (Highly Recommended)
             # ----------------------------------------------------

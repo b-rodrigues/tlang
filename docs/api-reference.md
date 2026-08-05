@@ -2583,7 +2583,7 @@ Replace occurrences of a pattern. `str_replace` replaces **all** occurrences (gl
 
 ### `str_detect(string, pattern)` / `contains(s, sub)`
 
-Check if a pattern or substring exists.
+Check if a pattern or substring exists. `str_detect` compiles `pattern` as a PCRE2 regular expression in UTF-8 mode, so `.`, `[...]`, anchors, and `\p{...}` classes operate on Unicode code points — `str_detect("héllo", "^h.llo$")` is `true` and `str_extract_all("héllo", "\\p{L}")` returns `["h", "é", "l", "l", "o"]`. `contains` performs a plain substring search.
 
 ---
 
@@ -2595,13 +2595,13 @@ Check string boundaries.
 
 ### `str_extract(s, pattern)` / `str_extract_all(s, pattern)`
 
-Extract matching substrings. `str_extract` returns the first match; `str_extract_all` returns a List of all matches.
+Extract matching substrings using UTF-8-aware PCRE2 patterns (see `str_detect`). `str_extract` returns the first match; `str_extract_all` returns a List of all matches.
 
 ---
 
 ### `str_count(s, pattern)` / `str_nchar(s)`
 
-Count matches or total characters.
+Count regex matches (PCRE2, UTF-8 aware — each code point matched by `.` counts once) or total characters.
 
 ---
 
@@ -2637,7 +2637,7 @@ Combine multiple strings into one.
 
 ### `to_lower(s)` / `to_upper(s)`
 
-Case normalization.
+Unicode-aware case mapping (not locale-dependent): `to_upper("éàüç")` is `"ÉÀÜÇ"`, `to_lower("ÉÀÜÇ")` is `"éàüç"`, and full case folding is applied where Unicode requires it (e.g. `to_upper("ß")` is `"SS"`). Multi-character mappings never split UTF-8 code points.
 
 ---
 

@@ -15,6 +15,9 @@
 - **Joins normalize integer and float keys**: `left_join`, `inner_join`, `right_join`, `full_join`, `anti_join`, and `semi_join` treat integer `1` and float `1.0` as the same key, matching R's coercion-to-character semantics.
 - **`distinct` is NaN-aware**: repeated `NaN` rows collapse to a single row, consistent with `n_distinct`.
 - **`mode` uses typed keys and deterministic tie-breaking**: values of different types no longer collide (`mode([1, 1, "1"])` is `1`), and ties break by first occurrence in input order.
+- **`to_lower` / `to_upper` are Unicode-aware**: case mapping uses the Unicode character database (`uucp`) instead of ASCII-only byte folding, so `to_upper("éàüç")` yields `"ÉÀÜÇ"` and `to_upper("ß")` yields `"SS"`. Mapping is deterministic and reproducible (no locale dependence).
+- **Regex functions are UTF-8 aware**: `str_detect`, `str_extract`, `str_extract_all`, `str_count`, `str_replace`, `str_replace_first`, `str_split`, `str_lines`, and `str_words` now use PCRE2 in UTF-8 mode instead of byte-oriented `Str` regex. `.`, `[...]`, and anchors match code points rather than bytes (`str_count("héllo", ".")` is `5`), and `\p{...}` Unicode property classes are supported.
+- **Nested verb calls inside NSE verbs evaluate correctly**: `mutate(select(df, $x), $z = $x * 2)`, `arrange(arrange(df, $x), $x)`, and `mutate(df, $y = select(other, $col))` now evaluate the nested call to a DataFrame instead of being wrapped into a row-lambda and rejected with a spurious `TypeError`. Previously these valid expressions failed with "Function `mutate` expects a DataFrame as first argument."
 
 ### Popcraft — Property-Based Testing
 
@@ -39,6 +42,7 @@
 - **`prop_gen_ymd(min_year, max_year)`**: Calendar-day date generator — draws a `Date` uniformly across every day in the inclusive year range (February 29th at its real frequency). Counterexamples shrink toward `Date(min_year-01-01)`, keeping shrinks inside the date domain.
 - **In-domain date shrinking**: `Date`/`Datetime` values now shrink within their domain — `ymd_range` toward the year-span floor, `date_range` toward the start bound (micros 0 + preserved timezone for datetimes), and bare date cells inside `prop_gen_df` toward the epoch (1970-01-01 / micros 0).
 - **Chrono dogfooding**: Property tests now cover the `chrono` package — date-bound invariants (`day`, `month`, `quarter`, `semester`, `yday`, `isoweek`, `wday`, leap-year consistency), round-trips (`format_date`/`parse_date`, `ymd`, period arithmetic), `%within%` intervals, datetime components, and NA-hardening of `mutate`/`arrange` over date columns.
+- **Dogfooding expanded further**: Property tests now also cover the `stats` package (mode membership over typed/mixed vectors, `sd`/`var` consistency, constant-vector degeneracy, mean/quantile/min-max bounds, `range`/`fivenum` endpoints, `cor`/`cov` symmetry and range, `iqr` non-negativity), multibyte UTF-8 invariants for `strcraft` (`split`/`pad`/`trunc`/`repeat` round-trips and case-mapping idempotence over accented generators), `colcraft`/`stats` DataFrame verbs (`arrange` idempotence, `mutate`-then-`select`, `drop_na` subsets on date/NaN columns, `distinct` bounds), plus integer-domain `math` and list-domain `core` invariants. These properties are tight enough to have surfaced the UTF-8 case-mapping, byte-based regex, and nested-NSE-call bugs fixed above.
 
 ## [0.54.3] - 2026-08-01
 

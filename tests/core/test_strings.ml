@@ -52,6 +52,11 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
   Printf.printf "  Case:\n";
   test "to_upper" "to_upper(\"test\")" "\"TEST\"";
   test "to_lower" "to_lower(\"TEST\")" "\"test\"";
+  test "to_upper unicode" "to_upper(\"éàüç\")" "\"ÉÀÜÇ\"";
+  test "to_lower unicode" "to_lower(\"ÉÀÜÇ\")" "\"éàüç\"";
+  test "to_upper eszett expands to SS" "to_upper(\"ß\")" "\"SS\"";
+  test "to_lower eszett" "to_lower(\"ß\")" "\"ß\"";
+  test "to_upper roundtrip back to lower" "to_lower(to_upper(\"éàüç\"))" "\"éàüç\"";
   
   Printf.printf "  Vectorization:\n";
   test "to_upper vector" "to_upper([\"hello\", \"world\"])" "[\"HELLO\", \"WORLD\"]";
@@ -97,6 +102,11 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
   test "str_trunc right" "str_trunc(\"abcdefgh\", 5)" "\"ab...\"";
   test "str_flatten collapse" "str_flatten([\"a\", \"b\", \"c\"], collapse = \"-\")" "\"a-b-c\"";
   test "str_count regex" "str_count(\"banana\", \"a\")" "3";
+  test "str_detect dot matches a full multibyte char" "str_detect([\"h\u{00E9}llo\"], \"^h.llo$\")" "[true]";
+  test "str_count dot counts code points not bytes" "str_count(\"h\u{00E9}llo\", \".\")" "5";
+  test "str_extract unicode letter class" "str_extract(\"h\u{00E9}llo\", \"\\\\p{L}+\")" "\"h\u{00E9}llo\"";
+  test "str_extract_all unicode letters split by digit" "str_extract_all(\"h\u{00E9}1llo2\", \"\\\\p{L}+\")" "[\"h\u{00E9}\", \"llo\"]";
+  test "str_detect ascii class still excludes accents" "str_detect([\"h\u{00E9}llo\"], \"^[a-z]+$\")" "[false]";
 
   Printf.printf "  UTF-8 regressions:\n";
   test "str_split empty separator splits code points not bytes"
