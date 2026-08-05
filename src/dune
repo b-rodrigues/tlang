@@ -69,6 +69,7 @@
         pipeline_to_frame pipeline_config_to_frame filter_node which_nodes mutate_node rename_node select_node arrange_node pipeline_to_drv
           pipeline_set_ops pipeline_dag_ops pipeline_composition pipeline_expand pipeline_inspect2 pipeline_to_ga t_make_mod build_log pipeline_diff diff_summary pipeline_report t_check t_diff t_fix set_pipeline_global_options pipeline_node_options
       pipeline_to_store set_nix_defaults pipeline_cache_status pipeline_gc export_artifacts import_artifacts inspect_artifacts
+      node_docs rn_docs pyn_docs jln_docs qn_docs shn_docs
     ; packages/colcraft
     t_select t_filter mutate arrange group_by ungroup summarize n n_distinct
     window_rank window_offset window_cumulative pivot_longer pivot_wider t_complete

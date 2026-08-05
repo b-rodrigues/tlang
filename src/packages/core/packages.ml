@@ -1039,10 +1039,11 @@ let init_env () =
     (* Python serializers *)
     "write_pkl"; "read_pkl";
     (* Arrow serializers *)
+    "^arrow"; "^parquet";
     (* JSON serializers *)
     "write_json"; "read_json";
     (* PMML *)
-    "pmml"; "^pmml"; "^csv"; "^arrow"; "^json"; "^onnx";
+    "pmml"; "^pmml"; "^csv"; "^json"; "^onnx";
     (* Binary/passthrough (fetchurl) *)
     "bin"; "^bin";
   ] in
