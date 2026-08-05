@@ -105,9 +105,9 @@ let add_feature_requirement ~node_name ~runtime ~feature =
       empty_requirements (* base R write.csv/read.csv; no extra packages needed *)
   | "Python", "csv" ->
       { req with py_deps = add_list req.py_deps [ "pandas" ] }
-  | "R", "arrow" ->
+  | "R", "ipc" ->
       { req with r_deps = add_list req.r_deps [ "arrow" ] }
-  | "Python", "arrow" ->
+  | "Python", "ipc" ->
       { req with py_deps = add_list req.py_deps [ "pandas"; "pyarrow" ] }
   | "R", "parquet" ->
       { req with r_deps = add_list req.r_deps [ "arrow" ] }
@@ -137,7 +137,7 @@ let add_feature_requirement ~node_name ~runtime ~feature =
       { req with julia_deps = add_list req.julia_deps [ "JSON" ] }
   | "Julia", "csv" ->
       { req with julia_deps = add_list req.julia_deps [ "CSV"; "DataFrames" ] }
-  | "Julia", "arrow" ->
+  | "Julia", "ipc" ->
       { req with julia_deps = add_list req.julia_deps [ "Arrow"; "DataFrames" ] }
   | "Julia", "parquet" ->
       { req with julia_deps = add_list req.julia_deps [ "Arrow"; "DataFrames" ] }

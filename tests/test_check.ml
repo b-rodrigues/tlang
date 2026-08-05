@@ -225,7 +225,7 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
   (match julia_diag.Diagnostics.diag_suggested_fix with
    | Diagnostics.Add_node_arg { node; arg; _ } ->
        check_eq "cross-runtime (Julia dep): node name" node "rn";
-       check_eq "cross-runtime (Julia dep): arg uses ^arrow" arg "deserializer = ^arrow"
+       check_eq "cross-runtime (Julia dep): arg uses ^ipc" arg "deserializer = ^ipc"
    | _ -> check "cross-runtime (Julia dep): generates Add_node_arg" false);
 
   let py_msg = "Node `jln` (Julia) depends on `pyn` (Python) but has no explicit deserializer." in

@@ -1,4 +1,4 @@
-(* src/packages/to_dataframe/t_write_arrow.ml *)
+(* src/packages/to_dataframe/t_write_ipc.ml *)
 open Ast
 
 let register env =
@@ -7,18 +7,18 @@ let register env =
   --#
   --# Writes a DataFrame to an Apache Arrow IPC (Feather v2) file.
   --#
-  --# @name write_arrow
+  --# @name write_ipc
   --# @param df :: DataFrame The DataFrame to write.
   --# @param path :: String The output file path.
   --# @return :: Null
   --# @example
-  --#   write_arrow(df, "data.arrow")
+  --#   write_ipc(df, "data.arrow")
   --# @family to_dataframe
-  --# @seealso read_arrow
+  --# @seealso read_ipc
   --# @export
   *)
-  Env.add "write_arrow"
-    (make_builtin ~name:"write_arrow" 2 (fun args _env ->
+  Env.add "write_ipc"
+    (make_builtin ~name:"write_ipc" 2 (fun args _env ->
       match args with
       | [VDataFrame df; VString path] ->
           (match Arrow_io.write_ipc df.arrow_table path with
@@ -31,14 +31,14 @@ let register env =
             | _ -> ""
           in
           Error.type_error ~arg_index:1
-            (Printf.sprintf "Function `write_arrow` expects a DataFrame as first argument, got %s instead%s." type_name detail)
+            (Printf.sprintf "Function `write_ipc` expects a DataFrame as first argument, got %s instead%s." type_name detail)
       | [VDataFrame _; v] ->
           Error.type_error ~arg_index:2
-            (Printf.sprintf "Function `write_arrow` expects a String path as second argument, got %s instead." (Utils.type_name v))
+            (Printf.sprintf "Function `write_ipc` expects a String path as second argument, got %s instead." (Utils.type_name v))
       | [v1; v2] ->
           Error.type_error
-            (Printf.sprintf "Function `write_arrow` expects (DataFrame, String), got (%s, %s) instead."
+            (Printf.sprintf "Function `write_ipc` expects (DataFrame, String), got (%s, %s) instead."
               (Utils.type_name v1) (Utils.type_name v2))
-      | _ -> Error.arity_error_named "write_arrow" 2 (List.length args)
+      | _ -> Error.arity_error_named "write_ipc" 2 (List.length args)
     ))
     env

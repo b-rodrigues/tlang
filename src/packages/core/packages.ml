@@ -187,7 +187,7 @@ let chrono_package = {
 let dataframe_package = {
   name = "dataframe";
   description = "DataFrame creation and introspection";
-  functions = ["to_dataframe"; "read_csv"; "read_parquet"; "write_csv"; "colnames"; "nrow"; "ncol"; "clean_colnames"; "glimpse"; "pull"; "to_array"; "read_arrow"; "write_arrow"; "write_parquet"];
+  functions = ["to_dataframe"; "read_csv"; "read_parquet"; "write_csv"; "colnames"; "nrow"; "ncol"; "clean_colnames"; "glimpse"; "pull"; "to_array"; "read_ipc"; "write_ipc"; "write_parquet"];
 }
 
 let pipeline_package = {
@@ -795,8 +795,8 @@ let init_env () =
   let env = T_read_csv.register env in
   let env = T_read_parquet.register env in
   let env = T_write_csv.register ~write_csv_fn:(fun ~sep table path -> Arrow_io.write_csv ~sep table path) env in
-  let env = T_read_arrow.register env in
-  let env = T_write_arrow.register env in
+  let env = T_read_ipc.register env in
+  let env = T_write_ipc.register env in
   let env = T_write_parquet.register env in
   let env = Colnames.register env in
   let env = Nrow.register env in
@@ -1038,8 +1038,8 @@ let init_env () =
     "write_rds"; "read_rds";
     (* Python serializers *)
     "write_pkl"; "read_pkl";
-    (* Arrow serializers *)
-    "^arrow";
+    (* Arrow IPC serializers *)
+    "^ipc";
     (* Parquet serializers *)
     "write_parquet"; "read_parquet"; "^parquet";
     (* JSON serializers *)

@@ -1,4 +1,4 @@
-(* src/packages/to_dataframe/t_read_arrow.ml *)
+(* src/packages/to_dataframe/t_read_ipc.ml *)
 open Ast
 
 (*
@@ -6,17 +6,17 @@ open Ast
 --#
 --# Loads a DataFrame from an Arrow IPC file (also known as Feather v2) on disk.
 --#
---# @name read_arrow
+--# @name read_ipc
 --# @param path :: String The file path to the Arrow IPC file.
 --# @return :: DataFrame The loaded DataFrame.
 --# @example
---#   df = read_arrow("data.arrow")
+--#   df = read_ipc("data.arrow")
 --# @family to_dataframe
---# @seealso write_arrow, read_csv
+--# @seealso write_ipc, read_csv
 --# @export
 *)
-let read_arrow_builtin =
-  make_builtin ~name:"read_arrow" 1 (fun args _env ->
+let read_ipc_builtin =
+  make_builtin ~name:"read_ipc" 1 (fun args _env ->
     match args with
     | [VString path] ->
         (match Arrow_io.read_ipc path with
@@ -24,10 +24,10 @@ let read_arrow_builtin =
         | Error msg -> Error.make_error FileError (Printf.sprintf "File Error: %s." msg))
     | [v] ->
         Error.type_error ~arg_index:1
-          (Printf.sprintf "Function `read_arrow` expects a String path, got %s instead." (Utils.type_name v))
-    | _ -> Error.arity_error_named "read_arrow" 1 (List.length args)
+          (Printf.sprintf "Function `read_ipc` expects a String path, got %s instead." (Utils.type_name v))
+    | _ -> Error.arity_error_named "read_ipc" 1 (List.length args)
   )
 
 let register env =
-  Serialization_registry.update_native "arrow" ~reader:read_arrow_builtin ();
-  Env.add "read_arrow" read_arrow_builtin env
+  Serialization_registry.update_native "ipc" ~reader:read_ipc_builtin ();
+  Env.add "read_ipc" read_ipc_builtin env

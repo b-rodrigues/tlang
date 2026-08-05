@@ -36,7 +36,7 @@ let init_builtins () =
     let (r_w, r_r, py_w, py_r, jl_w, jl_r) = 
       match format with
       | "csv" ->   (Some "r_write_csv",    Some "r_read_csv",    Some "py_write_csv",    Some "py_read_csv",   Some "jl_write_csv",    Some "jl_read_csv")
-      | "arrow" -> (Some "r_write_arrow",  Some "r_read_arrow",  Some "py_write_arrow",  Some "py_read_arrow", Some "jl_write_arrow",  Some "jl_read_arrow")
+      | "ipc" ->   (Some "r_write_ipc",    Some "r_read_ipc",    Some "py_write_ipc",    Some "py_read_ipc",   Some "jl_write_ipc",    Some "jl_read_ipc")
       | "json" ->  (Some "r_write_json",   Some "r_read_json",   Some "py_write_json",   Some "py_read_json",  Some "jl_write_json",   Some "jl_read_json")
       | "pmml" ->  (Some "r_write_pmml",   Some "r_read_pmml",   Some "py_write_pmml",   Some "py_read_pmml",  Some "jl_write_pmml", Some "jl_read_pmml")
       | "onnx" ->  (Some "r_write_onnx",   Some "r_read_onnx",   Some "py_write_onnx",   Some "py_read_onnx",  Some "jl_write_onnx", Some "jl_read_onnx")
@@ -57,4 +57,4 @@ let init_builtins () =
     }
   in
   List.iter (fun name -> register name (mk_ser name))
-    ["csv"; "arrow"; "json"; "pmml"; "onnx"; "tlang"; "bin"; "text"; "parquet"]
+    ["csv"; "ipc"; "json"; "pmml"; "onnx"; "tlang"; "bin"; "text"; "parquet"]

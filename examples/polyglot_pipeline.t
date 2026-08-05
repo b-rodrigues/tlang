@@ -8,7 +8,7 @@ p = pipeline {
   -- 1. Load data natively in T (CSV backend)
   data = node(
     command = read_csv("examples/sales.csv") |> filter($amount > 100),
-    serializer = ^arrow
+    serializer = ^ipc
   )
 
   -- 2. Train a statistical model in R (using the rn() wrapper)
@@ -18,13 +18,13 @@ p = pipeline {
       lm(amount ~ category, data = data)
     }>,
     serializer = ^pmml,
-    deserializer = ^arrow
+    deserializer = ^ipc
   )
 
   -- 3. Predict natively in T (no R/Python runtime needed for evaluation!)
   predictions = node(
     command = data |> mutate($pred = predict(data, model_r)),
-    deserializer = [data: ^arrow, model_r: ^pmml]
+    deserializer = [data: ^ipc, model_r: ^pmml]
   )
 }
 

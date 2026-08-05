@@ -1363,7 +1363,7 @@ p_cross = pipeline {
     {|pipeline {
   source = [answer: 42]
   report_r = rn(command = <{ source }>, serializer = ^json, deserializer = ^json)
-  report_py = pyn(command = <{ source }>, serializer = ^arrow, deserializer = ^arrow)
+  report_py = pyn(command = <{ source }>, serializer = ^ipc, deserializer = ^ipc)
 }|}
     (Packages.init_env ()) in
   (match v_serializer_pipeline with
@@ -1376,16 +1376,16 @@ p_cross = pipeline {
          contains_substring nix "r_write_json(node_result,"
        in
         let has_py_arrow_helpers =
-          contains_substring nix "def py_write_arrow(df, path):" &&
-          contains_substring nix "def py_read_arrow(path):" &&
-          contains_substring nix "__dep_source = py_read_arrow(" &&
-          contains_substring nix "py_write_arrow(__node_result,"
+          contains_substring nix "def py_write_ipc(df, path):" &&
+          contains_substring nix "def py_read_ipc(path):" &&
+          contains_substring nix "__dep_source = py_read_ipc(" &&
+          contains_substring nix "py_write_ipc(__node_result,"
         in
         let omits_old_runtime_prefixed_helpers =
           (not (contains_substring nix "t_read_json(")) &&
           (not (contains_substring nix "t_write_json(")) &&
-          (not (contains_substring nix "t_read_arrow(")) &&
-          (not (contains_substring nix "t_write_arrow("))
+          (not (contains_substring nix "t_read_ipc(")) &&
+          (not (contains_substring nix "t_write_ipc("))
         in
         if has_r_json_helpers && has_py_arrow_helpers && omits_old_runtime_prefixed_helpers then begin
           incr pass_count; Printf.printf "  ✓ pipeline emits r_/py_ runtime serializer helper names\n"
@@ -3197,14 +3197,14 @@ p.t_step|}
        n1 = rn(command = <{ 1 + 1 }>, serializer = ^json)
        n2 = pyn(command = <{ 2 + 2 }>)
      }
-     q = set_pipeline_global_options(p, serializer = ^arrow)
+     q = set_pipeline_global_options(p, serializer = ^ipc)
    |} (Packages.init_env ()) in
     let (vq, _) = eval_string_env "q" env in
     match vq with
     | VPipeline q ->
         let n1_ser = get_serializer q "n1" in
         let n2_ser = get_serializer q "n2" in
-        if n1_ser = "arrow" && n2_ser = "arrow" then
+        if n1_ser = "ipc" && n2_ser = "ipc" then
           (incr pass_count; Printf.printf "  ✓ set_pipeline_global_options overrides serializer for all nodes\n")
         else
           (incr fail_count; Printf.printf "  ✗ set_pipeline_global_options serializer override failed: n1=%s n2=%s\n" n1_ser n2_ser)

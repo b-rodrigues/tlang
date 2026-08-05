@@ -12,7 +12,7 @@ open Ast
 --# @example
 --#   write_parquet(df, "data.parquet")
 --# @family to_dataframe
---# @seealso read_parquet, write_arrow
+--# @seealso read_parquet, write_ipc
 --# @export
 *)
 let write_parquet_builtin =

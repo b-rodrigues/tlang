@@ -589,9 +589,9 @@ pipeline_edges(p)|}
   test "pipeline_validate reports serializer coherence mismatch"
     {|p = pipeline {
          x = rn(command = <{ 1 }>, serializer = ^csv);
-         y = rn(command = <{ x + 1 }>, deserializer = ^arrow, deps = ["x"])
+         y = rn(command = <{ x + 1 }>, deserializer = ^ipc, deps = ["x"])
        }; pipeline_validate(p)|}
-    "expects format `arrow` for dependency `x`";
+    "expects format `ipc` for dependency `x`";
 
   test "pipeline_validate reports multi-dep single strategy"
     {|p = pipeline {

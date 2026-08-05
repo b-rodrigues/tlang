@@ -141,7 +141,7 @@ let read_standard_node_value cn =
     match Serialization.read_json cn.cn_path with
     | Ok v -> v
     | Error _ -> VComputedNode cn
-  else if cn.cn_serializer = "arrow" then
+  else if cn.cn_serializer = "ipc" then
     match Arrow_io.read_ipc cn.cn_path with
     | Ok v -> VDataFrame { arrow_table = v; group_keys = [] }
     | Error _ -> VComputedNode cn
@@ -216,7 +216,7 @@ let read_logged_node_value name cn =
     (match Serialization.read_json cn.cn_path with
      | Ok v -> v
      | Error msg -> Error.make_error ~context:[("runtime", VString cn.cn_runtime)] FileError (Printf.sprintf "Failed to read JSON node `%s` from `%s`: %s" name cn.cn_path msg))
-  else if cn.cn_serializer = "arrow" then
+  else if cn.cn_serializer = "ipc" then
     (match Arrow_io.read_ipc cn.cn_path with
      | Ok v -> VDataFrame { arrow_table = v; group_keys = [] }
      | Error msg -> Error.make_error ~context:[("runtime", VString cn.cn_runtime)] FileError (Printf.sprintf "Failed to read Arrow node `%s` from `%s`: %s" name cn.cn_path msg))
@@ -510,7 +510,7 @@ let read_node ?which_log name =
           cn_path = artifact_path;
           cn_serializer = (
             match cls with
-            | "ArrowDataFrame" | "data.frame" | "DataFrame" | "Table" -> "arrow"
+            | "ArrowDataFrame" | "data.frame" | "DataFrame" | "Table" -> "ipc"
             | "JSON" | "VDict" | "VList" | "list" | "dict" -> "json"
             | "PMML" | "pmml" -> "pmml"
             | _ -> "default"

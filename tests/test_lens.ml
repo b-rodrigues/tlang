@@ -233,7 +233,7 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
     {|"Expression"|};
 
   test "node_meta_lens get/set deserializer"
-    {|p = pipeline { a = 1 }; p2 = set(p, node_meta_lens("a", "deserializer"), ^arrow); type(get(p2, node_meta_lens("a", "deserializer")))|}
+    {|p = pipeline { a = 1 }; p2 = set(p, node_meta_lens("a", "deserializer"), ^ipc); type(get(p2, node_meta_lens("a", "deserializer")))|}
     {|"Expression"|};
 
   (* 11. filter_lens on Pipeline with over

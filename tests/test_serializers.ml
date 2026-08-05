@@ -83,12 +83,12 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env _test 
    | _ ->
        incr fail_count; failures := "  ✗ ^csv resolution failed\n" :: !failures; Printf.printf "  ✗ ^csv resolution failed\n") ;
 
-  let (v, _) = eval_string_env {| ^arrow |} (Packages.init_env ()) in
+  let (v, _) = eval_string_env {| ^ipc |} (Packages.init_env ()) in
   (match v with
-   | VSerializer s when s.s_format = "arrow" ->
-       incr pass_count; Printf.printf "  ✓ ^arrow resolves to serializer record\n"
+   | VSerializer s when s.s_format = "ipc" ->
+       incr pass_count; Printf.printf "  ✓ ^ipc resolves to serializer record\n"
    | _ ->
-       incr fail_count; failures := "  ✗ ^arrow resolution failed\n" :: !failures; Printf.printf "  ✗ ^arrow resolution failed\n") ;
+       incr fail_count; failures := "  ✗ ^ipc resolution failed\n" :: !failures; Printf.printf "  ✗ ^ipc resolution failed\n") ;
 
   (* ONNX serializer resolution *)
   let (v, _) = eval_string_env {| ^onnx |} (Packages.init_env ()) in
@@ -142,7 +142,7 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env _test 
   let (v, _) = eval_string_env {|
     p = pipeline {
        a = node(command = <{ 1 }>, serializer = ^csv)
-       b = node(command = <{ a + 1 }>, deserializer = ^arrow)
+       b = node(command = <{ a + 1 }>, deserializer = ^ipc)
     }
     populate_pipeline(p)
   |} env_coh in
@@ -160,8 +160,8 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env _test 
   let env_match = Packages.init_env () in
   let (v, _) = eval_string_env {|
     p = pipeline {
-       a = node(command = <{ 1 }>, serializer = ^arrow)
-       b = node(command = <{ a + 1 }>, deserializer = ^arrow)
+       a = node(command = <{ 1 }>, serializer = ^ipc)
+       b = node(command = <{ a + 1 }>, deserializer = ^ipc)
     }
     populate_pipeline(p)
   |} env_match in
@@ -344,7 +344,7 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env _test 
     p = pipeline {
        json_r = node(command = <{ 1 }>, runtime = R, serializer = ^json)
        csv_py = node(command = <{ 1 }>, runtime = Python, serializer = ^csv)
-       arrow_py = node(command = <{ 1 }>, runtime = Python, serializer = ^arrow)
+       arrow_py = node(command = <{ 1 }>, runtime = Python, serializer = ^ipc)
        pmml_py = node(command = <{ 1 }>, runtime = Python, serializer = ^pmml)
        model = node(command = <{ 1 }>, runtime = Python, serializer = ^onnx)
        report = node(script = "report.qmd")

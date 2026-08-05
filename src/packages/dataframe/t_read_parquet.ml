@@ -11,7 +11,7 @@ open Ast
 --# @example
 --#   df = read_parquet("data.parquet")
 --# @family to_dataframe
---# @seealso read_csv, read_arrow
+--# @seealso read_csv, read_ipc
 --# @export
 *)
 let read_parquet_builtin =
