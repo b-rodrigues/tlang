@@ -200,6 +200,15 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env _test 
   test_env env "prop_for_all shrinks date in a df column"
     "set_seed(1)\nprop_for_all(prop_gen_df([d: prop_gen_ymd(2000, 2024)], nrows = 20, na_prob = 0.0), \\(df) false, n = 1)"
     "DataFrame(0 rows x 1 cols)";
+  test_env env "prop_for_all shrinks df date cell to column floor"
+    "set_seed(1)\nprop_for_all(prop_gen_df([d: prop_gen_ymd(2000, 2024)], nrows = 1, na_prob = 0.0), \\(df) nrow(df) == 0 || nrow(filter(df, \\(r) r.d >= ymd(\"2025-01-01\"))) == 1, n = 1)"
+    "Date(2000-01-01)";
+  test_env env "prop_for_all shrinks df date_range cell to start bound"
+    "set_seed(1)\nprop_for_all(prop_gen_df([d: prop_gen_date_range(ymd(\"2020-01-01\"), ymd(\"2024-12-31\"))], nrows = 1, na_prob = 0.0), \\(df) nrow(df) == 0 || nrow(filter(df, \\(r) r.d >= ymd(\"2025-01-01\"))) == 1, n = 1)"
+    "Date(2020-01-01)";
+  test_env env "prop_for_all shrinks df datetime cell to start bound"
+    "set_seed(1)\nprop_for_all(prop_gen_df([dt: prop_gen_date_range(ymd_hms(\"2020-01-01 00:00:00\"), ymd_hms(\"2024-12-31 23:59:59\"))], nrows = 1, na_prob = 0.0), \\(df) nrow(df) == 0 || nrow(filter(df, \\(r) r.dt >= ymd_hms(\"2025-01-01 00:00:00\"))) == 1, n = 1)"
+    "Datetime(2020-01-01";
 
   (* Generator / combinator validation *)
   test_env env "prop_such_that exhaustion fails"

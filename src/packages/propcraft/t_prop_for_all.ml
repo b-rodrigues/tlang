@@ -727,6 +727,41 @@ let failure_message ~name ~n ~runs ~k ~counterexamples =
    its `min`, a `df`/`dict` spec shrinks between-column cells to that
    column's `min`, and composite specs (`list`, `vector`, `choice`,
    `frequency`) propagate the shrink strategy of their element(s). *)
+
+(* Per-column cell floors for df/dict specs: a `between` column floors to
+   its `min`, a `ymd_range` column to its `start_day`, and a `date_range`
+   column to `start_day` (date mode) or `start_micros` (datetime mode). *)
+let column_cell_min spec =
+  match field "columns" spec with
+  | Some (VDict columns) ->
+      let mins =
+        List.filter_map
+          (fun (cname, cspec) ->
+            match spec_gen cspec with
+            | Some "between" ->
+                (match int_field "min" cspec with
+                 | Some m -> Some (cname, m)
+                 | None -> None)
+            | Some "ymd_range" ->
+                (match int_field "start_day" cspec with
+                 | Some d -> Some (cname, d)
+                 | None -> None)
+            | Some "date_range" ->
+                (match field "mode" cspec with
+                 | Some (VString "datetime") ->
+                     (match int_field "start_micros" cspec with
+                      | Some m -> Some (cname, m)
+                      | None -> None)
+                 | _ ->
+                     (match int_field "start_day" cspec with
+                      | Some d -> Some (cname, d)
+                      | None -> None))
+            | _ -> None)
+          columns
+      in
+      (fun cname -> List.assoc_opt cname mins)
+  | _ -> fun _ -> None
+
 let rec spec_shrink_v spec =
   match spec_gen spec with
   | Some "between" ->
@@ -759,74 +794,14 @@ let rec spec_shrink_v spec =
              match v with
              | VDate days -> List.map (fun x -> VDate x) (shrink_toward_min start_day days)
              | _ -> shrink_value v))
-  | Some "df" ->
-      let cell_min =
-        match field "columns" spec with
-        | Some (VDict columns) ->
-            let mins =
-              List.filter_map
-                (fun (cname, cspec) ->
-                  match spec_gen cspec with
-                  | Some "between" ->
-                      (match int_field "min" cspec with
-                       | Some m -> Some (cname, m)
-                       | None -> None)
-                  | Some "ymd_range" ->
-                      (match int_field "start_day" cspec with
-                       | Some d -> Some (cname, d)
-                       | None -> None)
-                  | Some "date_range" ->
-                      (match field "mode" cspec with
-                       | Some (VString "datetime") ->
-                           (match int_field "start_micros" cspec with
-                            | Some m -> Some (cname, m)
-                            | None -> None)
-                       | _ ->
-                           (match int_field "start_day" cspec with
-                            | Some d -> Some (cname, d)
-                            | None -> None))
-                  | _ -> None)
-                columns
-            in
-            (fun cname -> List.assoc_opt cname mins)
-        | _ -> fun _ -> None
-      in
+   | Some "df" ->
+       let cell_min = column_cell_min spec in
        (fun v ->
          match v with
          | VDataFrame df -> shrink_dataframe ~cell_min df
          | _ -> shrink_value v)
   | Some "dict" ->
-      let cell_min =
-        match field "columns" spec with
-        | Some (VDict columns) ->
-            let mins =
-              List.filter_map
-                (fun (cname, cspec) ->
-                  match spec_gen cspec with
-                  | Some "between" ->
-                      (match int_field "min" cspec with
-                       | Some m -> Some (cname, m)
-                       | None -> None)
-                  | Some "ymd_range" ->
-                      (match int_field "start_day" cspec with
-                       | Some d -> Some (cname, d)
-                       | None -> None)
-                  | Some "date_range" ->
-                      (match field "mode" cspec with
-                       | Some (VString "datetime") ->
-                           (match int_field "start_micros" cspec with
-                            | Some m -> Some (cname, m)
-                            | None -> None)
-                       | _ ->
-                           (match int_field "start_day" cspec with
-                            | Some d -> Some (cname, d)
-                            | None -> None))
-                  | _ -> None)
-                columns
-            in
-            (fun cname -> List.assoc_opt cname mins)
-        | _ -> fun _ -> None
-      in
+      let cell_min = column_cell_min spec in
       (fun v ->
         match v with
         | VDict pairs ->
