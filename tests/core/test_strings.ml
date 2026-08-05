@@ -107,6 +107,18 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
   test "str_extract unicode letter class" "str_extract(\"h\u{00E9}llo\", \"\\\\p{L}+\")" "\"h\u{00E9}llo\"";
   test "str_extract_all unicode letters split by digit" "str_extract_all(\"h\u{00E9}1llo2\", \"\\\\p{L}+\")" "[\"h\u{00E9}\", \"llo\"]";
   test "str_detect ascii class still excludes accents" "str_detect([\"h\u{00E9}llo\"], \"^[a-z]+$\")" "[false]";
+  test "str_extract_all trailing zero-width match terminates"
+    "str_extract_all(\"abc\", \"a*\")"
+    "[\"a\", \"\", \"\", \"\"]";
+  test "str_count trailing zero-width match terminates"
+    "str_count(\"abc\", \"a*\")"
+    "4";
+  test "str_extract_all zero-width on empty string terminates"
+    "str_extract_all(\"\", \"a*\")"
+    "[\"\"]";
+  test "str_count zero-width on empty string terminates"
+    "str_count(\"\", \"a*\")"
+    "1";
 
   Printf.printf "  UTF-8 regressions:\n";
   test "str_split empty separator splits code points not bytes"

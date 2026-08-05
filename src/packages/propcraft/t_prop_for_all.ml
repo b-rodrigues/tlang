@@ -605,8 +605,14 @@ and shrink_dataframe ~cell_min df =
       | VBool _ -> Some (VBool false)
       | VString _ -> Some (VString "")
       | VFactor (_, levels, ordered) -> Some (VFactor (0, levels, ordered))
-      | VDate _ -> Some (VDate 0)
-      | VDatetime (_, tz) -> Some (VDatetime (0L, tz))
+      | VDate _ ->
+          (match cell_min name with
+           | Some d -> Some (VDate d)
+           | None -> Some (VDate 0))
+      | VDatetime (_, tz) ->
+          (match cell_min name with
+           | Some m -> Some (VDatetime (Int64.of_int m, tz))
+           | None -> Some (VDatetime (0L, tz)))
       | v -> Some v
     in
     List.concat_map
@@ -760,8 +766,25 @@ let rec spec_shrink_v spec =
             let mins =
               List.filter_map
                 (fun (cname, cspec) ->
-                  match spec_gen cspec, int_field "min" cspec with
-                  | Some "between", Some m -> Some (cname, m)
+                  match spec_gen cspec with
+                  | Some "between" ->
+                      (match int_field "min" cspec with
+                       | Some m -> Some (cname, m)
+                       | None -> None)
+                  | Some "ymd_range" ->
+                      (match int_field "start_day" cspec with
+                       | Some d -> Some (cname, d)
+                       | None -> None)
+                  | Some "date_range" ->
+                      (match field "mode" cspec with
+                       | Some (VString "datetime") ->
+                           (match int_field "start_micros" cspec with
+                            | Some m -> Some (cname, m)
+                            | None -> None)
+                       | _ ->
+                           (match int_field "start_day" cspec with
+                            | Some d -> Some (cname, d)
+                            | None -> None))
                   | _ -> None)
                 columns
             in
@@ -779,8 +802,25 @@ let rec spec_shrink_v spec =
             let mins =
               List.filter_map
                 (fun (cname, cspec) ->
-                  match spec_gen cspec, int_field "min" cspec with
-                  | Some "between", Some m -> Some (cname, m)
+                  match spec_gen cspec with
+                  | Some "between" ->
+                      (match int_field "min" cspec with
+                       | Some m -> Some (cname, m)
+                       | None -> None)
+                  | Some "ymd_range" ->
+                      (match int_field "start_day" cspec with
+                       | Some d -> Some (cname, d)
+                       | None -> None)
+                  | Some "date_range" ->
+                      (match field "mode" cspec with
+                       | Some (VString "datetime") ->
+                           (match int_field "start_micros" cspec with
+                            | Some m -> Some (cname, m)
+                            | None -> None)
+                       | _ ->
+                           (match int_field "start_day" cspec with
+                            | Some d -> Some (cname, d)
+                            | None -> None))
                   | _ -> None)
                 columns
             in

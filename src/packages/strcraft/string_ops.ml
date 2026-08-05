@@ -536,9 +536,13 @@ let all_regex_matches re s =
           let matched = regex_match_value m in
           let end_pos = snd (Pcre2.get_substring_ofs m 0) in
           (* On a zero-width match, advance past the next code point so UTF-8
-             strings are never torn mid-character. *)
+             strings are never torn mid-character. At end-of-string (pos = len)
+             fall back to pos + 1 so the loop always makes progress and cannot
+             re-match the same trailing empty match forever. *)
           let next_pos =
-            if end_pos = pos && pos < len then pos + utf8_char_length s.[pos] else end_pos
+            if end_pos = pos then
+              (if pos < len then pos + utf8_char_length s.[pos] else pos + 1)
+            else end_pos
           in
           loop next_pos (matched :: acc)
       | exception Not_found -> List.rev acc
