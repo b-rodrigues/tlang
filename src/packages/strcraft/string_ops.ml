@@ -48,6 +48,20 @@ let utf8_chars s =
   in
   go 0 []
 
+(* Split with OCaml Str.split semantics: the empty subject yields [], and
+   trailing empty tokens are dropped (internal ones are kept). Preserves the
+   behaviour of the legacy byte-oriented splitter under Pcre2 UTF-8. *)
+let split_str_semantics re s =
+  if s = "" then []
+  else
+    let parts = Pcre2.split ~rex:re ~max:(-1) s in
+    let rec drop_trailing acc = function
+      | [] -> List.rev acc
+      | "" :: rest -> drop_trailing acc rest
+      | x :: rest -> drop_trailing (x :: acc) rest
+    in
+    drop_trailing [] parts
+
 (* Unicode-aware case mapping via the uucp Unicode character database.
    Deterministic and locale-independent (unlike C toupper/tolower), so results
    are reproducible across machines and environments. Multi-character mappings

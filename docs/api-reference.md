@@ -1839,7 +1839,12 @@ Data manipulation verbs and window functions.
 
 #### `select(to_dataframe, ...columns)`
 
-Select columns by name. Supports dollar-prefix NSE syntax.
+Select columns by name. Supports dollar-prefix NSE syntax and the selection
+helpers `starts_with`, `ends_with`, `contains`, `everything`, `where`,
+`all_of`, `any_of`, and `matches`. `matches` compiles its pattern with PCRE2 in
+UTF-8 mode, so `.` matches a code point and `\p{...}` Unicode property classes
+are supported (e.g. `select(df, matches("^\\p{L}+$"))`); `contains` performs a
+plain literal substring search.
 
 **Parameters:**
 
@@ -2096,6 +2101,9 @@ Reshape DataFrames between long and wide formats.
 #### `separate(df, col, into, sep = "[^a-zA-Z0-9]+")` / `unite(df, col, ...from, sep = "_")`
 
 Split a column into multiple columns, or combine multiple columns into one.
+The `sep` pattern is compiled with PCRE2 in UTF-8 mode, so multibyte values are
+never torn. Split semantics match legacy `Str.split`: trailing empty tokens are
+dropped and an empty subject yields no tokens.
 
 ---
 
