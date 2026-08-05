@@ -870,7 +870,7 @@ declaration.</p>
 }</code></pre>
 <p>Julia nodes default to <code>serializer = default</code>, which uses
 Julia’s standard <code>Serialization</code> module to write
-<code>.jls</code> artifacts. Use <code>^csv</code>, <code>^arrow</code>,
+<code>.jls</code> artifacts. Use <code>^csv</code>, <code>^ipc</code>,
 or <code>^json</code> for cross-runtime interchange with T, R, or Python
 nodes.</p>
 <h3 id="quarto-nodes-with-qn">Quarto nodes with <code>qn()</code></h3>
@@ -961,7 +961,7 @@ Subset of Nodes</h4>
 <code>runtimes</code> and/or <code>nodes</code> to restrict the merge to
 a subset; when both are given the target is their union:</p>
 <pre class="t"><code># Only R nodes get the arrow serializer
-q1 = set_pipeline_global_options(p, runtimes = [&quot;rn&quot;], serializer = ^arrow)
+q1 = set_pipeline_global_options(p, runtimes = [&quot;rn&quot;], serializer = ^ipc)
 
 # Only the named nodes become no-ops
 q2 = set_pipeline_global_options(p, nodes = [&quot;data&quot;], noop = true)

@@ -35,7 +35,9 @@
 <div class="container">
 <h1 id="char_at">char_at</h1>
 <p>Get character at index</p>
-<p>Returns a single-character string at the specified index.</p>
+<p>Returns a single-character string at the specified index. Index is
+character-based (Unicode code point), so a multi-byte UTF-8 character is
+returned whole.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
 <li><p><strong>s</strong> (<code>String</code>): The input

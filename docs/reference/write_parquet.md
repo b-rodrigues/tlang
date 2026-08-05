@@ -23,5 +23,5 @@ write_parquet(df, "data.parquet")
 
 ## See Also
 
-[write_arrow](write_arrow.html), [read_parquet](read_parquet.html)
+[write_ipc](write_ipc.html), [read_parquet](read_parquet.html)
 

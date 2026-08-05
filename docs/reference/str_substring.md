@@ -2,7 +2,7 @@
 
 Extract substring
 
-Returns the part of the string between `start` and `end` indices.
+Returns the part of the string between `start` and `end` indices. Indices are character-based (Unicode code points), so multi-byte UTF-8 characters are never split.
 
 ## Parameters
 

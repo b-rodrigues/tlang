@@ -73,7 +73,7 @@ GB</td>
 </tr>
 <tr>
 <td><strong>Arrow IPC</strong></td>
-<td><code>read_arrow()</code> / <code>write_arrow()</code></td>
+<td><code>read_ipc()</code> / <code>write_ipc()</code></td>
 <td>Large dataframes, cross-runtime interchange</td>
 <td>Zero-copy; also known as Feather v2</td>
 </tr>
@@ -87,15 +87,15 @@ usage</td>
 </tbody>
 </table>
 <p>All three tabular readers (<code>read_csv</code>,
-<code>read_parquet</code>, <code>read_arrow</code>) accept a local path
+<code>read_parquet</code>, <code>read_ipc</code>) accept a local path
 <strong>or a URL</strong>. For reproducible downloads inside pipelines,
 use <code>fetchurl</code> with a pinned SHA-256 hash instead — see <a
 href="#downloading-data-from-urls">Downloading Data from URLs</a>.</p>
 <hr />
 <h2 id="downloading-data-from-urls">Downloading Data from URLs</h2>
 <p><code>read_csv</code>, <code>read_parquet</code>, and
-<code>read_arrow</code> all accept a URL in place of a local path. How
-the download is handled depends on where you are running T.</p>
+<code>read_ipc</code> all accept a URL in place of a local path. How the
+download is handled depends on where you are running T.</p>
 <h3 id="in-the-repl-or-a-script">In the REPL or a script</h3>
 <p>The reader downloads the file to a temporary location, parses it, and
 removes the temporary file. This is convenient for exploration, but the
@@ -215,10 +215,10 @@ write_parquet(df, &quot;data.parquet&quot;)</code></pre>
 read/write round trip and preserve the native Arrow storage model
 exactly. They are the ideal choice for passing large DataFrames between
 runtimes.</p>
-<pre class="t"><code>df = read_arrow(&quot;data.arrow&quot;)
-write_arrow(df, &quot;data.arrow&quot;)</code></pre>
+<pre class="t"><code>df = read_ipc(&quot;data.arrow&quot;)
+write_ipc(df, &quot;data.arrow&quot;)</code></pre>
 <p>Within a pipeline, DataFrames passed between T, R, Python, and Julia
-nodes use Arrow IPC through the <code>^arrow</code> serializer — see the
+nodes use Arrow IPC through the <code>^ipc</code> serializer — see the
 <a href="serializers.html">Serializers</a> guide and the <a
 href="pipeline_tutorial.html">Pipeline Tutorial</a> for details.</p>
 <hr />
@@ -248,12 +248,12 @@ via a serializer:</li>
       library(readxl)
       read_excel(&quot;data.xlsx&quot;)
     }&gt;,
-    serializer = ^arrow
+    serializer = ^ipc
   )
 
   clean = node(
     command = raw |&gt; filter($amount &gt; 0),
-    deserializer = ^arrow
+    deserializer = ^ipc
   )
 }</code></pre>
 <ol start="3" type="1">
@@ -285,7 +285,7 @@ systems, but less efficient than Arrow’s memory mapping.</li>
 <ul>
 <li><a href="performance.html">Performance</a> — how the Arrow backend
 works, vectorization, and the native vs. fallback paths</li>
-<li><a href="serializers.html">Serializers in T</a> — <code>^arrow</code>,
+<li><a href="serializers.html">Serializers in T</a> — <code>^ipc</code>,
 <code>^csv</code>, <code>^json</code>, and custom serializers for
 pipelines</li>
 <li><a href="pipeline-materialization.html">Pipeline Materialization</a> —
@@ -293,7 +293,7 @@ how node artifacts are stored and read back</li>
 <li><a href="reference/index.html">Function Reference</a> —
 <code>read_csv</code>, <code>write_csv</code>,
 <code>read_parquet</code>, <code>write_parquet</code>,
-<code>read_arrow</code>, <code>write_arrow</code></li>
+<code>read_ipc</code>, <code>write_ipc</code></li>
 </ul>
 </div>
 <footer>

@@ -1686,7 +1686,7 @@ Read or write Parquet files using the native parquet-glib reader/writer.
 
 ---
 
-### `read_arrow(path)` / `write_arrow(to_dataframe, path)`
+### `read_ipc(path)` / `write_ipc(to_dataframe, path)`
 
 Read or write Arrow IPC files.
 
@@ -2924,7 +2924,7 @@ q = set_pipeline_global_options(p,
 )
 
 # Scope to R nodes only
-q2 = set_pipeline_global_options(p, runtimes = ["rn"], serializer = ^arrow)
+q2 = set_pipeline_global_options(p, runtimes = ["rn"], serializer = ^ipc)
 
 # Scope to specific nodes
 q3 = set_pipeline_global_options(p, nodes = ["a"], noop = true)
@@ -3208,7 +3208,7 @@ Configure a Julia Pipeline Node. A convenience wrapper around `node()` with `run
 
 - `command` — The expression to evaluate inside the Julia node (must be enclosed in `<{ ... }>` blocks).
 - `script` — Path to an external `.jl` file to execute as the node body.
-- `serializer` (optional) — Custom serializer symbol (e.g., `^csv`, `^json`, `^arrow`, `^onnx`). Default: runtime-native binary serialization (`jl_serialize`).
+- `serializer` (optional) — Custom serializer symbol (e.g., `^csv`, `^json`, `^ipc`, `^onnx`). Default: runtime-native binary serialization (`jl_serialize`).
 - `deserializer` (optional) — Custom deserializer symbol. Default: runtime-native binary deserialization.
 - `env_vars` (optional) — Dictionary of environment variables to pass into the Nix sandbox.
 - `functions` (optional) — Julia files to source before execution.
@@ -4910,7 +4910,7 @@ Pass if `node_name` serializer matches the expected serializer.
 **Parameters:**
 - `p` — The pipeline to check.
 - `node_name` — The node name.
-- `expected` — Expected serializer (String or Symbol, e.g. `^arrow`, `^csv`).
+- `expected` — Expected serializer (String or Symbol, e.g. `^ipc`, `^csv`).
 
 **Examples:**
 ```t

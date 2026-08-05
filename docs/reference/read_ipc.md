@@ -1,4 +1,4 @@
-# read_arrow
+# read_ipc
 
 Read an Arrow IPC (Feather) file
 
@@ -16,10 +16,10 @@ The loaded DataFrame.
 ## Examples
 
 ```t
-df = read_arrow("data.arrow")
+df = read_ipc("data.arrow")
 ```
 
 ## See Also
 
-[read_csv](read_csv.html), [write_arrow](write_arrow.html)
+[read_csv](read_csv.html), [write_ipc](write_ipc.html)
 

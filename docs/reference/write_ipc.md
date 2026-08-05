@@ -1,4 +1,4 @@
-# write_arrow
+# write_ipc
 
 Write Arrow IPC file
 
@@ -18,10 +18,10 @@ Writes a DataFrame to an Apache Arrow IPC (Feather v2) file.
 ## Examples
 
 ```t
-write_arrow(df, "data.arrow")
+write_ipc(df, "data.arrow")
 ```
 
 ## See Also
 
-[read_arrow](read_arrow.html)
+[read_ipc](read_ipc.html)
 

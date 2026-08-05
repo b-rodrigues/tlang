@@ -14,10 +14,10 @@ natively.
 |--------|-----------|----------|-------|
 | **CSV** | `read_csv()` / `write_csv()` | Small-to-medium data, interchange with other tools | Human-readable; type inference; fast native path when using defaults |
 | **Parquet** | `read_parquet()` / `write_parquet()` | Large datasets, analytics workloads | Columnar, compressed, type-preserving; recommended above ~2–3 GB |
-| **Arrow IPC** | `read_arrow()` / `write_arrow()` | Large dataframes, cross-runtime interchange | Zero-copy; also known as Feather v2 |
+| **Arrow IPC** | `read_ipc()` / `write_ipc()` | Large dataframes, cross-runtime interchange | Zero-copy; also known as Feather v2 |
 | **JSON** | `t_read_json()` / `t_write_json()` | Config, nested lists and dicts | See the [Serializers](serializers.md) guide for pipeline usage |
 
-All three tabular readers (`read_csv`, `read_parquet`, `read_arrow`) accept a
+All three tabular readers (`read_csv`, `read_parquet`, `read_ipc`) accept a
 local path **or a URL**. For reproducible downloads inside pipelines, use
 `fetchurl` with a pinned SHA-256 hash instead — see
 [Downloading Data from URLs](#downloading-data-from-urls).
@@ -26,7 +26,7 @@ local path **or a URL**. For reproducible downloads inside pipelines, use
 
 ## Downloading Data from URLs
 
-`read_csv`, `read_parquet`, and `read_arrow` all accept a URL in place of a
+`read_csv`, `read_parquet`, and `read_ipc` all accept a URL in place of a
 local path. How the download is handled depends on where you are running T.
 
 ### In the REPL or a script
@@ -167,12 +167,12 @@ trip and preserve the native Arrow storage model exactly. They are the ideal
 choice for passing large DataFrames between runtimes.
 
 ```t
-df = read_arrow("data.arrow")
-write_arrow(df, "data.arrow")
+df = read_ipc("data.arrow")
+write_ipc(df, "data.arrow")
 ```
 
 Within a pipeline, DataFrames passed between T, R, Python, and Julia nodes use
-Arrow IPC through the `^arrow` serializer — see the [Serializers](serializers.md)
+Arrow IPC through the `^ipc` serializer — see the [Serializers](serializers.md)
 guide and the [Pipeline Tutorial](pipeline_tutorial.md) for details.
 
 ---
@@ -199,12 +199,12 @@ p = pipeline {
       library(readxl)
       read_excel("data.xlsx")
     }>,
-    serializer = ^arrow
+    serializer = ^ipc
   )
 
   clean = node(
     command = raw |> filter($amount > 0),
-    deserializer = ^arrow
+    deserializer = ^ipc
   )
 }
 ```
@@ -236,6 +236,6 @@ For datasets exceeding 2–3 GB:
 ## Related Guides
 
 - [Performance](performance.md) — how the Arrow backend works, vectorization, and the native vs. fallback paths
-- [Serializers in T](serializers.md) — `^arrow`, `^csv`, `^json`, and custom serializers for pipelines
+- [Serializers in T](serializers.md) — `^ipc`, `^csv`, `^json`, and custom serializers for pipelines
 - [Pipeline Materialization](pipeline-materialization.md) — how node artifacts are stored and read back
-- [Function Reference](reference/index.html) — `read_csv`, `write_csv`, `read_parquet`, `write_parquet`, `read_arrow`, `write_arrow`
+- [Function Reference](reference/index.html) — `read_csv`, `write_csv`, `read_parquet`, `write_parquet`, `read_ipc`, `write_ipc`

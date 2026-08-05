@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Breaking Changes
+
+- **Arrow IPC serializer renamed `^arrow` → `^ipc`**: The Arrow IPC (Feather v2) format is now the `^ipc` serializer. `read_arrow()` / `write_arrow()` are renamed to `read_ipc()` / `write_ipc()`, and the strategy symbol `^arrow` is now `^ipc`. No alias is kept. Existing pipelines must update their node serializers/deserializers (`serializer = ^ipc`, `deserializer = ^ipc`) and call sites. The R runtime package stays `arrow`, and `^parquet` is a separate, supported strategy (R `arrow::write_parquet`, Python `pyarrow.parquet`, Julia `Arrow`).
+
 ### Language & Bug Fixes
 
 - **`%name%` infix operators**: Any function can now be called infix with `%name%` syntax, R-style. For example `d %within% interval(start, end)` is equivalent to `%within%(d, interval(start, end))`. The lexer only treats `%name%` as an infix operator when a `%` is immediately followed by an identifier, so plain modulo (`a % b`) is unaffected.

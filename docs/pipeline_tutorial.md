@@ -326,7 +326,7 @@ p = pipeline {
 }
 ```
 
-Julia nodes default to `serializer = default`, which uses Julia's standard `Serialization` module to write `.jls` artifacts. Use `^csv`, `^arrow`, or `^json` for cross-runtime interchange with T, R, or Python nodes.
+Julia nodes default to `serializer = default`, which uses Julia's standard `Serialization` module to write `.jls` artifacts. Use `^csv`, `^ipc`, or `^json` for cross-runtime interchange with T, R, or Python nodes.
 
 ### Quarto nodes with `qn()`
 
@@ -415,7 +415,7 @@ to restrict the merge to a subset; when both are given the target is their union
 
 ```t
 # Only R nodes get the arrow serializer
-q1 = set_pipeline_global_options(p, runtimes = ["rn"], serializer = ^arrow)
+q1 = set_pipeline_global_options(p, runtimes = ["rn"], serializer = ^ipc)
 
 # Only the named nodes become no-ops
 q2 = set_pipeline_global_options(p, nodes = ["data"], noop = true)

@@ -2,7 +2,7 @@
 
 Find index of substring
 
-Returns the index of the first occurrence of `sub` in `s`, or -1 if not found.
+Returns the character index of the first occurrence of `sub` in `s`, or -1 if not found. Indices are character-based (Unicode code points), matching `str_substring` and `char_at`.
 
 ## Parameters
 
@@ -13,5 +13,5 @@ Returns the index of the first occurrence of `sub` in `s`, or -1 if not found.
 
 ## Returns
 
-The index of the first occurrence.
+The character index of the first occurrence.
 

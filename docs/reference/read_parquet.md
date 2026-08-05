@@ -21,5 +21,5 @@ df = read_parquet("data.parquet")
 
 ## See Also
 
-[read_arrow](read_arrow.html), [read_csv](read_csv.html)
+[read_ipc](read_ipc.html), [read_csv](read_csv.html)
 

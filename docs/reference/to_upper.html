@@ -35,7 +35,10 @@
 <div class="container">
 <h1 id="to_upper">to_upper</h1>
 <p>Convert to uppercase</p>
-<p>Converts all characters in the string to uppercase.</p>
+<p>Converts all characters in the string to uppercase, using the Unicode
+character database (deterministic and locale-independent).
+Multi-character mappings are expanded (e.g. <code>ß</code> becomes
+<code>SS</code>).</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
 <li><strong>s</strong> (<code>String</code>): The string to

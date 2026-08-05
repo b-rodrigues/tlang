@@ -41,8 +41,8 @@ pipeline nodes as persistent artifacts.</p>
 <p>Serializers are identified by the <code>^</code> prefix. You can
 specify them when defining pipeline nodes:</p>
 <pre class="t"><code>p = pipeline {
-  -- Use the built-in Arrow serializer for a DataFrame
-  data = node(command = read_csv(&quot;large.csv&quot;), serializer = ^arrow)
+  -- Use the built-in Arrow IPC serializer for a DataFrame
+  data = node(command = read_csv(&quot;large.csv&quot;), serializer = ^ipc)
   
   -- Use the PMML serializer for a model
   model = rn(command = &lt;{ lm(y ~ x, data = data) }&gt;, serializer = ^pmml)
@@ -54,7 +54,7 @@ specify them when defining pipeline nodes:</p>
 <p>T distinguishes between <strong>built-in symbols</strong> and
 <strong>custom serializer variables</strong>:</p>
 <ul>
-<li><strong>Symbols (<code>^arrow</code>, <code>^json</code>,
+<li><strong>Symbols (<code>^ipc</code>, <code>^json</code>,
 etc.)</strong>: Use the <code>^</code> prefix for T’s built-in
 serializers. These are registered symbols that the pipeline emitter
 understands natively across all supported runtimes.</li>
@@ -65,14 +65,14 @@ from another file), pass the variable name <strong>without</strong> the
 serializer definition to the node.</li>
 </ul>
 <pre class="t"><code>-- Built-in symbol (uses T&#39;s internal logic)
-node(..., serializer = ^arrow)
+node(..., serializer = ^ipc)
 
 -- Custom variable (passes the dictionary value)
 import &quot;src/my_ser.t&quot; [my_ser]
 node(..., serializer = my_ser)</code></pre>
 <blockquote>
 <p>[!IMPORTANT] <strong>String literals (e.g.,
-<code>serializer = "arrow"</code>) are strictly disallowed in node
+<code>serializer = "ipc"</code>) are strictly disallowed in node
 constructors</strong> (<code>rn()</code>, <code>pyn()</code>,
 <code>jln()</code>, <code>shn()</code>, <code>qn()</code>,
 <code>node()</code>). You must use either a symbol with the
@@ -122,9 +122,17 @@ defaults to <code>^text</code>.</p>
 <td>Internal binary format</td>
 </tr>
 <tr>
-<td><code>^arrow</code></td>
-<td>Apache Arrow</td>
+<td><code>^ipc</code></td>
+<td>Apache Arrow IPC</td>
 <td>Large DataFrames</td>
+<td>T, R, Python, Julia</td>
+<td>T, R, Python, Julia</td>
+<td>Fully symmetric across all runtimes</td>
+</tr>
+<tr>
+<td><code>^parquet</code></td>
+<td>Apache Parquet</td>
+<td>Large DataFrames, columnar storage</td>
 <td>T, R, Python, Julia</td>
 <td>T, R, Python, Julia</td>
 <td>Fully symmetric across all runtimes</td>
@@ -224,11 +232,11 @@ expected by the consumer node.</p>
 }
 
 node B {
-  source: rn(&quot;data.csv&quot;, serializer = ^arrow)
+  source: rn(&quot;data.csv&quot;, serializer = ^ipc)
 }
 
 -- Result: Static Error
--- &quot;Format mismatch: Node A produces ^csv, but Node B expects ^arrow.&quot;</code></pre>
+-- &quot;Format mismatch: Node A produces ^csv, but Node B expects ^ipc.&quot;</code></pre>
 <p>This prevents runtime errors after long-running computations by
 catching interchange mismatches at the start of the build.</p>
 <h2 id="serializer-runtime-dependencies">5. Serializer Runtime
@@ -269,7 +277,13 @@ runtime:</p>
 <td><code>CSV</code>, <code>DataFrames</code></td>
 </tr>
 <tr>
-<td><code>^arrow</code></td>
+<td><code>^ipc</code></td>
+<td><code>arrow</code></td>
+<td><code>pandas</code>, <code>pyarrow</code></td>
+<td><code>Arrow</code>, <code>DataFrames</code></td>
+</tr>
+<tr>
+<td><code>^parquet</code></td>
 <td><code>arrow</code></td>
 <td><code>pandas</code>, <code>pyarrow</code></td>
 <td><code>Arrow</code>, <code>DataFrames</code></td>
@@ -321,8 +335,8 @@ execution). Add <code>"jre"</code> to
 <code>tproject.toml</code>.</p>
 <h2 id="polyglot-support">6. Polyglot Support</h2>
 <p>For cross-language nodes, serializers provide the necessary glue code
-for the target runtime. For example, when using <code>^arrow</code> in
-an R node:</p>
+for the target runtime. For example, when using <code>^ipc</code> in an
+R node:</p>
 <ol type="1">
 <li>T injects the <code>arrow</code> R library into the build
 environment.</li>

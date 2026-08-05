@@ -42,7 +42,7 @@ A new pipeline with the settings merged into the target nodes.
 ## Examples
 
 ```t
-set_pipeline_global_options(p, runtimes = ["R"], serializer = ^arrow)
+set_pipeline_global_options(p, runtimes = ["R"], serializer = ^ipc)
 set_pipeline_global_options(p, nodes = ["n1", "n3"], noop = true)
 ```
 

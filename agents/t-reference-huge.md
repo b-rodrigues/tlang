@@ -30,7 +30,7 @@ R tidyverse ecosystem, particularly packages such as dplyr, stringr, and
 lubridate. This makes it possible to perform exploratory data analysis directly
 from the T REPL before promoting computations into reproducible pipelines.
 
-**Status:** Version 0.54.3 "Le Tournoi".
+**Status:** Version 0.55.0 "L'Ultime combat".
 
 ---
 
@@ -419,7 +419,7 @@ Now that you have your first project set up and understand the folder structure,
 
 # T Language Overview
 
-> **Version**: 0.54.3
+> **Version**: 0.55.0
 
 T is a functional programming language designed for declarative, tabular data manipulation. It combines the pipeline-driven style of R's tidyverse with OCaml's type discipline, producing a small, focused language for data wrangling and basic statistics.
 
@@ -1268,7 +1268,7 @@ Key properties:
 
 Pipelines define named computation nodes with automatic dependency resolution and provide the foundation for reproducible, polyglot workflows. You can see a complete, polyglot version of this example in the [`examples/polyglot_pipeline.t`](../examples/polyglot_pipeline.t) file. T supports R (`rn()`), Python (`pyn()`), Julia (`jln()`), Quarto (`qn()`), and Shell (`shn()`) nodes out of the box.
 
-Built-in serializer symbols include `^csv`, `^arrow`, `^pmml`, and `^onnx`, which you pass to node constructors like `serializer = ^csv`.
+Built-in serializer symbols include `^csv`, `^ipc`, `^pmml`, and `^onnx`, which you pass to node constructors like `serializer = ^csv`.
 
 The **ONNX** system provides full cross-runtime model portability:
 
@@ -1629,6 +1629,7 @@ Package-oriented guide to T's standard library.
 - [Pipeline Package](#pipeline-package) — Pipeline introspection
 - [Explain Package](#explain-package) — Introspection and debugging tools
 - [Testcraft Package](#testcraft-package) — Unit-testing primitives
+- [Propcraft Package](#propcraft-package) — Property-based testing primitives
 
 ---
 
@@ -2568,6 +2569,32 @@ sample([1, 2, 3, 4, 5], n = 3)
 
 ---
 
+### `with_seed(seed, thunk)`
+
+Runs a one-parameter lambda (the argument is ignored) with the global random number generator scoped to `seed`, then restores the previous RNG state. Outer random draws are unaffected, making this the natural way to scope determinism to a single expression — e.g. a reproducible `prop_for_all` run or a reproducible sample.
+
+**Parameters:**
+
+- `seed` — Integer seed value to scope the RNG to.
+- `thunk` — One-parameter lambda evaluated under `seed`. The argument is ignored; the lambda form makes the body lazy.
+
+**Returns:**
+
+The result of evaluating `thunk` (any type).
+
+**Examples:**
+```t
+with_seed(42, \(u) sample([1, 2, 3, 4, 5], n = 3))
+with_seed(42, \(u) prop_for_all(prop_gen_int_range(0, 100), \(x) x >= 0))
+```
+
+**Notes:**
+
+- `with_seed` is exception-safe: if the thunk raises, the RNG state is still restored.
+- Nesting works: `with_seed(1, \(u) with_seed(2, \(v) ...))` restores the outer seed after the inner scope.
+
+---
+
 ### `sample(x, n = 1, replace = false)`
 
 Draw a random sample of size n from a Vector or List, with or without replacement.
@@ -3105,7 +3132,7 @@ Compute quantile/percentile (p between 0 and 1), with optional non-negative obse
 
 #### `mode(x)`
 
-Return the most frequent value. Does not currently support `na_rm`.
+Return the most frequent value. Values are compared with type-aware, NaN-aware equality, so different types never collide. Ties break deterministically by first occurrence in input order. Does not currently support `na_rm`.
 
 ---
 
@@ -3265,7 +3292,7 @@ Read or write Parquet files using the native parquet-glib reader/writer.
 
 ---
 
-### `read_arrow(path)` / `write_arrow(to_dataframe, path)`
+### `read_ipc(path)` / `write_ipc(to_dataframe, path)`
 
 Read or write Arrow IPC files.
 
@@ -3418,7 +3445,12 @@ Data manipulation verbs and window functions.
 
 #### `select(to_dataframe, ...columns)`
 
-Select columns by name. Supports dollar-prefix NSE syntax.
+Select columns by name. Supports dollar-prefix NSE syntax and the selection
+helpers `starts_with`, `ends_with`, `contains`, `everything`, `where`,
+`all_of`, `any_of`, and `matches`. `matches` compiles its pattern with PCRE2 in
+UTF-8 mode, so `.` matches a code point and `\p{...}` Unicode property classes
+are supported (e.g. `select(df, matches("^\\p{L}+$"))`); `contains` performs a
+plain literal substring search.
 
 **Parameters:**
 
@@ -3602,7 +3634,7 @@ ungrouped = df |> group_by($dept) |> ungroup()
 
 #### `left_join(x, y, by = NA)` / `inner_join` / `full_join` / `semi_join` / `anti_join`
 
-Join two DataFrames.
+Join two DataFrames. Join keys are normalized so that integer `1` and float `1.0` match, mirroring R's coercion-to-character semantics.
 
 **Parameters:**
 
@@ -3631,13 +3663,13 @@ Count occurrences of unique values.
 
 #### `distinct(df, ...columns)`
 
-Keep only unique rows.
+Keep only unique rows. Repeated `NaN` values collapse to a single row, consistent with `n_distinct`.
 
 ---
 
 #### `drop_na(df, ...columns)`
 
-Drop rows containing NA values in the specified columns.
+Drop rows containing NA values in the specified columns. Works across all column types, including date, datetime, dictionary, and list columns.
 
 ---
 
@@ -3675,6 +3707,9 @@ Reshape DataFrames between long and wide formats.
 #### `separate(df, col, into, sep = "[^a-zA-Z0-9]+")` / `unite(df, col, ...from, sep = "_")`
 
 Split a column into multiple columns, or combine multiple columns into one.
+The `sep` pattern is compiled with PCRE2 in UTF-8 mode, so multibyte values are
+never torn. Split semantics match legacy `Str.split`: trailing empty tokens are
+dropped and an empty subject yields no tokens.
 
 ---
 
@@ -4119,6 +4154,11 @@ Format temporal values as strings using `strftime`-style patterns.
 
 Construct temporal intervals and test membership.
 
+`%within%` can be used as an infix operator: `d %within% interval(start, end)`
+desugars to `%within%(d, interval(start, end))`. Any function name can be used
+infix with `%name%` syntax (R-style), resolving to the same-named builtin or
+user function.
+
 ---
 
 ### `years(n)` / `months(n)` / `weeks(n)` / `days(n)` / `hours(n)` / `minutes(n)` / `seconds(n)`
@@ -4157,7 +4197,7 @@ Replace occurrences of a pattern. `str_replace` replaces **all** occurrences (gl
 
 ### `str_detect(string, pattern)` / `contains(s, sub)`
 
-Check if a pattern or substring exists.
+Check if a pattern or substring exists. `str_detect` compiles `pattern` as a PCRE2 regular expression in UTF-8 mode, so `.`, `[...]`, anchors, and `\p{...}` classes operate on Unicode code points — `str_detect("héllo", "^h.llo$")` is `true` and `str_extract_all("héllo", "\\p{L}")` returns `["h", "é", "l", "l", "o"]`. `contains` performs a plain substring search.
 
 ---
 
@@ -4169,13 +4209,13 @@ Check string boundaries.
 
 ### `str_extract(s, pattern)` / `str_extract_all(s, pattern)`
 
-Extract matching substrings. `str_extract` returns the first match; `str_extract_all` returns a List of all matches.
+Extract matching substrings using UTF-8-aware PCRE2 patterns (see `str_detect`). `str_extract` returns the first match; `str_extract_all` returns a List of all matches.
 
 ---
 
 ### `str_count(s, pattern)` / `str_nchar(s)`
 
-Count matches or total characters.
+Count regex matches (PCRE2, UTF-8 aware — each code point matched by `.` counts once) or total characters.
 
 ---
 
@@ -4187,19 +4227,19 @@ Remove whitespace.
 
 ### `str_lines(s)` / `str_words(s)` / `str_split(s, sep)`
 
-Split strings into parts. `str_lines` splits on newlines; `str_words` splits on any whitespace.
+Split strings into parts. `str_lines` splits on newlines; `str_words` splits on any whitespace. With an empty separator, `str_split(s, "")` splits into individual Unicode code points (multi-byte characters are never torn apart).
 
 ---
 
 ### `str_pad(s, width, side = "left", pad = " ")`
 
-Pad strings to a fixed width.
+Pad strings to a fixed width. Width is measured in characters (Unicode code points), not bytes.
 
 ---
 
 ### `str_trunc(s, width, side = "right", ellipsis = "...")`
 
-Truncate strings with an ellipsis.
+Truncate strings with an ellipsis. Width is measured in characters (Unicode code points); truncation never splits a multi-byte character in half.
 
 ---
 
@@ -4211,7 +4251,7 @@ Combine multiple strings into one.
 
 ### `to_lower(s)` / `to_upper(s)`
 
-Case normalization.
+Unicode-aware case mapping (not locale-dependent): `to_upper("éàüç")` is `"ÉÀÜÇ"`, `to_lower("ÉÀÜÇ")` is `"éàüç"`, and full case folding is applied where Unicode requires it (e.g. `to_upper("ß")` is `"SS"`). Multi-character mappings never split UTF-8 code points.
 
 ---
 
@@ -4490,7 +4530,7 @@ q = set_pipeline_global_options(p,
 )
 
 # Scope to R nodes only
-q2 = set_pipeline_global_options(p, runtimes = ["rn"], serializer = ^arrow)
+q2 = set_pipeline_global_options(p, runtimes = ["rn"], serializer = ^ipc)
 
 # Scope to specific nodes
 q3 = set_pipeline_global_options(p, nodes = ["a"], noop = true)
@@ -4774,7 +4814,7 @@ Configure a Julia Pipeline Node. A convenience wrapper around `node()` with `run
 
 - `command` — The expression to evaluate inside the Julia node (must be enclosed in `<{ ... }>` blocks).
 - `script` — Path to an external `.jl` file to execute as the node body.
-- `serializer` (optional) — Custom serializer symbol (e.g., `^csv`, `^json`, `^arrow`, `^onnx`). Default: runtime-native binary serialization (`jl_serialize`).
+- `serializer` (optional) — Custom serializer symbol (e.g., `^csv`, `^json`, `^ipc`, `^onnx`). Default: runtime-native binary serialization (`jl_serialize`).
 - `deserializer` (optional) — Custom deserializer symbol. Default: runtime-native binary deserialization.
 - `env_vars` (optional) — Dictionary of environment variables to pass into the Nix sandbox.
 - `functions` (optional) — Julia files to source before execution.
@@ -6476,7 +6516,7 @@ Pass if `node_name` serializer matches the expected serializer.
 **Parameters:**
 - `p` — The pipeline to check.
 - `node_name` — The node name.
-- `expected` — Expected serializer (String or Symbol, e.g. `^arrow`, `^csv`).
+- `expected` — Expected serializer (String or Symbol, e.g. `^ipc`, `^csv`).
 
 **Examples:**
 ```t
@@ -6521,6 +6561,248 @@ Pass if the node is computed and has a finished value.
 **Examples:**
 ```t
 assert(expect_computed(res.heavy_job))
+```
+
+---
+
+## Propcraft Package
+
+Purpose: property-based testing primitives for hardening T's standard library and user packages. Instead of hand-writing a few fixed test cases, you state a *property* that must hold for all generated inputs, and `prop_for_all` draws many inputs from a generator spec and checks the property on each.
+
+> **Audience**: lang/package-hardening tool. If you are testing a one-off data pipeline, prefer `assert`, `t check`, and `t diff` instead — they validate structure and outputs against your declared schema without the machinery of generators.
+
+### Why property-based testing?
+
+Fixed unit tests can only catch the cases you think of. Property-based tests check *invariants* — e.g. "mutating a DataFrame never changes its row count" — over hundreds of generated inputs, so they find edge cases (boundary values, missing values, empty inputs) you would never write by hand.
+
+### Reproducibility
+
+All draws use a shared seeded RNG. Call `set_seed(n)` before a run to make the sequence of generated values — and therefore any counterexample — fully reproducible across runs and machines.
+
+```t
+set_seed(42)
+assert(prop_for_all(prop_gen_int_range(0, 100), \(x) x >= 0))
+```
+
+### `prop_for_all(gen, property, n = 100, max_counterexamples = 1, shrink = true)`
+
+Draw `n` values from the generator spec `gen` and evaluate `property` on each. The property may return:
+
+- `Bool` — `true` passes, `false` fails
+- an `Expect` value from testcraft — `Expect_pass` passes, `Expect_stop`/`Expect_hold` fail
+- an `Error` — treated as a failure (e.g. an unbound name or assertion inside the property)
+
+**Returns:** an `Expect` value. On the first failure a *deterministic shrunk counterexample* is reported, so `assert(prop_for_all(...))` works directly inside `t test` files:
+
+```t
+set_seed(42)
+assert(prop_for_all(prop_gen_int_range(0, 100), \(x) x < 10, n = 20))
+-- Error(AssertionError: Property failed after 1 of 20 runs.
+--   counterexample: 72
+--   (shrunk): 18
+--   predicate: returned false.)
+```
+
+A property that returns `NA` fails with a message telling you to handle missingness explicitly. `shrink = false` disables shrinking (the counterexample is reported unshrunk).
+
+`max_counterexamples` controls how many render-distinct failing inputs are collected and reported. The default (`1`) stops at the first failure with the classic single-counterexample message; a value greater than `1` keeps drawing (up to `n` runs) and reports each distinct counterexample as a numbered block, shrinking each:
+
+```t
+set_seed(42)
+prop_for_all(prop_gen_int_range(0, 100), \(x) x < 10, n = 20, max_counterexamples = 3)
+-- Expect_stop: Property failed after 3 of 20 runs (showing 3 counterexamples).
+--   counterexample #1: 54
+--   (shrunk): 13
+--   ...
+```
+
+Shrinking is deterministic and affects only the reported message: ints/floats/strings/lists/vectors/dicts shrink toward minimal values, and DataFrames shrink by halving the row count down to the empty frame and then minimizing individual cells to canonical values per column type (`Int` → `0`, `Float` → `0.0`, `Bool` → `false`, `String` → `""`, `Factor` → first level), leaving `NA` cells untouched.
+
+### Generator specs
+
+Generators are ordinary structured `Dict` values, not closures. You can inspect them, store them in variables, and combine them:
+
+```t
+g = prop_gen_int_range(1, 5)
+g         -- {`gen`: "int_range", `min`: 1, `max`: 5}
+```
+
+| Generator | Produces |
+|-----------|----------|
+| `prop_gen_int(min = -10, max = 10)` | Random Int in `[min, max]` |
+| `prop_gen_int_range(min, max)` | Random Int in `[min, max]` |
+| `prop_gen_float_range(min, max)` | Random Float in `[min, max)` |
+| `prop_gen_bool()` | Random Bool |
+| `prop_gen_string_from(chars, min_len, max_len)` | Random String from `chars` with length in `[min_len, max_len]` |
+| `prop_gen_choice([g1, g2, ...])` | Uniformly pick one of the listed generators |
+| `prop_gen_frequency([[w, g], ...])` | Pick a generator weighted by `w` |
+| `prop_gen_vector(elem_gen, n)` | Vector of `n` draws |
+| `prop_gen_list(elem_gen, n)` | List of `n` draws |
+| `prop_gen_factor(levels)` | Factor level String |
+| `prop_gen_one_of(values)` | Uniformly pick one value from a non-empty List or Vector of values |
+| `prop_gen_date_range(start, end)` | Date (or Datetime) drawn uniformly in an inclusive range; bounds must be both Dates or both Datetimes, and the timezone is preserved |
+| `prop_gen_ymd(min_year, max_year)` | Date drawn uniformly across all calendar days in `[min_year, max_year]`; shrinks toward the lower year bound |
+| `prop_gen_df(columns, nrows = 30, na_prob = 0.1)` | DataFrame with generated columns; `na_prob` injects typed `NA` values into columns |
+| `prop_gen_dict(columns, na_prob = 0.1)` | Dict with one generated value per column; `na_prob` probability of NA per column value |
+| `prop_gen_df_from(df, nrows = 30, na_prob = 0.1)` | DataFrame with the same columns as `df`, inferring each column's generator from the sample values |
+| `prop_gen_fn(fn)` | Draw a value by calling `fn(size)` with the current generation size |
+
+### Combinators
+
+| Function | Purpose |
+|----------|---------|
+| `prop_map_gen(source, fn)` | Transform each drawn value with `fn` |
+| `prop_such_that(source, pred, max_tries = 100)` | Keep drawing until `pred` holds (fails after `max_tries`) |
+| `prop_resize(source, n)` | Override the size of nested `df`/`list`/`vector` generators to `n` |
+
+### `prop_stats(gen, n = 100)`
+
+Probes a generator without writing a property: draws `n` values (ramping the generation size from `1` to `n`) and returns a `Dict` with `n_runs`, `n_errors`, `value_types` (per-type counts), `nested_sizes` (observed Vector/List/DataFrame lengths), and `elapsed_ms`. Useful for sanity-checking custom and `prop_gen_df_from` generators:
+
+```t
+prop_stats(prop_gen_df_from(mtcars, nrows = 50), n = 20)
+-- {`n_runs`: 20, `n_errors`: 0, `value_types`: {`DataFrame`: 20},
+--  `nested_sizes`: {`df`: [1, 2, ..., 20]}, `elapsed_ms`: ...}
+```
+### `prop_gen_between(min, max)`
+
+**Bounded integer generator with in-domain shrinking.** Like `prop_gen_int_range(min, max)`, but shrinks counterexamples toward the lower bound
+rather than toward 0. Use this when the property's domain has a natural lower bound and you want minimal counterexamples that are
+still within the valid range.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `min` | Int | — | Lower bound (inclusive). |
+| `max` | Int | — | Upper bound (inclusive). |
+
+```t
+prop_gen_between(100, 200)
+-- {`gen`: "between", `min`: 100, `max`: 200}
+```
+
+### `prop_gen_ymd(min_year, max_year)`
+
+**Year-month-day date generator.** Draws a `Date` uniformly across every calendar day in the inclusive year range
+`[min_year, max_year]` (so February 29th is drawn roughly 1/4 as often as other days, matching its real frequency).
+Counterexamples shrink toward `Date(min_year-01-01)`, keeping shrinks within the date domain.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `min_year` | Int | — | Lower year bound (inclusive). |
+| `max_year` | Int | — | Upper year bound (inclusive). |
+
+```t
+prop_gen_ymd(2000, 2024)
+-- {`gen`: "ymd_range", `min_year`: 2000, `max_year`: 2024,
+--  `start_day`: 10957, `end_day`: 20088}
+```
+
+The inspectable spec stores the day indices (days since 1970-01-01) computed with the same civil-date math used by the
+`chrono` package. Combine with `prop_gen_df([d: prop_gen_ymd(...), ...])` to exercise date columns, and add
+`na_prob` to harden properties against missing dates.
+
+### `prop_gen_dict(columns, na_prob = 0.1)`
+
+**Generate a Dict of values**, one per column.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `columns` | Dict | — | Mapping of `name: generator_spec` pairs. |
+| `na_prob` | Float | `0.1` | Probability that any given column value is NA. |
+
+```t
+prop_gen_dict([x: prop_gen_int_range(0, 100), s: prop_gen_one_of(["a", "b"])])
+-- {`gen`: "dict", `columns`: ..., `na_prob`: 0.1}
+```
+
+### `prop_show_spec(spec)`
+
+**Render a generator spec as T source text.** Takes any generator Dict (from `prop_gen_int_range`, `prop_gen_df`, etc.) and returns a
+string of valid T code that rebuilds an equivalent generator — same draws under the same seed.
+
+```t
+prop_show_spec(prop_gen_int_range(0, 100))  -- "prop_gen_int_range(0, 100)"
+prop_show_spec(prop_gen_df([x: prop_gen_between(1, 5)], nrows = 3, na_prob = 0.0))
+-- "prop_gen_df([x: prop_gen_between(1, 5)], nrows = 3, na_prob = 0.)"
+```
+
+Closure-based generators (`map`, `such_that`, `fn`) produce an explicit error since they cannot be rendered:
+```t
+prop_show_spec(prop_map_gen(prop_gen_int_range(0, 5), \(v) v))
+-- Error: cannot render a `map` generator spec: it captures a closure.
+```
+
+### `prop_named(name, property)`
+
+**Create a named property.** Named properties are plain immutable Dicts — no global registry. Pass the result to `prop_test`.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `name` | String | — | Human-readable name used in failure reports. |
+| `property` | Callable | — | Predicate receiving a generated value, returning Bool. |
+
+```t
+m = prop_named("positive", \(x) x > 0)
+-- {`name`: "positive", `property`: \(x) -> <function>}
+```
+
+### `prop_test(named, gen, n = 100, max_counterexamples = 1, shrink = true, shrink_verify = false)`
+
+**Run a named property against a generator.** Behaves identically to `prop_for_all` but takes a prebuilt named property Dict instead of an
+anonymous predicate, and prefixes failure reports with the property's name.
+
+```t
+set_seed(42)
+m = prop_named("bounded", \(x) x >= 0)
+prop_test(m, prop_gen_between(0, 200), n = 20)  -- PASS
+```
+
+### `prop_test(macro, gen, n = 100, max_counterexamples = 1, shrink = true, shrink_verify = false)`
+
+**Run a named property macro against a generator.** Behaves identically to `prop_for_all` but takes a prebuilt macro Dict instead of an
+anonymous predicate, and prefixes failure reports with the macro's name.
+
+```t
+set_seed(42)
+m = prop_named("bounded", \(x) x >= 0)
+prop_test(m, prop_gen_between(0, 200), n = 20)  -- PASS
+```
+
+### `shrink_verify = true` (opt-in on `prop_for_all` and `prop_test`)
+
+**Opt-in exhaustive shrink verification.** By default, shrinking caps per-level candidate lists at 32 for performance. When
+`shrink_verify = true`, every candidate at the shrink fixpoint is re-verified (uncapped), ensuring the reported counterexample is truly
+minimal. Rarely needed; use when shrinking a deeply nested value (large dict or DataFrame) produces a suspiciously large counterexample.
+
+```t
+set_seed(42)
+prop_for_all(prop_gen_df([x: prop_gen_int_range(0, 100)], nrows = 100, na_prob = 0.0),
+             \(df) nrow(df) < 50, n = 20, shrink_verify = true)
+```
+
+### Finding NA-handling bugs
+
+The killer feature for hardening data verbs: generate DataFrames with injected missingness and assert invariants still hold:
+
+```t
+set_seed(7)
+assert(prop_for_all(
+  prop_gen_df(
+    [x: prop_gen_float_range(0.0, 100.0),
+     grp: prop_gen_factor(["a", "b"])],
+    nrows = 40,
+    na_prob = 0.1),
+  \(df) nrow(mutate(df, $z = $x * 2)) == nrow(df)))
+```
+
+This catches verbs that drop rows when an NA flows through a `mutate` — a classic silent-corruption bug.
+
+### Working with Expect values
+
+Because `prop_for_all` returns an `Expect` value, you can combine it with testcraft:
+
+```t
+expect_pass(prop_for_all(prop_gen_int_range(0, 100), \(x) x >= 0))  -- true
 ```
 
 ---
@@ -7362,7 +7644,7 @@ p_model = pipeline {
   model = rn(<{ 
     lm(mpg ~ hp, data = data_input)  -- use the alias name in R
   }>,
-  deserializer = ^arrow)
+  deserializer = ^ipc)
 }
 
 -- Success! T sees `raw_data` as a dependency of `data_input`, wiring the pipelines.
@@ -8721,8 +9003,8 @@ T leverages Nix to orchestrate computation across multiple runtimes. When a node
 
 For direct user-facing Arrow file workflows outside pipelines, T also exposes:
 
-- `read_arrow(path)` for Arrow IPC input
-- `write_arrow(to_dataframe, path)` for Arrow IPC output
+- `read_ipc(path)` for Arrow IPC input
+- `write_ipc(to_dataframe, path)` for Arrow IPC output
 
 That means Arrow is used both as an internal storage backend and as an interchange format at the language boundary.
 
@@ -8786,7 +9068,7 @@ external read_csv_native : string -> arrow_table = "caml_arrow_read_csv"
 external read_ipc_native : string -> arrow_table = "caml_arrow_read_ipc"
 ```
 
-The repository currently exposes both a backend-native CSV reader and Arrow IPC read/write support. The public `read_csv()` builtin still layers OCaml CSV parsing on top of Arrow-backed table construction, while `read_arrow` / `write_arrow` expose Arrow IPC directly.
+The repository currently exposes both a backend-native CSV reader and Arrow IPC read/write support. The public `read_csv()` builtin still layers OCaml CSV parsing on top of Arrow-backed table construction, while `read_ipc` / `write_ipc` expose Arrow IPC directly.
 
 ### Dual-Path Operations
 
@@ -9185,6 +9467,57 @@ Now that you can work with numerical arrays, explore statistical modeling and re
 # FILE: docs/changelog.md
 
 # Changelog
+
+## [Unreleased]
+
+### Breaking Changes
+
+- **Arrow IPC serializer renamed `^arrow` → `^ipc`**: The Arrow IPC (Feather v2) format is now the `^ipc` serializer. `read_arrow()` / `write_arrow()` are renamed to `read_ipc()` / `write_ipc()`, and the strategy symbol `^arrow` is now `^ipc`. No alias is kept. Existing pipelines must update their node serializers/deserializers (`serializer = ^ipc`, `deserializer = ^ipc`) and call sites. The R runtime package stays `arrow`, and `^parquet` is a separate, supported strategy (R `arrow::write_parquet`, Python `pyarrow.parquet`, Julia `Arrow`).
+
+### Language & Bug Fixes
+
+- **`%name%` infix operators**: Any function can now be called infix with `%name%` syntax, R-style. For example `d %within% interval(start, end)` is equivalent to `%within%(d, interval(start, end))`. The lexer only treats `%name%` as an infix operator when a `%` is immediately followed by an identifier, so plain modulo (`a % b`) is unaffected.
+- **Datetime rendering**: UTC and timezone-less `Datetime` values now render with a plain `Z` suffix (`Datetime(2024-01-15T09:30:00Z)`) instead of `Z[UTC]`. Named timezones render as `Datetime(2024-01-15T09:30:00[Europe/Lisbon])`.
+- **UTF-8 string operations**: `str_nchar`, `str_substring`, `slice`, and `char_at` now operate on Unicode code points instead of raw bytes. Multi-byte characters are never split, and `str_substring(s, 0, str_nchar(s))` round-trips any string.
+- **`days_in_month` validation**: `days_in_month(year, month)` now raises an explicit `ValueError` when `month` is outside `[1, 12]` instead of silently misbehaving.
+- **`index_of` / `last_index_of` are character-indexed**: `index_of(s, needle)` and `last_index_of(s, needle)` now return character (Unicode code point) indices instead of raw byte offsets, so multi-byte characters count as one position. `last_index_of(s, "")` returns the character count.
+- **`str_split` with empty separator splits on code points**: `str_split(s, "")` splits into individual Unicode code points rather than raw bytes, so multi-byte characters are never torn apart.
+- **`str_pad` / `str_trunc` count characters**: widths are measured in characters rather than bytes, and truncation never splits a multi-byte character in half.
+- **`drop_na` handles every column type**: date, datetime, dictionary, list, and NA columns now correctly contribute to missingness detection, so `drop_na` no longer silently keeps or drops rows on non-scalar data.
+- **Joins normalize integer and float keys**: `left_join`, `inner_join`, `right_join`, `full_join`, `anti_join`, and `semi_join` treat integer `1` and float `1.0` as the same key, matching R's coercion-to-character semantics.
+- **`distinct` is NaN-aware**: repeated `NaN` rows collapse to a single row, consistent with `n_distinct`.
+- **`mode` uses typed keys and deterministic tie-breaking**: values of different types no longer collide (`mode([1, 1, "1"])` is `1`), and ties break by first occurrence in input order.
+- **`to_lower` / `to_upper` are Unicode-aware**: case mapping uses the Unicode character database (`uucp`) instead of ASCII-only byte folding, so `to_upper("éàüç")` yields `"ÉÀÜÇ"` and `to_upper("ß")` yields `"SS"`. Mapping is deterministic and reproducible (no locale dependence).
+- **Regex functions are UTF-8 aware**: `str_detect`, `str_extract`, `str_extract_all`, `str_count`, `str_replace`, `str_replace_first`, `str_split`, `str_lines`, and `str_words` now use PCRE2 in UTF-8 mode instead of byte-oriented `Str` regex. `.`, `[...]`, and anchors match code points rather than bytes (`str_count("héllo", ".")` is `5`), and `\p{...}` Unicode property classes are supported.
+- **Nested verb calls inside NSE verbs evaluate correctly**: `mutate(select(df, $x), $z = $x * 2)`, `arrange(arrange(df, $x), $x)`, and `mutate(df, $y = select(other, $col))` now evaluate the nested call to a DataFrame instead of being wrapped into a row-lambda and rejected with a spurious `TypeError`. Previously these valid expressions failed with "Function `mutate` expects a DataFrame as first argument."
+- **colcraft regex is UTF-8 aware**: the `matches` and `contains` selection helpers, `separate`, and `separate_rows` now use PCRE2 in UTF-8 mode instead of byte-oriented `Str` regex. `matches` supports `\p{...}` Unicode property classes (e.g. `select(df, matches("^\\p{L}+$"))`), and multibyte values flow through `separate` / `separate_rows` without being torn. `contains` now uses a literal substring test. Existing `Str.split` semantics (trailing empty tokens dropped, empty subject yields no rows) are preserved.
+- **`str_extract_all` / `str_count` handle trailing zero-width matches**: patterns that can match the empty string at end-of-input (`a*`, `a?`, lookaheads, `$`-anchored assertions) no longer hang with unbounded memory growth. The trailing empty match is reported once and the scan terminates, matching R's `stringr` behavior.
+
+### Popcraft — Property-Based Testing
+
+- **New `popcraft` package**: Property-based testing primitives for hardening T's standard library and user packages. Instead of hand-writing fixed cases, state an invariant and `prop_for_all` checks it over many generated inputs, reporting a deterministic shrunk counterexample on failure.
+- **`prop_for_all(gen, property, n = 100, max_counterexamples = 1, shrink = true)`**: Draws `n` values from a generator spec and evaluates the property on each. The property may return a `Bool`, an `Expect` value, or an `Error`. Returns an `Expect` value, so `assert(prop_for_all(...))` works directly inside `t test` files. `max_counterexamples = k` collects up to `k` distinct failing inputs (each shrunk) and reports them as numbered blocks.
+- **Generator specs** are inspectable structured Dicts (not closures): `prop_gen_int`, `prop_gen_int_range`, `prop_gen_float_range`, `prop_gen_bool`, `prop_gen_string_from`, `prop_gen_choice`, `prop_gen_frequency`, `prop_gen_vector`, `prop_gen_list`, `prop_gen_factor`, `prop_gen_one_of`, `prop_gen_date_range`, and `prop_gen_df`.
+- **`prop_gen_df_from(df, nrows = 30, na_prob = 0.1)`**: Derives a DataFrame generator from a real sample — Int/Float bounds from observed min/max, Strings from observed distinct values, Factors keep their levels, Dates/Datetimes keep their observed range and timezone. Empty frames, NA-only columns, and unsupported column types raise explicit errors.
+- **`prop_gen_fn(fn)`**: Wraps any callable as a generator; each draw calls `fn(size)` with the current generation size.
+- **`prop_stats(gen, n = 100)`**: Probes a generator (size ramp 1..n) and returns `n_runs`, `n_errors`, `value_types`, `nested_sizes`, and `elapsed_ms` — handy for sanity-checking derived and custom generators.
+- **`prop_gen_df` with typed NA injection**: `prop_gen_df(columns, nrows = 30, na_prob = 0.1)` generates DataFrames and injects typed `NA` values (`NAInt`/`NAFloat`/`NABool`/`NAString`) into columns according to `na_prob` — the fastest way to catch data verbs that silently corrupt or drop rows on missing input. Leaf scalar columns draw through a batched fast path, so 1000-row frames generate in milliseconds.
+- **Combinators**: `prop_map_gen(source, fn)`, `prop_such_that(source, pred, max_tries = 100)`, and `prop_resize(source, n)`.
+- **Reproducible by default**: All draws use the shared seeded RNG. `set_seed(n)` before a run reproduces the exact same values and counterexample on any machine, every run.
+- **`with_seed(seed, thunk)`**: New base-package function that seeds the RNG for a single expression and restores the previous state afterwards — exception-safe and nestable. Scope determinism to one `prop_for_all` or one `sample` without perturbing surrounding random draws.
+- **Deterministic shrinking**: On failure, ints/strings/lists/vectors shrink toward minimal failing inputs; DataFrames shrink by halving rows down to the empty frame and then minimizing cells to canonical values per column type. Shrinking only affects the reported message, never whether a run passes.
+- **Date/datetime columns shrink within their declared domain**: `prop_gen_df` and `prop_gen_dict` cells from `ymd_range` / `date_range` columns canonicalize to the generator's `start_day` / `start_micros` floor instead of the Unix epoch, so counterexamples stay inside the range you declared. This matches the existing behavior for `prop_gen_between` integer columns.
+- **`prop_gen_between(min, max)`**: Bounded integer generator with in-domain shrinking. For properties that have a natural lower bound, counterexamples shrink toward the lower bound rather than toward 0. Inside `prop_gen_df`, between-column cells canonicalize to `VInt min` so the shrinker minimizes within range.
+- **`prop_show_spec(spec)`**: Render any generator spec back to valid T source. The rendered output rebuilds a behaviorally equivalent generator (identical draws under the same seed). Closure-based generators produce an explicit error.
+- **`prop_named(name, property)` + `prop_test(named, gen, ...)`**: Named properties as plain immutable Dicts — no global registry. Define a property once (`m = prop_named("mutate_preserves_nrow", \(df) ...)`) and test it against multiple generators. Failure reports prefix the property name (`STOP(Property mutate_preserves_nrow failed...)`).
+- **`shrink_verify = true` opt-in**: Exhaustive shrink re-verification. By default, per-level shrink candidates are capped at 32 for performance. When `shrink_verify = true`, every candidate at the fixpoint is re-checked uncapped, guaranteeing the reported counterexample is truly minimal.
+- **`prop_gen_dict(columns, na_prob = 0.1)`**: Dict generator — produces a Dict with one value per column. Shares the column-spec format and leaf batched fast path as `prop_gen_df`. Between-column cells within dicts shrink toward their column's lower bound.
+- **Shrinker propagation**: `between` shrink strategies now propagate through composite generators (`list`, `vector`, `choice`, `frequency`). Nested `prop_gen_between` values inside composites shrink toward their lower bound rather than toward 0.
+- **Dogfooding expanded**: Property tests now cover the `math`, `strcraft`, and `core` packages with invariants for arithmetic identities, string round-trips, idempotence, and functional primitives. New cookbook guide (`docs/property-testing-cookbook.md`) documents reusable property-test patterns.
+- **`prop_gen_ymd(min_year, max_year)`**: Calendar-day date generator — draws a `Date` uniformly across every day in the inclusive year range (February 29th at its real frequency). Counterexamples shrink toward `Date(min_year-01-01)`, keeping shrinks inside the date domain.
+- **In-domain date shrinking**: `Date`/`Datetime` values now shrink within their domain — `ymd_range` toward the year-span floor, `date_range` toward the start bound (micros 0 + preserved timezone for datetimes), and bare date cells inside `prop_gen_df` toward the epoch (1970-01-01 / micros 0).
+- **Chrono dogfooding**: Property tests now cover the `chrono` package — date-bound invariants (`day`, `month`, `quarter`, `semester`, `yday`, `isoweek`, `wday`, leap-year consistency), round-trips (`format_date`/`parse_date`, `ymd`, period arithmetic), `%within%` intervals, datetime components, and NA-hardening of `mutate`/`arrange` over date columns.
+- **Dogfooding expanded further**: Property tests now also cover the `stats` package (mode membership over typed/mixed vectors, `sd`/`var` consistency, constant-vector degeneracy, mean/quantile/min-max bounds, `range`/`fivenum` endpoints, `cor`/`cov` symmetry and range, `iqr` non-negativity), multibyte UTF-8 invariants for `strcraft` (`split`/`pad`/`trunc`/`repeat` round-trips and case-mapping idempotence over accented generators), `colcraft`/`stats` DataFrame verbs (`arrange` idempotence, `mutate`-then-`select`, `drop_na` subsets on date/NaN columns, `distinct` bounds), plus integer-domain `math` and list-domain `core` invariants. These properties are tight enough to have surfaced the UTF-8 case-mapping, byte-based regex, and nested-NSE-call bugs fixed above.
 
 ## [0.54.3] - 2026-08-01
 
@@ -11035,10 +11368,10 @@ natively.
 |--------|-----------|----------|-------|
 | **CSV** | `read_csv()` / `write_csv()` | Small-to-medium data, interchange with other tools | Human-readable; type inference; fast native path when using defaults |
 | **Parquet** | `read_parquet()` / `write_parquet()` | Large datasets, analytics workloads | Columnar, compressed, type-preserving; recommended above ~2–3 GB |
-| **Arrow IPC** | `read_arrow()` / `write_arrow()` | Large dataframes, cross-runtime interchange | Zero-copy; also known as Feather v2 |
+| **Arrow IPC** | `read_ipc()` / `write_ipc()` | Large dataframes, cross-runtime interchange | Zero-copy; also known as Feather v2 |
 | **JSON** | `t_read_json()` / `t_write_json()` | Config, nested lists and dicts | See the [Serializers](serializers.md) guide for pipeline usage |
 
-All three tabular readers (`read_csv`, `read_parquet`, `read_arrow`) accept a
+All three tabular readers (`read_csv`, `read_parquet`, `read_ipc`) accept a
 local path **or a URL**. For reproducible downloads inside pipelines, use
 `fetchurl` with a pinned SHA-256 hash instead — see
 [Downloading Data from URLs](#downloading-data-from-urls).
@@ -11047,7 +11380,7 @@ local path **or a URL**. For reproducible downloads inside pipelines, use
 
 ## Downloading Data from URLs
 
-`read_csv`, `read_parquet`, and `read_arrow` all accept a URL in place of a
+`read_csv`, `read_parquet`, and `read_ipc` all accept a URL in place of a
 local path. How the download is handled depends on where you are running T.
 
 ### In the REPL or a script
@@ -11188,12 +11521,12 @@ trip and preserve the native Arrow storage model exactly. They are the ideal
 choice for passing large DataFrames between runtimes.
 
 ```t
-df = read_arrow("data.arrow")
-write_arrow(df, "data.arrow")
+df = read_ipc("data.arrow")
+write_ipc(df, "data.arrow")
 ```
 
 Within a pipeline, DataFrames passed between T, R, Python, and Julia nodes use
-Arrow IPC through the `^arrow` serializer — see the [Serializers](serializers.md)
+Arrow IPC through the `^ipc` serializer — see the [Serializers](serializers.md)
 guide and the [Pipeline Tutorial](pipeline_tutorial.md) for details.
 
 ---
@@ -11220,12 +11553,12 @@ p = pipeline {
       library(readxl)
       read_excel("data.xlsx")
     }>,
-    serializer = ^arrow
+    serializer = ^ipc
   )
 
   clean = node(
     command = raw |> filter($amount > 0),
-    deserializer = ^arrow
+    deserializer = ^ipc
   )
 }
 ```
@@ -11257,9 +11590,9 @@ For datasets exceeding 2–3 GB:
 ## Related Guides
 
 - [Performance](performance.md) — how the Arrow backend works, vectorization, and the native vs. fallback paths
-- [Serializers in T](serializers.md) — `^arrow`, `^csv`, `^json`, and custom serializers for pipelines
+- [Serializers in T](serializers.md) — `^ipc`, `^csv`, `^json`, and custom serializers for pipelines
 - [Pipeline Materialization](pipeline-materialization.md) — how node artifacts are stored and read back
-- [Function Reference](reference/index.html) — `read_csv`, `write_csv`, `read_parquet`, `write_parquet`, `read_arrow`, `write_arrow`
+- [Function Reference](reference/index.html) — `read_csv`, `write_csv`, `read_parquet`, `write_parquet`, `read_ipc`, `write_ipc`
 
 
 # FILE: docs/data_manipulation_examples.md
@@ -20271,7 +20604,7 @@ p = pipeline {
 }
 ```
 
-Julia nodes default to `serializer = default`, which uses Julia's standard `Serialization` module to write `.jls` artifacts. Use `^csv`, `^arrow`, or `^json` for cross-runtime interchange with T, R, or Python nodes.
+Julia nodes default to `serializer = default`, which uses Julia's standard `Serialization` module to write `.jls` artifacts. Use `^csv`, `^ipc`, or `^json` for cross-runtime interchange with T, R, or Python nodes.
 
 ### Quarto nodes with `qn()`
 
@@ -20360,7 +20693,7 @@ to restrict the merge to a subset; when both are given the target is their union
 
 ```t
 # Only R nodes get the arrow serializer
-q1 = set_pipeline_global_options(p, runtimes = ["rn"], serializer = ^arrow)
+q1 = set_pipeline_global_options(p, runtimes = ["rn"], serializer = ^ipc)
 
 # Only the named nodes become no-ops
 q2 = set_pipeline_global_options(p, nodes = ["data"], noop = true)
@@ -21471,7 +21804,7 @@ Now that you have a PMML workflow in place, continue with:
 
 1. **[Statistical Models](models.md)** — inspect imported models with `summary()`, `fit_stats()`, and `predict()`.
 2. **[Pipeline Tutorial](pipeline_tutorial.md)** — build larger multi-node workflows around PMML artifacts.
-3. **[Serializers in T](serializers.md)** — understand how `^pmml`, `^onnx`, `^arrow`, and `^json` fit into the broader interchange system.
+3. **[Serializers in T](serializers.md)** — understand how `^pmml`, `^onnx`, `^ipc`, and `^json` fit into the broader interchange system.
 
 
 # FILE: docs/project_development.md
@@ -21543,7 +21876,7 @@ my_stats = { git = "https://github.com/user/my-stats", tag = "v0.1.0" }
 data_utils = { git = "https://github.com/user/data-utils", tag = "v0.2.0" }
 
 [t]
-min_version = "0.54.3"
+min_version = "0.55.0"
 ```
 
 ### 3.1 System Dependencies and LaTeX
@@ -21986,6 +22319,629 @@ Once active, you will get real-time autocompletion for:
 4. **[Data I/O & Formats](data-formats.md)** — Read and write CSV, Parquet, and Arrow IPC files.
 5. **[API Reference](api-reference.md)** — Explore the standard library.
 6. **[Data Manipulation Examples](data_manipulation_examples.md)** — More worked examples of data wrangling.
+
+
+# FILE: docs/property-testing-cookbook.md
+
+# Property Testing Cookbook
+
+How to think in property-testing terms when hardening T's standard library and your own packages. Assumes familiarity with
+`prop_for_all`, generators, and the concepts from `docs/property-testing.md`.
+
+---
+
+## Table of Contents
+
+- [The mental model](#the-mental-model)
+- [Pattern 1: Round-trip](#pattern-1-round-trip)
+- [Pattern 2: Idempotence](#pattern-2-idempotence)
+- [Pattern 3: Bounds and ranges](#pattern-3-bounds-and-ranges)
+- [Pattern 4: Algebraic identities](#pattern-4-algebraic-identities)
+- [Pattern 5: Row-count invariants](#pattern-5-row-count-invariants)
+- [Pattern 6: NA hardening](#pattern-6-na-hardening)
+- [Pattern 7: Named properties](#pattern-7-named-properties)
+- [Writing your first property test](#writing-your-first-property-test)
+
+---
+
+## The mental model
+
+A property test answers one question: **"What is always true about this function, for every possible input?"**
+
+Examples of good properties:
+
+| Function | Property | Why |
+|----------|----------|-----|
+| `str_split` + `str_join` | `str_join(str_split(s, sep), sep) == s` | Round-trip — encode then decode should recover original |
+| `to_lower` | `to_lower(to_lower(s)) == to_lower(s)` | Idempotence — applying twice is the same as once |
+| `sd` | `sd(x) >= 0` | Bounds — standard deviation is never negative |
+| `sqrt` | `sqrt(x * x) == abs(x)` | Algebraic identity — follows from definition |
+| `filter` | `nrow(filter(df, $x > k)) <= nrow(df)` | Monotonicity — filter never adds rows |
+
+Bad property: `mean(x)` equals 25.3 for x in [0, 100]. This is a **fixed-case test**, not a property — it only checks one scenario and tells you nothing about the function's behavior for other inputs.
+
+---
+
+## Pattern 1: Round-trip
+
+**Encode then decode should recover the original.** Works for serialization, string splitting, type conversion, and any invertible operation.
+
+```t
+-- strings
+prop_named("split_join", \(s) s == "" || str_join(str_split(s, ","), ",") == s)
+
+-- numeric conversion
+prop_named("int_float", \(x) to_integer(to_float(x)) == x)
+
+-- dates: format then parse recovers the original date
+prop_named("format_roundtrip", \(d) parse_date(format_date(d, "%Y-%m-%d"), "%Y-%m-%d") == d)
+
+-- dates: period arithmetic is invertible
+prop_named("period_roundtrip", \(d) (d + make_period(days = 5)) - d == make_period(days = 5))
+```
+
+**Generator tips:**
+- For strings, `prop_gen_string_from("abc,", 0, 12)` provides strings that may contain the split delimiter
+- Guard against empty inputs where the operation is lossy (`""` → `[""]` → `""`, but `str_split("a", ",") |> str_join(",")` works)
+- For date round-trips, `prop_gen_ymd(2000, 2024)` draws real calendar days across a 25-year span
+
+**When to use:** strcraft (split/join, extract/replace), core (serialize/deserialize, to_X conversions), dataframe I/O (write_csv → read_csv), chrono (format/parse, ymd, period arithmetic).
+
+---
+
+## Pattern 2: Idempotence
+
+**Applying the operation twice is the same as applying it once.** Catches state leakage and side effects.
+
+```t
+-- case conversion
+prop_named("lower_idem", \(s) to_lower(to_lower(s)) == to_lower(s))
+prop_named("upper_idem", \(s) to_upper(to_upper(s)) == to_upper(s))
+
+-- trimming
+prop_named("trim_idem",  \(s) str_trim(str_trim(s)) == str_trim(s))
+```
+
+**Generator:** `prop_gen_string_from("abcdefgh", 0, 12)` — alphabetic characters, no digits or punctuation that might confuse case operations.
+
+**When to use:** strcraft (trim, pad, case conversions), core (clean_colnames, normalize), colcraft (distinct, arrange).
+
+---
+
+## Pattern 3: Bounds and ranges
+
+**Output always falls within a predictable range.** The simplest and most reliable property.
+
+```t
+-- tanh always in [-1, 1]
+prop_named("tanh_range", \(x) tanh(x) >= -1.0 && tanh(x) <= 1.0)
+
+-- sqrt of non-negative is non-negative
+prop_named("sqrt_nonneg", \(x) x < 0.0 || sqrt(x) >= 0.0)
+
+-- abs never negative
+prop_named("abs_nonneg", \(x) abs(x) >= 0.0)
+```
+
+**Generator:** `prop_gen_float_range(-100.0, 100.0)` for continuous functions, `prop_gen_int_range(-100, 100)` for integer-only operations.
+
+**Date bounds:** `prop_gen_ymd(min_year, max_year)` draws calendar days uniformly across the year range, and counterexamples shrink to `Date(min_year-01-01)` (staying in-domain). Use it for chrono invariants:
+
+```t
+-- day-of-month always within the month's real length
+prop_named("day_bound", \(d) day(d) >= 1 && day(d) <= days_in_month(year(d), month(d)))
+
+-- leap-year flag consistent with February's length
+prop_named("leap_consistent", \(d) is_leap_year(year(d)) == (days_in_month(year(d), 2) == 29))
+
+-- weekday always in [1, 7]
+prop_named("wday_bound", \(d) wday(d) >= 1 && wday(d) <= 7)
+```
+
+**When to use:** math (all trig/hyperbolic/exp functions), stats (sd ≥ 0, cor in [-1, 1]), core (length ≥ 0, ncol ≥ 0, nrow ≥ 0), chrono (date-part bounds).
+
+---
+
+## Pattern 4: Algebraic identities
+
+**Two different computations give the same result.** Catches implementation errors in fundamental operations.
+
+```t
+-- sin² + cos² = 1
+prop_named("sin_cos", \(x) abs((sin(x) * sin(x) + cos(x) * cos(x)) - 1.0) < 0.0001)
+
+-- log(exp(x)) ≈ x
+prop_named("log_exp", \(x) abs(log(exp(x)) - x) < 0.0001)
+
+-- sign(x) * abs(x) == x
+prop_named("sign_abs", \(x) sign(x) * abs(x) == x)
+```
+
+**Important:** Use approximate equality (`abs(a - b) < 0.0001`) for floating-point identities. Never use `==` on floats in invariant properties.
+
+**Generator tip:** Restrict ranges for identities that diverge numerically:
+- `exp(log(x))` needs `x > 0` — use `prop_gen_float_range(0.0, 100.0)`
+- `log(exp(x))` fails for large `x` — use `prop_gen_float_range(-10.0, 10.0)`
+
+---
+
+## Pattern 5: Row-count invariants
+
+**DataFrame row count follows predictable algebra.** The workhorse for hardening colcraft verbs.
+
+```t
+-- mutate never changes nrow
+prop_named("mutate_nrow", \(df) nrow(mutate(df, $z = $x * 2)) == nrow(df))
+
+-- filter never adds rows
+prop_named("filter_leq",  \(df) nrow(filter(df, $x > 50)) <= nrow(df))
+
+-- group sizes sum to total
+prop_named("group_sum",   \(df) to_integer(sum((df |> group_by($g) |> summarize($cnt = n())).cnt)) == nrow(df))
+```
+
+**Generator:** `prop_gen_df([x: gen, g: factor_gen], nrows = 40, na_prob = 0.2)` — multiple columns with NA injection.
+
+**When to use:** Every colcraft verb (mutate, arrange, filter, group_by, summarize, select, rename, distinct, head, slice_sample, fill, bind_rows, bind_cols, left_join, anti_join, etc.).
+
+---
+
+## Pattern 6: NA hardening
+
+**Functions don't silently corrupt or crash on NA input.** The single highest-value use of `prop_gen_df` — inject NAs and check that invariants still hold.
+
+```t
+-- mutate preserves nrow even with NAs
+prop_named("mutate_na", \(df) nrow(mutate(df, $z = $x * 2)) == nrow(df))
+
+prop_test(mutate_na,
+  prop_gen_df([x: prop_gen_float_range(0.0, 100.0), g: prop_gen_factor(["a", "b"])],
+               nrows = 40, na_prob = 0.3))
+```
+
+The property itself is the same as without NAs — the `na_prob` in the generator does the work. If `mutate` drops rows with NA or fails to propagate NAs correctly, the row count invariant fails and you get a shrunk counterexample DataFrame showing exactly which column had NAs.
+
+**Recommended `na_prob`:** Start with `0.1` (10% missing) for broad coverage. Increase to `0.3`-`0.5` for stress-testing NA-heavy paths. Use `1.0` for checking that functions handle all-NA inputs correctly.
+
+---
+
+## Pattern 7: Named properties
+
+**Define properties once, test against many generators.** Use `prop_named` + `prop_test` instead of repeating `prop_for_all` with the same predicate.
+
+```t
+m = prop_named("mutate_preserves_nrow", \(df) nrow(mutate(df, $z = $x * 2)) == nrow(df))
+
+-- test against float columns
+prop_test(m, prop_gen_df([x: prop_gen_float_range(0.0, 100.0)], nrows = 40, na_prob = 0.2))
+
+-- test against int columns
+prop_test(m, prop_gen_df([x: prop_gen_int_range(0, 100)], nrows = 40, na_prob = 0.2))
+
+-- test against schema-derived generators
+prop_test(m, prop_gen_df_from(mtcars, nrows = 40, na_prob = 0.2))
+```
+
+The property lives in one place. Adding a new generator is one line. If the verb breaks, the macro name appears in the failure: `STOP(Property mutate_preserves_nrow failed...)`.
+
+---
+
+## Writing your first property test
+
+1. **Pick a function** — start with something simple and pure (math function, string operation).
+
+2. **State the invariant** — what is always true? Write it as a lambda.
+
+3. **Choose a generator** — what domain produces valid inputs? e.g. `prop_gen_float_range(0, 100)` for positive-only functions, `prop_gen_int_range(-100, 100)` for general integers.
+
+4. **Pick a reasonable `n`** — 30 for fast CI, 100 for thorough local checking, 1000 for release hardening.
+
+5. **Set a seed** — always set `set_seed(42)` (or your favorite seed) so failures are reproducible.
+
+6. **Wrap in assert** — `assert(prop_for_all(gen, property, n = 30))` so failures surface as assertion errors.
+
+### Template
+
+```t
+set_seed(42)
+m = prop_named("sqrt_nonneg", \(x) x < 0.0 || sqrt(x) >= 0.0)
+assert(prop_test(m, prop_gen_float_range(-100.0, 100.0), n = 30))
+```
+
+### Adding to the test suite
+
+Property tests for T's own packages live in the `tests/` directory alongside existing OCaml tests. Create a `test_property_<pkg>.ml` file, register it in `tests/test_runner.ml` via `run_with_env`, and add it to `tests/dune`. See `tests/math/test_property_math.ml` for an example.
+
+```ocaml
+(* tests/math/test_property_math.ml *)
+let run_tests _pass_count _fail_count _failures _eval_string eval_string_env _test test_env =
+  Printf.printf "Propcraft dogfooding — math:\n";
+  let env = Packages.init_env () in
+  let (_, env) = eval_string_env {|
+    m_sqrt_abs = prop_named("sqrt_abs", \(x) sqrt(x * x) == abs(x))
+  |} env in
+  test_env env "sqrt(x*x) == abs(x)"
+    (Printf.sprintf "set_seed(1)\nprop_test(m_sqrt_abs, %s, n = 30)"
+       "prop_gen_float_range(0.0, 100.0)")
+    "PASS";
+  Printf.printf "\n"
+```
+
+---
+
+## Anti-patterns
+
+- **Fixed inputs instead of generators.** `prop_for_all(prop_gen_one_of([1, 2, 3]), ...)` only tests three values. Use `prop_gen_int_range` / `prop_gen_float_range` / `prop_gen_string_from` instead.
+
+- **Too-specific predicates.** `\(x) mean(x) == 25.3` is a regression test, not a property. Ask: "would this still hold if the generator changed?"
+
+- **No seed.** Without `set_seed`, failures are unrepeatable. Always set a seed first.
+
+- **NaN comparisons.** Never use `==` on floats in invariants. Use `abs(a - b) < tolerance` for approximate equality.
+
+- **Ignoring edge cases.** If your function doesn't handle empty strings, negative numbers, or NA, write guards: `s == "" || f(s) == expected`. A property with guard clauses is better than a property that crashes.
+
+
+# FILE: docs/property-testing.md
+
+# Property-Based Testing with Popcraft
+
+Comprehensive guide to hardening T code with property-based testing using the **popcraft** package.
+
+> **New:** See also the [Property Testing Cookbook](./property-testing-cookbook.md) for reusable patterns and a step-by-step guide to writing your first property test.
+
+## Table of Contents
+
+- [What Is Property-Based Testing?](#what-is-property-based-testing)
+- [Audience](#audience)
+- [Quick Start](#quick-start)
+- [Reproducibility](#reproducibility)
+- [Generator Specs](#generator-specs)
+- [Generators Reference](#generators-reference)
+- [Combinators](#combinators)
+- [The Property Contract](#the-property-contract)
+- [Shrinking](#shrinking)
+- [Finding NA-Handling Bugs](#finding-na-handling-bugs)
+- [Integration with Testcraft and `t test`](#integration-with-testcraft-and-t-test)
+- [Best Practices](#best-practices)
+- [Roadmap](#roadmap)
+
+---
+
+## What Is Property-Based Testing?
+
+Unit tests check a handful of fixed inputs. Property-based testing instead states an **invariant** that must hold for *every* input, then checks it over many randomly generated inputs. When the property fails, the framework reports a minimal (shrunk) counterexample.
+
+The canonical example: R's `prop.test` / Hypothesis / QuickCheck. T's popcraft package brings the same idea to the T language, focused on hardening T's own standard library and user packages.
+
+## Audience
+
+Popcraft is a **language and package-hardening tool** for contributors to T's standard library and for authors of reusable T packages. It is *not* aimed at one-off pipeline authors:
+
+- If you write a data pipeline once, use `assert`, `t check`, and `t diff` — they validate structure and outputs against your declared schema, instantly and without generators.
+- If you maintain a package or a library function that many pipelines depend on, add property-based tests with popcraft.
+
+## Quick Start
+
+```t
+# Every generated int in [0, 100) is >= 0
+set_seed(42)
+assert(prop_for_all(prop_gen_int_range(0, 100), \(x) x >= 0))
+```
+
+A failing property stops with a shrunk counterexample:
+
+```t
+set_seed(42)
+assert(prop_for_all(prop_gen_int_range(0, 100), \(x) x < 10, n = 20))
+-- Error(AssertionError: Property failed after 1 of 20 runs.
+--   counterexample: 72
+--   (shrunk): 18
+--   predicate: returned false.)
+```
+
+`assert(prop_for_all(...))` is the recommended form: it works inside `t test` files, turning a failure into a test failure with the counterexample embedded in the message.
+
+## Reproducibility
+
+All generated values come from a single shared, seedable RNG. Seeding makes the entire run — including any counterexample — bit-for-bit reproducible:
+
+```t
+set_seed(7)
+a = prop_for_all(prop_gen_int_range(0, 100), \(x) x >= 0, n = 20)
+set_seed(7)
+b = prop_for_all(prop_gen_int_range(0, 100), \(x) x >= 0, n = 20)
+assert(expect_equal(a, b))
+```
+
+Always seed at the top of a property test file so failures are reproducible in CI and for whoever debugs them.
+
+### Scoping with `with_seed`
+
+`set_seed` changes the global RNG for the rest of the program. When you only want a *single* reproducible expression — leaving the surrounding stream untouched — use `with_seed(seed, thunk)`:
+
+```t
+with_seed(7, \(u) prop_for_all(prop_gen_int_range(0, 100), \(x) x >= 0, n = 20))
+```
+
+`with_seed` seeds the RNG for the duration of the thunk, then restores the previous state — even if the thunk raises. It nests, and it works with any RNG consumer (`sample`, `slice_sample`, generators). This is the recommended form inside larger programs where `set_seed` would perturb unrelated draws.
+
+## Generator Specs
+
+Generators are **plain structured `Dict` values** — not closures — so they are inspectable, serializable, and combinable:
+
+```t
+g = prop_gen_int_range(1, 5)
+g         -- {`gen`: "int_range", `min`: 1, `max`: 5}
+```
+
+Because they are data, you can store them in variables, pass them around, and compose them with `prop_map_gen`, `prop_such_that`, and `prop_resize`.
+
+## Generators Reference
+
+| Generator | Signature | Produces |
+|-----------|-----------|----------|
+| `prop_gen_int` | `prop_gen_int(min = -10, max = 10)` | Random Int in `[min, max]` |
+| `prop_gen_int_range` | `prop_gen_int_range(min, max)` | Random Int in `[min, max]` |
+| `prop_gen_between` | `prop_gen_between(min, max)` | Random Int in `[min, max]`, **shrinks toward the lower bound** instead of 0 |
+| `prop_gen_float_range` | `prop_gen_float_range(min, max)` | Random Float in `[min, max)` |
+| `prop_gen_bool` | `prop_gen_bool()` | Random Bool |
+| `prop_gen_string_from` | `prop_gen_string_from(chars, min_len, max_len)` | Random String over `chars` (a String, List, or Vector), length in `[min_len, max_len]` |
+| `prop_gen_choice` | `prop_gen_choice([g1, g2, ...])` | Uniformly pick one of the given generators |
+| `prop_gen_frequency` | `prop_gen_frequency([[w, g], ...])` | Pick a generator weighted by `w` |
+| `prop_gen_vector` | `prop_gen_vector(elem_gen, n)` | Vector of `n` draws |
+| `prop_gen_list` | `prop_gen_list(elem_gen, n)` | List of `n` draws |
+| `prop_gen_factor` | `prop_gen_factor(levels)` | One of the given factor levels |
+| `prop_gen_one_of` | `prop_gen_one_of(values)` | Uniformly pick one value from a non-empty List or Vector of values |
+| `prop_gen_date_range` | `prop_gen_date_range(start, end)` | Date (or Datetime) drawn uniformly in an inclusive range; bounds must be both Dates or both Datetimes |
+| `prop_gen_ymd` | `prop_gen_ymd(min_year, max_year)` | Date drawn uniformly across all days in `[min_year, max_year]`, shrinks toward the lower year bound |
+| `prop_gen_df` | `prop_gen_df(columns, nrows = 30, na_prob = 0.1)` | DataFrame with generated columns and optional NA injection |
+| `prop_gen_dict` | `prop_gen_dict(columns, na_prob = 0.1)` | Dict with one value per column and optional NA injection |
+| `prop_gen_df_from` | `prop_gen_df_from(df, nrows = 30, na_prob = 0.1)` | DataFrame matching a sample's columns, with generators inferred from the sample |
+| `prop_gen_fn` | `prop_gen_fn(fn)` | Draw a value by calling `fn(size)` with the current generation size |
+
+### `prop_gen_df_from` — schema-derived generators
+
+Instead of hand-writing a `columns` Dict, derive it from a real DataFrame:
+
+```t
+mtcars_gen = prop_gen_df_from(mtcars, nrows = 100)
+```
+
+Each column's generator is inferred from the non-`NA` sample values: `Int`/`Float` bounds come from the observed min/max (a constant float column falls back to a single-value `one_of`), `String`s are drawn from the observed distinct values, `Factor` columns keep their levels, and `Date`/`Datetime` columns keep their observed range (and timezone). An empty DataFrame, an all-`NA` column, and unsupported column types raise explicit errors.
+
+This is the fastest way to property-test verbs against your own real-world schemas — combine with the row-count invariant:
+
+```t
+assert(prop_for_all(
+  prop_gen_df_from(mtcars, nrows = 40, na_prob = 0.1),
+  \(df) nrow(mutate(df, $z = $mpg * 2)) == nrow(df)))
+```
+
+### `prop_gen_fn` — custom generators
+
+For domain-specific generation, wrap any callable: popcraft calls `fn(size)` (with the current generation size, `30` by default and propagated through `prop_resize`):
+
+```t
+cube_gen = prop_gen_fn(\(n) n * n * n)
+```
+
+`fn` receives the current generation size (`30` by default, propagated through `prop_resize`) and may call other generators, read variables, or draw from the shared RNG — the value it returns is the drawn value.
+
+### `prop_gen_between` — in-domain shrinking
+
+For properties where the domain has a natural lower bound (e.g., "the value must be ≥ 100"), use `prop_gen_between(min, max)`. Draws are identical to `prop_gen_int_range(min, max)`, but shrinking pushes values toward the lower bound rather than toward 0:
+
+```t
+set_seed(42)
+prop_for_all(prop_gen_between(100, 200), \(x) x <= 100, n = 20)
+-- counterexample: 154 (shrunk): 101
+```
+
+Without `prop_gen_between`, the same test with `prop_gen_int_range` would shrink the counterexample toward 0 — potentially below the meaningful domain. Column generators inside `prop_gen_df` and `prop_gen_dict` shrink toward the column's lower bound. The shrink strategy propagates through composite generators (`list`, `vector`, `choice`, `frequency`), so nested `between` values inside composites also shrink toward their lower bound.
+
+### `prop_gen_ymd` — calendar-day date generation
+
+`prop_gen_ymd(min_year, max_year)` draws a `Date` uniformly across every calendar day in the inclusive year range — February 29th appears with roughly its real-world frequency. Shrinking pushes counterexamples toward `Date(min_year-01-01)`, keeping shrinks inside the date domain:
+
+```t
+set_seed(42)
+prop_for_all(prop_gen_ymd(2000, 2024), \(d) d >= ymd("2010-01-01"), n = 20)
+-- counterexample: Date(2016-08-06) (shrunk): Date(2000-01-01)
+```
+
+`prop_gen_date_range` already handled explicit start/end bounds; `prop_gen_ymd` is the year-range convenience with the same in-domain shrinking (year-span floor). Bare `Date`/`Datetime` values inside dataframe cells shrink toward their epoch (1970-01-01 / micros 0) so `prop_gen_df([d: prop_gen_ymd(...), ...])` yields minimal date cells. Combine with `na_prob` to harden date-column verbs against `NA` dates.
+
+### `prop_show_spec` — introspection
+
+Render any generator spec back to valid T source. Useful for debugging generative pipelines, logging, and verifying composition:
+
+```t
+prop_show_spec(prop_gen_df([x: prop_gen_between(1, 5), s: prop_gen_one_of(["a", "b"])], nrows = 3))
+-- "prop_gen_df([x: prop_gen_between(1, 5), s: prop_gen_one_of([\"a\", \"b\"])], nrows = 3, na_prob = 0.)"
+```
+
+The rendered output is behaviorally equivalent to the original: same seed produces identical draws. Closure-based generators (`map`, `such_that`, `fn`) produce explicit errors since they capture callables that cannot be serialized. The output is intended for debugging and reproducibility, not serialization of arbitrary closures.
+
+### Named properties: `prop_named` + `prop_test`
+
+Instead of repeating the same predicate with different generators inline, build a **named property** and reuse it:
+
+```t
+m = prop_named("mutate_preserves_nrow", \(df) nrow(mutate(df, $z = $x * 2)) == nrow(df))
+set_seed(1)
+prop_test(m, prop_gen_df([x: prop_gen_float_range(0.0, 100.0)], nrows = 40, na_prob = 0.2), n = 25)
+prop_test(m, prop_gen_df([x: prop_gen_int_range(0, 100)], nrows = 40, na_prob = 0.2), n = 25)
+```
+
+Named properties are plain immutable Dicts (`{name, property}`) — no global registry. Failure reports prefix the property name:
+
+```
+STOP(Property mutate_preserves_nrow failed after 1 of 25 runs.
+  counterexample: DataFrame(...)
+  ...)
+```
+
+### `shrink_verify` — opt-in exhaustive shrinking
+
+By default, the greedy shrinker caps per-level candidate lists at 32 for performance. This is sufficient for most workloads. When shrinking a deeply nested value (large Dict or DataFrame) and the reported counterexample seems suspiciously large, opt in to exhaustive verification:
+
+```t
+prop_for_all(gen, predicate, n = 20, shrink_verify = true)
+prop_test(named, gen, n = 20, shrink_verify = true)
+```
+
+With `shrink_verify = true`, every candidate at the shrink fixpoint is re-verified without the 32-cap, ensuring the reported counterexample is truly minimal. Accepts `Bool` only; defaults to `false`. **May substantially increase shrinking time for large nested structures.**
+
+### `prop_stats` — probing a generator
+
+To sanity-check a generator without writing a property, probe it:
+
+```t
+prop_stats(prop_gen_df_from(mtcars, nrows = 50), n = 20)
+-- {`n_runs`: 20, `n_errors`: 0, `value_types`: {`DataFrame`: 20},
+--  `nested_sizes`: {`df`: [1, 2, ..., 20]}, `elapsed_ms`: ...}
+```
+
+`prop_stats(gen, n = 100)` ramps the generation size from `1` to `n` and returns a `Dict` with `n_runs`, `n_errors`, `value_types` (per-type counts), `nested_sizes` (observed Vector/List/DataFrame lengths), and `elapsed_ms`. A high `n_errors` means the generator is malformed for some sizes.
+
+### `prop_gen_df` and NA injection
+
+`columns` is a Dict mapping column names to generators, e.g.:
+
+```t
+df_gen = prop_gen_df(
+  [x: prop_gen_float_range(0.0, 100.0),
+   grp: prop_gen_factor(["a", "b"]),
+   n: prop_gen_int_range(1, 10)],
+  nrows = 40,
+  na_prob = 0.1)
+```
+
+`na_prob` injects typed `NA` values (`NAInt`/`NAFloat`/`NABool`/`NAString` matching the column's generator) into the columns. This is the single most effective way to catch verbs that mishandle missingness.
+
+## Combinators
+
+| Function | Purpose |
+|----------|---------|
+| `prop_map_gen(source, fn)` | Draw a value from `source`, apply `fn`, yield the result |
+| `prop_such_that(source, pred, max_tries = 100)` | Keep drawing until `pred` holds; fails after `max_tries` |
+| `prop_resize(source, n)` | Override the size of nested `df`/`list`/`vector` generators to `n` |
+
+Example — generate only even numbers:
+
+```t
+even_gen = prop_such_that(prop_gen_int_range(1, 10), \(x) x % 2 == 0)
+```
+
+## The Property Contract
+
+`prop_for_all` draws `n` values (default `100`) and evaluates the property on each. The property result is classified:
+
+| Property returns | Meaning |
+|------------------|---------|
+| `true` | Pass — continue |
+| `false` | Fail — report counterexample |
+| `Expect_pass` | Pass — continue |
+| `Expect_stop msg` / `Expect_hold msg` | Fail — report counterexample with the message |
+| `Error` | Fail — report counterexample with the raised error text |
+| `NA` | Fail — "property must handle missingness explicitly" |
+| anything else | Fail — "expected Bool or an Expect value" |
+
+By default `prop_for_all` stops at the first failure. Pass `max_counterexamples = k` to collect up to `k` render-distinct failing inputs (each shrunk) and report them as numbered blocks:
+
+```t
+set_seed(42)
+prop_for_all(prop_gen_int_range(0, 100), \(x) x < 10, n = 20, max_counterexamples = 3)
+-- Expect_stop: Property failed after 3 of 20 runs (showing 3 counterexamples).
+--   counterexample #1: 54
+--   (shrunk): 13
+--   predicate: returned false
+--   counterexample #2: 91
+--   ...
+```
+
+The `NA` rule is deliberate (see the *Death to Null* policy): generated frames may contain `NA`, and a property that cannot handle it must say so rather than silently pass.
+
+## Shrinking
+
+When a property fails, popcraft attempts to find a **smaller input that still fails**, then reports both the original counterexample and the shrunk one:
+
+- Ints shrink toward `0` by halving.
+- Floats shrink toward `0`.
+- Strings shrink by trimming characters.
+- Lists/Vectors shrink by truncating prefixes and shrinking elements.
+- Dicts shrink field-by-field.
+- DataFrames shrink by halving the row count (down to the empty frame) and then minimizing individual cells to canonical values derived from each column's type (`Int` → `0`, `Float` → `0.0`, `Bool` → `false`, `String` → `""`, `Factor` → first level). `NA` cells are left untouched.
+
+Shrinking is deterministic and only affects the **message** — it never changes whether a run passes or fails. Pass `shrink = false` to `prop_for_all` to disable it.
+
+## Finding NA-Handling Bugs
+
+The classic bug class for data verbs: a verb that silently drops rows when an `NA` flows through it. Property-based tests catch it instantly:
+
+```t
+set_seed(7)
+assert(prop_for_all(
+  prop_gen_df(
+    [x: prop_gen_float_range(0.0, 100.0),
+     grp: prop_gen_factor(["a", "b"])],
+    nrows = 40,
+    na_prob = 0.1),
+  \(df) nrow(mutate(df, $z = $x * 2)) == nrow(df)))
+```
+
+If `mutate` ever drops rows on NA input, this property fails with a DataFrame counterexample showing the injected `NA(Float)` values.
+
+Other invariants worth testing:
+
+```t
+# filter never returns more rows than it started with
+assert(prop_for_all(
+  prop_gen_df([x: prop_gen_float_range(-10.0, 10.0)], nrows = 30, na_prob = 0.1),
+  \(df) nrow(filter(df, $x > 0)) <= nrow(df)))
+
+# arrange is a stable permutation (row counts preserved)
+assert(prop_for_all(
+  prop_gen_df([k: prop_gen_int_range(1, 100), v: prop_gen_string_from("ab", 0, 4)],
+              nrows = 50, na_prob = 0.1),
+  \(df) nrow(arrange(df, $k)) == nrow(df)))
+```
+
+## Integration with Testcraft and `t test`
+
+`prop_for_all` returns an `Expect` value, so it composes with the testcraft package and with `t test`:
+
+```t
+-- testfile.t — run with: t test testfile.t
+set_seed(42)
+
+test("ints stay in range", function() {
+  assert(prop_for_all(prop_gen_int_range(-100, 100), \(x) x >= -100 && x <= 100))
+})
+
+test("nrow is stable under mutate", function() {
+  assert(prop_for_all(
+    prop_gen_df([x: prop_gen_float_range(0.0, 10.0)], nrows = 20, na_prob = 0.1),
+    \(df) nrow(mutate(df, $y = $x + 1)) == nrow(df)))
+})
+```
+
+## Best Practices
+
+1. **Always `set_seed` first.** Without it, a failure that appears locally may not reproduce later.
+2. **Prefer `assert(prop_for_all(...))`** over capturing the value, so failures carry the counterexample into the assertion message.
+3. **Use `na_prob` in DataFrame generators.** Missingness is where most verbs break.
+4. **Keep properties small and invariant-shaped.** "row count unchanged", "output length equals input length", "no NA in output" are the most valuable.
+5. **Combine `prop_for_all` with `expect_*`** for readable diagnostics: `assert(prop_for_all(g, \(x) expect_equal(f(x), f(x))))`-style compositions.
+6. **Do not hand-wave error cases.** A property returning an `Error` fails loudly — if you *expect* an error for some inputs, handle it explicitly inside the property.
+7. **For one-off pipelines, don't reach for popcraft.** Use `assert`, `t check`, and `t diff`.
+
+## Roadmap
+
+- **v2 — shipped**: `prop_gen_df_from(df)` schema-driven generators derived from a sample DataFrame; custom generators via `prop_gen_fn`; `prop_gen_one_of`, `prop_gen_date_range`, `prop_gen_df_from`, `prop_gen_fn`, and `prop_stats`.
+- **v3 — shipped**: `prop_gen_between(min, max)` in-domain shrinking; `prop_show_spec(spec)` generator introspection (render to T source); `prop_named(name, property)` + `prop_test(named, gen, ...)` named reusable properties with shrink-verified invariants; `shrink_verify = true` opt-in exhaustive shrink re-verification.
+- **v4 — shipped**: `prop_gen_ymd(min_year, max_year)` calendar-day date generator; in-domain shrinking for `Date`/`Datetime` (year-span floor, range start bound, and bare-date epoch minimization inside dataframe cells); chrono package dogfooding via `prop_test`.
 
 
 # FILE: docs/quotation.md
@@ -23174,7 +24130,7 @@ p_etl |> chain(p_model)
 
 Get character at index
 
-Returns a single-character string at the specified index.
+Returns a single-character string at the specified index. Index is character-based (Unicode code point), so a multi-byte UTF-8 character is returned whole.
 
 ## Parameters
 
@@ -27208,7 +28164,7 @@ A confirmation message describing the imported archive.
 | [build_log](build_log.html) | Retrieve Build Log for Pipeline |
 | [build_log_history](build_log_history.html) | Retrieve Build Log History for Pipeline |
 | [build_log_to_frame](build_log_to_frame.html) | Tabulate Build Log as DataFrame |
-| [build_pipeline](build_pipeline.html) | Build Pipeline Artifacts |
+| [build_pipeline](build_pipeline.html) | Build Pipeline |
 | [build_pipeline_internal](build_pipeline_internal.html) | Build Pipeline Internally |
 | [case_when](case_when.html) | Vectorized Case-When |
 | [cat](cat.html) | Print values without escaping |
@@ -27217,6 +28173,7 @@ A confirmation message describing the imported archive.
 | [ceiling_date](ceiling_date.html) | Round dates up |
 | [chain](chain.html) | Chain Two Pipelines |
 | [char_at](char_at.html) | Get character at index |
+| [check](check.html) | Inline assertion wrapper |
 | [clean_colnames](clean_colnames.html) | Clean DataFrame Column Names |
 | [coef](coef.html) | Model Coefficients |
 | [col_lens](col_lens.html) | Create a Column Lens |
@@ -27233,6 +28190,7 @@ A confirmation message describing the imported archive.
 | [cosh](cosh.html) | Hyperbolic cosine |
 | [count](count.html) | Count rows by group |
 | [cov](cov.html) | Covariance |
+| [cross_pattern](cross_pattern.html) | Cross pattern stub |
 | [crossing](crossing.html) | Create a data frame from all combinations of inputs |
 | [cumall](cumall.html) | Cumulative All |
 | [cumany](cumany.html) | Cumulative Any |
@@ -27251,6 +28209,7 @@ A confirmation message describing the imported archive.
 | [deviance](deviance.html) | Model Deviance |
 | [df_residual](df_residual.html) | Residual Degrees of Freedom |
 | [diag](diag.html) | Create or extract diagonal |
+| [diff_summary](diff_summary.html) | Summarize Output Changes Across Builds |
 | [difference](difference.html) | Subtract one pipeline from another |
 | [dir_exists](dir_exists.html) | Check if directory exists |
 | [dispersion](dispersion.html) | Dispersion Parameter |
@@ -27272,6 +28231,50 @@ A confirmation message describing the imported archive.
 | [exit](exit.html) | Exit the interpreter |
 | [exp](exp.html) | Exponential function |
 | [expand](expand.html) | Create all combinations of values |
+| [expand_pipeline](expand_pipeline.html) | Expand pattern-based branching in a pipeline. |
+| [expect_between](expect_between.html) | Closed range numerical bounds assertion |
+| [expect_colnames](expect_colnames.html) | DataFrame column names assertion |
+| [expect_column_types](expect_column_types.html) | DataFrame column types assertion |
+| [expect_computed](expect_computed.html) | Computed node assertion |
+| [expect_dependency](expect_dependency.html) | Node dependency assertion |
+| [expect_deserializer](expect_deserializer.html) | Node deserializer assertion |
+| [expect_empty](expect_empty.html) | Empty container / string assertion |
+| [expect_equal](expect_equal.html) | Compare two values for testing |
+| [expect_error](expect_error.html) | Error assertion with optional class and message filtering |
+| [expect_fail](expect_fail.html) | Check whether an Expect value failed |
+| [expect_false](expect_false.html) | Strict boolean false assertion |
+| [expect_falsy](expect_falsy.html) | Loose falsiness assertion |
+| [expect_fields](expect_fields.html) | Dict key / named List label assertion |
+| [expect_gt](expect_gt.html) | Numeric greater-than assertion |
+| [expect_gte](expect_gte.html) | Numeric greater-than-or-equal assertion |
+| [expect_has_colnames](expect_has_colnames.html) | DataFrame / Dict subset column names assertion |
+| [expect_has_pattern](expect_has_pattern.html) | Node dynamic branching pattern assertion |
+| [expect_in](expect_in.html) | Set membership assertion |
+| [expect_length](expect_length.html) | Container length assertion |
+| [expect_lt](expect_lt.html) | Numeric less-than assertion |
+| [expect_lte](expect_lte.html) | Numeric less-than-or-equal assertion |
+| [expect_match](expect_match.html) | Regex string match assertion |
+| [expect_msg](expect_msg.html) | Get the diagnostic message from a failing Expect value |
+| [expect_ncol](expect_ncol.html) | DataFrame column count assertion |
+| [expect_no_na](expect_no_na.html) | Absence of NA values assertion |
+| [expect_nodes](expect_nodes.html) | Pipeline nodes assertion |
+| [expect_noop](expect_noop.html) | Node noop assertion |
+| [expect_nrow](expect_nrow.html) | DataFrame row count assertion |
+| [expect_pass](expect_pass.html) | Check whether an Expect value passed |
+| [expect_pipeline](expect_pipeline.html) | Pipeline assertion |
+| [expect_range](expect_range.html) | DataFrame numeric column closed range bounds assertion |
+| [expect_runtime](expect_runtime.html) | Node runtime assertion |
+| [expect_serializer](expect_serializer.html) | Node serializer assertion |
+| [expect_set_equal](expect_set_equal.html) | Order-independent set equality assertion |
+| [expect_str_contains](expect_str_contains.html) | Substring search assertion |
+| [expect_summary](expect_summary.html) | Expectation test suite summary report |
+| [expect_table_equal](expect_table_equal.html) | DataFrame table equality assertion |
+| [expect_true](expect_true.html) | Strict boolean true assertion |
+| [expect_truthy](expect_truthy.html) | Loose truthiness assertion |
+| [expect_type](expect_type.html) | Type name assertion |
+| [expect_unique](expect_unique.html) | Element uniqueness assertion |
+| [expect_values](expect_values.html) | DataFrame column allowed values assertion |
+| [expect_warning](expect_warning.html) | Assert that a pipeline node produced a warning diagnostic |
 | [explain](explain.html) | Explain Value |
 | [explain_json](explain_json.html) | Explain Value as JSON |
 | [export_artifacts](export_artifacts.html) | Export Pipeline Artifacts |
@@ -27288,6 +28291,7 @@ A confirmation message describing the imported archive.
 | [fct_relevel](fct_relevel.html) | Move selected levels to the front |
 | [fct_reorder](fct_reorder.html) | Order factor levels by another vector |
 | [fct_rev](fct_rev.html) | Reverse factor levels |
+| [fetchurl](fetchurl.html) | Fetch a URL |
 | [file_exists](file_exists.html) | Check if file exists |
 | [fill](fill.html) | Fill missing values |
 | [filter](filter.html) | Filter rows |
@@ -27308,6 +28312,7 @@ A confirmation message describing the imported archive.
 | [greet](greet.html) | Greet someone |
 | [group_by](group_by.html) | Group by columns |
 | [head](head.html) | Get the first n rows/items |
+| [head_pattern](head_pattern.html) | Head pattern stub |
 | [help](help.html) | Display documentation for a function |
 | [hour](hour.html) | Extract the hour |
 | [huber_loss](huber_loss.html) | Huber loss |
@@ -27357,6 +28362,7 @@ A confirmation message describing the imported archive.
 | [make_datetime](make_datetime.html) | Construct a Datetime value |
 | [make_period](make_period.html) | Create a period value |
 | [map](map.html) | Map a function over a list |
+| [map_pattern](map_pattern.html) | Map pattern stub |
 | [matches](matches.html) | Match columns by regex |
 | [matmul](matmul.html) | Matrix multiplication |
 | [max](max.html) | Maximum value |
@@ -27414,6 +28420,7 @@ A confirmation message describing the imported archive.
 | [pf](pf.html) | F distribution CDF |
 | [pipeline_assert](pipeline_assert.html) | Assert Pipeline Validity |
 | [pipeline_cache_status](pipeline_cache_status.html) | Check Pipeline Cache Status |
+| [pipeline_config_to_frame](pipeline_config_to_frame.html) | Convert Pipeline Config to DataFrame |
 | [pipeline_copy](pipeline_copy.html) | Copy Pipeline Node Artifacts to Local Directory |
 | [pipeline_cycles](pipeline_cycles.html) | Detect Pipeline Cycles |
 | [pipeline_deps](pipeline_deps.html) | List Node Dependencies |
@@ -27423,6 +28430,7 @@ A confirmation message describing the imported archive.
 | [pipeline_gc](pipeline_gc.html) | Garbage Collect Pipeline Nodes |
 | [pipeline_leaves](pipeline_leaves.html) | Pipeline Leaf Nodes |
 | [pipeline_node](pipeline_node.html) | Get Pipeline Node |
+| [pipeline_node_options](pipeline_node_options.html) | Get Pipeline Node Options (read-back) |
 | [pipeline_nodes](pipeline_nodes.html) | List Pipeline Nodes |
 | [pipeline_print](pipeline_print.html) | Pretty-Print a Pipeline |
 | [pipeline_report](pipeline_report.html) | Generate Pipeline Report |
@@ -27440,11 +28448,38 @@ A confirmation message describing the imported archive.
 | [pm](pm.html) | Check whether a time is after noon |
 | [pnorm](pnorm.html) | Normal distribution CDF |
 | [poly](poly.html) | Polynomial basis expansion |
-| [populate_pipeline](populate_pipeline.html) | Populate Pipeline |
+| [populate_pipeline](populate_pipeline.html) | Prepare Pipeline Infrastructure |
 | [pow](pow.html) | Power function |
 | [predict](predict.html) | Model Prediction |
+| [prefetch](prefetch.html) | Prefetch a URL and compute its SHA-256 hash |
 | [pretty_print](pretty_print.html) | Pretty-print a value |
 | [print](print.html) | Print values to standard output |
+| [prop_for_all](prop_for_all.html) | Check a property over generated values |
+| [prop_gen_between](prop_gen_between.html) | Generate a random Int within domain bounds |
+| [prop_gen_bool](prop_gen_bool.html) | Generate a random Bool |
+| [prop_gen_choice](prop_gen_choice.html) | Generate a value chosen from several generators |
+| [prop_gen_date_range](prop_gen_date_range.html) | Generate a Date or Datetime in a range |
+| [prop_gen_df](prop_gen_df.html) | Generate a random DataFrame |
+| [prop_gen_df_from](prop_gen_df_from.html) | Generate a DataFrame matching an existing sample |
+| [prop_gen_dict](prop_gen_dict.html) | Generate a Dict |
+| [prop_gen_factor](prop_gen_factor.html) | Generate a random Factor |
+| [prop_gen_float_range](prop_gen_float_range.html) | Generate a random Float in a range |
+| [prop_gen_fn](prop_gen_fn.html) | Generate a value via a custom function |
+| [prop_gen_frequency](prop_gen_frequency.html) | Generate a value from weighted generators |
+| [prop_gen_int](prop_gen_int.html) | Generate a random Int |
+| [prop_gen_int_range](prop_gen_int_range.html) | Generate a random Int in a fixed range |
+| [prop_gen_list](prop_gen_list.html) | Generate a random List |
+| [prop_gen_one_of](prop_gen_one_of.html) | Generate a value chosen from a fixed set |
+| [prop_gen_string_from](prop_gen_string_from.html) | Generate a random String |
+| [prop_gen_vector](prop_gen_vector.html) | Generate a random Vector |
+| [prop_gen_ymd](prop_gen_ymd.html) | Generate a Date within a year span |
+| [prop_map_gen](prop_map_gen.html) | Transform a generated value |
+| [prop_named](prop_named.html) | Name a reusable property |
+| [prop_resize](prop_resize.html) | Resize a generator |
+| [prop_show_spec](prop_show_spec.html) | Render a generator spec back to T source |
+| [prop_stats](prop_stats.html) | Probe a generator's behaviour |
+| [prop_such_that](prop_such_that.html) | Filter generated values by a predicate |
+| [prop_test](prop_test.html) | Run a named property |
 | [prune](prune.html) | Prune Pipeline Leaf Nodes |
 | [pt](pt.html) | Student t distribution CDF |
 | [pull](pull.html) | Extract column as vector |
@@ -27459,9 +28494,9 @@ A confirmation message describing the imported archive.
 | [quo](quo.html) | Capture an expression with its lexical environment (quosure) |
 | [quos](quos.html) | Capture multiple expressions with their lexical environment (quosures) |
 | [range](range.html) | Range |
-| [read_arrow](read_arrow.html) | Read an Arrow IPC (Feather) file |
 | [read_csv](read_csv.html) | Read CSV file |
 | [read_file](read_file.html) | Read file contents |
+| [read_ipc](read_ipc.html) | Read an Arrow IPC (Feather) file |
 | [read_log](read_log.html) | Read Node Build Log |
 | [read_node](read_node.html) | Read Pipeline Node Artifact |
 | [read_parquet](read_parquet.html) | Read Parquet file |
@@ -27485,6 +28520,7 @@ A confirmation message describing the imported archive.
 | [run](run.html) | Run a shell command |
 | [run_doctor](run_doctor.html) | Run Package/Project Doctor |
 | [sample](sample.html) | Random sample from a vector or list |
+| [sample_pattern](sample_pattern.html) | Sample pattern stub |
 | [scaffold_package](scaffold_package.html) | Scaffold a new T package |
 | [scaffold_project](scaffold_project.html) | Scaffold a new T project |
 | [scale](scale.html) | Scale values |
@@ -27501,6 +28537,7 @@ A confirmation message describing the imported archive.
 | [serialize](serialize.html) | Serialize Value |
 | [set](set.html) | Set Focused Value |
 | [set_nix_defaults](set_nix_defaults.html) | Set Global Nix Orchestration Defaults |
+| [set_pipeline_global_options](set_pipeline_global_options.html) | Set Pipeline Global Options (pure) |
 | [set_seed](set_seed.html) | Set random seed for reproducibility |
 | [shape](shape.html) | Get NDArray dimensions |
 | [shn](shn.html) | Configure a Shell Pipeline Node |
@@ -27514,6 +28551,7 @@ A confirmation message describing the imported archive.
 | [slice](slice.html) | Extract slice |
 | [slice_max](slice_max.html) | Keep rows with the largest values |
 | [slice_min](slice_min.html) | Keep rows with the smallest values |
+| [slice_pattern](slice_pattern.html) | Slice pattern stub |
 | [slice_sample](slice_sample.html) | Randomly sample rows from a DataFrame |
 | [source](source.html) | Get function source code |
 | [sqrt](sqrt.html) | Square root |
@@ -27543,7 +28581,10 @@ A confirmation message describing the imported archive.
 | [summary](summary.html) | Model Summary |
 | [suppress_warnings](suppress_warnings.html) | Suppress Diagnostics for a Node |
 | [swap](swap.html) | Swap a Pipeline Node Implementation |
+| [t_check](t_check.html) | Check a T Script for Errors |
+| [t_diff](t_diff.html) | Compare Two Builds of a Pipeline |
 | [t_doc](t_doc.html) | Generate Documentation |
+| [t_fix](t_fix.html) | Mechanically Apply Suggested Fixes |
 | [t_gc](t_gc.html) | Run System Garbage Collection |
 | [t_make](t_make.html) | Build and run a pipeline file |
 | [t_read_json](t_read_json.html) | Read Value from JSON |
@@ -27556,6 +28597,7 @@ A confirmation message describing the imported archive.
 | [t_write_onnx](t_write_onnx.html) | Write an ONNX model file |
 | [t_write_pmml](t_write_pmml.html) | Write a PMML model file |
 | [tail](tail.html) | Get the last n rows/items |
+| [tail_pattern](tail_pattern.html) | Tail pattern stub |
 | [tan](tan.html) | Tangent |
 | [tanh](tanh.html) | Hyperbolic tangent |
 | [to_array](to_array.html) | Convert to NDArray |
@@ -27585,7 +28627,7 @@ A confirmation message describing the imported archive.
 | [ungroup](ungroup.html) | Remove grouping |
 | [union](union.html) | Combine two pipelines |
 | [unite](unite.html) | Combine multiple columns into one character column |
-| [unknown](unknown.html) | Expand pattern-based branching in a pipeline. |
+| [unknown](unknown.html) | Print Failed Node Logs |
 | [unnest](unnest.html) | Expand nested columns |
 | [update_flake_lock](update_flake_lock.html) | Update Dependencies |
 | [upstream_of](upstream_of.html) | Extract Upstream Subgraph |
@@ -27598,9 +28640,10 @@ A confirmation message describing the imported archive.
 | [where](where.html) | Select columns by predicate |
 | [which_nodes](which_nodes.html) | Filter Readable Pipeline Node Records |
 | [winsorize](winsorize.html) | Winsorize values |
+| [with_seed](with_seed.html) | Run a thunk with a scoped random seed |
 | [with_tz](with_tz.html) | Convert a datetime to a new timezone |
-| [write_arrow](write_arrow.html) | Write Arrow IPC file |
 | [write_csv](write_csv.html) | Write CSV file |
+| [write_ipc](write_ipc.html) | Write Arrow IPC file |
 | [write_parquet](write_parquet.html) | Write Parquet file |
 | [write_text](write_text.html) | Write text to a file |
 | [yday](yday.html) | Extract the day of year |
@@ -27613,7 +28656,7 @@ A confirmation message describing the imported archive.
 
 Find index of substring
 
-Returns the index of the first occurrence of `sub` in `s`, or -1 if not found.
+Returns the character index of the first occurrence of `sub` in `s`, or -1 if not found. Indices are character-based (Unicode code points), matching `str_substring` and `char_at`.
 
 ## Parameters
 
@@ -27624,7 +28667,7 @@ Returns the index of the first occurrence of `sub` in `s`, or -1 if not found.
 
 ## Returns
 
-The index of the first occurrence.
+The character index of the first occurrence.
 
 
 
@@ -28059,9 +29102,9 @@ A convenience wrapper around `node()` with `runtime = "Julia"`. Used directly wi
 
 - **script** (`String`): (Optional) Path to an external `.jl` file to execute as the node body. Mutually exclusive with `command`. Sets the runtime to `Julia` automatically.
 
-- **serializer** (`Symbol`): (Optional) Custom serializer strategy. Use `^`-prefixed symbols (e.g., `^csv`, `^json`, `^arrow`, `^onnx`). Default = runtime-native binary serialization (`jl_serialize`).
+- **serializer** (`Symbol`): (Optional) Custom serializer strategy. Use `^`-prefixed symbols (e.g., `^csv`, `^json`, `^ipc`, `^parquet`, `^onnx`). Default = runtime-native binary serialization (`jl_serialize`).
 
-- **deserializer** (`Symbol`): (Optional) Custom deserializer strategy. Use `^`-prefixed symbols (e.g., `^csv`, `^json`, `^arrow`, `^onnx`). Default = runtime-native binary deserialization.
+- **deserializer** (`Symbol`): (Optional) Custom deserializer strategy. Use `^`-prefixed symbols (e.g., `^csv`, `^json`, `^ipc`, `^parquet`, `^onnx`). Default = runtime-native binary deserialization.
 
 - **functions** (`String`): | List[String] (Optional) Julia files to source before execution.
 
@@ -28206,7 +29249,7 @@ lag([1, 2, 3])
 
 Find last index of substring
 
-Returns the index of the last occurrence of `sub` in `s`, or -1 if not found.
+Returns the character index of the last occurrence of `sub` in `s`, or -1 if not found. Indices are character-based (Unicode code points).
 
 ## Parameters
 
@@ -28217,7 +29260,7 @@ Returns the index of the last occurrence of `sub` in `s`, or -1 if not found.
 
 ## Returns
 
-The index of the last occurrence.
+The character index of the last occurrence.
 
 
 
@@ -28580,7 +29623,7 @@ A `TypeError` explaining that patterns are only valid inside `node()`.
 
 Match columns by regex
 
-Selection helper that returns columns whose names match a regular expression.
+Selection helper that returns columns whose names match a regular expression. Patterns are compiled with PCRE2 in UTF-8 mode, so `.` matches a code point and classes like `\\p{L}` are supported.
 
 
 
@@ -29330,9 +30373,9 @@ Configure execution settings such as the runtime and custom serialized methods f
 
 - **runtime** (`Symbol`): (Optional) The runtime environment (T, R, Python, Quarto). Default = T.
 
-- **serializer** (`String`): | Function (Optional) Custom serializer strategy. Built-in values include "default", "arrow", and "pmml". Can be a string (e.g., "arrow") or an unquoted function name. Custom functions can also be used. Default = "default".
+- **serializer** (`String`): | Function (Optional) Custom serializer strategy. Built-in values include "default", "ipc", "parquet", and "pmml". Can be a string (e.g., "ipc") or an unquoted function name. Custom functions can also be used. Default = "default".
 
-- **deserializer** (`String`): | Function (Optional) Custom deserializer strategy. Built-in values include "default", "arrow", and "pmml". Can be a string (e.g., "arrow") or an unquoted function name. Custom functions can also be used. Default = "default".
+- **deserializer** (`String`): | Function (Optional) Custom deserializer strategy. Built-in values include "default", "ipc", "parquet", and "pmml". Can be a string (e.g., "ipc") or an unquoted function name. Custom functions can also be used. Default = "default".
 
 - **args** (`Dict`): (Optional) Runtime/tool arguments. For Quarto, use this to pass CLI arguments such as `subcommand`, `path`, and additional options. `output_dir` is reserved and managed automatically so the rendered result is stored as the node artifact.
 
@@ -30927,6 +31970,828 @@ print("Hello", "World")
 
 
 
+# FILE: docs/reference/prop_for_all.md
+
+# prop_for_all
+
+Check a property over generated values
+
+Draws `n` values from the `gen` generator spec (using the shared seeded RNG — call set_seed first for reproducible runs) and evaluates `property` on each. The property may return a Bool, an Expect value from testcraft (e.g. expect_equal), or an Error. A property passes only when it returns `true` or `Expect_pass`; `false`, `Expect_stop`, `Expect_hold`, NA, and Error are all treated as failures. On the first failure, a deterministic shrunk counterexample is reported via an Expect_stop value, so `assert(prop_for_all(...))` works inside test files run by `t test`.
+
+## Parameters
+
+- **gen** (`Dict`): A generator spec (see prop_gen_int, prop_gen_df, ...).
+
+- **property** (`Function`): A function from a generated value to Bool or Expect.
+
+- **n** (`Int`): = 100 Number of values to draw.
+
+- **max_counterexamples** (`Int`): = 1 Number of render-distinct failing inputs to report.
+
+- **shrink** (`Bool`): = true Whether to report a shrunk counterexample.
+
+- **shrink_verify** (`Bool`): = false Re-check every shrink candidate (not just the
+
+
+## Returns
+
+Expect_pass on success, Expect_stop on failure.
+
+## Examples
+
+```t
+set_seed(42)
+assert(prop_for_all(prop_gen_int_range(0, 100), \(x) x >= 0))
+assert(prop_for_all(
+prop_gen_df([x: prop_gen_float_range(0.0, 100.0)], nrows = 40, na_prob = 0.1),
+\(df) nrow(mutate(df, $z = $x * 2)) == nrow(df)))
+```
+
+## See Also
+
+[set_seed](set_seed.html), [expect_equal](expect_equal.html)
+
+
+
+# FILE: docs/reference/prop_gen_between.md
+
+# prop_gen_between
+
+Generate a random Int within domain bounds
+
+Returns a generator spec producing Int values drawn uniformly from [min, max] inclusive. Shrinking stays inside the domain: counterexamples shrink toward `min` (e.g. 137 -> 118 -> ... -> 101), never below it.
+
+## Parameters
+
+- **min** (`Int`): Lower bound (inclusive).
+
+- **max** (`Int`): Upper bound (inclusive).
+
+
+## Returns
+
+A generator spec.
+
+## Examples
+
+```t
+assert(prop_for_all(prop_gen_between(100, 200), \(x) x >= 100 && x <= 200))
+```
+
+## See Also
+
+[prop_gen_int_range](prop_gen_int_range.html), [prop_gen_int](prop_gen_int.html)
+
+
+
+# FILE: docs/reference/prop_gen_bool.md
+
+# prop_gen_bool
+
+Generate a random Bool
+
+Returns a generator spec producing Bool values (true or false).
+
+## Returns
+
+A generator spec.
+
+## Examples
+
+```t
+assert(prop_for_all(prop_gen_bool(), \(x) x == true || x == false))
+```
+
+## See Also
+
+[prop_gen_int](prop_gen_int.html)
+
+
+
+# FILE: docs/reference/prop_gen_choice.md
+
+# prop_gen_choice
+
+Generate a value chosen from several generators
+
+Returns a generator spec that picks one of the supplied generators uniformly at random on each draw.
+
+## Parameters
+
+- **gens** (`List[Dict]`): The candidate generator specs.
+
+
+## Returns
+
+A generator spec.
+
+## Examples
+
+```t
+g = prop_gen_choice([prop_gen_int(), prop_gen_bool()])
+```
+
+## See Also
+
+[prop_gen_frequency](prop_gen_frequency.html)
+
+
+
+# FILE: docs/reference/prop_gen_date_range.md
+
+# prop_gen_date_range
+
+Generate a Date or Datetime in a range
+
+Returns a generator spec that draws a Date uniformly between `start` and `end` (inclusive). Bounds must be both Dates or both Datetimes; a Datetime range keeps the start bound's timezone. Use `parse_date`, `today`, or `parse_datetime` to build bounds.
+
+## Parameters
+
+- **start** (`Date`): | Datetime Lower bound (inclusive).
+
+- **end** (`Date`): | Datetime Upper bound (inclusive).
+
+
+## Returns
+
+A generator spec.
+
+## Examples
+
+```t
+g = prop_gen_date_range(parse_date("2020-01-01"), parse_date("2020-12-31"))
+```
+
+## See Also
+
+[today](today.html), [parse_date](parse_date.html), [prop_gen_int_range](prop_gen_int_range.html)
+
+
+
+# FILE: docs/reference/prop_gen_df_from.md
+
+# prop_gen_df_from
+
+Generate a DataFrame matching an existing sample
+
+Returns a generator spec producing a DataFrame with the same columns as `df`, inferring a per-column generator from the sample values: Int and Float bounds come from the observed min/max, Strings are drawn from the observed distinct values, Factors keep their levels, and Dates/Datetimes keep their observed range (and timezone).
+
+## Parameters
+
+- **df** (`DataFrame`): The sample data frame to match.
+
+- **nrows** (`Int`): = 30 Number of rows to draw.
+
+- **na_prob** (`Float`): = 0.1 Probability a cell is NA (0 to 1).
+
+
+## Returns
+
+A generator spec.
+
+## Examples
+
+```t
+g = prop_gen_df_from(read_csv("mtcars.csv"), nrows = 100)
+```
+
+## See Also
+
+[prop_gen_df](prop_gen_df.html)
+
+
+
+# FILE: docs/reference/prop_gen_df.md
+
+# prop_gen_df
+
+Generate a random DataFrame
+
+Returns a generator spec producing a DataFrame with one column per entry in `columns` (a Dict mapping column names to generator specs). Each column has `nrows` rows; with probability `na_prob`, a cell is replaced with a typed NA matching the column's generator.
+
+## Parameters
+
+- **columns** (`Dict[String,`): Dict] Column name -> generator spec.
+
+- **nrows** (`Int`): = 30 Number of rows.
+
+- **na_prob** (`Float`): = 0.1 Probability a cell is NA (0 to 1).
+
+
+## Returns
+
+A generator spec.
+
+## Examples
+
+```t
+g = prop_gen_df([x: prop_gen_float_range(0.0, 100.0),
+grp: prop_gen_factor(["a", "b"])],
+nrows = 50, na_prob = 0.05)
+```
+
+## See Also
+
+[prop_gen_factor](prop_gen_factor.html)
+
+
+
+# FILE: docs/reference/prop_gen_dict.md
+
+# prop_gen_dict
+
+Generate a Dict
+
+Returns a generator spec producing a Dict with one generated value per column. Each column's generator draws one value; `na_prob` controls the probability that any given column value is NA.
+
+## Parameters
+
+- **columns** (`Dict`): { name :: String : gen_spec :: Dict } A Dict mapping column names to generator specs.
+
+- **na_prob** (`Float`): = 0.1 Probability of a column value being NA.
+
+
+## Returns
+
+A generator spec.
+
+## Examples
+
+```t
+prop_gen_dict([x: prop_gen_int_range(0, 100),
+name: prop_gen_string_from("abc", 1, 5)])
+```
+
+## See Also
+
+[prop_gen_df](prop_gen_df.html)
+
+
+
+# FILE: docs/reference/prop_gen_factor.md
+
+# prop_gen_factor
+
+Generate a random Factor
+
+Returns a generator spec producing a Factor value whose level is chosen uniformly from `levels`. When used as a column in prop_gen_df, one level is drawn per row.
+
+## Parameters
+
+- **levels** (`List[String]|String`): The factor levels.
+
+
+## Returns
+
+A generator spec.
+
+## Examples
+
+```t
+g = prop_gen_factor(["low", "medium", "high"])
+```
+
+## See Also
+
+[prop_gen_df](prop_gen_df.html)
+
+
+
+# FILE: docs/reference/prop_gen_float_range.md
+
+# prop_gen_float_range
+
+Generate a random Float in a range
+
+Returns a generator spec producing Float values drawn uniformly from [min, max).
+
+## Parameters
+
+- **min** (`Float`): Lower bound (inclusive).
+
+- **max** (`Float`): Upper bound (exclusive).
+
+
+## Returns
+
+A generator spec.
+
+## Examples
+
+```t
+assert(prop_for_all(prop_gen_float_range(0.0, 1.0), \(x) x >= 0.0))
+```
+
+## See Also
+
+[prop_gen_int_range](prop_gen_int_range.html)
+
+
+
+# FILE: docs/reference/prop_gen_fn.md
+
+# prop_gen_fn
+
+Generate a value via a custom function
+
+Returns a generator spec that draws a value by calling `fn(size)` with the current generation size, so generators can build on each other or on domain logic. `fn` may be any callable value.
+
+## Parameters
+
+- **fn** (`Function`): A function from the current size to a value.
+
+
+## Returns
+
+A generator spec.
+
+## Examples
+
+```t
+g = prop_gen_fn(\(n) n * 2)
+```
+
+## See Also
+
+[prop_map_gen](prop_map_gen.html)
+
+
+
+# FILE: docs/reference/prop_gen_frequency.md
+
+# prop_gen_frequency
+
+Generate a value from weighted generators
+
+Returns a generator spec that picks one of the supplied generators with probability proportional to its weight.
+
+## Parameters
+
+- **pairs** (`List[[Int,`): Dict]] A list of `[weight, generator]` pairs.
+
+
+## Returns
+
+A generator spec.
+
+## Examples
+
+```t
+g = prop_gen_frequency([[5, prop_gen_int()], [1, prop_gen_bool()]])
+```
+
+## See Also
+
+[prop_gen_choice](prop_gen_choice.html)
+
+
+
+# FILE: docs/reference/prop_gen_int.md
+
+# prop_gen_int
+
+Generate a random Int
+
+Returns a generator spec producing Int values drawn uniformly from the optional `min`/`max` range (defaults: -10 to 10, inclusive).
+
+## Parameters
+
+- **min** (`Int`): = -10 Lower bound (inclusive).
+
+- **max** (`Int`): = 10 Upper bound (inclusive).
+
+
+## Returns
+
+A generator spec.
+
+## Examples
+
+```t
+assert(prop_for_all(prop_gen_int(), \(x) x == x))
+```
+
+## See Also
+
+[prop_gen_float_range](prop_gen_float_range.html), [prop_gen_int_range](prop_gen_int_range.html)
+
+
+
+# FILE: docs/reference/prop_gen_int_range.md
+
+# prop_gen_int_range
+
+Generate a random Int in a fixed range
+
+Returns a generator spec producing Int values drawn uniformly from [min, max] inclusive.
+
+## Parameters
+
+- **min** (`Int`): Lower bound (inclusive).
+
+- **max** (`Int`): Upper bound (inclusive).
+
+
+## Returns
+
+A generator spec.
+
+## Examples
+
+```t
+assert(prop_for_all(prop_gen_int_range(0, 5), \(x) x >= 0 && x <= 5))
+```
+
+## See Also
+
+[prop_gen_float_range](prop_gen_float_range.html), [prop_gen_int](prop_gen_int.html)
+
+
+
+# FILE: docs/reference/prop_gen_list.md
+
+# prop_gen_list
+
+Generate a random List
+
+Returns a generator spec producing a List of `n` elements drawn from the `elem` generator.
+
+## Parameters
+
+- **elem** (`Dict`): The element generator.
+
+- **n** (`Int`): The list length.
+
+
+## Returns
+
+A generator spec.
+
+## Examples
+
+```t
+assert(prop_for_all(prop_gen_list(prop_gen_int(), 4), \(xs) length(xs) == 4))
+```
+
+## See Also
+
+[prop_gen_vector](prop_gen_vector.html)
+
+
+
+# FILE: docs/reference/prop_gen_one_of.md
+
+# prop_gen_one_of
+
+Generate a value chosen from a fixed set
+
+Returns a generator spec that picks one value uniformly at random from `values` on each draw.
+
+## Parameters
+
+- **values** (`List[Any]`): | Vector[Any] The candidate values.
+
+
+## Returns
+
+A generator spec.
+
+## Examples
+
+```t
+g = prop_gen_one_of(["red", "green", "blue"])
+```
+
+## See Also
+
+[prop_gen_choice](prop_gen_choice.html)
+
+
+
+# FILE: docs/reference/prop_gen_string_from.md
+
+# prop_gen_string_from
+
+Generate a random String
+
+Returns a generator spec producing Strings whose characters are drawn from `chars` (a String, List, or Vector of Strings) with lengths between `min_len` and `max_len` inclusive.
+
+## Parameters
+
+- **chars** (`String|List[String]`): Candidate characters.
+
+- **min_len** (`Int`): Minimum length (inclusive).
+
+- **max_len** (`Int`): Maximum length (inclusive).
+
+
+## Returns
+
+A generator spec.
+
+## Examples
+
+```t
+assert(prop_for_all(prop_gen_string_from("ab", 1, 3), \(s) length(s) <= 3))
+```
+
+## See Also
+
+[prop_gen_int](prop_gen_int.html)
+
+
+
+# FILE: docs/reference/prop_gen_vector.md
+
+# prop_gen_vector
+
+Generate a random Vector
+
+Returns a generator spec producing a Vector of `n` elements drawn from the `elem` generator.
+
+## Parameters
+
+- **elem** (`Dict`): The element generator.
+
+- **n** (`Int`): The vector length.
+
+
+## Returns
+
+A generator spec.
+
+## Examples
+
+```t
+assert(prop_for_all(prop_gen_vector(prop_gen_int(), 10), \(v) length(v) == 10))
+```
+
+## See Also
+
+[prop_gen_list](prop_gen_list.html)
+
+
+
+# FILE: docs/reference/prop_gen_ymd.md
+
+# prop_gen_ymd
+
+Generate a Date within a year span
+
+Returns a generator spec that draws a Date uniformly between January 1st of `min_year` and December 31st of `max_year` (both inclusive). Dates shrink toward `min_year`-01-01. Use `prop_gen_date_range` when you need arbitrary (non-year-aligned) bounds.
+
+## Parameters
+
+- **min_year** (`Int`): Lower bound year (inclusive).
+
+- **max_year** (`Int`): Upper bound year (inclusive).
+
+
+## Returns
+
+A generator spec.
+
+## Examples
+
+```t
+g = prop_gen_ymd(2000, 2024)
+```
+
+## See Also
+
+[make_date](make_date.html), [prop_gen_date_range](prop_gen_date_range.html)
+
+
+
+# FILE: docs/reference/prop_map_gen.md
+
+# prop_map_gen
+
+Transform a generated value
+
+Returns a generator spec that draws a value from `source`, applies `fn` to it, and yields the result.
+
+## Parameters
+
+- **source** (`Dict`): The source generator.
+
+- **fn** (`Function`): A function from the generated value to a new value.
+
+
+## Returns
+
+A generator spec.
+
+## Examples
+
+```t
+g = prop_map_gen(prop_gen_int_range(0, 10), \(v) v * 2)
+```
+
+## See Also
+
+[prop_resize](prop_resize.html), [prop_such_that](prop_such_that.html)
+
+
+
+# FILE: docs/reference/prop_named.md
+
+# prop_named
+
+Name a reusable property
+
+Bundles a property function under a `name` into an immutable named property Dict. Named properties are plain values (no global registry): pass the result to prop_test to run it against a generator. Failure reports are prefixed with the property's name.
+
+## Parameters
+
+- **name** (`String`): The property's display name.
+
+- **property** (`Function`): A function from a generated value to Bool or Expect.
+
+
+## Returns
+
+{ name, property }.
+
+## Examples
+
+```t
+monotone = prop_named("monotone", \(x) x <= 100)
+assert(prop_test(monotone, prop_gen_between(0, 200)))
+```
+
+## See Also
+
+[prop_for_all](prop_for_all.html), [prop_test](prop_test.html)
+
+
+
+# FILE: docs/reference/prop_resize.md
+
+# prop_resize
+
+Resize a generator
+
+Returns a generator spec that draws from `source` with the size (number of elements/rows) of nested vector, list, and df generators overridden to `n`. Generators that do not carry their own size are unaffected.
+
+## Parameters
+
+- **source** (`Dict`): The generator to resize.
+
+- **n** (`Int`): New size for nested vector/list/df generators.
+
+
+## Returns
+
+A generator spec.
+
+## Examples
+
+```t
+g = prop_resize(prop_gen_vector(prop_gen_int(), 3), 20)
+```
+
+## See Also
+
+[prop_map_gen](prop_map_gen.html)
+
+
+
+# FILE: docs/reference/prop_show_spec.md
+
+# prop_show_spec
+
+Render a generator spec back to T source
+
+Inspects the `gen` Dict (as built by prop_gen_int, prop_gen_df, ...) and returns the T source that rebuilds a behaviorally equivalent generator: both produce identical values under the same seed. Closure-carrying generators (prop_map_gen, prop_such_that, prop_gen_fn) and unknown generator kinds cannot be rendered and raise an error.
+
+## Parameters
+
+- **spec** (`Dict`): A generator spec (see prop_gen_int, prop_gen_df, ...).
+
+
+## Returns
+
+T source that rebuilds the generator.
+
+## Examples
+
+```t
+prop_show_spec(prop_gen_int_range(0, 100))
+# "prop_gen_int_range(0, 100)"
+```
+
+## See Also
+
+[prop_gen_int](prop_gen_int.html), [prop_for_all](prop_for_all.html)
+
+
+
+# FILE: docs/reference/prop_stats.md
+
+# prop_stats
+
+Probe a generator's behaviour
+
+Draws `n` values from `gen`, ramping the generation size from 1 to `n`, and returns a Dict summarizing what was produced: run counts, the value types observed, the sizes of any Vector/List/DataFrame values, and the wall-clock time spent.
+
+## Parameters
+
+- **gen** (`Dict`): A generator spec (see prop_gen_int, prop_gen_df, ...).
+
+- **n** (`Int`): = 100 Number of draws (also the max size ramp).
+
+
+## Returns
+
+{ n_runs, n_errors, value_types, nested_sizes, elapsed_ms }.
+
+## Examples
+
+```t
+prop_stats(prop_gen_df([x: prop_gen_int_range(0, 10)]), n = 20)
+```
+
+## See Also
+
+[prop_for_all](prop_for_all.html)
+
+
+
+# FILE: docs/reference/prop_such_that.md
+
+# prop_such_that
+
+Filter generated values by a predicate
+
+Returns a generator spec that draws values from `source` and keeps only those for which `pred` returns true. Gives up (with an error) after `max_tries` consecutive failures.
+
+## Parameters
+
+- **source** (`Dict`): The source generator.
+
+- **pred** (`Function`): A Bool-returning predicate on generated values.
+
+- **max_tries** (`Int`): = 100 Retry limit before giving up.
+
+
+## Returns
+
+A generator spec.
+
+## Examples
+
+```t
+g = prop_such_that(prop_gen_int_range(-10, 10), \(x) x != 0)
+```
+
+## See Also
+
+[prop_map_gen](prop_map_gen.html)
+
+
+
+# FILE: docs/reference/prop_test.md
+
+# prop_test
+
+Run a named property
+
+Runs the property captured by a `prop_named` Dict against values drawn from `gen`, mirroring prop_for_all's parameters. A failing report is prefixed with the property's name.
+
+## Parameters
+
+- **named** (`Dict`): A named property built by prop_named.
+
+- **gen** (`Dict`): A generator spec (see prop_gen_int, prop_gen_df, ...).
+
+- **n** (`Int`): = 100 Number of values to draw.
+
+- **max_counterexamples** (`Int`): = 1 Number of render-distinct failing inputs to report.
+
+- **shrink** (`Bool`): = true Whether to report a shrunk counterexample.
+
+- **shrink_verify** (`Bool`): = false Re-check every shrink candidate so the reported
+
+
+## Returns
+
+Expect_pass on success, Expect_stop on failure.
+
+## Examples
+
+```t
+set_seed(42)
+monotone = prop_named("monotone", \(x) x <= 100)
+assert(prop_test(monotone, prop_gen_between(0, 200)))
+```
+
+## See Also
+
+[prop_for_all](prop_for_all.html), [prop_named](prop_named.html)
+
+
+
 # FILE: docs/reference/prune.md
 
 # prune
@@ -31022,9 +32887,9 @@ A convenience wrapper around `node()` with `runtime = "Python"`. Used directly w
 
 - **script** (`String`): (Optional) Path to an external `.py` file to execute as the node body. Mutually exclusive with `command`. Sets the runtime to `Python` automatically.
 
-- **serializer** (`String`): | Function (Optional) Custom serializer strategy. Built-in values include "default", "arrow", and "pmml". Can be a string (e.g., "arrow") or an unquoted function name. Custom functions can also be used. Default = "default".
+- **serializer** (`String`): | Function (Optional) Custom serializer strategy. Built-in values include "default", "ipc", "parquet", and "pmml". Can be a string (e.g., "ipc") or an unquoted function name. Custom functions can also be used. Default = "default".
 
-- **deserializer** (`String`): | Function (Optional) Custom deserializer strategy. Built-in values include "default", "arrow", and "pmml". Can be a string (e.g., "arrow") or an unquoted function name. Custom functions can also be used. Default = "default".
+- **deserializer** (`String`): | Function (Optional) Custom deserializer strategy. Built-in values include "default", "ipc", "parquet", and "pmml". Can be a string (e.g., "ipc") or an unquoted function name. Custom functions can also be used. Default = "default".
 
 - **functions** (`String`): | List[String] (Optional) Python files to source before execution.
 
@@ -31113,9 +32978,9 @@ A convenience wrapper around `node()` with `runtime = "Quarto"`. Used directly w
 
 - **script** (`String`): (Optional) Path to an external `.qmd` file to render. Mutually exclusive with `command`.
 
-- **serializer** (`String`): | Function (Optional) Custom serializer strategy. Built-in values include "default", "arrow", and "pmml". Can be a string (e.g., "arrow") or an unquoted function name. Custom functions can also be used. Default = "default".
+- **serializer** (`String`): | Function (Optional) Custom serializer strategy. Built-in values include "default", "ipc", "parquet", and "pmml". Can be a string (e.g., "ipc") or an unquoted function name. Custom functions can also be used. Default = "default".
 
-- **deserializer** (`String`): | Function (Optional) Custom deserializer strategy. Built-in values include "default", "arrow", and "pmml". Can be a string (e.g., "arrow") or an unquoted function name. Custom functions can also be used. Default = "default".
+- **deserializer** (`String`): | Function (Optional) Custom deserializer strategy. Built-in values include "default", "ipc", "parquet", and "pmml". Can be a string (e.g., "ipc") or an unquoted function name. Custom functions can also be used. Default = "default".
 
 - **env_vars** (`Dict`): (Optional) Environment variables to pass into the sandbox.
 
@@ -31328,35 +33193,6 @@ Return min and max as a length-2 vector.
 
 
 
-# FILE: docs/reference/read_arrow.md
-
-# read_arrow
-
-Read an Arrow IPC (Feather) file
-
-Loads a DataFrame from an Arrow IPC file (also known as Feather v2) on disk.
-
-## Parameters
-
-- **path** (`String`): The file path to the Arrow IPC file.
-
-
-## Returns
-
-The loaded DataFrame.
-
-## Examples
-
-```t
-df = read_arrow("data.arrow")
-```
-
-## See Also
-
-[read_csv](read_csv.html), [write_arrow](write_arrow.html)
-
-
-
 # FILE: docs/reference/read_csv.md
 
 # read_csv
@@ -31417,6 +33253,35 @@ The file content.
 ```t
 read_file("config.json")
 ```
+
+
+
+# FILE: docs/reference/read_ipc.md
+
+# read_ipc
+
+Read an Arrow IPC (Feather) file
+
+Loads a DataFrame from an Arrow IPC file (also known as Feather v2) on disk.
+
+## Parameters
+
+- **path** (`String`): The file path to the Arrow IPC file.
+
+
+## Returns
+
+The loaded DataFrame.
+
+## Examples
+
+```t
+df = read_ipc("data.arrow")
+```
+
+## See Also
+
+[read_csv](read_csv.html), [write_ipc](write_ipc.html)
 
 
 
@@ -31487,7 +33352,7 @@ df = read_parquet("data.parquet")
 
 ## See Also
 
-[read_arrow](read_arrow.html), [read_csv](read_csv.html)
+[read_ipc](read_ipc.html), [read_csv](read_csv.html)
 
 
 
@@ -31827,9 +33692,9 @@ A convenience wrapper around `node()` with `runtime = "R"`. Used directly within
 
 - **script** (`String`): (Optional) Path to an external `.R` file to execute as the node body. Mutually exclusive with `command`. Sets the runtime to `R` automatically.
 
-- **serializer** (`String`): | Function (Optional) Custom serializer strategy. Built-in values include "default", "arrow", and "pmml". Can be a string (e.g., "arrow") or an unquoted function name. Custom functions can also be used. Default = "default".
+- **serializer** (`String`): | Function (Optional) Custom serializer strategy. Built-in values include "default", "ipc", "parquet", and "pmml". Can be a string (e.g., "ipc") or an unquoted function name. Custom functions can also be used. Default = "default".
 
-- **deserializer** (`String`): | Function (Optional) Custom deserializer strategy. Built-in values include "default", "arrow", and "pmml". Can be a string (e.g., "arrow") or an unquoted function name. Custom functions can also be used. Default = "default".
+- **deserializer** (`String`): | Function (Optional) Custom deserializer strategy. Built-in values include "default", "ipc", "parquet", and "pmml". Can be a string (e.g., "ipc") or an unquoted function name. Custom functions can also be used. Default = "default".
 
 - **functions** (`String`): | List[String] (Optional) R scripts to source before execution.
 
@@ -32302,7 +34167,7 @@ Expands delimited string values into multiple rows while repeating the remaining
 
 - **col** (`Column`): The column to split (bare name or $col reference).
 
-- **sep** (`String`): = "[^A-Za-z0-9]+" Regular expression separator pattern.
+- **sep** (`String`): = "[^A-Za-z0-9]+" Regular expression separator pattern
 
 
 ## Returns
@@ -32484,7 +34349,7 @@ A new pipeline with the settings merged into the target nodes.
 ## Examples
 
 ```t
-set_pipeline_global_options(p, runtimes = ["R"], serializer = ^arrow)
+set_pipeline_global_options(p, runtimes = ["R"], serializer = ^ipc)
 set_pipeline_global_options(p, nodes = ["n1", "n3"], noop = true)
 ```
 
@@ -32557,9 +34422,9 @@ A convenience wrapper around `node()` with `runtime = "sh"`. Use `shn()` inside 
 
 - **script** (`String`): (Optional) Path to an external `.sh` file to execute as the node body. Mutually exclusive with `command`.
 
-- **serializer** (`String`): | Function (Optional) Custom serializer strategy. Built-in values include "default", "arrow", and "pmml". Can be a string (e.g., "arrow") or an unquoted function name. Custom functions can also be used. Default = "default".
+- **serializer** (`String`): | Function (Optional) Custom serializer strategy. Built-in values include "default", "ipc", "parquet", and "pmml". Can be a string (e.g., "ipc") or an unquoted function name. Custom functions can also be used. Default = "default".
 
-- **deserializer** (`String`): | Function (Optional) Custom deserializer strategy. Built-in values include "default", "arrow", and "pmml". Can be a string (e.g., "arrow") or an unquoted function name. Custom functions can also be used. Default = "default".
+- **deserializer** (`String`): | Function (Optional) Custom deserializer strategy. Built-in values include "default", "ipc", "parquet", and "pmml". Can be a string (e.g., "ipc") or an unquoted function name. Custom functions can also be used. Default = "default".
 
 - **args** (`Dict`): | List (Optional) Runtime arguments. Lists become positional CLI arguments for exec-style nodes.
 
@@ -33110,7 +34975,7 @@ Splits on \n or \r\n. Strips trailing newline. Accepts ShellResult.
 
 Get character count
 
-Returns the number of characters in a string. Vectorized.
+Returns the number of characters (Unicode code points) in a string. Multi-byte UTF-8 characters count as a single character. Vectorized.
 
 ## Parameters
 
@@ -33129,7 +34994,7 @@ Returns the number of characters in a string. Vectorized.
 
 Pad strings to a target width
 
-Pads strings on the left, right, or both sides until they reach a requested width.
+Pads strings on the left, right, or both sides until they reach a requested width. Width is measured in characters (Unicode code points), so multi-byte UTF-8 strings are padded correctly and never split.
 
 
 
@@ -33181,7 +35046,7 @@ The modified string.
 
 Split a string on a delimiter
 
-Splits a string into a list of substrings on each occurrence of `sep`. If `sep` is empty, splits into individual characters. Works transparently on ShellResult values (splits stdout).
+Splits a string into a list of substrings on each occurrence of `sep`. If `sep` is empty, splits into individual characters (Unicode code points — multi-byte characters are never split). Works transparently on ShellResult values (splits stdout).
 
 ## Parameters
 
@@ -33274,7 +35139,7 @@ to_string(123)
 
 Extract substring
 
-Returns the part of the string between `start` and `end` indices.
+Returns the part of the string between `start` and `end` indices. Indices are character-based (Unicode code points), so multi-byte UTF-8 characters are never split.
 
 ## Parameters
 
@@ -33316,7 +35181,7 @@ The trimmed string.
 
 Truncate strings for display
 
-Shortens strings to a maximum width and appends an ellipsis when needed.
+Shortens strings to a maximum character width and appends an ellipsis when needed. Width is measured in characters (Unicode code points), so multi-byte UTF-8 strings are never split mid-character.
 
 
 
@@ -34060,7 +35925,7 @@ to_integer(3.14)
 
 Convert to lowercase
 
-Converts all characters in the string to lowercase.
+Converts all characters in the string to lowercase, using the Unicode character database (deterministic and locale-independent). Multi-character mappings are expanded.
 
 ## Parameters
 
@@ -34135,7 +36000,7 @@ to_expr(select(df, !!to_symbol("mpg")))
 
 Convert to uppercase
 
-Converts all characters in the string to uppercase.
+Converts all characters in the string to uppercase, using the Unicode character database (deterministic and locale-independent). Multi-character mappings are expanded (e.g. `ß` becomes `SS`).
 
 ## Parameters
 
@@ -34945,6 +36810,37 @@ Returns true when a Date or Datetime value falls inside an interval.
 
 
 
+# FILE: docs/reference/with_seed.md
+
+# with_seed
+
+Run a thunk with a scoped random seed
+
+Sets the global random number generator to `seed` for the duration of the thunk evaluation, then restores the previous RNG state. This scopes determinism to a single expression: any random draws outside the thunk are unaffected. Useful for reproducible property tests and sampling.  The thunk is a one-parameter lambda (the argument is ignored) so that it binds lazily, mirroring prop_for_all's predicate convention:  with_seed(42, \(x) sample([1, 2, 3, 4, 5], n = 3))
+
+## Parameters
+
+- **seed** (`Int`): The seed value to scope the RNG to.
+
+- **thunk** (`Function`): A one-parameter lambda whose body is run under `seed`.
+
+
+## Returns
+
+The result of evaluating `thunk`.
+
+## Examples
+
+```t
+with_seed(42, \(x) sample([1, 2, 3, 4, 5], n = 3))
+```
+
+## See Also
+
+[prop_for_all](prop_for_all.html), [slice_sample](slice_sample.html), [sample](sample.html), [set_seed](set_seed.html)
+
+
+
 # FILE: docs/reference/with_tz.md
 
 # with_tz
@@ -34963,37 +36859,6 @@ Retains the instant in time while changing the displayed timezone label.
 ## Returns
 
 | Vector[Datetime] The relabeled datetime(s).
-
-
-
-# FILE: docs/reference/write_arrow.md
-
-# write_arrow
-
-Write Arrow IPC file
-
-Writes a DataFrame to an Apache Arrow IPC (Feather v2) file.
-
-## Parameters
-
-- **df** (`DataFrame`): The DataFrame to write.
-
-- **path** (`String`): The output file path.
-
-
-## Returns
-
-
-
-## Examples
-
-```t
-write_arrow(df, "data.arrow")
-```
-
-## See Also
-
-[read_arrow](read_arrow.html)
 
 
 
@@ -35030,6 +36895,37 @@ write_csv(df, "output.csv")
 
 
 
+# FILE: docs/reference/write_ipc.md
+
+# write_ipc
+
+Write Arrow IPC file
+
+Writes a DataFrame to an Apache Arrow IPC (Feather v2) file.
+
+## Parameters
+
+- **df** (`DataFrame`): The DataFrame to write.
+
+- **path** (`String`): The output file path.
+
+
+## Returns
+
+
+
+## Examples
+
+```t
+write_ipc(df, "data.arrow")
+```
+
+## See Also
+
+[read_ipc](read_ipc.html)
+
+
+
 # FILE: docs/reference/write_parquet.md
 
 # write_parquet
@@ -35057,7 +36953,7 @@ write_parquet(df, "data.parquet")
 
 ## See Also
 
-[write_arrow](write_arrow.html), [read_parquet](read_parquet.html)
+[write_ipc](write_ipc.html), [read_parquet](read_parquet.html)
 
 
 
@@ -35193,7 +37089,7 @@ Every T project is a **Nix flake**:
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
-    tlang.url = "github:b-rodrigues/tlang/v0.54.3";
+    tlang.url = "github:b-rodrigues/tlang/v0.55.0";
   };
 
   outputs = { self, nixpkgs, tlang }: {
@@ -35318,7 +37214,7 @@ intent {
   ],
   
   environment: {
-    t_version: "0.54.3",
+    t_version: "0.55.0",
     nix_revision: "abc123",
     run_date: "2024-01-15"
   }
@@ -35362,7 +37258,7 @@ my-analysis/
   
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
-    tlang.url = "github:b-rodrigues/tlang/v0.54.3";
+    tlang.url = "github:b-rodrigues/tlang/v0.55.0";
   };
   
   outputs = { self, nixpkgs, tlang }: {
@@ -35576,8 +37472,8 @@ Serializers are identified by the `^` prefix. You can specify them when defining
 
 ```t
 p = pipeline {
-  -- Use the built-in Arrow serializer for a DataFrame
-  data = node(command = read_csv("large.csv"), serializer = ^arrow)
+  -- Use the built-in Arrow IPC serializer for a DataFrame
+  data = node(command = read_csv("large.csv"), serializer = ^ipc)
   
   -- Use the PMML serializer for a model
   model = rn(command = <{ lm(y ~ x, data = data) }>, serializer = ^pmml)
@@ -35591,12 +37487,12 @@ p = pipeline {
 
 T distinguishes between **built-in symbols** and **custom serializer variables**:
 
-- **Symbols (`^arrow`, `^json`, etc.)**: Use the `^` prefix for T's built-in serializers. These are registered symbols that the pipeline emitter understands natively across all supported runtimes.
+- **Symbols (`^ipc`, `^json`, etc.)**: Use the `^` prefix for T's built-in serializers. These are registered symbols that the pipeline emitter understands natively across all supported runtimes.
 - **Variables (`my_serializer`)**: If you have defined a custom serializer in a variable (e.g., a dictionary imported from another file), pass the variable name **without** the `^` prefix. This allows the evaluator to pass the actual serializer definition to the node.
 
 ```t
 -- Built-in symbol (uses T's internal logic)
-node(..., serializer = ^arrow)
+node(..., serializer = ^ipc)
 
 -- Custom variable (passes the dictionary value)
 import "src/my_ser.t" [my_ser]
@@ -35604,7 +37500,7 @@ node(..., serializer = my_ser)
 ```
 
 > [!IMPORTANT]
-> **String literals (e.g., `serializer = "arrow"`) are strictly disallowed in node constructors** (`rn()`, `pyn()`, `jln()`, `shn()`, `qn()`, `node()`). You must use either a symbol with the `^` prefix for built-ins or a variable name for custom serializers. Using a string literal in a node constructor will result in a `TypeError`.
+> **String literals (e.g., `serializer = "ipc"`) are strictly disallowed in node constructors** (`rn()`, `pyn()`, `jln()`, `shn()`, `qn()`, `node()`). You must use either a symbol with the `^` prefix for built-ins or a variable name for custom serializers. Using a string literal in a node constructor will result in a `TypeError`.
 >
 > `mutate_node()` and `set_pipeline_global_options()` accept both strings and symbols: `mutate_node($serializer = "pmml")` and `set_pipeline_global_options(p, serializer = ^pmml)` are both valid.
 
@@ -35617,7 +37513,8 @@ If you don't specify a serializer, T uses the `default` serializer, which select
 | Identifier | Name | Best For | Write support | Read support | Notes |
 |---|---|---|---|---|---|
 | `^tlang` | T-Native | T-to-T interchange | T | T | Internal binary format |
-| `^arrow` | Apache Arrow | Large DataFrames | T, R, Python, Julia | T, R, Python, Julia | Fully symmetric across all runtimes |
+| `^ipc` | Apache Arrow IPC | Large DataFrames | T, R, Python, Julia | T, R, Python, Julia | Fully symmetric across all runtimes |
+| `^parquet` | Apache Parquet | Large DataFrames, columnar storage | T, R, Python, Julia | T, R, Python, Julia | Fully symmetric across all runtimes |
 | `^csv` | CSV | Tabular data | T, R, Python, Julia | T, R, Python, Julia | Fully symmetric; R uses base `write.csv`/`read.csv` |
 | `^json` | JSON | Config, lists, dicts | T, R, Python, Julia | T, R, Python, Julia | Fully symmetric; Python uses stdlib |
 | `^pmml` | PMML | Predictive Models | T, R, Python, Julia | T, R, Python, Julia | Julia writer: GLM.jl → PMML 4.4; Julia reader: JPMML evaluator via `JavaCall` |
@@ -35670,11 +37567,11 @@ node A {
 }
 
 node B {
-  source: rn("data.csv", serializer = ^arrow)
+  source: rn("data.csv", serializer = ^ipc)
 }
 
 -- Result: Static Error
--- "Format mismatch: Node A produces ^csv, but Node B expects ^arrow."
+-- "Format mismatch: Node A produces ^csv, but Node B expects ^ipc."
 ```
 
 This prevents runtime errors after long-running computations by catching interchange mismatches at the start of the build.
@@ -35688,7 +37585,8 @@ The table below shows which packages each format pulls in per runtime:
 | Format | R packages | Python packages | Julia packages |
 |--------|-----------|----------------|---------------|
 | `^csv` | *(base R)* | `pandas` | `CSV`, `DataFrames` |
-| `^arrow` | `arrow` | `pandas`, `pyarrow` | `Arrow`, `DataFrames` |
+| `^ipc` | `arrow` | `pandas`, `pyarrow` | `Arrow`, `DataFrames` |
+| `^parquet` | `arrow` | `pandas`, `pyarrow` | `Arrow`, `DataFrames` |
 | `^json` | `jsonlite` | *(stdlib)* | `JSON` |
 | `^pmml` | `XML`, `jsonlite`, `r2pmml` | `numpy`, `pandas`, `pyarrow`, `scikit-learn`, `scipy`, `sklearn2pmml`, `statsmodels` | `GLM`, `JavaCall` |
 | `^onnx` | `onnx` | `onnxruntime`, `skl2onnx` | `ONNXRunTime`, `ONNX` |
@@ -35700,7 +37598,7 @@ The `^pmml` format also requires the `jre` system tool for R, Python, and Julia 
 
 ## 6. Polyglot Support
 
-For cross-language nodes, serializers provide the necessary glue code for the target runtime. For example, when using `^arrow` in an R node:
+For cross-language nodes, serializers provide the necessary glue code for the target runtime. For example, when using `^ipc` in an R node:
 
 1. T injects the `arrow` R library into the build environment.
 2. T generates the R code to call `arrow::write_ipc_file()`.

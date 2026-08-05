@@ -35,8 +35,9 @@
 <div class="container">
 <h1 id="str_trunc">str_trunc</h1>
 <p>Truncate strings for display</p>
-<p>Shortens strings to a maximum width and appends an ellipsis when
-needed.</p>
+<p>Shortens strings to a maximum character width and appends an ellipsis
+when needed. Width is measured in characters (Unicode code points), so
+multi-byte UTF-8 strings are never split mid-character.</p>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

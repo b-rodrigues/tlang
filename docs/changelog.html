@@ -34,6 +34,266 @@
 </nav>
 <div class="container">
 <h1 id="changelog">Changelog</h1>
+<h2 id="unreleased">[Unreleased]</h2>
+<h3 id="breaking-changes">Breaking Changes</h3>
+<ul>
+<li><strong>Arrow IPC serializer renamed <code>^arrow</code> →
+<code>^ipc</code></strong>: The Arrow IPC (Feather v2) format is now the
+<code>^ipc</code> serializer. <code>read_arrow()</code> /
+<code>write_arrow()</code> are renamed to <code>read_ipc()</code> /
+<code>write_ipc()</code>, and the strategy symbol <code>^arrow</code> is
+now <code>^ipc</code>. No alias is kept. Existing pipelines must update
+their node serializers/deserializers (<code>serializer = ^ipc</code>,
+<code>deserializer = ^ipc</code>) and call sites. The R runtime package
+stays <code>arrow</code>, and <code>^parquet</code> is a separate,
+supported strategy (R <code>arrow::write_parquet</code>, Python
+<code>pyarrow.parquet</code>, Julia <code>Arrow</code>).</li>
+</ul>
+<h3 id="language-bug-fixes">Language &amp; Bug Fixes</h3>
+<ul>
+<li><strong><code>%name%</code> infix operators</strong>: Any function
+can now be called infix with <code>%name%</code> syntax, R-style. For
+example <code>d %within% interval(start, end)</code> is equivalent to
+<code>%within%(d, interval(start, end))</code>. The lexer only treats
+<code>%name%</code> as an infix operator when a <code>%</code> is
+immediately followed by an identifier, so plain modulo
+(<code>a % b</code>) is unaffected.</li>
+<li><strong>Datetime rendering</strong>: UTC and timezone-less
+<code>Datetime</code> values now render with a plain <code>Z</code>
+suffix (<code>Datetime(2024-01-15T09:30:00Z)</code>) instead of
+<code>Z[UTC]</code>. Named timezones render as
+<code>Datetime(2024-01-15T09:30:00[Europe/Lisbon])</code>.</li>
+<li><strong>UTF-8 string operations</strong>: <code>str_nchar</code>,
+<code>str_substring</code>, <code>slice</code>, and <code>char_at</code>
+now operate on Unicode code points instead of raw bytes. Multi-byte
+characters are never split, and
+<code>str_substring(s, 0, str_nchar(s))</code> round-trips any
+string.</li>
+<li><strong><code>days_in_month</code> validation</strong>:
+<code>days_in_month(year, month)</code> now raises an explicit
+<code>ValueError</code> when <code>month</code> is outside
+<code>[1, 12]</code> instead of silently misbehaving.</li>
+<li><strong><code>index_of</code> / <code>last_index_of</code> are
+character-indexed</strong>: <code>index_of(s, needle)</code> and
+<code>last_index_of(s, needle)</code> now return character (Unicode code
+point) indices instead of raw byte offsets, so multi-byte characters
+count as one position. <code>last_index_of(s, "")</code> returns the
+character count.</li>
+<li><strong><code>str_split</code> with empty separator splits on code
+points</strong>: <code>str_split(s, "")</code> splits into individual
+Unicode code points rather than raw bytes, so multi-byte characters are
+never torn apart.</li>
+<li><strong><code>str_pad</code> / <code>str_trunc</code> count
+characters</strong>: widths are measured in characters rather than
+bytes, and truncation never splits a multi-byte character in half.</li>
+<li><strong><code>drop_na</code> handles every column type</strong>:
+date, datetime, dictionary, list, and NA columns now correctly
+contribute to missingness detection, so <code>drop_na</code> no longer
+silently keeps or drops rows on non-scalar data.</li>
+<li><strong>Joins normalize integer and float keys</strong>:
+<code>left_join</code>, <code>inner_join</code>,
+<code>right_join</code>, <code>full_join</code>, <code>anti_join</code>,
+and <code>semi_join</code> treat integer <code>1</code> and float
+<code>1.0</code> as the same key, matching R’s coercion-to-character
+semantics.</li>
+<li><strong><code>distinct</code> is NaN-aware</strong>: repeated
+<code>NaN</code> rows collapse to a single row, consistent with
+<code>n_distinct</code>.</li>
+<li><strong><code>mode</code> uses typed keys and deterministic
+tie-breaking</strong>: values of different types no longer collide
+(<code>mode([1, 1, "1"])</code> is <code>1</code>), and ties break by
+first occurrence in input order.</li>
+<li><strong><code>to_lower</code> / <code>to_upper</code> are
+Unicode-aware</strong>: case mapping uses the Unicode character database
+(<code>uucp</code>) instead of ASCII-only byte folding, so
+<code>to_upper("éàüç")</code> yields <code>"ÉÀÜÇ"</code> and
+<code>to_upper("ß")</code> yields <code>"SS"</code>. Mapping is
+deterministic and reproducible (no locale dependence).</li>
+<li><strong>Regex functions are UTF-8 aware</strong>:
+<code>str_detect</code>, <code>str_extract</code>,
+<code>str_extract_all</code>, <code>str_count</code>,
+<code>str_replace</code>, <code>str_replace_first</code>,
+<code>str_split</code>, <code>str_lines</code>, and
+<code>str_words</code> now use PCRE2 in UTF-8 mode instead of
+byte-oriented <code>Str</code> regex. <code>.</code>,
+<code>[...]</code>, and anchors match code points rather than bytes
+(<code>str_count("héllo", ".")</code> is <code>5</code>), and
+<code>\p{...}</code> Unicode property classes are supported.</li>
+<li><strong>Nested verb calls inside NSE verbs evaluate
+correctly</strong>: <code>mutate(select(df, $x), $z = $x * 2)</code>,
+<code>arrange(arrange(df, $x), $x)</code>, and
+<code>mutate(df, $y = select(other, $col))</code> now evaluate the
+nested call to a DataFrame instead of being wrapped into a row-lambda
+and rejected with a spurious <code>TypeError</code>. Previously these
+valid expressions failed with “Function <code>mutate</code> expects a
+DataFrame as first argument.”</li>
+<li><strong>colcraft regex is UTF-8 aware</strong>: the
+<code>matches</code> and <code>contains</code> selection helpers,
+<code>separate</code>, and <code>separate_rows</code> now use PCRE2 in
+UTF-8 mode instead of byte-oriented <code>Str</code> regex.
+<code>matches</code> supports <code>\p{...}</code> Unicode property
+classes (e.g. <code>select(df, matches("^\\p{L}+$"))</code>), and
+multibyte values flow through <code>separate</code> /
+<code>separate_rows</code> without being torn. <code>contains</code> now
+uses a literal substring test. Existing <code>Str.split</code> semantics
+(trailing empty tokens dropped, empty subject yields no rows) are
+preserved.</li>
+<li><strong><code>str_extract_all</code> / <code>str_count</code> handle
+trailing zero-width matches</strong>: patterns that can match the empty
+string at end-of-input (<code>a*</code>, <code>a?</code>, lookaheads,
+<code>$</code>-anchored assertions) no longer hang with unbounded memory
+growth. The trailing empty match is reported once and the scan
+terminates, matching R’s <code>stringr</code> behavior.</li>
+</ul>
+<h3 id="popcraft-property-based-testing">Popcraft — Property-Based
+Testing</h3>
+<ul>
+<li><strong>New <code>popcraft</code> package</strong>: Property-based
+testing primitives for hardening T’s standard library and user packages.
+Instead of hand-writing fixed cases, state an invariant and
+<code>prop_for_all</code> checks it over many generated inputs,
+reporting a deterministic shrunk counterexample on failure.</li>
+<li><strong><code>prop_for_all(gen, property, n = 100, max_counterexamples = 1, shrink = true)</code></strong>:
+Draws <code>n</code> values from a generator spec and evaluates the
+property on each. The property may return a <code>Bool</code>, an
+<code>Expect</code> value, or an <code>Error</code>. Returns an
+<code>Expect</code> value, so <code>assert(prop_for_all(...))</code>
+works directly inside <code>t test</code> files.
+<code>max_counterexamples = k</code> collects up to <code>k</code>
+distinct failing inputs (each shrunk) and reports them as numbered
+blocks.</li>
+<li><strong>Generator specs</strong> are inspectable structured Dicts
+(not closures): <code>prop_gen_int</code>,
+<code>prop_gen_int_range</code>, <code>prop_gen_float_range</code>,
+<code>prop_gen_bool</code>, <code>prop_gen_string_from</code>,
+<code>prop_gen_choice</code>, <code>prop_gen_frequency</code>,
+<code>prop_gen_vector</code>, <code>prop_gen_list</code>,
+<code>prop_gen_factor</code>, <code>prop_gen_one_of</code>,
+<code>prop_gen_date_range</code>, and <code>prop_gen_df</code>.</li>
+<li><strong><code>prop_gen_df_from(df, nrows = 30, na_prob = 0.1)</code></strong>:
+Derives a DataFrame generator from a real sample — Int/Float bounds from
+observed min/max, Strings from observed distinct values, Factors keep
+their levels, Dates/Datetimes keep their observed range and timezone.
+Empty frames, NA-only columns, and unsupported column types raise
+explicit errors.</li>
+<li><strong><code>prop_gen_fn(fn)</code></strong>: Wraps any callable as
+a generator; each draw calls <code>fn(size)</code> with the current
+generation size.</li>
+<li><strong><code>prop_stats(gen, n = 100)</code></strong>: Probes a
+generator (size ramp 1..n) and returns <code>n_runs</code>,
+<code>n_errors</code>, <code>value_types</code>,
+<code>nested_sizes</code>, and <code>elapsed_ms</code> — handy for
+sanity-checking derived and custom generators.</li>
+<li><strong><code>prop_gen_df</code> with typed NA injection</strong>:
+<code>prop_gen_df(columns, nrows = 30, na_prob = 0.1)</code> generates
+DataFrames and injects typed <code>NA</code> values
+(<code>NAInt</code>/<code>NAFloat</code>/<code>NABool</code>/<code>NAString</code>)
+into columns according to <code>na_prob</code> — the fastest way to
+catch data verbs that silently corrupt or drop rows on missing input.
+Leaf scalar columns draw through a batched fast path, so 1000-row frames
+generate in milliseconds.</li>
+<li><strong>Combinators</strong>: <code>prop_map_gen(source, fn)</code>,
+<code>prop_such_that(source, pred, max_tries = 100)</code>, and
+<code>prop_resize(source, n)</code>.</li>
+<li><strong>Reproducible by default</strong>: All draws use the shared
+seeded RNG. <code>set_seed(n)</code> before a run reproduces the exact
+same values and counterexample on any machine, every run.</li>
+<li><strong><code>with_seed(seed, thunk)</code></strong>: New
+base-package function that seeds the RNG for a single expression and
+restores the previous state afterwards — exception-safe and nestable.
+Scope determinism to one <code>prop_for_all</code> or one
+<code>sample</code> without perturbing surrounding random draws.</li>
+<li><strong>Deterministic shrinking</strong>: On failure,
+ints/strings/lists/vectors shrink toward minimal failing inputs;
+DataFrames shrink by halving rows down to the empty frame and then
+minimizing cells to canonical values per column type. Shrinking only
+affects the reported message, never whether a run passes.</li>
+<li><strong>Date/datetime columns shrink within their declared
+domain</strong>: <code>prop_gen_df</code> and <code>prop_gen_dict</code>
+cells from <code>ymd_range</code> / <code>date_range</code> columns
+canonicalize to the generator’s <code>start_day</code> /
+<code>start_micros</code> floor instead of the Unix epoch, so
+counterexamples stay inside the range you declared. This matches the
+existing behavior for <code>prop_gen_between</code> integer
+columns.</li>
+<li><strong><code>prop_gen_between(min, max)</code></strong>: Bounded
+integer generator with in-domain shrinking. For properties that have a
+natural lower bound, counterexamples shrink toward the lower bound
+rather than toward 0. Inside <code>prop_gen_df</code>, between-column
+cells canonicalize to <code>VInt min</code> so the shrinker minimizes
+within range.</li>
+<li><strong><code>prop_show_spec(spec)</code></strong>: Render any
+generator spec back to valid T source. The rendered output rebuilds a
+behaviorally equivalent generator (identical draws under the same seed).
+Closure-based generators produce an explicit error.</li>
+<li><strong><code>prop_named(name, property)</code> +
+<code>prop_test(named, gen, ...)</code></strong>: Named properties as
+plain immutable Dicts — no global registry. Define a property once
+(<code>m = prop_named("mutate_preserves_nrow", \(df) ...)</code>) and
+test it against multiple generators. Failure reports prefix the property
+name (<code>STOP(Property mutate_preserves_nrow failed...)</code>).</li>
+<li><strong><code>shrink_verify = true</code> opt-in</strong>:
+Exhaustive shrink re-verification. By default, per-level shrink
+candidates are capped at 32 for performance. When
+<code>shrink_verify = true</code>, every candidate at the fixpoint is
+re-checked uncapped, guaranteeing the reported counterexample is truly
+minimal.</li>
+<li><strong><code>prop_gen_dict(columns, na_prob = 0.1)</code></strong>:
+Dict generator — produces a Dict with one value per column. Shares the
+column-spec format and leaf batched fast path as
+<code>prop_gen_df</code>. Between-column cells within dicts shrink
+toward their column’s lower bound.</li>
+<li><strong>Shrinker propagation</strong>: <code>between</code> shrink
+strategies now propagate through composite generators
+(<code>list</code>, <code>vector</code>, <code>choice</code>,
+<code>frequency</code>). Nested <code>prop_gen_between</code> values
+inside composites shrink toward their lower bound rather than toward
+0.</li>
+<li><strong>Dogfooding expanded</strong>: Property tests now cover the
+<code>math</code>, <code>strcraft</code>, and <code>core</code> packages
+with invariants for arithmetic identities, string round-trips,
+idempotence, and functional primitives. New cookbook guide
+(<code>docs/property-testing-cookbook.md</code>) documents reusable
+property-test patterns.</li>
+<li><strong><code>prop_gen_ymd(min_year, max_year)</code></strong>:
+Calendar-day date generator — draws a <code>Date</code> uniformly across
+every day in the inclusive year range (February 29th at its real
+frequency). Counterexamples shrink toward
+<code>Date(min_year-01-01)</code>, keeping shrinks inside the date
+domain.</li>
+<li><strong>In-domain date shrinking</strong>:
+<code>Date</code>/<code>Datetime</code> values now shrink within their
+domain — <code>ymd_range</code> toward the year-span floor,
+<code>date_range</code> toward the start bound (micros 0 + preserved
+timezone for datetimes), and bare date cells inside
+<code>prop_gen_df</code> toward the epoch (1970-01-01 / micros 0).</li>
+<li><strong>Chrono dogfooding</strong>: Property tests now cover the
+<code>chrono</code> package — date-bound invariants (<code>day</code>,
+<code>month</code>, <code>quarter</code>, <code>semester</code>,
+<code>yday</code>, <code>isoweek</code>, <code>wday</code>, leap-year
+consistency), round-trips
+(<code>format_date</code>/<code>parse_date</code>, <code>ymd</code>,
+period arithmetic), <code>%within%</code> intervals, datetime
+components, and NA-hardening of <code>mutate</code>/<code>arrange</code>
+over date columns.</li>
+<li><strong>Dogfooding expanded further</strong>: Property tests now
+also cover the <code>stats</code> package (mode membership over
+typed/mixed vectors, <code>sd</code>/<code>var</code> consistency,
+constant-vector degeneracy, mean/quantile/min-max bounds,
+<code>range</code>/<code>fivenum</code> endpoints,
+<code>cor</code>/<code>cov</code> symmetry and range, <code>iqr</code>
+non-negativity), multibyte UTF-8 invariants for <code>strcraft</code>
+(<code>split</code>/<code>pad</code>/<code>trunc</code>/<code>repeat</code>
+round-trips and case-mapping idempotence over accented generators),
+<code>colcraft</code>/<code>stats</code> DataFrame verbs
+(<code>arrange</code> idempotence,
+<code>mutate</code>-then-<code>select</code>, <code>drop_na</code>
+subsets on date/NaN columns, <code>distinct</code> bounds), plus
+integer-domain <code>math</code> and list-domain <code>core</code>
+invariants. These properties are tight enough to have surfaced the UTF-8
+case-mapping, byte-based regex, and nested-NSE-call bugs fixed
+above.</li>
+</ul>
 <h2 id="section">[0.54.3] - 2026-08-01</h2>
 <h3 id="pipeline-validation-fixes">Pipeline Validation Fixes</h3>
 <ul>

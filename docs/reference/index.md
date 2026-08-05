@@ -32,7 +32,7 @@
 | [build_log](build_log.html) | Retrieve Build Log for Pipeline |
 | [build_log_history](build_log_history.html) | Retrieve Build Log History for Pipeline |
 | [build_log_to_frame](build_log_to_frame.html) | Tabulate Build Log as DataFrame |
-| [build_pipeline](build_pipeline.html) | Build Pipeline Artifacts |
+| [build_pipeline](build_pipeline.html) | Build Pipeline |
 | [build_pipeline_internal](build_pipeline_internal.html) | Build Pipeline Internally |
 | [case_when](case_when.html) | Vectorized Case-When |
 | [cat](cat.html) | Print values without escaping |
@@ -41,6 +41,7 @@
 | [ceiling_date](ceiling_date.html) | Round dates up |
 | [chain](chain.html) | Chain Two Pipelines |
 | [char_at](char_at.html) | Get character at index |
+| [check](check.html) | Inline assertion wrapper |
 | [clean_colnames](clean_colnames.html) | Clean DataFrame Column Names |
 | [coef](coef.html) | Model Coefficients |
 | [col_lens](col_lens.html) | Create a Column Lens |
@@ -57,6 +58,7 @@
 | [cosh](cosh.html) | Hyperbolic cosine |
 | [count](count.html) | Count rows by group |
 | [cov](cov.html) | Covariance |
+| [cross_pattern](cross_pattern.html) | Cross pattern stub |
 | [crossing](crossing.html) | Create a data frame from all combinations of inputs |
 | [cumall](cumall.html) | Cumulative All |
 | [cumany](cumany.html) | Cumulative Any |
@@ -75,6 +77,7 @@
 | [deviance](deviance.html) | Model Deviance |
 | [df_residual](df_residual.html) | Residual Degrees of Freedom |
 | [diag](diag.html) | Create or extract diagonal |
+| [diff_summary](diff_summary.html) | Summarize Output Changes Across Builds |
 | [difference](difference.html) | Subtract one pipeline from another |
 | [dir_exists](dir_exists.html) | Check if directory exists |
 | [dispersion](dispersion.html) | Dispersion Parameter |
@@ -96,6 +99,50 @@
 | [exit](exit.html) | Exit the interpreter |
 | [exp](exp.html) | Exponential function |
 | [expand](expand.html) | Create all combinations of values |
+| [expand_pipeline](expand_pipeline.html) | Expand pattern-based branching in a pipeline. |
+| [expect_between](expect_between.html) | Closed range numerical bounds assertion |
+| [expect_colnames](expect_colnames.html) | DataFrame column names assertion |
+| [expect_column_types](expect_column_types.html) | DataFrame column types assertion |
+| [expect_computed](expect_computed.html) | Computed node assertion |
+| [expect_dependency](expect_dependency.html) | Node dependency assertion |
+| [expect_deserializer](expect_deserializer.html) | Node deserializer assertion |
+| [expect_empty](expect_empty.html) | Empty container / string assertion |
+| [expect_equal](expect_equal.html) | Compare two values for testing |
+| [expect_error](expect_error.html) | Error assertion with optional class and message filtering |
+| [expect_fail](expect_fail.html) | Check whether an Expect value failed |
+| [expect_false](expect_false.html) | Strict boolean false assertion |
+| [expect_falsy](expect_falsy.html) | Loose falsiness assertion |
+| [expect_fields](expect_fields.html) | Dict key / named List label assertion |
+| [expect_gt](expect_gt.html) | Numeric greater-than assertion |
+| [expect_gte](expect_gte.html) | Numeric greater-than-or-equal assertion |
+| [expect_has_colnames](expect_has_colnames.html) | DataFrame / Dict subset column names assertion |
+| [expect_has_pattern](expect_has_pattern.html) | Node dynamic branching pattern assertion |
+| [expect_in](expect_in.html) | Set membership assertion |
+| [expect_length](expect_length.html) | Container length assertion |
+| [expect_lt](expect_lt.html) | Numeric less-than assertion |
+| [expect_lte](expect_lte.html) | Numeric less-than-or-equal assertion |
+| [expect_match](expect_match.html) | Regex string match assertion |
+| [expect_msg](expect_msg.html) | Get the diagnostic message from a failing Expect value |
+| [expect_ncol](expect_ncol.html) | DataFrame column count assertion |
+| [expect_no_na](expect_no_na.html) | Absence of NA values assertion |
+| [expect_nodes](expect_nodes.html) | Pipeline nodes assertion |
+| [expect_noop](expect_noop.html) | Node noop assertion |
+| [expect_nrow](expect_nrow.html) | DataFrame row count assertion |
+| [expect_pass](expect_pass.html) | Check whether an Expect value passed |
+| [expect_pipeline](expect_pipeline.html) | Pipeline assertion |
+| [expect_range](expect_range.html) | DataFrame numeric column closed range bounds assertion |
+| [expect_runtime](expect_runtime.html) | Node runtime assertion |
+| [expect_serializer](expect_serializer.html) | Node serializer assertion |
+| [expect_set_equal](expect_set_equal.html) | Order-independent set equality assertion |
+| [expect_str_contains](expect_str_contains.html) | Substring search assertion |
+| [expect_summary](expect_summary.html) | Expectation test suite summary report |
+| [expect_table_equal](expect_table_equal.html) | DataFrame table equality assertion |
+| [expect_true](expect_true.html) | Strict boolean true assertion |
+| [expect_truthy](expect_truthy.html) | Loose truthiness assertion |
+| [expect_type](expect_type.html) | Type name assertion |
+| [expect_unique](expect_unique.html) | Element uniqueness assertion |
+| [expect_values](expect_values.html) | DataFrame column allowed values assertion |
+| [expect_warning](expect_warning.html) | Assert that a pipeline node produced a warning diagnostic |
 | [explain](explain.html) | Explain Value |
 | [explain_json](explain_json.html) | Explain Value as JSON |
 | [export_artifacts](export_artifacts.html) | Export Pipeline Artifacts |
@@ -112,6 +159,7 @@
 | [fct_relevel](fct_relevel.html) | Move selected levels to the front |
 | [fct_reorder](fct_reorder.html) | Order factor levels by another vector |
 | [fct_rev](fct_rev.html) | Reverse factor levels |
+| [fetchurl](fetchurl.html) | Fetch a URL |
 | [file_exists](file_exists.html) | Check if file exists |
 | [fill](fill.html) | Fill missing values |
 | [filter](filter.html) | Filter rows |
@@ -132,6 +180,7 @@
 | [greet](greet.html) | Greet someone |
 | [group_by](group_by.html) | Group by columns |
 | [head](head.html) | Get the first n rows/items |
+| [head_pattern](head_pattern.html) | Head pattern stub |
 | [help](help.html) | Display documentation for a function |
 | [hour](hour.html) | Extract the hour |
 | [huber_loss](huber_loss.html) | Huber loss |
@@ -181,6 +230,7 @@
 | [make_datetime](make_datetime.html) | Construct a Datetime value |
 | [make_period](make_period.html) | Create a period value |
 | [map](map.html) | Map a function over a list |
+| [map_pattern](map_pattern.html) | Map pattern stub |
 | [matches](matches.html) | Match columns by regex |
 | [matmul](matmul.html) | Matrix multiplication |
 | [max](max.html) | Maximum value |
@@ -238,6 +288,7 @@
 | [pf](pf.html) | F distribution CDF |
 | [pipeline_assert](pipeline_assert.html) | Assert Pipeline Validity |
 | [pipeline_cache_status](pipeline_cache_status.html) | Check Pipeline Cache Status |
+| [pipeline_config_to_frame](pipeline_config_to_frame.html) | Convert Pipeline Config to DataFrame |
 | [pipeline_copy](pipeline_copy.html) | Copy Pipeline Node Artifacts to Local Directory |
 | [pipeline_cycles](pipeline_cycles.html) | Detect Pipeline Cycles |
 | [pipeline_deps](pipeline_deps.html) | List Node Dependencies |
@@ -247,6 +298,7 @@
 | [pipeline_gc](pipeline_gc.html) | Garbage Collect Pipeline Nodes |
 | [pipeline_leaves](pipeline_leaves.html) | Pipeline Leaf Nodes |
 | [pipeline_node](pipeline_node.html) | Get Pipeline Node |
+| [pipeline_node_options](pipeline_node_options.html) | Get Pipeline Node Options (read-back) |
 | [pipeline_nodes](pipeline_nodes.html) | List Pipeline Nodes |
 | [pipeline_print](pipeline_print.html) | Pretty-Print a Pipeline |
 | [pipeline_report](pipeline_report.html) | Generate Pipeline Report |
@@ -264,11 +316,38 @@
 | [pm](pm.html) | Check whether a time is after noon |
 | [pnorm](pnorm.html) | Normal distribution CDF |
 | [poly](poly.html) | Polynomial basis expansion |
-| [populate_pipeline](populate_pipeline.html) | Populate Pipeline |
+| [populate_pipeline](populate_pipeline.html) | Prepare Pipeline Infrastructure |
 | [pow](pow.html) | Power function |
 | [predict](predict.html) | Model Prediction |
+| [prefetch](prefetch.html) | Prefetch a URL and compute its SHA-256 hash |
 | [pretty_print](pretty_print.html) | Pretty-print a value |
 | [print](print.html) | Print values to standard output |
+| [prop_for_all](prop_for_all.html) | Check a property over generated values |
+| [prop_gen_between](prop_gen_between.html) | Generate a random Int within domain bounds |
+| [prop_gen_bool](prop_gen_bool.html) | Generate a random Bool |
+| [prop_gen_choice](prop_gen_choice.html) | Generate a value chosen from several generators |
+| [prop_gen_date_range](prop_gen_date_range.html) | Generate a Date or Datetime in a range |
+| [prop_gen_df](prop_gen_df.html) | Generate a random DataFrame |
+| [prop_gen_df_from](prop_gen_df_from.html) | Generate a DataFrame matching an existing sample |
+| [prop_gen_dict](prop_gen_dict.html) | Generate a Dict |
+| [prop_gen_factor](prop_gen_factor.html) | Generate a random Factor |
+| [prop_gen_float_range](prop_gen_float_range.html) | Generate a random Float in a range |
+| [prop_gen_fn](prop_gen_fn.html) | Generate a value via a custom function |
+| [prop_gen_frequency](prop_gen_frequency.html) | Generate a value from weighted generators |
+| [prop_gen_int](prop_gen_int.html) | Generate a random Int |
+| [prop_gen_int_range](prop_gen_int_range.html) | Generate a random Int in a fixed range |
+| [prop_gen_list](prop_gen_list.html) | Generate a random List |
+| [prop_gen_one_of](prop_gen_one_of.html) | Generate a value chosen from a fixed set |
+| [prop_gen_string_from](prop_gen_string_from.html) | Generate a random String |
+| [prop_gen_vector](prop_gen_vector.html) | Generate a random Vector |
+| [prop_gen_ymd](prop_gen_ymd.html) | Generate a Date within a year span |
+| [prop_map_gen](prop_map_gen.html) | Transform a generated value |
+| [prop_named](prop_named.html) | Name a reusable property |
+| [prop_resize](prop_resize.html) | Resize a generator |
+| [prop_show_spec](prop_show_spec.html) | Render a generator spec back to T source |
+| [prop_stats](prop_stats.html) | Probe a generator's behaviour |
+| [prop_such_that](prop_such_that.html) | Filter generated values by a predicate |
+| [prop_test](prop_test.html) | Run a named property |
 | [prune](prune.html) | Prune Pipeline Leaf Nodes |
 | [pt](pt.html) | Student t distribution CDF |
 | [pull](pull.html) | Extract column as vector |
@@ -283,9 +362,9 @@
 | [quo](quo.html) | Capture an expression with its lexical environment (quosure) |
 | [quos](quos.html) | Capture multiple expressions with their lexical environment (quosures) |
 | [range](range.html) | Range |
-| [read_arrow](read_arrow.html) | Read an Arrow IPC (Feather) file |
 | [read_csv](read_csv.html) | Read CSV file |
 | [read_file](read_file.html) | Read file contents |
+| [read_ipc](read_ipc.html) | Read an Arrow IPC (Feather) file |
 | [read_log](read_log.html) | Read Node Build Log |
 | [read_node](read_node.html) | Read Pipeline Node Artifact |
 | [read_parquet](read_parquet.html) | Read Parquet file |
@@ -309,6 +388,7 @@
 | [run](run.html) | Run a shell command |
 | [run_doctor](run_doctor.html) | Run Package/Project Doctor |
 | [sample](sample.html) | Random sample from a vector or list |
+| [sample_pattern](sample_pattern.html) | Sample pattern stub |
 | [scaffold_package](scaffold_package.html) | Scaffold a new T package |
 | [scaffold_project](scaffold_project.html) | Scaffold a new T project |
 | [scale](scale.html) | Scale values |
@@ -325,6 +405,7 @@
 | [serialize](serialize.html) | Serialize Value |
 | [set](set.html) | Set Focused Value |
 | [set_nix_defaults](set_nix_defaults.html) | Set Global Nix Orchestration Defaults |
+| [set_pipeline_global_options](set_pipeline_global_options.html) | Set Pipeline Global Options (pure) |
 | [set_seed](set_seed.html) | Set random seed for reproducibility |
 | [shape](shape.html) | Get NDArray dimensions |
 | [shn](shn.html) | Configure a Shell Pipeline Node |
@@ -338,6 +419,7 @@
 | [slice](slice.html) | Extract slice |
 | [slice_max](slice_max.html) | Keep rows with the largest values |
 | [slice_min](slice_min.html) | Keep rows with the smallest values |
+| [slice_pattern](slice_pattern.html) | Slice pattern stub |
 | [slice_sample](slice_sample.html) | Randomly sample rows from a DataFrame |
 | [source](source.html) | Get function source code |
 | [sqrt](sqrt.html) | Square root |
@@ -367,7 +449,10 @@
 | [summary](summary.html) | Model Summary |
 | [suppress_warnings](suppress_warnings.html) | Suppress Diagnostics for a Node |
 | [swap](swap.html) | Swap a Pipeline Node Implementation |
+| [t_check](t_check.html) | Check a T Script for Errors |
+| [t_diff](t_diff.html) | Compare Two Builds of a Pipeline |
 | [t_doc](t_doc.html) | Generate Documentation |
+| [t_fix](t_fix.html) | Mechanically Apply Suggested Fixes |
 | [t_gc](t_gc.html) | Run System Garbage Collection |
 | [t_make](t_make.html) | Build and run a pipeline file |
 | [t_read_json](t_read_json.html) | Read Value from JSON |
@@ -380,6 +465,7 @@
 | [t_write_onnx](t_write_onnx.html) | Write an ONNX model file |
 | [t_write_pmml](t_write_pmml.html) | Write a PMML model file |
 | [tail](tail.html) | Get the last n rows/items |
+| [tail_pattern](tail_pattern.html) | Tail pattern stub |
 | [tan](tan.html) | Tangent |
 | [tanh](tanh.html) | Hyperbolic tangent |
 | [to_array](to_array.html) | Convert to NDArray |
@@ -409,7 +495,7 @@
 | [ungroup](ungroup.html) | Remove grouping |
 | [union](union.html) | Combine two pipelines |
 | [unite](unite.html) | Combine multiple columns into one character column |
-| [unknown](unknown.html) | Expand pattern-based branching in a pipeline. |
+| [unknown](unknown.html) | Print Failed Node Logs |
 | [unnest](unnest.html) | Expand nested columns |
 | [update_flake_lock](update_flake_lock.html) | Update Dependencies |
 | [upstream_of](upstream_of.html) | Extract Upstream Subgraph |
@@ -422,9 +508,10 @@
 | [where](where.html) | Select columns by predicate |
 | [which_nodes](which_nodes.html) | Filter Readable Pipeline Node Records |
 | [winsorize](winsorize.html) | Winsorize values |
+| [with_seed](with_seed.html) | Run a thunk with a scoped random seed |
 | [with_tz](with_tz.html) | Convert a datetime to a new timezone |
-| [write_arrow](write_arrow.html) | Write Arrow IPC file |
 | [write_csv](write_csv.html) | Write CSV file |
+| [write_ipc](write_ipc.html) | Write Arrow IPC file |
 | [write_parquet](write_parquet.html) | Write Parquet file |
 | [write_text](write_text.html) | Write text to a file |
 | [yday](yday.html) | Extract the day of year |
