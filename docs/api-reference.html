@@ -1380,12 +1380,23 @@ names (default: false)</li>
 id="read_parquetpath-write_parquetto_dataframe-path"><code>read_parquet(path)</code>
 / <code>write_parquet(to_dataframe, path)</code></h3>
 <p>Read or write Parquet files using the native parquet-glib
-reader/writer.</p>
+reader/writer. Prefer Parquet for compressed, long-term storage of large
+datasets or when sharing data with external analytics tooling. For the
+fastest possible round trip (no compression), use <code>read_ipc</code>
+/ <code>write_ipc</code> instead. See <a
+href="data-formats.md#parquet-vs-arrow-ipc-how-to-choose">Parquet vs
+Arrow IPC: How to Choose</a>.</p>
 <hr />
 <h3
 id="read_ipcpath-write_ipcto_dataframe-path"><code>read_ipc(path)</code>
 / <code>write_ipc(to_dataframe, path)</code></h3>
-<p>Read or write Arrow IPC files.</p>
+<p>Read or write Arrow IPC files (Feather v2). IPC is the fastest format
+to read and write (no compression), ideal for pipeline intermediates and
+cross-runtime exchange. For compressed, long-term storage of large
+datasets, use <code>read_parquet</code> / <code>write_parquet</code>
+instead. See <a
+href="data-formats.md#parquet-vs-arrow-ipc-how-to-choose">Parquet vs
+Arrow IPC: How to Choose</a>.</p>
 <hr />
 <h3
 id="write_csvto_dataframe-path-separator"><code>write_csv(to_dataframe, path, separator = ",")</code></h3>

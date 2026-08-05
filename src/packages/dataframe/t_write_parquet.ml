@@ -5,6 +5,10 @@ open Ast
 --#
 --# Writes a DataFrame to a Parquet file using the native parquet-glib writer.
 --#
+--# Prefer Parquet for compressed, long-term storage of large datasets or when
+--# sharing data with external analytics tooling. For the fastest possible
+--# round trip (no compression), use write_ipc instead.
+--#
 --# @name write_parquet
 --# @param df :: DataFrame The DataFrame to write.
 --# @param path :: String The output file path.

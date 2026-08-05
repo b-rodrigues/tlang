@@ -47,7 +47,7 @@ their node serializers/deserializers (<code>serializer = ^ipc</code>,
 <code>deserializer = ^ipc</code>) and call sites. The R runtime package
 stays <code>arrow</code>, and <code>^parquet</code> is a separate,
 supported strategy (R <code>arrow::write_parquet</code>, Python
-<code>pyarrow.parquet</code>, Julia <code>Arrow</code>).</li>
+<code>pyarrow.parquet</code>, Julia <code>Parquet.jl</code>).</li>
 </ul>
 <h3 id="language-bug-fixes">Language &amp; Bug Fixes</h3>
 <ul>
@@ -145,10 +145,10 @@ string at end-of-input (<code>a*</code>, <code>a?</code>, lookaheads,
 growth. The trailing empty match is reported once and the scan
 terminates, matching R’s <code>stringr</code> behavior.</li>
 </ul>
-<h3 id="popcraft-property-based-testing">Popcraft — Property-Based
+<h3 id="propcraft-property-based-testing">Propcraft — Property-Based
 Testing</h3>
 <ul>
-<li><strong>New <code>popcraft</code> package</strong>: Property-based
+<li><strong>New <code>propcraft</code> package</strong>: Property-based
 testing primitives for hardening T’s standard library and user packages.
 Instead of hand-writing fixed cases, state an invariant and
 <code>prop_for_all</code> checks it over many generated inputs,

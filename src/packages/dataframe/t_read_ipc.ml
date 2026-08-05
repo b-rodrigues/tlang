@@ -6,6 +6,10 @@ open Ast
 --#
 --# Loads a DataFrame from an Arrow IPC file (also known as Feather v2) on disk.
 --#
+--# IPC is the fastest format to read and write (no compression), ideal for
+--# pipeline intermediates and cross-runtime exchange. For compressed,
+--# long-term storage of large datasets, use read_parquet instead.
+--#
 --# @name read_ipc
 --# @param path :: String The file path to the Arrow IPC file.
 --# @return :: DataFrame The loaded DataFrame.

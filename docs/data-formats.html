@@ -67,15 +67,16 @@ defaults</td>
 <tr>
 <td><strong>Parquet</strong></td>
 <td><code>read_parquet()</code> / <code>write_parquet()</code></td>
-<td>Large datasets, analytics workloads</td>
-<td>Columnar, compressed, type-preserving; recommended above ~2–3
-GB</td>
+<td>Long-term storage, archival, large datasets, sharing with external
+analytics tools</td>
+<td>Compressed, columnar, type-preserving; smaller on disk</td>
 </tr>
 <tr>
 <td><strong>Arrow IPC</strong></td>
 <td><code>read_ipc()</code> / <code>write_ipc()</code></td>
-<td>Large dataframes, cross-runtime interchange</td>
-<td>Zero-copy; also known as Feather v2</td>
+<td>Pipeline intermediates, cross-runtime exchange, fastest round
+trips</td>
+<td>Zero-copy; no compression; also known as Feather v2</td>
 </tr>
 <tr>
 <td><strong>JSON</strong></td>
@@ -86,6 +87,9 @@ usage</td>
 </tr>
 </tbody>
 </table>
+<p>For a full decision walkthrough between Parquet and Arrow IPC, jump
+to <a href="#parquet-vs-arrow-ipc-how-to-choose">Parquet vs Arrow IPC:
+How to Choose</a>.</p>
 <p>All three tabular readers (<code>read_csv</code>,
 <code>read_parquet</code>, <code>read_ipc</code>) accept a local path
 <strong>or a URL</strong>. For reproducible downloads inside pipelines,
@@ -222,6 +226,151 @@ nodes use Arrow IPC through the <code>^ipc</code> serializer — see the
 <a href="serializers.html">Serializers</a> guide and the <a
 href="pipeline_tutorial.html">Pipeline Tutorial</a> for details.</p>
 <hr />
+<h2 id="parquet-vs-arrow-ipc-how-to-choose">Parquet vs Arrow IPC: How to
+Choose</h2>
+<p>Parquet and Arrow IPC are both columnar, type-preserving,
+Arrow-native binary formats. Every T runtime (T, R, Python, Julia) can
+read and write both, and neither requires schema inference on load. The
+choice between them comes down to <strong>one question</strong>: <em>is
+this data a live hand-off, or a durable artifact?</em></p>
+<ul>
+<li><strong>Arrow IPC is the Arrow in-memory format flushed to
+disk.</strong> Writing is effectively a memory dump, so it is the
+fastest format to write and read by a wide margin. In exchange, files
+are <strong>uncompressed</strong> by default and often several times
+larger than Parquet.</li>
+<li><strong>Parquet is a storage-optimized layout.</strong> It applies
+block compression (snappy by default) and organizes data into row groups
+with column-level metadata, so files are smaller and readers can skip
+columns they do not need. Compression costs time at write time, but pays
+off at rest and for scans.</li>
+</ul>
+<h3 id="side-by-side-comparison">Side-by-side comparison</h3>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr>
+<th></th>
+<th>Arrow IPC (<code>^ipc</code>)</th>
+<th>Parquet (<code>^parquet</code>)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>File extension</strong></td>
+<td><code>.arrow</code> (also <code>.feather</code>)</td>
+<td><code>.parquet</code></td>
+</tr>
+<tr>
+<td><strong>Compression</strong></td>
+<td>None by default</td>
+<td>Snappy by default</td>
+</tr>
+<tr>
+<td><strong>Relative file size</strong></td>
+<td>Larger (uncompressed)</td>
+<td>Typically 4–10× smaller for numeric data</td>
+</tr>
+<tr>
+<td><strong>Write speed</strong></td>
+<td>Fastest (memory dump)</td>
+<td>Slower (compression + encoding)</td>
+</tr>
+<tr>
+<td><strong>Read speed</strong></td>
+<td>Fastest</td>
+<td>Very fast; can skip whole columns</td>
+</tr>
+<tr>
+<td><strong>Schema / type fidelity</strong></td>
+<td>Exact</td>
+<td>Exact</td>
+</tr>
+<tr>
+<td><strong>Zero-copy / memory-map friendly</strong></td>
+<td>Yes</td>
+<td>No (must decode row groups)</td>
+</tr>
+<tr>
+<td><strong>Cross-runtime support (T/R/Python/Julia)</strong></td>
+<td>Symmetric</td>
+<td>Symmetric</td>
+</tr>
+<tr>
+<td><strong>Column pruning on read</strong></td>
+<td>No</td>
+<td>Yes (column metadata + row groups)</td>
+</tr>
+<tr>
+<td><strong>External tool ecosystem</strong></td>
+<td>Limited (Feather readers)</td>
+<td>Broad (Spark, DuckDB, dask, pandas, Athena/BigQuery, …)</td>
+</tr>
+<tr>
+<td><strong>Typical lifetime</strong></td>
+<td>Minutes to hours</td>
+<td>Days to years</td>
+</tr>
+</tbody>
+</table>
+<h3 id="choose-arrow-ipc-when">Choose Arrow IPC when</h3>
+<ul>
+<li><strong>The data is moving between nodes.</strong> Within a
+pipeline, use <code>^ipc</code> to pass DataFrames between T, R, Python,
+and Julia nodes — it is T’s default choice for exactly this reason.</li>
+<li><strong>You want the fastest possible round trip.</strong> If a node
+reads, transforms, and writes data as an intermediate step, IPC avoids
+paying compression cost twice.</li>
+<li><strong>The artifact is short-lived or disposable</strong> — a
+staging table, a scratch output, a cache.</li>
+<li><strong>You are memory-mapping large data</strong> and want to avoid
+decoding overhead.</li>
+</ul>
+<h3 id="choose-parquet-when">Choose Parquet when</h3>
+<ul>
+<li><strong>You are persisting a result.</strong> Write final outputs,
+snapshots, and “published” datasets to Parquet so they stay small and
+readable for years.</li>
+<li><strong>Disk space or transfer cost matters.</strong> Parquet’s
+compression shrinks files dramatically, which also speeds up copying and
+uploads.</li>
+<li><strong>You are sharing data with the wider analytics
+ecosystem.</strong> Spark, DuckDB, dask, pandas, BigQuery, and Athena
+all read Parquet natively; IPC is mostly confined to the Arrow
+ecosystem.</li>
+<li><strong>Downstream readers benefit from column pruning.</strong>
+Analytics workloads that read a few columns from a wide table are much
+faster with Parquet.</li>
+<li><strong>You plan to append or scan subsets repeatedly.</strong></li>
+</ul>
+<h3 id="decision-flow">Decision flow</h3>
+<pre><code>Is the data only needed while the pipeline runs?
+├─ Yes  → use ^ipc (fastest, no compression)
+└─ No (you keep or share it) →
+     Is it a durable artifact / shared with external tools?
+     ├─ Yes → use ^parquet (compressed, columnar, interoperable)
+     └─ No  → use ^ipc (speed) or ^parquet (smaller files) as you prefer</code></pre>
+<h3 id="rule-of-thumb">Rule of thumb</h3>
+<p>Use
+<strong><code>^ipc</code>/<code>read_ipc</code>/<code>write_ipc</code>
+for anything that moves through a pipeline</strong>, and
+<strong><code>^parquet</code>/<code>read_parquet</code>/<code>write_parquet</code>
+for anything you keep, ship, or store</strong>. If you are unsure and
+the file is small, either works — the formats are interchangeable at the
+API level (<code>read_parquet</code>/<code>write_parquet</code> and
+<code>read_ipc</code>/<code>write_ipc</code> are drop-in replacements
+for each other).</p>
+<blockquote>
+<p>[!TIP] In a pipeline you can use both freely: pass data between nodes
+with <code>^ipc</code> for speed, and add a final node that materializes
+the result to Parquet with <code>write_parquet()</code> for storage.
+This gives you fast intermediates and small, shareable outputs.</p>
+</blockquote>
+<hr />
 <h2 id="formats-t-does-not-read-natively">Formats T Does Not Read
 Natively</h2>
 <p>T does <strong>not</strong> ship parsers for proprietary office or
@@ -270,9 +419,12 @@ converters.</p>
 Data</h2>
 <p>For datasets exceeding 2–3 GB:</p>
 <ol type="1">
-<li><strong>Prefer Parquet</strong>: convert CSVs to Parquet before
-reading them into T (e.g. with R’s <code>arrow::write_parquet()</code>
-or Python’s <code>pandas.DataFrame.to_parquet()</code>).</li>
+<li><strong>Prefer Parquet for storage</strong>: convert CSVs to Parquet
+before reading them into T (e.g. with R’s
+<code>arrow::write_parquet()</code> or Python’s
+<code>pandas.DataFrame.to_parquet()</code>). See <a
+href="#parquet-vs-arrow-ipc-how-to-choose">Parquet vs Arrow IPC: How to
+Choose</a> for when to reach for IPC instead.</li>
 <li><strong>Use standard CSVs</strong>: if you must use CSV, stick to
 the default comma separator and no leading comment lines to stay on the
 native fast path.</li>

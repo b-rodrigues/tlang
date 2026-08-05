@@ -4,7 +4,7 @@
 
 ### Breaking Changes
 
-- **Arrow IPC serializer renamed `^arrow` → `^ipc`**: The Arrow IPC (Feather v2) format is now the `^ipc` serializer. `read_arrow()` / `write_arrow()` are renamed to `read_ipc()` / `write_ipc()`, and the strategy symbol `^arrow` is now `^ipc`. No alias is kept. Existing pipelines must update their node serializers/deserializers (`serializer = ^ipc`, `deserializer = ^ipc`) and call sites. The R runtime package stays `arrow`, and `^parquet` is a separate, supported strategy (R `arrow::write_parquet`, Python `pyarrow.parquet`, Julia `Arrow`).
+- **Arrow IPC serializer renamed `^arrow` → `^ipc`**: The Arrow IPC (Feather v2) format is now the `^ipc` serializer. `read_arrow()` / `write_arrow()` are renamed to `read_ipc()` / `write_ipc()`, and the strategy symbol `^arrow` is now `^ipc`. No alias is kept. Existing pipelines must update their node serializers/deserializers (`serializer = ^ipc`, `deserializer = ^ipc`) and call sites. The R runtime package stays `arrow`, and `^parquet` is a separate, supported strategy (R `arrow::write_parquet`, Python `pyarrow.parquet`, Julia `Parquet.jl`).
 
 ### Language & Bug Fixes
 
@@ -25,9 +25,9 @@
 - **colcraft regex is UTF-8 aware**: the `matches` and `contains` selection helpers, `separate`, and `separate_rows` now use PCRE2 in UTF-8 mode instead of byte-oriented `Str` regex. `matches` supports `\p{...}` Unicode property classes (e.g. `select(df, matches("^\\p{L}+$"))`), and multibyte values flow through `separate` / `separate_rows` without being torn. `contains` now uses a literal substring test. Existing `Str.split` semantics (trailing empty tokens dropped, empty subject yields no rows) are preserved.
 - **`str_extract_all` / `str_count` handle trailing zero-width matches**: patterns that can match the empty string at end-of-input (`a*`, `a?`, lookaheads, `$`-anchored assertions) no longer hang with unbounded memory growth. The trailing empty match is reported once and the scan terminates, matching R's `stringr` behavior.
 
-### Popcraft — Property-Based Testing
+### Propcraft — Property-Based Testing
 
-- **New `popcraft` package**: Property-based testing primitives for hardening T's standard library and user packages. Instead of hand-writing fixed cases, state an invariant and `prop_for_all` checks it over many generated inputs, reporting a deterministic shrunk counterexample on failure.
+- **New `propcraft` package**: Property-based testing primitives for hardening T's standard library and user packages. Instead of hand-writing fixed cases, state an invariant and `prop_for_all` checks it over many generated inputs, reporting a deterministic shrunk counterexample on failure.
 - **`prop_for_all(gen, property, n = 100, max_counterexamples = 1, shrink = true)`**: Draws `n` values from a generator spec and evaluates the property on each. The property may return a `Bool`, an `Expect` value, or an `Error`. Returns an `Expect` value, so `assert(prop_for_all(...))` works directly inside `t test` files. `max_counterexamples = k` collects up to `k` distinct failing inputs (each shrunk) and reports them as numbered blocks.
 - **Generator specs** are inspectable structured Dicts (not closures): `prop_gen_int`, `prop_gen_int_range`, `prop_gen_float_range`, `prop_gen_bool`, `prop_gen_string_from`, `prop_gen_choice`, `prop_gen_frequency`, `prop_gen_vector`, `prop_gen_list`, `prop_gen_factor`, `prop_gen_one_of`, `prop_gen_date_range`, and `prop_gen_df`.
 - **`prop_gen_df_from(df, nrows = 30, na_prob = 0.1)`**: Derives a DataFrame generator from a real sample — Int/Float bounds from observed min/max, Strings from observed distinct values, Factors keep their levels, Dates/Datetimes keep their observed range and timezone. Empty frames, NA-only columns, and unsupported column types raise explicit errors.

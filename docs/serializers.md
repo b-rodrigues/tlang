@@ -49,14 +49,35 @@ If you don't specify a serializer, T uses the `default` serializer, which select
 | Identifier | Name | Best For | Write support | Read support | Notes |
 |---|---|---|---|---|---|
 | `^tlang` | T-Native | T-to-T interchange | T | T | Internal binary format |
-| `^ipc` | Apache Arrow IPC | Large DataFrames | T, R, Python, Julia | T, R, Python, Julia | Fully symmetric across all runtimes |
-| `^parquet` | Apache Parquet | Large DataFrames, columnar storage | T, R, Python, Julia | T, R, Python, Julia | Fully symmetric across all runtimes |
+| `^ipc` | Apache Arrow IPC | Pipeline intermediates, cross-runtime exchange, fastest round trips | T, R, Python, Julia | T, R, Python, Julia | Fully symmetric across all runtimes; uncompressed |
+| `^parquet` | Apache Parquet | Long-term storage, archival, large datasets, external analytics tooling | T, R, Python, Julia | T, R, Python, Julia | Fully symmetric across all runtimes; compressed |
 | `^csv` | CSV | Tabular data | T, R, Python, Julia | T, R, Python, Julia | Fully symmetric; R uses base `write.csv`/`read.csv` |
 | `^json` | JSON | Config, lists, dicts | T, R, Python, Julia | T, R, Python, Julia | Fully symmetric; Python uses stdlib |
 | `^pmml` | PMML | Predictive Models | T, R, Python, Julia | T, R, Python, Julia | Julia writer: GLM.jl → PMML 4.4; Julia reader: JPMML evaluator via `JavaCall` |
 | `^onnx` | ONNX | ML Models | T, R, Python | T, R, Python, Julia | Julia: inference only (`ONNXRunTime.jl`); export is experimental/limited |
 | `^text` | Plain Text | Logs, shell output | All | All | Raw text, no format constraints |
 | `^bin` | Binary | Passthrough, fetchurl | T | T | Opaque binary blob; default for `fetchurl()` nodes |
+
+### Choosing Between `^ipc` and `^parquet`
+
+Both `^ipc` and `^parquet` are columnar, type-preserving Arrow formats that
+work symmetrically across every runtime. The distinction is **live hand-off vs.
+durable artifact**:
+
+- **`^ipc`** is the Arrow in-memory format written straight to disk — the
+  fastest possible write/read, but **uncompressed** and with a limited
+  ecosystem outside Arrow.
+- **`^parquet`** is a compressed, storage-optimized layout — **smaller files**
+  (typically 4–10× for numeric data), column pruning on read, and first-class
+  support in Spark, DuckDB, pandas, dask, BigQuery, and Athena.
+
+**Rule of thumb:** use `^ipc` to pass data between nodes *while a pipeline
+runs*; use `^parquet` for anything you *persist, ship, or store*. In one
+pipeline you can do both — move intermediates with `^ipc` and materialize the
+final result to Parquet.
+
+See [Parquet vs Arrow IPC: How to Choose](data-formats.md#parquet-vs-arrow-ipc-how-to-choose)
+in the Data I/O guide for the full decision walkthrough.
 
 ## 3. The `serializer` Structure
 
@@ -122,7 +143,7 @@ The table below shows which packages each format pulls in per runtime:
 |--------|-----------|----------------|---------------|
 | `^csv` | *(base R)* | `pandas` | `CSV`, `DataFrames` |
 | `^ipc` | `arrow` | `pandas`, `pyarrow` | `Arrow`, `DataFrames` |
-| `^parquet` | `arrow` | `pandas`, `pyarrow` | `Arrow`, `DataFrames` |
+| `^parquet` | `arrow` | `pandas`, `pyarrow` | `Parquet`, `DataFrames` |
 | `^json` | `jsonlite` | *(stdlib)* | `JSON` |
 | `^pmml` | `XML`, `jsonlite`, `r2pmml` | `numpy`, `pandas`, `pyarrow`, `scikit-learn`, `scipy`, `sklearn2pmml`, `statsmodels` | `GLM`, `JavaCall` |
 | `^onnx` | `onnx` | `onnxruntime`, `skl2onnx` | `ONNXRunTime`, `ONNX` |
@@ -181,5 +202,5 @@ For ONNX specifically, Julia nodes read model artifacts through `ONNXRunTime.jl`
 ## Next Steps
 
 1. **[Pipeline Tutorial](pipeline_tutorial.md)** — Learn how pipelines use serializers for polyglot data interchange.
-2. **[Data I/O & Formats](data-formats.md)** — Read and write CSV, Parquet, and Arrow IPC files; download data from URLs.
+2. **[Data I/O & Formats](data-formats.md)** — Read and write CSV, Parquet, and Arrow IPC files; download data from URLs; see how to choose between Parquet and IPC.
 3. **[Project Development](project_development.md)** — Declare runtime dependencies so serializer packages are available at build time.

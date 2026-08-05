@@ -3289,12 +3289,20 @@ Read a CSV file into a DataFrame.
 ### `read_parquet(path)` / `write_parquet(to_dataframe, path)`
 
 Read or write Parquet files using the native parquet-glib reader/writer.
+Prefer Parquet for compressed, long-term storage of large datasets or when
+sharing data with external analytics tooling. For the fastest possible round
+trip (no compression), use `read_ipc` / `write_ipc` instead. See
+[Parquet vs Arrow IPC: How to Choose](data-formats.md#parquet-vs-arrow-ipc-how-to-choose).
 
 ---
 
 ### `read_ipc(path)` / `write_ipc(to_dataframe, path)`
 
-Read or write Arrow IPC files.
+Read or write Arrow IPC files (Feather v2). IPC is the fastest format to read
+and write (no compression), ideal for pipeline intermediates and cross-runtime
+exchange. For compressed, long-term storage of large datasets, use
+`read_parquet` / `write_parquet` instead. See
+[Parquet vs Arrow IPC: How to Choose](data-formats.md#parquet-vs-arrow-ipc-how-to-choose).
 
 ---
 
@@ -9472,7 +9480,7 @@ Now that you can work with numerical arrays, explore statistical modeling and re
 
 ### Breaking Changes
 
-- **Arrow IPC serializer renamed `^arrow` → `^ipc`**: The Arrow IPC (Feather v2) format is now the `^ipc` serializer. `read_arrow()` / `write_arrow()` are renamed to `read_ipc()` / `write_ipc()`, and the strategy symbol `^arrow` is now `^ipc`. No alias is kept. Existing pipelines must update their node serializers/deserializers (`serializer = ^ipc`, `deserializer = ^ipc`) and call sites. The R runtime package stays `arrow`, and `^parquet` is a separate, supported strategy (R `arrow::write_parquet`, Python `pyarrow.parquet`, Julia `Arrow`).
+- **Arrow IPC serializer renamed `^arrow` → `^ipc`**: The Arrow IPC (Feather v2) format is now the `^ipc` serializer. `read_arrow()` / `write_arrow()` are renamed to `read_ipc()` / `write_ipc()`, and the strategy symbol `^arrow` is now `^ipc`. No alias is kept. Existing pipelines must update their node serializers/deserializers (`serializer = ^ipc`, `deserializer = ^ipc`) and call sites. The R runtime package stays `arrow`, and `^parquet` is a separate, supported strategy (R `arrow::write_parquet`, Python `pyarrow.parquet`, Julia `Parquet.jl`).
 
 ### Language & Bug Fixes
 
@@ -9493,9 +9501,9 @@ Now that you can work with numerical arrays, explore statistical modeling and re
 - **colcraft regex is UTF-8 aware**: the `matches` and `contains` selection helpers, `separate`, and `separate_rows` now use PCRE2 in UTF-8 mode instead of byte-oriented `Str` regex. `matches` supports `\p{...}` Unicode property classes (e.g. `select(df, matches("^\\p{L}+$"))`), and multibyte values flow through `separate` / `separate_rows` without being torn. `contains` now uses a literal substring test. Existing `Str.split` semantics (trailing empty tokens dropped, empty subject yields no rows) are preserved.
 - **`str_extract_all` / `str_count` handle trailing zero-width matches**: patterns that can match the empty string at end-of-input (`a*`, `a?`, lookaheads, `$`-anchored assertions) no longer hang with unbounded memory growth. The trailing empty match is reported once and the scan terminates, matching R's `stringr` behavior.
 
-### Popcraft — Property-Based Testing
+### Propcraft — Property-Based Testing
 
-- **New `popcraft` package**: Property-based testing primitives for hardening T's standard library and user packages. Instead of hand-writing fixed cases, state an invariant and `prop_for_all` checks it over many generated inputs, reporting a deterministic shrunk counterexample on failure.
+- **New `propcraft` package**: Property-based testing primitives for hardening T's standard library and user packages. Instead of hand-writing fixed cases, state an invariant and `prop_for_all` checks it over many generated inputs, reporting a deterministic shrunk counterexample on failure.
 - **`prop_for_all(gen, property, n = 100, max_counterexamples = 1, shrink = true)`**: Draws `n` values from a generator spec and evaluates the property on each. The property may return a `Bool`, an `Expect` value, or an `Error`. Returns an `Expect` value, so `assert(prop_for_all(...))` works directly inside `t test` files. `max_counterexamples = k` collects up to `k` distinct failing inputs (each shrunk) and reports them as numbered blocks.
 - **Generator specs** are inspectable structured Dicts (not closures): `prop_gen_int`, `prop_gen_int_range`, `prop_gen_float_range`, `prop_gen_bool`, `prop_gen_string_from`, `prop_gen_choice`, `prop_gen_frequency`, `prop_gen_vector`, `prop_gen_list`, `prop_gen_factor`, `prop_gen_one_of`, `prop_gen_date_range`, and `prop_gen_df`.
 - **`prop_gen_df_from(df, nrows = 30, na_prob = 0.1)`**: Derives a DataFrame generator from a real sample — Int/Float bounds from observed min/max, Strings from observed distinct values, Factors keep their levels, Dates/Datetimes keep their observed range and timezone. Empty frames, NA-only columns, and unsupported column types raise explicit errors.
@@ -11367,9 +11375,12 @@ natively.
 | Format | Functions | Best For | Notes |
 |--------|-----------|----------|-------|
 | **CSV** | `read_csv()` / `write_csv()` | Small-to-medium data, interchange with other tools | Human-readable; type inference; fast native path when using defaults |
-| **Parquet** | `read_parquet()` / `write_parquet()` | Large datasets, analytics workloads | Columnar, compressed, type-preserving; recommended above ~2–3 GB |
-| **Arrow IPC** | `read_ipc()` / `write_ipc()` | Large dataframes, cross-runtime interchange | Zero-copy; also known as Feather v2 |
+| **Parquet** | `read_parquet()` / `write_parquet()` | Long-term storage, archival, large datasets, sharing with external analytics tools | Compressed, columnar, type-preserving; smaller on disk |
+| **Arrow IPC** | `read_ipc()` / `write_ipc()` | Pipeline intermediates, cross-runtime exchange, fastest round trips | Zero-copy; no compression; also known as Feather v2 |
 | **JSON** | `t_read_json()` / `t_write_json()` | Config, nested lists and dicts | See the [Serializers](serializers.md) guide for pipeline usage |
+
+For a full decision walkthrough between Parquet and Arrow IPC, jump to
+[Parquet vs Arrow IPC: How to Choose](#parquet-vs-arrow-ipc-how-to-choose).
 
 All three tabular readers (`read_csv`, `read_parquet`, `read_ipc`) accept a
 local path **or a URL**. For reproducible downloads inside pipelines, use
@@ -11531,6 +11542,90 @@ guide and the [Pipeline Tutorial](pipeline_tutorial.md) for details.
 
 ---
 
+## Parquet vs Arrow IPC: How to Choose
+
+Parquet and Arrow IPC are both columnar, type-preserving, Arrow-native binary
+formats. Every T runtime (T, R, Python, Julia) can read and write both, and
+neither requires schema inference on load. The choice between them comes down
+to **one question**: *is this data a live hand-off, or a durable artifact?*
+
+- **Arrow IPC is the Arrow in-memory format flushed to disk.** Writing is
+  effectively a memory dump, so it is the fastest format to write and read by
+  a wide margin. In exchange, files are **uncompressed** by default and often
+  several times larger than Parquet.
+- **Parquet is a storage-optimized layout.** It applies block compression
+  (snappy by default) and organizes data into row groups with column-level
+  metadata, so files are smaller and readers can skip columns they do not need.
+  Compression costs time at write time, but pays off at rest and for scans.
+
+### Side-by-side comparison
+
+| | Arrow IPC (`^ipc`) | Parquet (`^parquet`) |
+|---|---|---|
+| **File extension** | `.arrow` (also `.feather`) | `.parquet` |
+| **Compression** | None by default | Snappy by default |
+| **Relative file size** | Larger (uncompressed) | Typically 4–10× smaller for numeric data |
+| **Write speed** | Fastest (memory dump) | Slower (compression + encoding) |
+| **Read speed** | Fastest | Very fast; can skip whole columns |
+| **Schema / type fidelity** | Exact | Exact |
+| **Zero-copy / memory-map friendly** | Yes | No (must decode row groups) |
+| **Cross-runtime support (T/R/Python/Julia)** | Symmetric | Symmetric |
+| **Column pruning on read** | No | Yes (column metadata + row groups) |
+| **External tool ecosystem** | Limited (Feather readers) | Broad (Spark, DuckDB, dask, pandas, Athena/BigQuery, …) |
+| **Typical lifetime** | Minutes to hours | Days to years |
+
+### Choose Arrow IPC when
+
+- **The data is moving between nodes.** Within a pipeline, use `^ipc` to pass
+  DataFrames between T, R, Python, and Julia nodes — it is T's default choice
+  for exactly this reason.
+- **You want the fastest possible round trip.** If a node reads, transforms,
+  and writes data as an intermediate step, IPC avoids paying compression cost
+  twice.
+- **The artifact is short-lived or disposable** — a staging table, a scratch
+  output, a cache.
+- **You are memory-mapping large data** and want to avoid decoding overhead.
+
+### Choose Parquet when
+
+- **You are persisting a result.** Write final outputs, snapshots, and
+  "published" datasets to Parquet so they stay small and readable for years.
+- **Disk space or transfer cost matters.** Parquet's compression shrinks
+  files dramatically, which also speeds up copying and uploads.
+- **You are sharing data with the wider analytics ecosystem.** Spark, DuckDB,
+  dask, pandas, BigQuery, and Athena all read Parquet natively; IPC is mostly
+  confined to the Arrow ecosystem.
+- **Downstream readers benefit from column pruning.** Analytics workloads
+  that read a few columns from a wide table are much faster with Parquet.
+- **You plan to append or scan subsets repeatedly.**
+
+### Decision flow
+
+```
+Is the data only needed while the pipeline runs?
+├─ Yes  → use ^ipc (fastest, no compression)
+└─ No (you keep or share it) →
+     Is it a durable artifact / shared with external tools?
+     ├─ Yes → use ^parquet (compressed, columnar, interoperable)
+     └─ No  → use ^ipc (speed) or ^parquet (smaller files) as you prefer
+```
+
+### Rule of thumb
+
+Use **`^ipc`/`read_ipc`/`write_ipc` for anything that moves through a
+pipeline**, and **`^parquet`/`read_parquet`/`write_parquet` for anything you
+keep, ship, or store**. If you are unsure and the file is small, either works —
+the formats are interchangeable at the API level (`read_parquet`/`write_parquet`
+and `read_ipc`/`write_ipc` are drop-in replacements for each other).
+
+> [!TIP]
+> In a pipeline you can use both freely: pass data between nodes with `^ipc`
+> for speed, and add a final node that materializes the result to Parquet with
+> `write_parquet()` for storage. This gives you fast intermediates and small,
+> shareable outputs.
+
+---
+
 ## Formats T Does Not Read Natively
 
 T does **not** ship parsers for proprietary office or statistical formats such
@@ -11576,9 +11671,11 @@ full ecosystem of R and Python readers, writers, and converters.
 
 For datasets exceeding 2–3 GB:
 
-1. **Prefer Parquet**: convert CSVs to Parquet before reading them into T
-   (e.g. with R's `arrow::write_parquet()` or Python's
-   `pandas.DataFrame.to_parquet()`).
+1. **Prefer Parquet for storage**: convert CSVs to Parquet before reading them
+   into T (e.g. with R's `arrow::write_parquet()` or Python's
+   `pandas.DataFrame.to_parquet()`). See
+   [Parquet vs Arrow IPC: How to Choose](#parquet-vs-arrow-ipc-how-to-choose)
+   for when to reach for IPC instead.
 2. **Use standard CSVs**: if you must use CSV, stick to the default comma
    separator and no leading comment lines to stay on the native fast path.
 3. **Mind memory limits**: the pure OCaml fallback path is bounded by OCaml's
@@ -22584,9 +22681,9 @@ let run_tests _pass_count _fail_count _failures _eval_string eval_string_env _te
 
 # FILE: docs/property-testing.md
 
-# Property-Based Testing with Popcraft
+# Property-Based Testing with Propcraft
 
-Comprehensive guide to hardening T code with property-based testing using the **popcraft** package.
+Comprehensive guide to hardening T code with property-based testing using the **propcraft** package.
 
 > **New:** See also the [Property Testing Cookbook](./property-testing-cookbook.md) for reusable patterns and a step-by-step guide to writing your first property test.
 
@@ -22612,14 +22709,14 @@ Comprehensive guide to hardening T code with property-based testing using the **
 
 Unit tests check a handful of fixed inputs. Property-based testing instead states an **invariant** that must hold for *every* input, then checks it over many randomly generated inputs. When the property fails, the framework reports a minimal (shrunk) counterexample.
 
-The canonical example: R's `prop.test` / Hypothesis / QuickCheck. T's popcraft package brings the same idea to the T language, focused on hardening T's own standard library and user packages.
+The canonical example: R's `prop.test` / Hypothesis / QuickCheck. T's propcraft package brings the same idea to the T language, focused on hardening T's own standard library and user packages.
 
 ## Audience
 
-Popcraft is a **language and package-hardening tool** for contributors to T's standard library and for authors of reusable T packages. It is *not* aimed at one-off pipeline authors:
+Propcraft is a **language and package-hardening tool** for contributors to T's standard library and for authors of reusable T packages. It is *not* aimed at one-off pipeline authors:
 
 - If you write a data pipeline once, use `assert`, `t check`, and `t diff` — they validate structure and outputs against your declared schema, instantly and without generators.
-- If you maintain a package or a library function that many pipelines depend on, add property-based tests with popcraft.
+- If you maintain a package or a library function that many pipelines depend on, add property-based tests with propcraft.
 
 ## Quick Start
 
@@ -22720,7 +22817,7 @@ assert(prop_for_all(
 
 ### `prop_gen_fn` — custom generators
 
-For domain-specific generation, wrap any callable: popcraft calls `fn(size)` (with the current generation size, `30` by default and propagated through `prop_resize`):
+For domain-specific generation, wrap any callable: propcraft calls `fn(size)` (with the current generation size, `30` by default and propagated through `prop_resize`):
 
 ```t
 cube_gen = prop_gen_fn(\(n) n * n * n)
@@ -22865,7 +22962,7 @@ The `NA` rule is deliberate (see the *Death to Null* policy): generated frames m
 
 ## Shrinking
 
-When a property fails, popcraft attempts to find a **smaller input that still fails**, then reports both the original counterexample and the shrunk one:
+When a property fails, propcraft attempts to find a **smaller input that still fails**, then reports both the original counterexample and the shrunk one:
 
 - Ints shrink toward `0` by halving.
 - Floats shrink toward `0`.
@@ -22935,7 +23032,7 @@ test("nrow is stable under mutate", function() {
 4. **Keep properties small and invariant-shaped.** "row count unchanged", "output length equals input length", "no NA in output" are the most valuable.
 5. **Combine `prop_for_all` with `expect_*`** for readable diagnostics: `assert(prop_for_all(g, \(x) expect_equal(f(x), f(x))))`-style compositions.
 6. **Do not hand-wave error cases.** A property returning an `Error` fails loudly — if you *expect* an error for some inputs, handle it explicitly inside the property.
-7. **For one-off pipelines, don't reach for popcraft.** Use `assert`, `t check`, and `t diff`.
+7. **For one-off pipelines, don't reach for propcraft.** Use `assert`, `t check`, and `t diff`.
 
 ## Roadmap
 
@@ -33262,7 +33359,7 @@ read_file("config.json")
 
 Read an Arrow IPC (Feather) file
 
-Loads a DataFrame from an Arrow IPC file (also known as Feather v2) on disk.
+Loads a DataFrame from an Arrow IPC file (also known as Feather v2) on disk.  IPC is the fastest format to read and write (no compression), ideal for pipeline intermediates and cross-runtime exchange. For compressed, long-term storage of large datasets, use read_parquet instead.
 
 ## Parameters
 
@@ -33333,7 +33430,7 @@ The deserialized artifact value, or the in-memory value.
 
 Read Parquet file
 
-Reads a DataFrame from a Parquet file using the native parquet-glib reader.
+Reads a DataFrame from a Parquet file using the native parquet-glib reader.  Prefer Parquet for compressed, long-term storage of large datasets or when sharing data with external analytics tooling. For the fastest possible round trip (no compression), use read_ipc instead.
 
 ## Parameters
 
@@ -36901,7 +36998,7 @@ write_csv(df, "output.csv")
 
 Write Arrow IPC file
 
-Writes a DataFrame to an Apache Arrow IPC (Feather v2) file.
+Writes a DataFrame to an Apache Arrow IPC (Feather v2) file.  IPC is the fastest format to read and write (no compression), ideal for pipeline intermediates and cross-runtime exchange. For compressed, long-term storage of large datasets, use write_parquet instead.
 
 ## Parameters
 
@@ -36932,7 +37029,7 @@ write_ipc(df, "data.arrow")
 
 Write Parquet file
 
-Writes a DataFrame to a Parquet file using the native parquet-glib writer.
+Writes a DataFrame to a Parquet file using the native parquet-glib writer.  Prefer Parquet for compressed, long-term storage of large datasets or when sharing data with external analytics tooling. For the fastest possible round trip (no compression), use write_ipc instead.
 
 ## Parameters
 
@@ -37513,14 +37610,35 @@ If you don't specify a serializer, T uses the `default` serializer, which select
 | Identifier | Name | Best For | Write support | Read support | Notes |
 |---|---|---|---|---|---|
 | `^tlang` | T-Native | T-to-T interchange | T | T | Internal binary format |
-| `^ipc` | Apache Arrow IPC | Large DataFrames | T, R, Python, Julia | T, R, Python, Julia | Fully symmetric across all runtimes |
-| `^parquet` | Apache Parquet | Large DataFrames, columnar storage | T, R, Python, Julia | T, R, Python, Julia | Fully symmetric across all runtimes |
+| `^ipc` | Apache Arrow IPC | Pipeline intermediates, cross-runtime exchange, fastest round trips | T, R, Python, Julia | T, R, Python, Julia | Fully symmetric across all runtimes; uncompressed |
+| `^parquet` | Apache Parquet | Long-term storage, archival, large datasets, external analytics tooling | T, R, Python, Julia | T, R, Python, Julia | Fully symmetric across all runtimes; compressed |
 | `^csv` | CSV | Tabular data | T, R, Python, Julia | T, R, Python, Julia | Fully symmetric; R uses base `write.csv`/`read.csv` |
 | `^json` | JSON | Config, lists, dicts | T, R, Python, Julia | T, R, Python, Julia | Fully symmetric; Python uses stdlib |
 | `^pmml` | PMML | Predictive Models | T, R, Python, Julia | T, R, Python, Julia | Julia writer: GLM.jl → PMML 4.4; Julia reader: JPMML evaluator via `JavaCall` |
 | `^onnx` | ONNX | ML Models | T, R, Python | T, R, Python, Julia | Julia: inference only (`ONNXRunTime.jl`); export is experimental/limited |
 | `^text` | Plain Text | Logs, shell output | All | All | Raw text, no format constraints |
 | `^bin` | Binary | Passthrough, fetchurl | T | T | Opaque binary blob; default for `fetchurl()` nodes |
+
+### Choosing Between `^ipc` and `^parquet`
+
+Both `^ipc` and `^parquet` are columnar, type-preserving Arrow formats that
+work symmetrically across every runtime. The distinction is **live hand-off vs.
+durable artifact**:
+
+- **`^ipc`** is the Arrow in-memory format written straight to disk — the
+  fastest possible write/read, but **uncompressed** and with a limited
+  ecosystem outside Arrow.
+- **`^parquet`** is a compressed, storage-optimized layout — **smaller files**
+  (typically 4–10× for numeric data), column pruning on read, and first-class
+  support in Spark, DuckDB, pandas, dask, BigQuery, and Athena.
+
+**Rule of thumb:** use `^ipc` to pass data between nodes *while a pipeline
+runs*; use `^parquet` for anything you *persist, ship, or store*. In one
+pipeline you can do both — move intermediates with `^ipc` and materialize the
+final result to Parquet.
+
+See [Parquet vs Arrow IPC: How to Choose](data-formats.md#parquet-vs-arrow-ipc-how-to-choose)
+in the Data I/O guide for the full decision walkthrough.
 
 ## 3. The `serializer` Structure
 
@@ -37586,7 +37704,7 @@ The table below shows which packages each format pulls in per runtime:
 |--------|-----------|----------------|---------------|
 | `^csv` | *(base R)* | `pandas` | `CSV`, `DataFrames` |
 | `^ipc` | `arrow` | `pandas`, `pyarrow` | `Arrow`, `DataFrames` |
-| `^parquet` | `arrow` | `pandas`, `pyarrow` | `Arrow`, `DataFrames` |
+| `^parquet` | `arrow` | `pandas`, `pyarrow` | `Parquet`, `DataFrames` |
 | `^json` | `jsonlite` | *(stdlib)* | `JSON` |
 | `^pmml` | `XML`, `jsonlite`, `r2pmml` | `numpy`, `pandas`, `pyarrow`, `scikit-learn`, `scipy`, `sklearn2pmml`, `statsmodels` | `GLM`, `JavaCall` |
 | `^onnx` | `onnx` | `onnxruntime`, `skl2onnx` | `ONNXRunTime`, `ONNX` |
@@ -37645,7 +37763,7 @@ For ONNX specifically, Julia nodes read model artifacts through `ONNXRunTime.jl`
 ## Next Steps
 
 1. **[Pipeline Tutorial](pipeline_tutorial.md)** — Learn how pipelines use serializers for polyglot data interchange.
-2. **[Data I/O & Formats](data-formats.md)** — Read and write CSV, Parquet, and Arrow IPC files; download data from URLs.
+2. **[Data I/O & Formats](data-formats.md)** — Read and write CSV, Parquet, and Arrow IPC files; download data from URLs; see how to choose between Parquet and IPC.
 3. **[Project Development](project_development.md)** — Declare runtime dependencies so serializer packages are available at build time.
 
 

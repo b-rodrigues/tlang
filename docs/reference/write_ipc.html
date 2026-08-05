@@ -35,7 +35,10 @@
 <div class="container">
 <h1 id="write_ipc">write_ipc</h1>
 <p>Write Arrow IPC file</p>
-<p>Writes a DataFrame to an Apache Arrow IPC (Feather v2) file.</p>
+<p>Writes a DataFrame to an Apache Arrow IPC (Feather v2) file. IPC is
+the fastest format to read and write (no compression), ideal for
+pipeline intermediates and cross-runtime exchange. For compressed,
+long-term storage of large datasets, use write_parquet instead.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
 <li><p><strong>df</strong> (<code>DataFrame</code>): The DataFrame to

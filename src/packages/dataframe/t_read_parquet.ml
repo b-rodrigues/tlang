@@ -5,6 +5,10 @@ open Ast
 --#
 --# Reads a DataFrame from a Parquet file using the native parquet-glib reader.
 --#
+--# Prefer Parquet for compressed, long-term storage of large datasets or when
+--# sharing data with external analytics tooling. For the fastest possible
+--# round trip (no compression), use read_ipc instead.
+--#
 --# @name read_parquet
 --# @param path :: String Path or URL to the Parquet file.
 --# @return :: DataFrame The loaded data.

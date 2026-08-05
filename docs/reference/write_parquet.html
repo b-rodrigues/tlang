@@ -36,7 +36,9 @@
 <h1 id="write_parquet">write_parquet</h1>
 <p>Write Parquet file</p>
 <p>Writes a DataFrame to a Parquet file using the native parquet-glib
-writer.</p>
+writer. Prefer Parquet for compressed, long-term storage of large
+datasets or when sharing data with external analytics tooling. For the
+fastest possible round trip (no compression), use write_ipc instead.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
 <li><p><strong>df</strong> (<code>DataFrame</code>): The DataFrame to

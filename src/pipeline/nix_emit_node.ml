@@ -598,12 +598,12 @@ r_read_parquet <- function(path) {
 |} in
 
   let t_parquet_jl_code = {|
-using Arrow, DataFrames
+using Parquet, DataFrames
 function jl_write_parquet(df, path)
-    Arrow.write(path, df)
+    Parquet.write_parquet(path, df)
 end
 function jl_read_parquet(path)
-    Arrow.Table(path) |> DataFrame
+    DataFrame(Parquet.read_parquet(path))
 end
 |} in
 

@@ -124,18 +124,20 @@ defaults to <code>^text</code>.</p>
 <tr>
 <td><code>^ipc</code></td>
 <td>Apache Arrow IPC</td>
-<td>Large DataFrames</td>
+<td>Pipeline intermediates, cross-runtime exchange, fastest round
+trips</td>
 <td>T, R, Python, Julia</td>
 <td>T, R, Python, Julia</td>
-<td>Fully symmetric across all runtimes</td>
+<td>Fully symmetric across all runtimes; uncompressed</td>
 </tr>
 <tr>
 <td><code>^parquet</code></td>
 <td>Apache Parquet</td>
-<td>Large DataFrames, columnar storage</td>
+<td>Long-term storage, archival, large datasets, external analytics
+tooling</td>
 <td>T, R, Python, Julia</td>
 <td>T, R, Python, Julia</td>
-<td>Fully symmetric across all runtimes</td>
+<td>Fully symmetric across all runtimes; compressed</td>
 </tr>
 <tr>
 <td><code>^csv</code></td>
@@ -190,6 +192,31 @@ experimental/limited</td>
 </tr>
 </tbody>
 </table>
+<h3 id="choosing-between-ipc-and-parquet">Choosing Between
+<code>^ipc</code> and <code>^parquet</code></h3>
+<p>Both <code>^ipc</code> and <code>^parquet</code> are columnar,
+type-preserving Arrow formats that work symmetrically across every
+runtime. The distinction is <strong>live hand-off vs. durable
+artifact</strong>:</p>
+<ul>
+<li><strong><code>^ipc</code></strong> is the Arrow in-memory format
+written straight to disk — the fastest possible write/read, but
+<strong>uncompressed</strong> and with a limited ecosystem outside
+Arrow.</li>
+<li><strong><code>^parquet</code></strong> is a compressed,
+storage-optimized layout — <strong>smaller files</strong> (typically
+4–10× for numeric data), column pruning on read, and first-class support
+in Spark, DuckDB, pandas, dask, BigQuery, and Athena.</li>
+</ul>
+<p><strong>Rule of thumb:</strong> use <code>^ipc</code> to pass data
+between nodes <em>while a pipeline runs</em>; use <code>^parquet</code>
+for anything you <em>persist, ship, or store</em>. In one pipeline you
+can do both — move intermediates with <code>^ipc</code> and materialize
+the final result to Parquet.</p>
+<p>See <a
+href="data-formats.md#parquet-vs-arrow-ipc-how-to-choose">Parquet vs
+Arrow IPC: How to Choose</a> in the Data I/O guide for the full decision
+walkthrough.</p>
 <h2 id="the-serializer-structure">3. The <code>serializer</code>
 Structure</h2>
 <p>A serializer is a first-class object in T. You can inspect its
@@ -286,7 +313,7 @@ runtime:</p>
 <td><code>^parquet</code></td>
 <td><code>arrow</code></td>
 <td><code>pandas</code>, <code>pyarrow</code></td>
-<td><code>Arrow</code>, <code>DataFrames</code></td>
+<td><code>Parquet</code>, <code>DataFrames</code></td>
 </tr>
 <tr>
 <td><code>^json</code></td>
@@ -395,7 +422,7 @@ Tutorial</a></strong> — Learn how pipelines use serializers for polyglot
 data interchange.</li>
 <li><strong><a href="data-formats.html">Data I/O &amp;
 Formats</a></strong> — Read and write CSV, Parquet, and Arrow IPC files;
-download data from URLs.</li>
+download data from URLs; see how to choose between Parquet and IPC.</li>
 <li><strong><a href="project_development.html">Project
 Development</a></strong> — Declare runtime dependencies so serializer
 packages are available at build time.</li>

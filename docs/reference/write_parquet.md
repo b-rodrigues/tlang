@@ -2,7 +2,7 @@
 
 Write Parquet file
 
-Writes a DataFrame to a Parquet file using the native parquet-glib writer.
+Writes a DataFrame to a Parquet file using the native parquet-glib writer.  Prefer Parquet for compressed, long-term storage of large datasets or when sharing data with external analytics tooling. For the fastest possible round trip (no compression), use write_ipc instead.
 
 ## Parameters
 

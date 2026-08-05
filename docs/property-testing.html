@@ -33,10 +33,10 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
-<h1 id="property-based-testing-with-popcraft">Property-Based Testing
-with Popcraft</h1>
+<h1 id="property-based-testing-with-propcraft">Property-Based Testing
+with Propcraft</h1>
 <p>Comprehensive guide to hardening T code with property-based testing
-using the <strong>popcraft</strong> package.</p>
+using the <strong>propcraft</strong> package.</p>
 <blockquote>
 <p><strong>New:</strong> See also the <a
 href="./property-testing-cookbook.html">Property Testing Cookbook</a> for
@@ -71,10 +71,11 @@ instead states an <strong>invariant</strong> that must hold for
 inputs. When the property fails, the framework reports a minimal
 (shrunk) counterexample.</p>
 <p>The canonical example: R’s <code>prop.test</code> / Hypothesis /
-QuickCheck. T’s popcraft package brings the same idea to the T language,
-focused on hardening T’s own standard library and user packages.</p>
+QuickCheck. T’s propcraft package brings the same idea to the T
+language, focused on hardening T’s own standard library and user
+packages.</p>
 <h2 id="audience">Audience</h2>
-<p>Popcraft is a <strong>language and package-hardening tool</strong>
+<p>Propcraft is a <strong>language and package-hardening tool</strong>
 for contributors to T’s standard library and for authors of reusable T
 packages. It is <em>not</em> aimed at one-off pipeline authors:</p>
 <ul>
@@ -83,7 +84,7 @@ packages. It is <em>not</em> aimed at one-off pipeline authors:</p>
 and outputs against your declared schema, instantly and without
 generators.</li>
 <li>If you maintain a package or a library function that many pipelines
-depend on, add property-based tests with popcraft.</li>
+depend on, add property-based tests with propcraft.</li>
 </ul>
 <h2 id="quick-start">Quick Start</h2>
 <pre class="t"><code># Every generated int in [0, 100) is &gt;= 0
@@ -267,7 +268,7 @@ real-world schemas — combine with the row-count invariant:</p>
   \(df) nrow(mutate(df, $z = $mpg * 2)) == nrow(df)))</code></pre>
 <h3 id="prop_gen_fn-custom-generators"><code>prop_gen_fn</code> — custom
 generators</h3>
-<p>For domain-specific generation, wrap any callable: popcraft calls
+<p>For domain-specific generation, wrap any callable: propcraft calls
 <code>fn(size)</code> (with the current generation size, <code>30</code>
 by default and propagated through <code>prop_resize</code>):</p>
 <pre class="t"><code>cube_gen = prop_gen_fn(\(n) n * n * n)</code></pre>
@@ -478,7 +479,7 @@ Null</em> policy): generated frames may contain <code>NA</code>, and a
 property that cannot handle it must say so rather than silently
 pass.</p>
 <h2 id="shrinking">Shrinking</h2>
-<p>When a property fails, popcraft attempts to find a <strong>smaller
+<p>When a property fails, propcraft attempts to find a <strong>smaller
 input that still fails</strong>, then reports both the original
 counterexample and the shrunk one:</p>
 <ul>
@@ -561,7 +562,7 @@ compositions.</li>
 <li><strong>Do not hand-wave error cases.</strong> A property returning
 an <code>Error</code> fails loudly — if you <em>expect</em> an error for
 some inputs, handle it explicitly inside the property.</li>
-<li><strong>For one-off pipelines, don’t reach for popcraft.</strong>
+<li><strong>For one-off pipelines, don’t reach for propcraft.</strong>
 Use <code>assert</code>, <code>t check</code>, and
 <code>t diff</code>.</li>
 </ol>

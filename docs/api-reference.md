@@ -1683,12 +1683,20 @@ Read a CSV file into a DataFrame.
 ### `read_parquet(path)` / `write_parquet(to_dataframe, path)`
 
 Read or write Parquet files using the native parquet-glib reader/writer.
+Prefer Parquet for compressed, long-term storage of large datasets or when
+sharing data with external analytics tooling. For the fastest possible round
+trip (no compression), use `read_ipc` / `write_ipc` instead. See
+[Parquet vs Arrow IPC: How to Choose](data-formats.md#parquet-vs-arrow-ipc-how-to-choose).
 
 ---
 
 ### `read_ipc(path)` / `write_ipc(to_dataframe, path)`
 
-Read or write Arrow IPC files.
+Read or write Arrow IPC files (Feather v2). IPC is the fastest format to read
+and write (no compression), ideal for pipeline intermediates and cross-runtime
+exchange. For compressed, long-term storage of large datasets, use
+`read_parquet` / `write_parquet` instead. See
+[Parquet vs Arrow IPC: How to Choose](data-formats.md#parquet-vs-arrow-ipc-how-to-choose).
 
 ---
 

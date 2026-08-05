@@ -1,5 +1,5 @@
 let run_tests pass_count fail_count failures _eval_string eval_string_env _test test_env =
-  Printf.printf "Popcraft — property-based testing:\n";
+  Printf.printf "Propcraft — property-based testing:\n";
   let env = Packages.init_env () in
 
   (* prop_show_spec round-trip: the rendered T source must rebuild a
