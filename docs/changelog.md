@@ -51,6 +51,12 @@
 - **In-domain date shrinking**: `Date`/`Datetime` values now shrink within their domain — `ymd_range` toward the year-span floor, `date_range` toward the start bound (micros 0 + preserved timezone for datetimes), and bare date cells inside `prop_gen_df` toward the epoch (1970-01-01 / micros 0).
 - **Chrono dogfooding**: Property tests now cover the `chrono` package — date-bound invariants (`day`, `month`, `quarter`, `semester`, `yday`, `isoweek`, `wday`, leap-year consistency), round-trips (`format_date`/`parse_date`, `ymd`, period arithmetic), `%within%` intervals, datetime components, and NA-hardening of `mutate`/`arrange` over date columns.
 - **Dogfooding expanded further**: Property tests now also cover the `stats` package (mode membership over typed/mixed vectors, `sd`/`var` consistency, constant-vector degeneracy, mean/quantile/min-max bounds, `range`/`fivenum` endpoints, `cor`/`cov` symmetry and range, `iqr` non-negativity), multibyte UTF-8 invariants for `strcraft` (`split`/`pad`/`trunc`/`repeat` round-trips and case-mapping idempotence over accented generators), `colcraft`/`stats` DataFrame verbs (`arrange` idempotence, `mutate`-then-`select`, `drop_na` subsets on date/NaN columns, `distinct` bounds), plus integer-domain `math` and list-domain `core` invariants. These properties are tight enough to have surfaced the UTF-8 case-mapping, byte-based regex, and nested-NSE-call bugs fixed above.
+- **Wide integer ranges no longer crash**: `prop_gen_int_range` / `prop_gen_between` now work for spans of 2^30 and wider (e.g. the full 32-bit integer range) instead of raising an internal RNG error.
+- **Internal errors no longer crash a run**: an unexpected exception from a builtin now surfaces as a `RuntimeError` diagnostic instead of terminating the process.
+- **Shrinking no longer crashes on function values**: counterexamples containing closures (e.g. `[v, \(x) x]`) shrink cleanly instead of aborting the shrinker.
+- **`prop_gen_one_of` shrinks inside its declared values**: counterexamples stay within the generator's domain, shrinking toward earlier values with the first value treated as minimal.
+- **Mapping errors are surfaced**: an `Error` returned by a `prop_map_gen` / `prop_gen_fn` mapping now fails the run instead of being silently treated as a drawn value.
+- **Datetime shrinking no longer overflows**: wide or very negative `Datetime` counterexamples shrink correctly instead of overflowing a 32-bit intermediate.
 
 ## [0.54.3] - 2026-08-01
 
