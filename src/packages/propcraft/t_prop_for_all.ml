@@ -337,12 +337,14 @@ and draw_value ~eval_call ~env ~size (spec : value) : (value, value) result =
         | _ ->
             Error (Error.type_error
                      "prop_for_all: ymd_range spec requires `start_day` and `end_day` Int fields."))
-   | Some "fn" ->
-       (match field "fn" spec with
-        | Some fn ->
-            Ok (eval_call env fn [(None, Ast.mk_expr (Value (VInt size)))])
-        | None ->
-            Error (Error.type_error "prop_for_all: fn spec requires a `fn` field."))
+    | Some "fn" ->
+        (match field "fn" spec with
+         | Some fn ->
+             (match eval_call env fn [(None, Ast.mk_expr (Value (VInt size)))] with
+              | VError err -> Error (VError err)
+              | v -> Ok v)
+         | None ->
+             Error (Error.type_error "prop_for_all: fn spec requires a `fn` field."))
    | Some "df" ->
       (match field "columns" spec with
        | Some (VDict columns) when columns <> [] ->
@@ -390,14 +392,17 @@ and draw_value ~eval_call ~env ~size (spec : value) : (value, value) result =
        | _ ->
            Error (Error.type_error
                     "prop_for_all: dict spec requires a non-empty `columns` Dict."))
-  | Some "map" ->
-      (match field "source" spec, field "fn" spec with
-       | Some src, Some fn ->
-           (match draw_value ~eval_call ~env ~size src with
-            | Error err -> Error err
-            | Ok v -> Ok (eval_call env fn [(None, Ast.mk_expr (Value v))]))
-       | _ ->
-           Error (Error.type_error "prop_for_all: map spec requires `source` and `fn` fields."))
+    | Some "map" ->
+        (match field "source" spec, field "fn" spec with
+         | Some src, Some fn ->
+             (match draw_value ~eval_call ~env ~size src with
+              | Error err -> Error err
+             | Ok v ->
+                 (match eval_call env fn [(None, Ast.mk_expr (Value v))] with
+                  | VError err -> Error (VError err)
+                  | mapped -> Ok mapped))
+         | _ ->
+             Error (Error.type_error "prop_for_all: map spec requires `source` and `fn` fields."))
   | Some "such_that" ->
       (match field "source" spec, field "pred" spec with
        | Some src, Some pred ->
@@ -484,6 +489,18 @@ let shrink_int i =
     List.sort_uniq compare [ 0; half_toward_zero i ]
     |> List.filter (fun c -> c <> i)
 
+let half_toward_zero_i64 i =
+  if Int64.equal i 0L then 0L
+  else if Int64.compare i 0L > 0 then Int64.div i 2L
+  else Int64.neg (Int64.div (Int64.neg i) 2L)
+
+let shrink_int64 i =
+  if Int64.equal i 0L then []
+  else
+    [ 0L; half_toward_zero_i64 i ]
+    |> List.sort_uniq Int64.compare
+    |> List.filter (fun c -> not (Int64.equal c i))
+
 (* Shrink an Int toward a domain floor instead of toward zero. Halving
    from [i] toward [min] (inclusive) guarantees the shrink sequence stays
    inside [min, i] and eventually reaches [min]. *)
@@ -492,6 +509,14 @@ let shrink_toward_min min i =
   else
     let mid = min + ((i - min) / 2) in
     List.sort_uniq compare [ min; mid ] |> List.filter (fun c -> c <> i)
+
+let shrink_toward_min_i64 min i =
+  if Int64.compare i min <= 0 then []
+  else
+    let mid = Int64.add min (Int64.div (Int64.sub i min) 2L) in
+    [ min; mid ]
+    |> List.sort_uniq Int64.compare
+    |> List.filter (fun c -> not (Int64.equal c i))
 
 let shrink_float f =
   if f = 0.0 then []
@@ -530,8 +555,10 @@ let rec shrink_list ?(shrink_elem = shrink_value) items =
       |> List.concat
     in
     (prefixes @ elem_wise)
-    |> List.filter (fun l -> l <> items)
-    |> List.sort_uniq compare
+    |> List.filter (fun l -> render_value (VList l) <> render_value (VList items))
+    |> sort_uniq_safe
+         (fun l -> is_compare_safe (VList l))
+         (fun l -> render_value (VList l))
 
 and shrink_dict pairs =
   List.concat_map
@@ -540,8 +567,10 @@ and shrink_dict pairs =
       |> List.map (fun sv ->
              List.map (fun (k2, v2) -> if k2 = k then (k2, sv) else (k2, v2)) pairs))
     pairs
-  |> List.filter (fun d -> d <> pairs)
-  |> List.sort_uniq compare
+  |> List.filter (fun d -> render_value (VDict d) <> render_value (VDict pairs))
+  |> sort_uniq_safe
+       (fun d -> is_compare_safe (VDict d))
+       (fun d -> render_value (VDict d))
 
 and shrink_value v =
   match v with
@@ -559,8 +588,7 @@ and shrink_value v =
   | VDict pairs -> List.map (fun d -> VDict d) (shrink_dict pairs)
   | VDate days -> List.map (fun x -> VDate x) (shrink_int days)
   | VDatetime (micros, tz) ->
-      let m = Int64.to_int micros in
-      List.map (fun x -> VDatetime (Int64.of_int x, tz)) (shrink_int m)
+      List.map (fun x -> VDatetime (x, tz)) (shrink_int64 micros)
   | VDataFrame df -> shrink_dataframe ~cell_min:(fun _ -> None) df
   | _ -> []
 
@@ -645,7 +673,7 @@ and shrink_dataframe ~cell_min df =
   let current_s = render_dataframe arrow_table group_keys in
   (row_candidates @ cell_candidates)
   |> List.filter (fun c -> render_value c <> current_s)
-  |> List.sort_uniq compare
+  |> sort_uniq_safe is_compare_safe render_value
 
 let cap_candidates candidates =
   let rec take i acc = function
@@ -783,10 +811,9 @@ let rec spec_shrink_v spec =
            (fun v ->
              match v with
              | VDatetime (micros, tz) ->
-                 let m = Int64.to_int micros in
                  List.map
-                   (fun x -> VDatetime (Int64.of_int x, tz))
-                   (shrink_toward_min start_m m)
+                   (fun x -> VDatetime (x, tz))
+                   (shrink_toward_min_i64 (Int64.of_int start_m) micros)
              | _ -> shrink_value v)
        | _ ->
            let start_day = match int_field "start_day" spec with Some d -> d | None -> 0 in
@@ -817,8 +844,10 @@ let rec spec_shrink_v spec =
                 |> List.map (fun sv ->
                        List.map (fun (k2, v2) -> if k2 = k then (k2, sv) else (k2, v2)) pairs))
               pairs
-            |> List.filter (fun d -> d <> pairs)
-            |> List.sort_uniq compare
+            |> List.filter (fun d -> render_value (VDict d) <> render_value (VDict pairs))
+            |> sort_uniq_safe
+                 (fun d -> is_compare_safe (VDict d))
+                 (fun d -> render_value (VDict d))
             |> List.map (fun d -> VDict d)
         | _ -> shrink_value v)
   | Some "list" ->
@@ -855,7 +884,7 @@ let rec spec_shrink_v spec =
       (fun v ->
         branch_shrinks
         |> List.concat_map (fun sh -> sh v)
-        |> List.sort_uniq compare)
+        |> sort_uniq_safe is_compare_safe render_value)
   | Some "frequency" ->
       let branch_shrinks =
         match field "gens" spec, field "weights" spec with
@@ -866,7 +895,41 @@ let rec spec_shrink_v spec =
       (fun v ->
         branch_shrinks
         |> List.concat_map (fun sh -> sh v)
-        |> List.sort_uniq compare)
+        |> sort_uniq_safe is_compare_safe render_value)
+  | Some "one_of" ->
+      (* Shrink within the provided values: prefer earlier values in the
+         list, and treat the first value as minimal for scalars, so a shrunk
+         counterexample stays in the generator's domain. Composite values
+         (Dict/List/Vector/DataFrame) keep their components shrinkable in
+         place, since a shrunk component still yields a member of the set.
+         Only attempted when every value is structurally comparable
+         (structural equality raises on closures); otherwise fall back to
+         the best-effort default. *)
+      let values_of = function
+        | Some (VList items) -> Some (List.map snd items)
+        | Some (VVector arr) -> Some (Array.to_list arr)
+        | _ -> None
+      in
+      let component_shrink v =
+        match v with
+        | VDict _ | VList _ | VVector _ | VDataFrame _ -> shrink_value v
+        | _ -> []
+      in
+      (match values_of (field "values" spec) with
+       | Some values ->
+           (fun v ->
+             match find_index_plain values v with
+             | Some idx when idx > 0 ->
+                 (List.filteri (fun i _ -> i < idx) values) @ component_shrink v
+                 |> sort_uniq_safe is_compare_safe render_value
+             | Some _ -> component_shrink v
+             | None -> shrink_value v)
+       | None -> shrink_value)
+  | Some "map" ->
+      (* The image of a map generator cannot be inspected without evaluating
+         the mapping function, so shrunk values (toward 0) stay in the value
+         type but may fall outside the generator's image. Best-effort. *)
+      shrink_value
   | _ -> shrink_value
 
 let run_property ~eval_call ~env ~n ~shrink ~shrink_verify ~max_counterexamples
@@ -961,7 +1024,7 @@ let run_property ~eval_call ~env ~n ~shrink ~shrink_verify ~max_counterexamples
 --# Draws `n` values from `gen`, ramping the generation size from 1 to
 --# `n`, and returns a Dict summarizing what was produced: run counts,
 --# the value types observed, the sizes of any Vector/List/DataFrame
---# values, and the wall-clock time spent.
+--# values, and the elapsed CPU time spent.
 --#
 --# @name prop_stats
 --# @param gen :: Dict A generator spec (see prop_gen_int, prop_gen_df, ...).

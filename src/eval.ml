@@ -3359,7 +3359,23 @@ and eval_call env_ref fn_val raw_args =
         | Some name -> Error.arity_error_named name b_arity arg_count
         | None -> Error.arity_error b_arity arg_count
       else
-        let res = b_func named_args env_ref in
+        let res =
+          try b_func named_args env_ref
+          with
+          | Sys.Break as e -> raise e
+          | Out_of_memory as e -> raise e
+          | e ->
+              (* Builtins must return VError. An escaping exception is a
+                 programmer error; surface it as a structured RuntimeError so
+                 the user sees a diagnostic instead of a process crash. *)
+              let name =
+                match b_name with
+                | Some n -> " in builtin `" ^ n ^ "`"
+                | None -> ""
+              in
+              Error.make_error RuntimeError
+                (Printf.sprintf "Internal error%s: %s" name (Printexc.to_string e))
+        in
         enrich_type_error res named_args_enriched
 
   | VLambda { params; autoquote_params; param_types; return_type; variadic; body; env = Some closure_env; _ } ->

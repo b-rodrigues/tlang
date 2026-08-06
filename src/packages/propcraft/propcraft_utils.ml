@@ -180,3 +180,68 @@ let render_value v =
       let pair_to_string (k, x) = "`" ^ k ^ "`: " ^ Utils.value_to_string x in
       "{" ^ (pairs |> List.map pair_to_string |> String.concat ", ") ^ "}"
   | other -> Utils.value_to_string other
+
+(** Whether polymorphic `=`/`compare` is safe on a value. Structural
+    comparison raises `Invalid_argument` on functional values (lambdas,
+    builtins, quosures) and is unreliable on opaque/native-handle
+    containers (DataFrames, computed nodes, environments). Such values
+    must be excluded before any `compare`/`sort_uniq` over generated
+    data. *)
+let rec is_compare_safe v =
+  match v with
+  | VLambda _ | VBuiltin _ | VQuo _ -> false
+  | VDataFrame _ | VComputedNode _ | VNodeResult _ -> false
+  | VPipeline _ | VMetaPipeline _ | VNode _ | VEnv _ -> false
+  | VExpr _ -> false
+  | VList items -> List.for_all (fun (_, x) -> is_compare_safe x) items
+  | VVector arr -> Array.for_all is_compare_safe arr
+  | VDict pairs -> List.for_all (fun (_, x) -> is_compare_safe x) pairs
+  | VBuildLog bl -> List.for_all is_compare_safe bl.bl_nodes
+  | VError e -> List.for_all (fun (_, x) -> is_compare_safe x) e.context
+  | VUnquote v -> is_compare_safe v
+  | VUnquoteSplice v -> is_compare_safe v
+  | VDynamicArg (_, v) -> is_compare_safe v
+  | _ -> true
+
+(** Index of [needle] in [items], found with structural equality. Returns
+    [None] if any element is not structurally comparable (see
+    [is_compare_safe]), since the comparison could raise. *)
+let find_index_plain items needle =
+  if List.for_all (fun x -> is_compare_safe x) items && is_compare_safe needle then
+    let rec go i = function
+      | [] -> None
+      | x :: rest -> if x = needle then Some i else go (i + 1) rest
+    in
+    go 0 items
+  else
+    None
+
+(** Sort and deduplicate shrink candidates by a total render function.
+    Polymorphic `compare` cannot be used on arbitrary generated values
+    (it raises on functions and is unreliable on DataFrames), and the
+    rendered form is exactly what the user sees in a counterexample, so
+    two candidates rendering identically are indistinguishable anyway. *)
+let sort_uniq_by_render render candidates =
+  let keyed = List.map (fun c -> (render c, c)) candidates in
+  let sorted = List.sort (fun (k1, _) (k2, _) -> String.compare k1 k2) keyed in
+  let rec dedup acc = function
+    | [] -> List.rev acc
+    | (k, c) :: rest ->
+        (match acc with
+         | (k', _) :: _ when k' = k -> dedup acc rest
+         | _ -> dedup ((k, c) :: acc) rest)
+  in
+  List.map snd (dedup [] sorted)
+
+(** Sort and deduplicate shrink candidates using polymorphic `compare`
+    when every candidate is structurally comparable (no closures or other
+    values that make `compare` raise), falling back to render-based
+    ordering otherwise. The structural path preserves the historical
+    candidate ordering exactly; the render fallback keeps shrinking safe
+    for generator images containing functions. [is_safe] decides
+    comparability for the candidate type (candidates may be pairs lists
+    rather than [value]s). *)
+let sort_uniq_safe is_safe render candidates =
+  if List.for_all is_safe candidates then
+    List.sort_uniq compare candidates
+  else sort_uniq_by_render render candidates
