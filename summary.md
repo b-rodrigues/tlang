@@ -366,7 +366,7 @@ p = pipeline {
 
 ### Data interchange and sandboxes
 
-- **Arrow** is the preferred interchange for DataFrames.
+- **Arrow IPC (`^ipc`) and Parquet (`^parquet`)** are the preferred interchange formats for DataFrames (`^ipc` for fastest uncompressed round trip, `^parquet` for compressed storage and external tool sharing).
 - Arrow IPC round-trips now preserve nested `nest()`/`unnest()` list-columns with factor and timezone-aware datetime fields, including empty/all-null nested schemas.
 - **PMML** is used for model interchange. Now supports native scoring in Julia nodes via `JavaCall` and JPMML.
 - **ONNX** artifacts can now be consumed in Julia nodes through `ONNXRunTime.jl`; Julia ONNX export remains explicitly unsupported.
