@@ -91,7 +91,11 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env _test 
        incr fail_count; failures := "  ✗ ^ipc resolution failed\n" :: !failures; Printf.printf "  ✗ ^ipc resolution failed\n") ;
 
   (* Native ^ipc writer/reader round trip (^ipc.writer is T-native since 0.55) *)
-  let ipc_rt_path = "/tmp/opencode/t_serializer_ipc_rt.arrow" in
+  let ipc_rt_path =
+    Printf.sprintf "%s/t_serializer_ipc_rt_%d.arrow"
+      (Filename.get_temp_dir_name ())
+      (Unix.getpid ())
+  in
   (let (v, _) = eval_string_env
      (Printf.sprintf {|
        (^ipc).writer(to_dataframe([x: [1, 2, 3]]), "%s")
