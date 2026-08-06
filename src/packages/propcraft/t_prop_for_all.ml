@@ -478,10 +478,7 @@ and draw_columns ~eval_call ~env ~size ~nrows ~na_prob columns =
 
 (* ---- Shrinking ---------------------------------------------------- *)
 
-let half_toward_zero i =
-  if i = 0 then 0
-  else if i > 0 then i / 2
-  else -((-i) / 2)
+let half_toward_zero i = i / 2
 
 let shrink_int i =
   if i = 0 then []
@@ -489,10 +486,7 @@ let shrink_int i =
     List.sort_uniq compare [ 0; half_toward_zero i ]
     |> List.filter (fun c -> c <> i)
 
-let half_toward_zero_i64 i =
-  if Int64.equal i 0L then 0L
-  else if Int64.compare i 0L > 0 then Int64.div i 2L
-  else Int64.neg (Int64.div (Int64.neg i) 2L)
+let half_toward_zero_i64 i = Int64.div i 2L
 
 let shrink_int64 i =
   if Int64.equal i 0L then []
@@ -507,13 +501,13 @@ let shrink_int64 i =
 let shrink_toward_min min i =
   if i <= min then []
   else
-    let mid = min + ((i - min) / 2) in
+    let mid = min + ((i / 2) - (min / 2)) in
     List.sort_uniq compare [ min; mid ] |> List.filter (fun c -> c <> i)
 
 let shrink_toward_min_i64 min i =
   if Int64.compare i min <= 0 then []
   else
-    let mid = Int64.add min (Int64.div (Int64.sub i min) 2L) in
+    let mid = Int64.add min (Int64.sub (Int64.div i 2L) (Int64.div min 2L)) in
     [ min; mid ]
     |> List.sort_uniq Int64.compare
     |> List.filter (fun c -> not (Int64.equal c i))
