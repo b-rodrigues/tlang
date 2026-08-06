@@ -1396,6 +1396,60 @@ p_cross = pipeline {
         incr fail_count; Printf.printf "  ✗ serializer naming pipeline should return VPipeline, got: %s\n"
           (Ast.Utils.value_to_string other));
 
+  let (v_julia_parquet, _) = eval_string_env
+    {|pipeline {
+  source = [answer: 42]
+  report = jln(command = <{ source }>, serializer = ^parquet, deserializer = ^parquet)
+}|}
+    (Packages.init_env ()) in
+  (match v_julia_parquet with
+   | Ast.VPipeline p ->
+        let nix = Nix_emit_pipeline.emit_pipeline p in
+        let has_julia_parquet =
+          contains_substring nix "using Parquet, DataFrames" &&
+          contains_substring nix "Parquet.write_parquet(path, df)" &&
+          contains_substring nix "jl_write_parquet(" &&
+          contains_substring nix "jl_read_parquet(" &&
+          contains_substring nix "DataFrame(Parquet.read_parquet(path))"
+        in
+        let omits_ipc_julia_helpers =
+          (not (contains_substring nix "using Arrow")) &&
+          (not (contains_substring nix "Arrow.write"))
+        in
+        if has_julia_parquet && omits_ipc_julia_helpers then begin
+          incr pass_count; Printf.printf "  ✓ Julia ^parquet node emits Parquet.jl code, not Arrow IPC\n"
+        end else begin
+          incr fail_count; Printf.printf "  ✗ Julia ^parquet emission is not genuine Parquet.jl code\n"
+        end
+    | other ->
+        incr fail_count; Printf.printf "  ✗ Julia parquet pipeline should return VPipeline, got: %s\n"
+          (Ast.Utils.value_to_string other));
+
+  let (v_julia_ipc, _) = eval_string_env
+    {|pipeline {
+  source = [answer: 42]
+  report = jln(command = <{ source }>, serializer = ^ipc, deserializer = ^ipc)
+}|}
+    (Packages.init_env ()) in
+  (match v_julia_ipc with
+   | Ast.VPipeline p ->
+        let nix = Nix_emit_pipeline.emit_pipeline p in
+        let has_julia_ipc =
+          contains_substring nix "using Arrow, DataFrames" &&
+          contains_substring nix "Arrow.write(path, df)" &&
+          contains_substring nix "jl_write_ipc(" &&
+          contains_substring nix "jl_read_ipc(" &&
+          contains_substring nix "Arrow.Table(path) |> DataFrame"
+        in
+        if has_julia_ipc then begin
+          incr pass_count; Printf.printf "  ✓ Julia ^ipc node emits Arrow.jl code\n"
+        end else begin
+          incr fail_count; Printf.printf "  ✗ Julia ^ipc emission is missing Arrow.jl helpers\n"
+        end
+    | other ->
+        incr fail_count; Printf.printf "  ✗ Julia ipc pipeline should return VPipeline, got: %s\n"
+          (Ast.Utils.value_to_string other));
+
   let (v_plot_pipeline, _) = eval_string_env
     {|pipeline {
   plot_r = rn(command = <{
