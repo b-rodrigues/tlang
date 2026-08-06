@@ -495,7 +495,6 @@
 | [ungroup](ungroup.html) | Remove grouping |
 | [union](union.html) | Combine two pipelines |
 | [unite](unite.html) | Combine multiple columns into one character column |
-| [unknown](unknown.html) | Print Failed Node Logs |
 | [unnest](unnest.html) | Expand nested columns |
 | [update_flake_lock](update_flake_lock.html) | Update Dependencies |
 | [upstream_of](upstream_of.html) | Extract Upstream Subgraph |

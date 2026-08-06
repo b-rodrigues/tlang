@@ -90,6 +90,23 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env _test 
    | _ ->
        incr fail_count; failures := "  ✗ ^ipc resolution failed\n" :: !failures; Printf.printf "  ✗ ^ipc resolution failed\n") ;
 
+  (* Native ^ipc writer/reader round trip (^ipc.writer is T-native since 0.55) *)
+  let ipc_rt_path = "/tmp/opencode/t_serializer_ipc_rt.arrow" in
+  (let (v, _) = eval_string_env
+     (Printf.sprintf {|
+       (^ipc).writer(to_dataframe([x: [1, 2, 3]]), "%s")
+       nrow((^ipc).reader("%s"))
+     |} ipc_rt_path ipc_rt_path)
+     (Packages.init_env ()) in
+   (match v with
+    | VInt 3 ->
+        incr pass_count; Printf.printf "  ✓ ^ipc native writer/reader round trip works\n"
+    | other ->
+        incr fail_count;
+        failures := Printf.sprintf "  ✗ ^ipc native writer/reader round trip failed. Got: %s\n" (Ast.Utils.value_to_string other) :: !failures;
+        Printf.printf "  ✗ ^ipc native writer/reader round trip failed. Got: %s\n" (Ast.Utils.value_to_string other));
+   try Sys.remove ipc_rt_path with _ -> ());
+
   (* ONNX serializer resolution *)
   let (v, _) = eval_string_env {| ^onnx |} (Packages.init_env ()) in
   (match v with

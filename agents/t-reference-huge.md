@@ -28718,7 +28718,6 @@ A confirmation message describing the imported archive.
 | [ungroup](ungroup.html) | Remove grouping |
 | [union](union.html) | Combine two pipelines |
 | [unite](unite.html) | Combine multiple columns into one character column |
-| [unknown](unknown.html) | Print Failed Node Logs |
 | [unnest](unnest.html) | Expand nested columns |
 | [update_flake_lock](update_flake_lock.html) | Update Dependencies |
 | [upstream_of](upstream_of.html) | Extract Upstream Subgraph |
@@ -36587,23 +36586,6 @@ The united DataFrame.
 ```t
 unite(df, "full_name", $first_name, $last_name, sep = " ")
 ```
-
-
-
-# FILE: docs/reference/unknown.md
-
-# unknown
-
-Print Failed Node Logs
-
-Prints stderr log sections for each failed node by resolving its derivation path through `nix log`.
-
-## Parameters
-
-- **drv_paths** (`Hashtbl`): Captured derivation paths keyed by node name.
-
-- **errored** (`List[String]`): Node names that failed during the build.
-
 
 
 
