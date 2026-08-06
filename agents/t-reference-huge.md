@@ -9469,7 +9469,8 @@ Now that you can work with numerical arrays, explore statistical modeling and re
 
 ### Breaking Changes
 
-- **Arrow IPC serializer renamed `^arrow` → `^ipc`**: The Arrow IPC (Feather v2) format is now the `^ipc` serializer. `read_arrow()` / `write_arrow()` are renamed to `read_ipc()` / `write_ipc()`, and the strategy symbol `^arrow` is now `^ipc`. No alias is kept. Existing pipelines must update their node serializers/deserializers (`serializer = ^ipc`, `deserializer = ^ipc`) and call sites. The R runtime package stays `arrow`, and `^parquet` is a separate, supported strategy (R `arrow::write_parquet`, Python `pyarrow.parquet`, Julia `Parquet.jl`).
+- **Arrow IPC serializer renamed `^arrow` → `^ipc`**: The Arrow IPC (Feather v2) format is now the `^ipc` serializer. `read_arrow()` / `write_arrow()` are renamed to `read_ipc()` / `write_ipc()`, and the strategy symbol `^arrow` is now `^ipc`. No alias is kept. Existing pipelines must update their node serializers/deserializers (`serializer = ^ipc`, `deserializer = ^ipc`) and call sites. The R runtime package stays `arrow`, and `^parquet` is a separate, supported strategy (R `arrow::write_parquet`, Python `pyarrow.parquet`, Julia `Parquet2.jl`).
+- **Julia `^parquet` now uses `Parquet2.jl`**: The Julia emitter for the `^parquet` serializer switched from the legacy `Parquet.jl` package to the actively maintained pure-Julia `Parquet2.jl` (`Parquet2.writefile` / `Parquet2.readfile`). Projects that rely on `^parquet` with Julia nodes must update any manually declared `[jl-dependencies].packages` entry from `Parquet` to `Parquet2` (and re-run `t update`); `DataFrames` remains required.
 
 ### Language & Bug Fixes
 
@@ -12436,7 +12437,8 @@ Do **not** install these packages manually inside the language package manager i
 Common examples:
 
 - If you debug a **Julia** node that reads an ancestor serialized as **CSV**, add `CSV` and `DataFrames` to `[jl-dependencies].packages`.
-- If you debug a **Julia** node that reads an ancestor serialized as **Arrow/Parquet/Feather**, add `Arrow` and `DataFrames` to `[jl-dependencies].packages`.
+- If you debug a **Julia** node that reads an ancestor serialized as **IPC (Feather v2)**, add `Arrow` and `DataFrames` to `[jl-dependencies].packages`.
+- If you debug a **Julia** node that reads an ancestor serialized as **Parquet**, add `Parquet2` and `DataFrames` to `[jl-dependencies].packages`.
 - If you debug a **Julia** node that reads JSON inputs, add `JSON` to `[jl-dependencies].packages`.
 - If you debug a **Python** node that reads CSV inputs, add `pandas` to `[py-dependencies].packages`.
 - If you debug a **Python** node that reads Arrow/Parquet/Feather inputs, add `pandas` and `pyarrow` to `[py-dependencies].packages`.
@@ -37680,7 +37682,7 @@ The table below shows which packages each format pulls in per runtime:
 |--------|-----------|----------------|---------------|
 | `^csv` | *(base R)* | `pandas` | `CSV`, `DataFrames` |
 | `^ipc` | `arrow` | `pandas`, `pyarrow` | `Arrow`, `DataFrames` |
-| `^parquet` | `arrow` | `pandas`, `pyarrow` | `Parquet`, `DataFrames` |
+| `^parquet` | `arrow` | `pandas`, `pyarrow` | `Parquet2`, `DataFrames` |
 | `^json` | `jsonlite` | *(stdlib)* | `JSON` |
 | `^pmml` | `XML`, `jsonlite`, `r2pmml` | `numpy`, `pandas`, `pyarrow`, `scikit-learn`, `scipy`, `sklearn2pmml`, `statsmodels` | `GLM`, `JavaCall` |
 | `^onnx` | `onnx` | `onnxruntime`, `skl2onnx` | `ONNXRunTime`, `ONNX` |

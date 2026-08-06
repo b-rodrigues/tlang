@@ -47,7 +47,17 @@ their node serializers/deserializers (<code>serializer = ^ipc</code>,
 <code>deserializer = ^ipc</code>) and call sites. The R runtime package
 stays <code>arrow</code>, and <code>^parquet</code> is a separate,
 supported strategy (R <code>arrow::write_parquet</code>, Python
-<code>pyarrow.parquet</code>, Julia <code>Parquet.jl</code>).</li>
+<code>pyarrow.parquet</code>, Julia <code>Parquet2.jl</code>).</li>
+<li><strong>Julia <code>^parquet</code> now uses
+<code>Parquet2.jl</code></strong>: The Julia emitter for the
+<code>^parquet</code> serializer switched from the legacy
+<code>Parquet.jl</code> package to the actively maintained pure-Julia
+<code>Parquet2.jl</code> (<code>Parquet2.writefile</code> /
+<code>Parquet2.readfile</code>). Projects that rely on
+<code>^parquet</code> with Julia nodes must update any manually declared
+<code>[jl-dependencies].packages</code> entry from <code>Parquet</code>
+to <code>Parquet2</code> (and re-run <code>t update</code>);
+<code>DataFrames</code> remains required.</li>
 </ul>
 <h3 id="language-bug-fixes">Language &amp; Bug Fixes</h3>
 <ul>

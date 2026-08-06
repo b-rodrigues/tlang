@@ -1406,20 +1406,20 @@ p_cross = pipeline {
    | Ast.VPipeline p ->
         let nix = Nix_emit_pipeline.emit_pipeline p in
         let has_julia_parquet =
-          contains_substring nix "using Parquet, DataFrames" &&
-          contains_substring nix "Parquet.write_parquet(path, df)" &&
+          contains_substring nix "using Parquet2, DataFrames" &&
+          contains_substring nix "Parquet2.writefile(path, df)" &&
           contains_substring nix "jl_write_parquet(" &&
           contains_substring nix "jl_read_parquet(" &&
-          contains_substring nix "DataFrame(Parquet.read_parquet(path))"
+          contains_substring nix "DataFrame(Parquet2.readfile(path))"
         in
         let omits_ipc_julia_helpers =
           (not (contains_substring nix "using Arrow")) &&
           (not (contains_substring nix "Arrow.write"))
         in
         if has_julia_parquet && omits_ipc_julia_helpers then begin
-          incr pass_count; Printf.printf "  ✓ Julia ^parquet node emits Parquet.jl code, not Arrow IPC\n"
+          incr pass_count; Printf.printf "  ✓ Julia ^parquet node emits Parquet2.jl code, not Arrow IPC\n"
         end else begin
-          incr fail_count; Printf.printf "  ✗ Julia ^parquet emission is not genuine Parquet.jl code\n"
+          incr fail_count; Printf.printf "  ✗ Julia ^parquet emission is not genuine Parquet2.jl code\n"
         end
     | other ->
         incr fail_count; Printf.printf "  ✗ Julia parquet pipeline should return VPipeline, got: %s\n"

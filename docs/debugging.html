@@ -154,9 +154,12 @@ language package manager if you want reproducible debugging. Add them to
 serialized as <strong>CSV</strong>, add <code>CSV</code> and
 <code>DataFrames</code> to <code>[jl-dependencies].packages</code>.</li>
 <li>If you debug a <strong>Julia</strong> node that reads an ancestor
-serialized as <strong>Arrow/Parquet/Feather</strong>, add
-<code>Arrow</code> and <code>DataFrames</code> to
+serialized as <strong>IPC (Feather v2)</strong>, add <code>Arrow</code>
+and <code>DataFrames</code> to
 <code>[jl-dependencies].packages</code>.</li>
+<li>If you debug a <strong>Julia</strong> node that reads an ancestor
+serialized as <strong>Parquet</strong>, add <code>Parquet2</code> and
+<code>DataFrames</code> to <code>[jl-dependencies].packages</code>.</li>
 <li>If you debug a <strong>Julia</strong> node that reads JSON inputs,
 add <code>JSON</code> to <code>[jl-dependencies].packages</code>.</li>
 <li>If you debug a <strong>Python</strong> node that reads CSV inputs,

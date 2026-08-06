@@ -4,7 +4,8 @@
 
 ### Breaking Changes
 
-- **Arrow IPC serializer renamed `^arrow` → `^ipc`**: The Arrow IPC (Feather v2) format is now the `^ipc` serializer. `read_arrow()` / `write_arrow()` are renamed to `read_ipc()` / `write_ipc()`, and the strategy symbol `^arrow` is now `^ipc`. No alias is kept. Existing pipelines must update their node serializers/deserializers (`serializer = ^ipc`, `deserializer = ^ipc`) and call sites. The R runtime package stays `arrow`, and `^parquet` is a separate, supported strategy (R `arrow::write_parquet`, Python `pyarrow.parquet`, Julia `Parquet.jl`).
+- **Arrow IPC serializer renamed `^arrow` → `^ipc`**: The Arrow IPC (Feather v2) format is now the `^ipc` serializer. `read_arrow()` / `write_arrow()` are renamed to `read_ipc()` / `write_ipc()`, and the strategy symbol `^arrow` is now `^ipc`. No alias is kept. Existing pipelines must update their node serializers/deserializers (`serializer = ^ipc`, `deserializer = ^ipc`) and call sites. The R runtime package stays `arrow`, and `^parquet` is a separate, supported strategy (R `arrow::write_parquet`, Python `pyarrow.parquet`, Julia `Parquet2.jl`).
+- **Julia `^parquet` now uses `Parquet2.jl`**: The Julia emitter for the `^parquet` serializer switched from the legacy `Parquet.jl` package to the actively maintained pure-Julia `Parquet2.jl` (`Parquet2.writefile` / `Parquet2.readfile`). Projects that rely on `^parquet` with Julia nodes must update any manually declared `[jl-dependencies].packages` entry from `Parquet` to `Parquet2` (and re-run `t update`); `DataFrames` remains required.
 
 ### Language & Bug Fixes
 

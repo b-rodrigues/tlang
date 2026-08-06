@@ -143,7 +143,7 @@ The table below shows which packages each format pulls in per runtime:
 |--------|-----------|----------------|---------------|
 | `^csv` | *(base R)* | `pandas` | `CSV`, `DataFrames` |
 | `^ipc` | `arrow` | `pandas`, `pyarrow` | `Arrow`, `DataFrames` |
-| `^parquet` | `arrow` | `pandas`, `pyarrow` | `Parquet`, `DataFrames` |
+| `^parquet` | `arrow` | `pandas`, `pyarrow` | `Parquet2`, `DataFrames` |
 | `^json` | `jsonlite` | *(stdlib)* | `JSON` |
 | `^pmml` | `XML`, `jsonlite`, `r2pmml` | `numpy`, `pandas`, `pyarrow`, `scikit-learn`, `scipy`, `sklearn2pmml`, `statsmodels` | `GLM`, `JavaCall` |
 | `^onnx` | `onnx` | `onnxruntime`, `skl2onnx` | `ONNXRunTime`, `ONNX` |

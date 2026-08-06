@@ -140,7 +140,7 @@ let add_feature_requirement ~node_name ~runtime ~feature =
   | "Julia", "ipc" ->
       { req with julia_deps = add_list req.julia_deps [ "Arrow"; "DataFrames" ] }
   | "Julia", "parquet" ->
-      { req with julia_deps = add_list req.julia_deps [ "Parquet"; "DataFrames" ] }
+      { req with julia_deps = add_list req.julia_deps [ "Parquet2"; "DataFrames" ] }
   | _ ->
       empty_requirements
 
