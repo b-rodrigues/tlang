@@ -550,7 +550,7 @@ def deserialize(path):
 
   let t_ipc_r_code = {|
 r_write_ipc <- function(object, path) {
-  arrow::write_ipc_file(arrow::as_arrow_table(object), path)
+  arrow::write_ipc_file(as.data.frame(object), path)
 }
 r_read_ipc <- function(path) {
   arrow::read_ipc_file(path)
@@ -590,7 +590,7 @@ def py_read_ipc(path):
 
   let t_parquet_r_code = {|
 r_write_parquet <- function(object, path) {
-  arrow::write_parquet(arrow::as_arrow_table(object), path)
+  arrow::write_parquet(as.data.frame(object), path)
 }
 r_read_parquet <- function(path) {
   arrow::read_parquet(path)
