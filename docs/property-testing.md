@@ -1,6 +1,6 @@
-# Property-Based Testing with Popcraft
+# Property-Based Testing with Propcraft
 
-Comprehensive guide to hardening T code with property-based testing using the **popcraft** package.
+Comprehensive guide to hardening T code with property-based testing using the **propcraft** package.
 
 > **New:** See also the [Property Testing Cookbook](./property-testing-cookbook.md) for reusable patterns and a step-by-step guide to writing your first property test.
 
@@ -26,14 +26,14 @@ Comprehensive guide to hardening T code with property-based testing using the **
 
 Unit tests check a handful of fixed inputs. Property-based testing instead states an **invariant** that must hold for *every* input, then checks it over many randomly generated inputs. When the property fails, the framework reports a minimal (shrunk) counterexample.
 
-The canonical example: R's `prop.test` / Hypothesis / QuickCheck. T's popcraft package brings the same idea to the T language, focused on hardening T's own standard library and user packages.
+The canonical example: R's `prop.test` / Hypothesis / QuickCheck. T's propcraft package brings the same idea to the T language, focused on hardening T's own standard library and user packages.
 
 ## Audience
 
-Popcraft is a **language and package-hardening tool** for contributors to T's standard library and for authors of reusable T packages. It is *not* aimed at one-off pipeline authors:
+Propcraft is a **language and package-hardening tool** for contributors to T's standard library and for authors of reusable T packages. It is *not* aimed at one-off pipeline authors:
 
 - If you write a data pipeline once, use `assert`, `t check`, and `t diff` — they validate structure and outputs against your declared schema, instantly and without generators.
-- If you maintain a package or a library function that many pipelines depend on, add property-based tests with popcraft.
+- If you maintain a package or a library function that many pipelines depend on, add property-based tests with propcraft.
 
 ## Quick Start
 
@@ -134,7 +134,7 @@ assert(prop_for_all(
 
 ### `prop_gen_fn` — custom generators
 
-For domain-specific generation, wrap any callable: popcraft calls `fn(size)` (with the current generation size, `30` by default and propagated through `prop_resize`):
+For domain-specific generation, wrap any callable: propcraft calls `fn(size)` (with the current generation size, `30` by default and propagated through `prop_resize`):
 
 ```t
 cube_gen = prop_gen_fn(\(n) n * n * n)
@@ -279,7 +279,7 @@ The `NA` rule is deliberate (see the *Death to Null* policy): generated frames m
 
 ## Shrinking
 
-When a property fails, popcraft attempts to find a **smaller input that still fails**, then reports both the original counterexample and the shrunk one:
+When a property fails, propcraft attempts to find a **smaller input that still fails**, then reports both the original counterexample and the shrunk one:
 
 - Ints shrink toward `0` by halving.
 - Floats shrink toward `0`.
@@ -349,7 +349,7 @@ test("nrow is stable under mutate", function() {
 4. **Keep properties small and invariant-shaped.** "row count unchanged", "output length equals input length", "no NA in output" are the most valuable.
 5. **Combine `prop_for_all` with `expect_*`** for readable diagnostics: `assert(prop_for_all(g, \(x) expect_equal(f(x), f(x))))`-style compositions.
 6. **Do not hand-wave error cases.** A property returning an `Error` fails loudly — if you *expect* an error for some inputs, handle it explicitly inside the property.
-7. **For one-off pipelines, don't reach for popcraft.** Use `assert`, `t check`, and `t diff`.
+7. **For one-off pipelines, don't reach for propcraft.** Use `assert`, `t check`, and `t diff`.
 
 ## Roadmap
 

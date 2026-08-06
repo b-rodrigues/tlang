@@ -50,14 +50,14 @@ an external <code>.sh</code> file to execute as the node body. Mutually
 exclusive with <code>command</code>.</p></li>
 <li><p><strong>serializer</strong> (<code>String</code>): | Function
 (Optional) Custom serializer strategy. Built-in values include
-“default”, “arrow”, and “pmml”. Can be a string (e.g., “arrow”) or an
-unquoted function name. Custom functions can also be used. Default =
-“default”.</p></li>
+“default”, “ipc”, “parquet”, and “pmml”. Can be a string (e.g., “ipc”)
+or an unquoted function name. Custom functions can also be used. Default
+= “default”.</p></li>
 <li><p><strong>deserializer</strong> (<code>String</code>): | Function
 (Optional) Custom deserializer strategy. Built-in values include
-“default”, “arrow”, and “pmml”. Can be a string (e.g., “arrow”) or an
-unquoted function name. Custom functions can also be used. Default =
-“default”.</p></li>
+“default”, “ipc”, “parquet”, and “pmml”. Can be a string (e.g., “ipc”)
+or an unquoted function name. Custom functions can also be used. Default
+= “default”.</p></li>
 <li><p><strong>args</strong> (<code>Dict</code>): | List (Optional)
 Runtime arguments. Lists become positional CLI arguments for exec-style
 nodes.</p></li>

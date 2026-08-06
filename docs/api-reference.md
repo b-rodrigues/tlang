@@ -1683,12 +1683,20 @@ Read a CSV file into a DataFrame.
 ### `read_parquet(path)` / `write_parquet(to_dataframe, path)`
 
 Read or write Parquet files using the native parquet-glib reader/writer.
+Prefer Parquet for compressed, long-term storage of large datasets or when
+sharing data with external analytics tooling. For the fastest possible round
+trip (no compression), use `read_ipc` / `write_ipc` instead. See
+[Parquet vs Arrow IPC: How to Choose](data-formats.md#parquet-vs-arrow-ipc-how-to-choose).
 
 ---
 
-### `read_arrow(path)` / `write_arrow(to_dataframe, path)`
+### `read_ipc(path)` / `write_ipc(to_dataframe, path)`
 
-Read or write Arrow IPC files.
+Read or write Arrow IPC files (Feather v2). IPC is the fastest format to read
+and write (no compression), ideal for pipeline intermediates and cross-runtime
+exchange. For compressed, long-term storage of large datasets, use
+`read_parquet` / `write_parquet` instead. See
+[Parquet vs Arrow IPC: How to Choose](data-formats.md#parquet-vs-arrow-ipc-how-to-choose).
 
 ---
 
@@ -2924,7 +2932,7 @@ q = set_pipeline_global_options(p,
 )
 
 # Scope to R nodes only
-q2 = set_pipeline_global_options(p, runtimes = ["rn"], serializer = ^arrow)
+q2 = set_pipeline_global_options(p, runtimes = ["rn"], serializer = ^ipc)
 
 # Scope to specific nodes
 q3 = set_pipeline_global_options(p, nodes = ["a"], noop = true)
@@ -3208,7 +3216,7 @@ Configure a Julia Pipeline Node. A convenience wrapper around `node()` with `run
 
 - `command` — The expression to evaluate inside the Julia node (must be enclosed in `<{ ... }>` blocks).
 - `script` — Path to an external `.jl` file to execute as the node body.
-- `serializer` (optional) — Custom serializer symbol (e.g., `^csv`, `^json`, `^arrow`, `^onnx`). Default: runtime-native binary serialization (`jl_serialize`).
+- `serializer` (optional) — Custom serializer symbol (e.g., `^csv`, `^json`, `^ipc`, `^onnx`). Default: runtime-native binary serialization (`jl_serialize`).
 - `deserializer` (optional) — Custom deserializer symbol. Default: runtime-native binary deserialization.
 - `env_vars` (optional) — Dictionary of environment variables to pass into the Nix sandbox.
 - `functions` (optional) — Julia files to source before execution.
@@ -4910,7 +4918,7 @@ Pass if `node_name` serializer matches the expected serializer.
 **Parameters:**
 - `p` — The pipeline to check.
 - `node_name` — The node name.
-- `expected` — Expected serializer (String or Symbol, e.g. `^arrow`, `^csv`).
+- `expected` — Expected serializer (String or Symbol, e.g. `^ipc`, `^csv`).
 
 **Examples:**
 ```t
@@ -5144,17 +5152,6 @@ m = prop_named("positive", \(x) x > 0)
 
 **Run a named property against a generator.** Behaves identically to `prop_for_all` but takes a prebuilt named property Dict instead of an
 anonymous predicate, and prefixes failure reports with the property's name.
-
-```t
-set_seed(42)
-m = prop_named("bounded", \(x) x >= 0)
-prop_test(m, prop_gen_between(0, 200), n = 20)  -- PASS
-```
-
-### `prop_test(macro, gen, n = 100, max_counterexamples = 1, shrink = true, shrink_verify = false)`
-
-**Run a named property macro against a generator.** Behaves identically to `prop_for_all` but takes a prebuilt macro Dict instead of an
-anonymous predicate, and prefixes failure reports with the macro's name.
 
 ```t
 set_seed(42)

@@ -2066,27 +2066,27 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     let (_, env_ipc) =
       eval_string_env
         (Printf.sprintf
-           {|df_ipc = to_dataframe([[id: 10, grp: "x"], [id: 20, grp: "y"]]); write_arrow(df_ipc, "%s")|}
+           {|df_ipc = to_dataframe([[id: 10, grp: "x"], [id: 20, grp: "y"]]); write_ipc(df_ipc, "%s")|}
            ipc_path)
         env_ipc
     in
-    let (v, _) = eval_string_env (Printf.sprintf {|nrow(read_arrow("%s"))|} ipc_path) env_ipc in
+    let (v, _) = eval_string_env (Printf.sprintf {|nrow(read_ipc("%s"))|} ipc_path) env_ipc in
     let nrow_result = Ast.Utils.value_to_string v in
     if nrow_result = "2" then begin
-      incr pass_count; Printf.printf "  ✓ write_arrow/read_arrow round-trip preserves nrow\n"
+      incr pass_count; Printf.printf "  ✓ write_ipc/read_ipc round-trip preserves nrow\n"
     end else begin
-      incr fail_count; Printf.printf "  ✗ write_arrow/read_arrow expected nrow=2, got %s\n" nrow_result
+      incr fail_count; Printf.printf "  ✗ write_ipc/read_ipc expected nrow=2, got %s\n" nrow_result
     end;
 
-    let (v, _) = eval_string_env (Printf.sprintf {|colnames(read_arrow("%s"))|} ipc_path) env_ipc in
+    let (v, _) = eval_string_env (Printf.sprintf {|colnames(read_ipc("%s"))|} ipc_path) env_ipc in
     let colnames_result = Ast.Utils.value_to_string v in
     if colnames_result = {|["id", "grp"]|} then begin
-      incr pass_count; Printf.printf "  ✓ read_arrow preserves schema/column names\n"
+      incr pass_count; Printf.printf "  ✓ read_ipc preserves schema/column names\n"
     end else begin
-      incr fail_count; Printf.printf "  ✗ read_arrow schema mismatch: %s\n" colnames_result
+      incr fail_count; Printf.printf "  ✗ read_ipc schema mismatch: %s\n" colnames_result
     end;
 
-    test "write_arrow/read_arrow preserves nested to_factor levels after unnest"
+    test "write_ipc/read_ipc preserves nested to_factor levels after unnest"
       (Printf.sprintf
          {|df_nested = to_dataframe([
              [g: "a", color: "red", ts: with_tz(ymd_hms("2024-01-15 09:30:00"), "Europe/Paris")],
@@ -2095,13 +2095,13 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
            ]);
            df_nested := mutate(df_nested, $color = to_factor($color));
            nested = group_by(df_nested, $g) |> nest();
-           write_arrow(nested, "%s");
-           flat = read_arrow("%s") |> unnest($data);
+           write_ipc(nested, "%s");
+           flat = read_ipc("%s") |> unnest($data);
            levels(flat.color)|}
          nested_roundtrip_ipc_path nested_roundtrip_ipc_path)
       {|Vector["blue", "red"]|};
 
-    test "write_arrow/read_arrow preserves nested timestamp timezones after unnest"
+    test "write_ipc/read_ipc preserves nested timestamp timezones after unnest"
       (Printf.sprintf
          {|df_nested = to_dataframe([
              [g: "a", color: "red", ts: with_tz(ymd_hms("2024-01-15 09:30:00"), "Europe/Paris")],
@@ -2110,8 +2110,8 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
            ]);
            df_nested := mutate(df_nested, $color = to_factor($color));
            nested = group_by(df_nested, $g) |> nest();
-           write_arrow(nested, "%s");
-           flat = read_arrow("%s") |> unnest($data);
+           write_ipc(nested, "%s");
+           flat = read_ipc("%s") |> unnest($data);
            tz(flat.ts)|}
          nested_roundtrip_ipc_path nested_roundtrip_ipc_path)
       {|Vector["Europe/Paris", "Europe/Paris", "Europe/Paris"]|}
@@ -2131,11 +2131,11 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     Test_arrow_helpers.record_native_requirement_result pass_count fail_count
       "DatetimeColumn IPC round-trip";
     Test_arrow_helpers.record_native_requirement_result pass_count fail_count
-      "write_arrow/read_arrow round-trip";
+      "write_ipc/read_ipc round-trip";
     Test_arrow_helpers.record_native_requirement_result pass_count fail_count
-      "write_arrow/read_arrow preserves nested to_factor levels after unnest";
+      "write_ipc/read_ipc preserves nested to_factor levels after unnest";
     Test_arrow_helpers.record_native_requirement_result pass_count fail_count
-      "write_arrow/read_arrow preserves nested timestamp timezones after unnest"
+      "write_ipc/read_ipc preserves nested timestamp timezones after unnest"
   end;
 
   print_newline ();

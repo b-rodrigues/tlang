@@ -1,5 +1,5 @@
 let run_tests pass_count fail_count failures _eval_string eval_string_env _test test_env =
-  Printf.printf "Popcraft — property-based testing:\n";
+  Printf.printf "Propcraft — property-based testing:\n";
   let env = Packages.init_env () in
 
   (* prop_show_spec round-trip: the rendered T source must rebuild a
@@ -164,6 +164,45 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env _test 
     "prop_for_all(prop_gen_int_range(0, 5), \\(x) true, n = 10, max_counterexamples = 0)"
     "expects `max_counterexamples` to be a positive Int";
 
+  (* Wide / full int ranges previously crashed: Random.State.int only
+     accepts bounds below 2^30, so wide spans must go through the int64
+     rejection-sampling path (src/rng.ml). *)
+  test_env env "prop_for_all wide int range stays in bounds"
+    "set_seed(7)\nprop_for_all(prop_gen_int_range(-1000000000, 1000000000), \\(x) x >= -1000000000 && x <= 1000000000, n = 50)"
+    "PASS";
+  test_env env "prop_for_all full int span does not crash"
+    "set_seed(7)\nprop_for_all(prop_gen_int_range(-2147483648, 2147483647), \\(x) x == x, n = 50)"
+    "PASS";
+
+  (* Shrinking a list/vector/dict containing a function used to raise
+     Invalid_argument ("compare: functional value") inside List.sort_uniq
+     and crash the process; now the prefix shrink drops the closure element
+     instead. *)
+  test_env env "prop_for_all closure in generated list does not crash shrink"
+    "set_seed(3)\nprop_for_all(prop_map_gen(prop_gen_int_range(0, 5), \\(v) [v, \\(x) x]), \\(l) false, n = 5)"
+    "counterexample: [";
+
+  (* one_of shrinks within the provided values instead of toward 0. *)
+  test_env env "prop_for_all one_of shrinks within values"
+    "set_seed(9)\nprop_for_all(prop_gen_one_of([10, 20, 30, 40, 50]), \\(x) false, n = 5)"
+    "(shrunk): 10";
+  test_env env "prop_for_all one_of date shrinks within values"
+    "set_seed(5)\nprop_for_all(prop_gen_one_of([make_date(year = 2024, month = 1, day = 1), make_date(year = 2024, month = 6, day = 1), make_date(year = 2024, month = 12, day = 1)]), \\(d) false, n = 5)"
+    "Date(2024-01-01)";
+
+  (* A mapping function that raises surfaces its VError instead of being
+     swallowed as a drawn value. *)
+  test_env env "prop_for_all map fn error surfaces cleanly"
+    "set_seed(3)\nprop_for_all(prop_map_gen(prop_gen_int_range(0, 5), \\(v) missing_fn_xyz(v)), \\(x) true, n = 5)"
+    "NameError";
+
+  (* Datetime shrink uses int64-safe halving, so counterexamples render
+     without truncation artifacts. *)
+  test_env env "prop_for_all datetime ymd shrink works"
+    "set_seed(4)\nprop_for_all(prop_gen_ymd(2024, 2025), \\(d) false, n = 5)"
+    "counterexample";
+
+
   (* df NA injection *)
   test_env env "prop_gen_df NA injection renders NA"
     "set_seed(7)\nprop_for_all(prop_gen_df([x: prop_gen_float_range(0.0, 100.0)], nrows = 30, na_prob = 1.0), \\(df) false, n = 1)"
@@ -315,6 +354,9 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env _test 
   test_env env "prop_gen_df_from unknown named arg errors"
     "prop_gen_df_from(to_dataframe([x: [1]]), bogus = 1)"
     "received unknown named argument `bogus`";
+  test_env env "prop_gen_df_from unsupported column type errors"
+    "prop_gen_df_from(to_dataframe([x: [to_dataframe([y: [1]]), to_dataframe([y: [2]])]]))"
+    "unsupported value type DataFrame";
 
   (* prop_gen_fn — custom function generators *)
   test_env env "prop_for_all PASS custom fn generator"

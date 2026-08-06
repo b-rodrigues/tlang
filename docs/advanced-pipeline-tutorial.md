@@ -727,7 +727,7 @@ p_model = pipeline {
   model = rn(<{ 
     lm(mpg ~ hp, data = data_input)  -- use the alias name in R
   }>,
-  deserializer = ^arrow)
+  deserializer = ^ipc)
 }
 
 -- Success! T sees `raw_data` as a dependency of `data_input`, wiring the pipelines.

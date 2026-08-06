@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Breaking Changes
+
+- **Arrow IPC serializer renamed `^arrow` → `^ipc`**: The Arrow IPC (Feather v2) format is now the `^ipc` serializer. `read_arrow()` / `write_arrow()` are renamed to `read_ipc()` / `write_ipc()`, and the strategy symbol `^arrow` is now `^ipc`. No alias is kept. Existing pipelines must update their node serializers/deserializers (`serializer = ^ipc`, `deserializer = ^ipc`) and call sites. The R runtime package stays `arrow`, and `^parquet` is a separate, supported strategy (R `arrow::write_parquet`, Python `pyarrow.parquet`, Julia `Parquet2.jl`).
+- **Julia `^parquet` now uses `Parquet2.jl`**: The Julia emitter for the `^parquet` serializer switched from the legacy `Parquet.jl` package to the actively maintained pure-Julia `Parquet2.jl` (`Parquet2.writefile` / `Parquet2.readfile`). Projects that rely on `^parquet` with Julia nodes must update any manually declared `[jl-dependencies].packages` entry from `Parquet` to `Parquet2` (and re-run `t update`); `DataFrames` remains required.
+
 ### Language & Bug Fixes
 
 - **`%name%` infix operators**: Any function can now be called infix with `%name%` syntax, R-style. For example `d %within% interval(start, end)` is equivalent to `%within%(d, interval(start, end))`. The lexer only treats `%name%` as an infix operator when a `%` is immediately followed by an identifier, so plain modulo (`a % b`) is unaffected.
@@ -21,11 +26,11 @@
 - **colcraft regex is UTF-8 aware**: the `matches` and `contains` selection helpers, `separate`, and `separate_rows` now use PCRE2 in UTF-8 mode instead of byte-oriented `Str` regex. `matches` supports `\p{...}` Unicode property classes (e.g. `select(df, matches("^\\p{L}+$"))`), and multibyte values flow through `separate` / `separate_rows` without being torn. `contains` now uses a literal substring test. Existing `Str.split` semantics (trailing empty tokens dropped, empty subject yields no rows) are preserved.
 - **`str_extract_all` / `str_count` handle trailing zero-width matches**: patterns that can match the empty string at end-of-input (`a*`, `a?`, lookaheads, `$`-anchored assertions) no longer hang with unbounded memory growth. The trailing empty match is reported once and the scan terminates, matching R's `stringr` behavior.
 
-### Popcraft — Property-Based Testing
+### Propcraft — Property-Based Testing
 
-- **New `popcraft` package**: Property-based testing primitives for hardening T's standard library and user packages. Instead of hand-writing fixed cases, state an invariant and `prop_for_all` checks it over many generated inputs, reporting a deterministic shrunk counterexample on failure.
+- **New `propcraft` package**: Property-based testing primitives for hardening T's standard library and user packages. Instead of hand-writing fixed cases, state an invariant and `prop_for_all` checks it over many generated inputs, reporting a deterministic shrunk counterexample on failure.
 - **`prop_for_all(gen, property, n = 100, max_counterexamples = 1, shrink = true)`**: Draws `n` values from a generator spec and evaluates the property on each. The property may return a `Bool`, an `Expect` value, or an `Error`. Returns an `Expect` value, so `assert(prop_for_all(...))` works directly inside `t test` files. `max_counterexamples = k` collects up to `k` distinct failing inputs (each shrunk) and reports them as numbered blocks.
-- **Generator specs** are inspectable structured Dicts (not closures): `prop_gen_int`, `prop_gen_int_range`, `prop_gen_float_range`, `prop_gen_bool`, `prop_gen_string_from`, `prop_gen_choice`, `prop_gen_frequency`, `prop_gen_vector`, `prop_gen_list`, `prop_gen_factor`, `prop_gen_one_of`, `prop_gen_date_range`, and `prop_gen_df`.
+- **Generator specs** are inspectable structured Dicts (not closures): `prop_gen_int`, `prop_gen_int_range`, `prop_gen_float_range`, `prop_gen_bool`, `prop_gen_string_from`, `prop_gen_choice`, `prop_gen_frequency`, `prop_gen_vector`, `prop_gen_list`, `prop_gen_factor`, `prop_gen_one_of`, `prop_gen_date_range`, `prop_gen_df`, `prop_gen_between`, `prop_gen_dict`, and `prop_gen_ymd`.
 - **`prop_gen_df_from(df, nrows = 30, na_prob = 0.1)`**: Derives a DataFrame generator from a real sample — Int/Float bounds from observed min/max, Strings from observed distinct values, Factors keep their levels, Dates/Datetimes keep their observed range and timezone. Empty frames, NA-only columns, and unsupported column types raise explicit errors.
 - **`prop_gen_fn(fn)`**: Wraps any callable as a generator; each draw calls `fn(size)` with the current generation size.
 - **`prop_stats(gen, n = 100)`**: Probes a generator (size ramp 1..n) and returns `n_runs`, `n_errors`, `value_types`, `nested_sizes`, and `elapsed_ms` — handy for sanity-checking derived and custom generators.
@@ -46,6 +51,12 @@
 - **In-domain date shrinking**: `Date`/`Datetime` values now shrink within their domain — `ymd_range` toward the year-span floor, `date_range` toward the start bound (micros 0 + preserved timezone for datetimes), and bare date cells inside `prop_gen_df` toward the epoch (1970-01-01 / micros 0).
 - **Chrono dogfooding**: Property tests now cover the `chrono` package — date-bound invariants (`day`, `month`, `quarter`, `semester`, `yday`, `isoweek`, `wday`, leap-year consistency), round-trips (`format_date`/`parse_date`, `ymd`, period arithmetic), `%within%` intervals, datetime components, and NA-hardening of `mutate`/`arrange` over date columns.
 - **Dogfooding expanded further**: Property tests now also cover the `stats` package (mode membership over typed/mixed vectors, `sd`/`var` consistency, constant-vector degeneracy, mean/quantile/min-max bounds, `range`/`fivenum` endpoints, `cor`/`cov` symmetry and range, `iqr` non-negativity), multibyte UTF-8 invariants for `strcraft` (`split`/`pad`/`trunc`/`repeat` round-trips and case-mapping idempotence over accented generators), `colcraft`/`stats` DataFrame verbs (`arrange` idempotence, `mutate`-then-`select`, `drop_na` subsets on date/NaN columns, `distinct` bounds), plus integer-domain `math` and list-domain `core` invariants. These properties are tight enough to have surfaced the UTF-8 case-mapping, byte-based regex, and nested-NSE-call bugs fixed above.
+- **Wide integer ranges no longer crash**: `prop_gen_int_range` / `prop_gen_between` now work for spans of 2^30 and wider (e.g. the full 32-bit integer range) instead of raising an internal RNG error.
+- **Internal errors no longer crash a run**: an unexpected exception from a builtin now surfaces as a `RuntimeError` diagnostic instead of terminating the process.
+- **Shrinking no longer crashes on function values**: counterexamples containing closures (e.g. `[v, \(x) x]`) shrink cleanly instead of aborting the shrinker.
+- **`prop_gen_one_of` shrinks inside its declared values**: counterexamples stay within the generator's domain, shrinking toward earlier values with the first value treated as minimal.
+- **Mapping errors are surfaced**: an `Error` returned by a `prop_map_gen` / `prop_gen_fn` mapping now fails the run instead of being silently treated as a drawn value.
+- **Datetime shrinking no longer overflows**: wide or very negative `Datetime` counterexamples shrink correctly instead of overflowing a 32-bit intermediate.
 
 ## [0.54.3] - 2026-08-01
 

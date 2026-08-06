@@ -304,4 +304,4 @@ Now that you have a PMML workflow in place, continue with:
 
 1. **[Statistical Models](models.md)** — inspect imported models with `summary()`, `fit_stats()`, and `predict()`.
 2. **[Pipeline Tutorial](pipeline_tutorial.md)** — build larger multi-node workflows around PMML artifacts.
-3. **[Serializers in T](serializers.md)** — understand how `^pmml`, `^onnx`, `^arrow`, and `^json` fit into the broader interchange system.
+3. **[Serializers in T](serializers.md)** — understand how `^pmml`, `^onnx`, `^ipc`, and `^json` fit into the broader interchange system.

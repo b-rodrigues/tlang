@@ -1363,7 +1363,7 @@ p_cross = pipeline {
     {|pipeline {
   source = [answer: 42]
   report_r = rn(command = <{ source }>, serializer = ^json, deserializer = ^json)
-  report_py = pyn(command = <{ source }>, serializer = ^arrow, deserializer = ^arrow)
+  report_py = pyn(command = <{ source }>, serializer = ^ipc, deserializer = ^ipc)
 }|}
     (Packages.init_env ()) in
   (match v_serializer_pipeline with
@@ -1376,16 +1376,16 @@ p_cross = pipeline {
          contains_substring nix "r_write_json(node_result,"
        in
         let has_py_arrow_helpers =
-          contains_substring nix "def py_write_arrow(df, path):" &&
-          contains_substring nix "def py_read_arrow(path):" &&
-          contains_substring nix "__dep_source = py_read_arrow(" &&
-          contains_substring nix "py_write_arrow(__node_result,"
+          contains_substring nix "def py_write_ipc(df, path):" &&
+          contains_substring nix "def py_read_ipc(path):" &&
+          contains_substring nix "__dep_source = py_read_ipc(" &&
+          contains_substring nix "py_write_ipc(__node_result,"
         in
         let omits_old_runtime_prefixed_helpers =
           (not (contains_substring nix "t_read_json(")) &&
           (not (contains_substring nix "t_write_json(")) &&
-          (not (contains_substring nix "t_read_arrow(")) &&
-          (not (contains_substring nix "t_write_arrow("))
+          (not (contains_substring nix "t_read_ipc(")) &&
+          (not (contains_substring nix "t_write_ipc("))
         in
         if has_r_json_helpers && has_py_arrow_helpers && omits_old_runtime_prefixed_helpers then begin
           incr pass_count; Printf.printf "  ✓ pipeline emits r_/py_ runtime serializer helper names\n"
@@ -1394,6 +1394,60 @@ p_cross = pipeline {
         end
     | other ->
         incr fail_count; Printf.printf "  ✗ serializer naming pipeline should return VPipeline, got: %s\n"
+          (Ast.Utils.value_to_string other));
+
+  let (v_julia_parquet, _) = eval_string_env
+    {|pipeline {
+  source = [answer: 42]
+  report = jln(command = <{ source }>, serializer = ^parquet, deserializer = ^parquet)
+}|}
+    (Packages.init_env ()) in
+  (match v_julia_parquet with
+   | Ast.VPipeline p ->
+        let nix = Nix_emit_pipeline.emit_pipeline p in
+        let has_julia_parquet =
+          contains_substring nix "using Parquet2, DataFrames" &&
+          contains_substring nix "Parquet2.writefile(path, df)" &&
+          contains_substring nix "jl_write_parquet(" &&
+          contains_substring nix "jl_read_parquet(" &&
+          contains_substring nix "DataFrame(Parquet2.readfile(path))"
+        in
+        let omits_ipc_julia_helpers =
+          (not (contains_substring nix "using Arrow")) &&
+          (not (contains_substring nix "Arrow.write"))
+        in
+        if has_julia_parquet && omits_ipc_julia_helpers then begin
+          incr pass_count; Printf.printf "  ✓ Julia ^parquet node emits Parquet2.jl code, not Arrow IPC\n"
+        end else begin
+          incr fail_count; Printf.printf "  ✗ Julia ^parquet emission is not genuine Parquet2.jl code\n"
+        end
+    | other ->
+        incr fail_count; Printf.printf "  ✗ Julia parquet pipeline should return VPipeline, got: %s\n"
+          (Ast.Utils.value_to_string other));
+
+  let (v_julia_ipc, _) = eval_string_env
+    {|pipeline {
+  source = [answer: 42]
+  report = jln(command = <{ source }>, serializer = ^ipc, deserializer = ^ipc)
+}|}
+    (Packages.init_env ()) in
+  (match v_julia_ipc with
+   | Ast.VPipeline p ->
+        let nix = Nix_emit_pipeline.emit_pipeline p in
+        let has_julia_ipc =
+          contains_substring nix "using Arrow, DataFrames" &&
+          contains_substring nix "Arrow.write(path, df)" &&
+          contains_substring nix "jl_write_ipc(" &&
+          contains_substring nix "jl_read_ipc(" &&
+          contains_substring nix "Arrow.Table(path) |> DataFrame"
+        in
+        if has_julia_ipc then begin
+          incr pass_count; Printf.printf "  ✓ Julia ^ipc node emits Arrow.jl code\n"
+        end else begin
+          incr fail_count; Printf.printf "  ✗ Julia ^ipc emission is missing Arrow.jl helpers\n"
+        end
+    | other ->
+        incr fail_count; Printf.printf "  ✗ Julia ipc pipeline should return VPipeline, got: %s\n"
           (Ast.Utils.value_to_string other));
 
   let (v_plot_pipeline, _) = eval_string_env
@@ -3197,14 +3251,14 @@ p.t_step|}
        n1 = rn(command = <{ 1 + 1 }>, serializer = ^json)
        n2 = pyn(command = <{ 2 + 2 }>)
      }
-     q = set_pipeline_global_options(p, serializer = ^arrow)
+     q = set_pipeline_global_options(p, serializer = ^ipc)
    |} (Packages.init_env ()) in
     let (vq, _) = eval_string_env "q" env in
     match vq with
     | VPipeline q ->
         let n1_ser = get_serializer q "n1" in
         let n2_ser = get_serializer q "n2" in
-        if n1_ser = "arrow" && n2_ser = "arrow" then
+        if n1_ser = "ipc" && n2_ser = "ipc" then
           (incr pass_count; Printf.printf "  ✓ set_pipeline_global_options overrides serializer for all nodes\n")
         else
           (incr fail_count; Printf.printf "  ✗ set_pipeline_global_options serializer override failed: n1=%s n2=%s\n" n1_ser n2_ser)

@@ -8,8 +8,8 @@ Serializers are identified by the `^` prefix. You can specify them when defining
 
 ```t
 p = pipeline {
-  -- Use the built-in Arrow serializer for a DataFrame
-  data = node(command = read_csv("large.csv"), serializer = ^arrow)
+  -- Use the built-in Arrow IPC serializer for a DataFrame
+  data = node(command = read_csv("large.csv"), serializer = ^ipc)
   
   -- Use the PMML serializer for a model
   model = rn(command = <{ lm(y ~ x, data = data) }>, serializer = ^pmml)
@@ -23,12 +23,12 @@ p = pipeline {
 
 T distinguishes between **built-in symbols** and **custom serializer variables**:
 
-- **Symbols (`^arrow`, `^json`, etc.)**: Use the `^` prefix for T's built-in serializers. These are registered symbols that the pipeline emitter understands natively across all supported runtimes.
+- **Symbols (`^ipc`, `^json`, etc.)**: Use the `^` prefix for T's built-in serializers. These are registered symbols that the pipeline emitter understands natively across all supported runtimes.
 - **Variables (`my_serializer`)**: If you have defined a custom serializer in a variable (e.g., a dictionary imported from another file), pass the variable name **without** the `^` prefix. This allows the evaluator to pass the actual serializer definition to the node.
 
 ```t
 -- Built-in symbol (uses T's internal logic)
-node(..., serializer = ^arrow)
+node(..., serializer = ^ipc)
 
 -- Custom variable (passes the dictionary value)
 import "src/my_ser.t" [my_ser]
@@ -36,7 +36,7 @@ node(..., serializer = my_ser)
 ```
 
 > [!IMPORTANT]
-> **String literals (e.g., `serializer = "arrow"`) are strictly disallowed in node constructors** (`rn()`, `pyn()`, `jln()`, `shn()`, `qn()`, `node()`). You must use either a symbol with the `^` prefix for built-ins or a variable name for custom serializers. Using a string literal in a node constructor will result in a `TypeError`.
+> **String literals (e.g., `serializer = "ipc"`) are strictly disallowed in node constructors** (`rn()`, `pyn()`, `jln()`, `shn()`, `qn()`, `node()`). You must use either a symbol with the `^` prefix for built-ins or a variable name for custom serializers. Using a string literal in a node constructor will result in a `TypeError`.
 >
 > `mutate_node()` and `set_pipeline_global_options()` accept both strings and symbols: `mutate_node($serializer = "pmml")` and `set_pipeline_global_options(p, serializer = ^pmml)` are both valid.
 
@@ -49,13 +49,35 @@ If you don't specify a serializer, T uses the `default` serializer, which select
 | Identifier | Name | Best For | Write support | Read support | Notes |
 |---|---|---|---|---|---|
 | `^tlang` | T-Native | T-to-T interchange | T | T | Internal binary format |
-| `^arrow` | Apache Arrow | Large DataFrames | T, R, Python, Julia | T, R, Python, Julia | Fully symmetric across all runtimes |
+| `^ipc` | Apache Arrow IPC | Pipeline intermediates, cross-runtime exchange, fastest round trips | T, R, Python, Julia | T, R, Python, Julia | Fully symmetric across all runtimes; uncompressed |
+| `^parquet` | Apache Parquet | Long-term storage, archival, large datasets, external analytics tooling | T, R, Python, Julia | T, R, Python, Julia | Fully symmetric across all runtimes; compressed |
 | `^csv` | CSV | Tabular data | T, R, Python, Julia | T, R, Python, Julia | Fully symmetric; R uses base `write.csv`/`read.csv` |
 | `^json` | JSON | Config, lists, dicts | T, R, Python, Julia | T, R, Python, Julia | Fully symmetric; Python uses stdlib |
 | `^pmml` | PMML | Predictive Models | T, R, Python, Julia | T, R, Python, Julia | Julia writer: GLM.jl → PMML 4.4; Julia reader: JPMML evaluator via `JavaCall` |
 | `^onnx` | ONNX | ML Models | T, R, Python | T, R, Python, Julia | Julia: inference only (`ONNXRunTime.jl`); export is experimental/limited |
 | `^text` | Plain Text | Logs, shell output | All | All | Raw text, no format constraints |
 | `^bin` | Binary | Passthrough, fetchurl | T | T | Opaque binary blob; default for `fetchurl()` nodes |
+
+### Choosing Between `^ipc` and `^parquet`
+
+Both `^ipc` and `^parquet` are columnar, type-preserving Arrow formats that
+work symmetrically across every runtime. The distinction is **live hand-off vs.
+durable artifact**:
+
+- **`^ipc`** is the Arrow in-memory format written straight to disk — the
+  fastest possible write/read, but **uncompressed** and with a limited
+  ecosystem outside Arrow.
+- **`^parquet`** is a compressed, storage-optimized layout — **smaller files**
+  (typically 4–10× for numeric data), column pruning on read, and first-class
+  support in Spark, DuckDB, pandas, dask, BigQuery, and Athena.
+
+**Rule of thumb:** use `^ipc` to pass data between nodes *while a pipeline
+runs*; use `^parquet` for anything you *persist, ship, or store*. In one
+pipeline you can do both — move intermediates with `^ipc` and materialize the
+final result to Parquet.
+
+See [Parquet vs Arrow IPC: How to Choose](data-formats.md#parquet-vs-arrow-ipc-how-to-choose)
+in the Data I/O guide for the full decision walkthrough.
 
 ## 3. The `serializer` Structure
 
@@ -102,11 +124,11 @@ node A {
 }
 
 node B {
-  source: rn("data.csv", serializer = ^arrow)
+  source: rn("data.csv", serializer = ^ipc)
 }
 
 -- Result: Static Error
--- "Format mismatch: Node A produces ^csv, but Node B expects ^arrow."
+-- "Format mismatch: Node A produces ^csv, but Node B expects ^ipc."
 ```
 
 This prevents runtime errors after long-running computations by catching interchange mismatches at the start of the build.
@@ -120,7 +142,8 @@ The table below shows which packages each format pulls in per runtime:
 | Format | R packages | Python packages | Julia packages |
 |--------|-----------|----------------|---------------|
 | `^csv` | *(base R)* | `pandas` | `CSV`, `DataFrames` |
-| `^arrow` | `arrow` | `pandas`, `pyarrow` | `Arrow`, `DataFrames` |
+| `^ipc` | `arrow` | `pandas`, `pyarrow` | `Arrow`, `DataFrames` |
+| `^parquet` | `arrow` | `pandas`, `pyarrow` | `Parquet2`, `DataFrames` |
 | `^json` | `jsonlite` | *(stdlib)* | `JSON` |
 | `^pmml` | `XML`, `jsonlite`, `r2pmml` | `numpy`, `pandas`, `pyarrow`, `scikit-learn`, `scipy`, `sklearn2pmml`, `statsmodels` | `GLM`, `JavaCall` |
 | `^onnx` | `onnx` | `onnxruntime`, `skl2onnx` | `ONNXRunTime`, `ONNX` |
@@ -132,7 +155,7 @@ The `^pmml` format also requires the `jre` system tool for R, Python, and Julia 
 
 ## 6. Polyglot Support
 
-For cross-language nodes, serializers provide the necessary glue code for the target runtime. For example, when using `^arrow` in an R node:
+For cross-language nodes, serializers provide the necessary glue code for the target runtime. For example, when using `^ipc` in an R node:
 
 1. T injects the `arrow` R library into the build environment.
 2. T generates the R code to call `arrow::write_ipc_file()`.
@@ -179,5 +202,5 @@ For ONNX specifically, Julia nodes read model artifacts through `ONNXRunTime.jl`
 ## Next Steps
 
 1. **[Pipeline Tutorial](pipeline_tutorial.md)** — Learn how pipelines use serializers for polyglot data interchange.
-2. **[Data I/O & Formats](data-formats.md)** — Read and write CSV, Parquet, and Arrow IPC files; download data from URLs.
+2. **[Data I/O & Formats](data-formats.md)** — Read and write CSV, Parquet, and Arrow IPC files; download data from URLs; see how to choose between Parquet and IPC.
 3. **[Project Development](project_development.md)** — Declare runtime dependencies so serializer packages are available at build time.

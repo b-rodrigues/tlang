@@ -366,7 +366,7 @@ p = pipeline {
 
 ### Data interchange and sandboxes
 
-- **Arrow** is the preferred interchange for DataFrames.
+- **Arrow IPC (`^ipc`) and Parquet (`^parquet`)** are the preferred interchange formats for DataFrames (`^ipc` for fastest uncompressed round trip, `^parquet` for compressed storage and external tool sharing).
 - Arrow IPC round-trips now preserve nested `nest()`/`unnest()` list-columns with factor and timezone-aware datetime fields, including empty/all-null nested schemas.
 - **PMML** is used for model interchange. Now supports native scoring in Julia nodes via `JavaCall` and JPMML.
 - **ONNX** artifacts can now be consumed in Julia nodes through `ONNXRunTime.jl`; Julia ONNX export remains explicitly unsupported.
@@ -450,7 +450,7 @@ Purpose: printing, introspection, collections, metaprogramming, filesystem/path 
 
 Purpose: DataFrame construction, I/O, shape/column introspection, Arrow interop.
 
-- Constructors and I/O: `dataframe(...)`, `read_csv(path, separator = ",", skip_header = false, skip_lines = 0, clean_colnames = false)`, `read_parquet(path)`, `read_arrow(path)`, `write_csv(df, path)`, `write_arrow(df, path)`, `write_parquet(df, path)`
+- Constructors and I/O: `dataframe(...)`, `read_csv(path, separator = ",", skip_header = false, skip_lines = 0, clean_colnames = false)`, `read_parquet(path)`, `read_ipc(path)`, `write_csv(df, path)`, `write_ipc(df, path)`, `write_parquet(df, path)`
 - Introspection and extraction: `colnames(df)`, `nrow(df)`, `ncol(df)`, `glimpse(df)`, `pull(df, col)`, `to_array(df, cols = na())`
 - Column name cleaning: `clean_colnames(df)` and the documented normalization helper `clean_names(df)`
 
@@ -588,7 +588,7 @@ Purpose: unit-testing primitives, inspired by R's `testthat`. `expect_*` compari
 - Build state: `expect_computed(node)` — checks if node has been successfully built and evaluated.
 - Standard usage: `assert(expect_equal(a, b))` — passes silently on `Expect_pass`, raises `AssertionError` with the comparison's own diagnostic message otherwise.
 
-### `popcraft`
+### `propcraft`
 
 Purpose: property-based testing primitives for hardening T's standard library and user packages. Instead of hand-writing fixed cases, you state an invariant and `prop_for_all` checks it over many generated inputs, reporting a deterministic shrunk counterexample on failure. All draws use the shared seeded RNG, so `set_seed(n)` makes every run fully reproducible.
 
@@ -602,7 +602,7 @@ Purpose: property-based testing primitives for hardening T's standard library an
 - Combinators: `prop_map_gen(source, fn)`, `prop_such_that(source, pred, max_tries = 100)`, `prop_resize(source, n)`.
 - Shrinking is deterministic and only affects the reported message (never pass/fail): ints/strings/lists/vectors shrink toward minimal failing inputs; DataFrames shrink by halving rows down to the empty frame and then minimizing cells to canonical values per column type (`Int` → 0, `Float` → 0.0, `Bool` → false, `String` → "", `Factor` → first level, `Date` → 1970-01-01, `Datetime` → epoch micros 0 + tz), leaving NA cells untouched.
 - `prop_gen_ymd(min_year, max_year)`: calendar-day date generator — draws a `Date` uniformly across every day in the inclusive year range. Shrinks toward `Date(min_year-01-01)` (in-domain, not the epoch). `date_range` draws shrink toward the start bound (micros 0 + preserved tz for datetimes).
-- Dogfooding: popcraft property tests exercise the colcraft/stats verbs (`mutate`, `arrange`, `filter`, `group_by`+`summarize`, `distinct`, `head`, `slice_sample`, `left_join`, `fill`, `mean`, `sd`, `drop_na`) over generated DataFrames with injected NAs, guarding row-count algebra and `na_rm` invariants; the `math`, `strcraft`, `core`, `chrono`, and `stats` packages are covered with arithmetic identities, string round-trips/idempotence (including multibyte UTF-8 generators), functional primitives, date bounds, date round-trips, and statistical invariants (mode membership, `sd`/`var` consistency, quantile bounds, `cor`/`cov` symmetry). UTF-8 colcraft properties guard `matches`/`contains` selectors, `separate` (column algebra), and `separate_rows` (row algebra) over multibyte alphabets. The dogfooding suite has surfaced and driven fixes for byte-based UTF-8 bugs, Unicode case mapping, NSE handling of nested verb calls, and byte-based regex in the colcraft selection helpers, `separate`, and `separate_rows`.
+- Dogfooding: propcraft property tests exercise the colcraft/stats verbs (`mutate`, `arrange`, `filter`, `group_by`+`summarize`, `distinct`, `head`, `slice_sample`, `left_join`, `fill`, `mean`, `sd`, `drop_na`) over generated DataFrames with injected NAs, guarding row-count algebra and `na_rm` invariants; the `math`, `strcraft`, `core`, `chrono`, and `stats` packages are covered with arithmetic identities, string round-trips/idempotence (including multibyte UTF-8 generators), functional primitives, date bounds, date round-trips, and statistical invariants (mode membership, `sd`/`var` consistency, quantile bounds, `cor`/`cov` symmetry). UTF-8 colcraft properties guard `matches`/`contains` selectors, `separate` (column algebra), and `separate_rows` (row algebra) over multibyte alphabets. The dogfooding suite has surfaced and driven fixes for byte-based UTF-8 bugs, Unicode case mapping, NSE handling of nested verb calls, and byte-based regex in the colcraft selection helpers, `separate`, and `separate_rows`.
 - Standard usage: `set_seed(42)` then `assert(prop_for_all(prop_gen_int_range(0, 100), \(x) x >= 0))`. For a scoped, single-expression run that leaves the surrounding RNG untouched, use `with_seed(seed, \(u) ...)`.
 - `prop_gen_between(min, max)`: bounded int generator with in-domain shrinking — counterexamples shrink toward the lower bound (the "floor") instead of 0. Inside `prop_gen_df`, between-column cells minimize to `VInt min`.
 - `prop_show_spec(spec)`: render a generator spec back to T source text; the rendered output rebuilds a behaviorally equivalent generator (identical draws under the same seed).

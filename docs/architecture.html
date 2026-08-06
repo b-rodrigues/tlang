@@ -505,9 +505,8 @@ writing the node result using the specified serializer.</li>
 <p>For direct user-facing Arrow file workflows outside pipelines, T also
 exposes:</p>
 <ul>
-<li><code>read_arrow(path)</code> for Arrow IPC input</li>
-<li><code>write_arrow(to_dataframe, path)</code> for Arrow IPC
-output</li>
+<li><code>read_ipc(path)</code> for Arrow IPC input</li>
+<li><code>write_ipc(to_dataframe, path)</code> for Arrow IPC output</li>
 </ul>
 <p>That means Arrow is used both as an internal storage backend and as
 an interchange format at the language boundary.</p>
@@ -577,7 +576,7 @@ class="sourceCode ocaml"><code class="sourceCode ocaml"><span id="cb16-1"><a hre
 <p>The repository currently exposes both a backend-native CSV reader and
 Arrow IPC read/write support. The public <code>read_csv()</code> builtin
 still layers OCaml CSV parsing on top of Arrow-backed table
-construction, while <code>read_arrow</code> / <code>write_arrow</code>
+construction, while <code>read_ipc</code> / <code>write_ipc</code>
 expose Arrow IPC directly.</p>
 <h3 id="dual-path-operations">Dual-Path Operations</h3>
 <p>Every DataFrame operation has two paths:</p>

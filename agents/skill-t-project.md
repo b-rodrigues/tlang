@@ -25,7 +25,7 @@ Pick based on what language executes the code inside:
 | Run Julia code (numerical computing, models) | `jln(...)` |
 | Shell out (rsync, a CLI tool, a compiled binary) | `shn(...)` |
 
-Tabular outputs use Arrow by default (`serializer = ^arrow`). Do not serialize through CSV unless the user explicitly requests it.
+Tabular outputs use Arrow IPC by default (`serializer = ^ipc`). Do not serialize through CSV unless the user explicitly requests it.
 
 ## Serialization & Language Boundaries
 
@@ -36,7 +36,7 @@ for your data type and cross-language pattern.
 
 | Serializer | Python returns | Use case |
 |---|---|---|
-| `^arrow` | `pandas.DataFrame` | Tabular data (zero-copy from R) |
+| `^ipc` | `pandas.DataFrame` | Tabular data (zero-copy from R) |
 | `^csv` | `pandas.DataFrame` | Tabular data (text-based, human-readable) |
 | `^json` | `dict` / `list` | Arbitrary structured data |
 | `^pmml` | `JPMMLModel` wrapper | Statistical models (R ↔ Python) |
@@ -46,7 +46,7 @@ for your data type and cross-language pattern.
 
 | Serializer | R returns | Use case |
 |---|---|---|
-| `^arrow` | tibble | Tabular data |
+| `^ipc` | tibble | Tabular data |
 | `^csv` | data.frame | Tabular data (text-based) |
 | `^json` | list | Arbitrary structured data |
 | `^pmml` | T `Model` value | Statistical models (R ↔ Python ↔ T) |
@@ -54,7 +54,7 @@ for your data type and cross-language pattern.
 
 ### Cross-language patterns
 
-**R → Python (tabular):** Use `^csv` or `^arrow` on the R side:
+**R → Python (tabular):** Use `^csv` or `^ipc` on the R side:
 
 ```t
 read_data = rn(
@@ -65,27 +65,27 @@ read_data = rn(
 process = pyn(
   command = <{
 import polars as pl
-df = pl.from_pandas(read_data)  # both ^csv and ^arrow return pandas in Python
+df = pl.from_pandas(read_data)  # both ^csv and ^ipc return pandas in Python
   }>,
   deserializer = ^csv,
-  serializer = ^arrow
+  serializer = ^ipc
 )
 ```
 
-**Python → Python (tabular, Arrow):** Use `^arrow` on both sides:
+**Python → Python (tabular, IPC):** Use `^ipc` on both sides:
 
 ```t
 clean = pyn(
   command = <{
 import polars as pl
-df = pl.from_pandas(raw)  # ^arrow returns pandas.DataFrame
+df = pl.from_pandas(raw)  # ^ipc returns pandas.DataFrame
   }>,
-  deserializer = ^arrow,
-  serializer = ^arrow
+  deserializer = ^ipc,
+  serializer = ^ipc
 )
 ```
 
-**R → R:** Default serializer or `^arrow`. Returns tibble.
+**R → R:** Default serializer or `^ipc`. Returns tibble.
 
 **R → Python (model):** Use `^pmml` for statistical models:
 
@@ -144,24 +144,24 @@ consume = rn(
 ### Non-tabular outputs
 
 ggplot objects and other R objects serialize fine via R's default serializer. They
-cannot use `^arrow` or `^csv` (tabular-only). For cross-language consumption, save
+cannot use `^ipc` or `^csv` (tabular-only). For cross-language consumption, save
 the plot as a file (PDF/PNG via `ggsave()`) inside the node and use
 `pipeline_copy()` to extract it. Otherwise, the default serializer preserves the
 object for `read_node(p.node)` access in post-build.
 
 **No serializer for your object type?** Pass the underlying data instead and recreate the
 object in the consuming runtime. For example, don't try to serialize a ggplot from R to
-Python — pass the DataFrame as `^arrow` and create the plot with matplotlib/plotnine in
+Python — pass the DataFrame as `^ipc` and create the plot with matplotlib/plotnine in
 Python, or keep the ggplot in R. The same applies to any non-interchangeable object:
 pass data, not artifacts.
 
 ### Gotchas
 
-- `t check --schema` does NOT validate serializer compatibility. A `^arrow` → `^csv`
+- `t check --schema` does NOT validate serializer compatibility. A `^ipc` → `^csv`
   mismatch surfaces at runtime. Verify via `inspect_pipeline(p)`.
-- Python's `^arrow` and `^csv` both return `pandas.DataFrame`. Use `pl.from_pandas()`
+- Python's `^ipc` and `^csv` both return `pandas.DataFrame`. Use `pl.from_pandas()`
   to convert to Polars.
-- R's `^arrow` serializer calls `as.data.frame()` before writing — it coerces tibbles
+- R's `^ipc` serializer calls `as.data.frame()` before writing — it coerces tibbles
   and other framed objects to plain data.frames.
 
 ## Fetching remote assets
@@ -423,7 +423,7 @@ When adding a node to an existing pipeline, write:
 model = rn(
   command = <{ fixest::feols(amount ~ x1 + x2, data = clean) }>,
   deps = [clean],
-  serializer = ^arrow
+  serializer = ^ipc
 )
 ```
 

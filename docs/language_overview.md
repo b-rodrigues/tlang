@@ -849,7 +849,7 @@ Key properties:
 
 Pipelines define named computation nodes with automatic dependency resolution and provide the foundation for reproducible, polyglot workflows. You can see a complete, polyglot version of this example in the [`examples/polyglot_pipeline.t`](../examples/polyglot_pipeline.t) file. T supports R (`rn()`), Python (`pyn()`), Julia (`jln()`), Quarto (`qn()`), and Shell (`shn()`) nodes out of the box.
 
-Built-in serializer symbols include `^csv`, `^arrow`, `^pmml`, and `^onnx`, which you pass to node constructors like `serializer = ^csv`.
+Built-in serializer symbols include `^csv`, `^ipc`, `^pmml`, and `^onnx`, which you pass to node constructors like `serializer = ^csv`.
 
 The **ONNX** system provides full cross-runtime model portability:
 

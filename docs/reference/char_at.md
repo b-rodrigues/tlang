@@ -2,7 +2,7 @@
 
 Get character at index
 
-Returns a single-character string at the specified index.
+Returns a single-character string at the specified index. Index is character-based (Unicode code point), so a multi-byte UTF-8 character is returned whole.
 
 ## Parameters
 

@@ -37,8 +37,8 @@
 <p>Split a string on a delimiter</p>
 <p>Splits a string into a list of substrings on each occurrence of
 <code>sep</code>. If <code>sep</code> is empty, splits into individual
-characters. Works transparently on ShellResult values (splits
-stdout).</p>
+characters (Unicode code points — multi-byte characters are never
+split). Works transparently on ShellResult values (splits stdout).</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
 <li><p><strong>x</strong> (<code>String</code>): | ShellResult The

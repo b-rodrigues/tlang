@@ -409,7 +409,7 @@ let extract_cross_runtime_info msg =
     ignore (Str.search_forward re msg 0);
     let dep_runtime = Str.matched_group 2 msg in
     let serializer = match dep_runtime with
-      | "Julia" -> "^arrow"
+      | "Julia" -> "^ipc"
       | _ -> "^csv"
     in
     Some (dep_runtime, serializer)

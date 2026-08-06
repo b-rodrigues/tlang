@@ -10,9 +10,9 @@ A convenience wrapper around `node()` with `runtime = "Julia"`. Used directly wi
 
 - **script** (`String`): (Optional) Path to an external `.jl` file to execute as the node body. Mutually exclusive with `command`. Sets the runtime to `Julia` automatically.
 
-- **serializer** (`Symbol`): (Optional) Custom serializer strategy. Use `^`-prefixed symbols (e.g., `^csv`, `^json`, `^arrow`, `^onnx`). Default = runtime-native binary serialization (`jl_serialize`).
+- **serializer** (`Symbol`): (Optional) Custom serializer strategy. Use `^`-prefixed symbols (e.g., `^csv`, `^json`, `^ipc`, `^parquet`, `^onnx`). Default = runtime-native binary serialization (`jl_serialize`).
 
-- **deserializer** (`Symbol`): (Optional) Custom deserializer strategy. Use `^`-prefixed symbols (e.g., `^csv`, `^json`, `^arrow`, `^onnx`). Default = runtime-native binary deserialization.
+- **deserializer** (`Symbol`): (Optional) Custom deserializer strategy. Use `^`-prefixed symbols (e.g., `^csv`, `^json`, `^ipc`, `^parquet`, `^onnx`). Default = runtime-native binary deserialization.
 
 - **functions** (`String`): | List[String] (Optional) Julia files to source before execution.
 

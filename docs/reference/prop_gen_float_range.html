@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>T Function Reference - write_arrow</title>
+  <title>T Function Reference - prop_gen_float_range</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -33,21 +33,23 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
-<h1 id="write_arrow">write_arrow</h1>
-<p>Write Arrow IPC file</p>
-<p>Writes a DataFrame to an Apache Arrow IPC (Feather v2) file.</p>
+<h1 id="prop_gen_float_range">prop_gen_float_range</h1>
+<p>Generate a random Float in a range</p>
+<p>Returns a generator spec producing Float values drawn uniformly from
+[min, max).</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><p><strong>df</strong> (<code>DataFrame</code>): The DataFrame to
-write.</p></li>
-<li><p><strong>path</strong> (<code>String</code>): The output file
-path.</p></li>
+<li><p><strong>min</strong> (<code>Float</code>): Lower bound
+(inclusive).</p></li>
+<li><p><strong>max</strong> (<code>Float</code>): Upper bound
+(exclusive).</p></li>
 </ul>
 <h2 id="returns">Returns</h2>
+<p>A generator spec.</p>
 <h2 id="examples">Examples</h2>
-<pre class="t"><code>write_arrow(df, &quot;data.arrow&quot;)</code></pre>
+<pre class="t"><code>assert(prop_for_all(prop_gen_float_range(0.0, 1.0), \(x) x &gt;= 0.0))</code></pre>
 <h2 id="see-also">See Also</h2>
-<p><a href="read_arrow.html">read_arrow</a></p>
+<p><a href="prop_gen_int_range.html">prop_gen_int_range</a></p>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

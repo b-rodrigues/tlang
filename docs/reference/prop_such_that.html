@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>T Function Reference - read_arrow</title>
+  <title>T Function Reference - prop_such_that</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -33,22 +33,26 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
-<h1 id="read_arrow">read_arrow</h1>
-<p>Read an Arrow IPC (Feather) file</p>
-<p>Loads a DataFrame from an Arrow IPC file (also known as Feather v2)
-on disk.</p>
+<h1 id="prop_such_that">prop_such_that</h1>
+<p>Filter generated values by a predicate</p>
+<p>Returns a generator spec that draws values from <code>source</code>
+and keeps only those for which <code>pred</code> returns true. Gives up
+(with an error) after <code>max_tries</code> consecutive failures.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><strong>path</strong> (<code>String</code>): The file path to the
-Arrow IPC file.</li>
+<li><p><strong>source</strong> (<code>Dict</code>): The source
+generator.</p></li>
+<li><p><strong>pred</strong> (<code>Function</code>): A Bool-returning
+predicate on generated values.</p></li>
+<li><p><strong>max_tries</strong> (<code>Int</code>): = 100 Retry limit
+before giving up.</p></li>
 </ul>
 <h2 id="returns">Returns</h2>
-<p>The loaded DataFrame.</p>
+<p>A generator spec.</p>
 <h2 id="examples">Examples</h2>
-<pre class="t"><code>df = read_arrow(&quot;data.arrow&quot;)</code></pre>
+<pre class="t"><code>g = prop_such_that(prop_gen_int_range(-10, 10), \(x) x != 0)</code></pre>
 <h2 id="see-also">See Also</h2>
-<p><a href="read_csv.html">read_csv</a>, <a
-href="write_arrow.html">write_arrow</a></p>
+<p><a href="prop_map_gen.html">prop_map_gen</a></p>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

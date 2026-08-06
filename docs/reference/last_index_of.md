@@ -2,7 +2,7 @@
 
 Find last index of substring
 
-Returns the index of the last occurrence of `sub` in `s`, or -1 if not found.
+Returns the character index of the last occurrence of `sub` in `s`, or -1 if not found. Indices are character-based (Unicode code points).
 
 ## Parameters
 
@@ -13,5 +13,5 @@ Returns the index of the last occurrence of `sub` in `s`, or -1 if not found.
 
 ## Returns
 
-The index of the last occurrence.
+The character index of the last occurrence.
 
