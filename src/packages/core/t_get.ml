@@ -10,7 +10,7 @@ open Ast
 --#
 --# 1. **Variable Lookup**: `get("var_name")` retrieves a variable from the environment. When called inside an NSE data verb (`mutate`, `filter`, …), the **data mask** (`row` binding) is checked first — if the name matches a column, that column's value is returned; otherwise it falls back to the global environment.
 --# 2. **Collection Indexing**: `get(collection, index)` retrieves an element (0-based).
---# 3. **Pipeline Access**: `get(pipeline, "node_name")` retrieves a specific node result.
+--# 3. **Pipeline Access**: `get(pipeline, "node_name")` retrieves a specific node result. An unknown node name raises a `KeyError` (use the 3-argument form to supply a default instead).
 --# 4. **Lens Focus**: `get(data, lens)` applies a Lens to focus on a subset of data.
 --# 5. **Default Value (Fallback)**: `get(value, default)` returns `value` unchanged when it is not NA/Error; returns `default` when `value` is NA or an Error.
 --# 6. **Safe Retrieval**: `get(target, selector, default)` performs the retrieval and returns `default` only when the result is NA (missing key/node or out-of-bounds index). Type errors in unsupported target/selector combinations propagate as errors.
@@ -249,7 +249,13 @@ let register ~eval_call env =
 
       (* Pipeline Node Lookup (2 args: Pipeline, String/Symbol) *)
       | [VPipeline p; VString node_name] | [VPipeline p; VSymbol node_name] ->
-          Eval.pipeline_get_node_value (ref env) p node_name
+          (* Distinguish a missing node (KeyError) from a node whose value
+             happens to be NA: existence is decided by the declared node
+             names, not by the resolved value. This mirrors the Dict key
+             lookup above and `pipeline_node`. *)
+          (match List.mem_assoc node_name p.p_exprs with
+           | true -> Eval.pipeline_get_node_value (ref env) p node_name
+           | false -> Error.make_error KeyError (Printf.sprintf "Node `%s` not found in Pipeline." node_name))
 
       (* Lens Case (2 args: Data, Lens) *)
       | [data; VLens l] ->

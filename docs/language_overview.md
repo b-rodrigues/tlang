@@ -441,7 +441,10 @@ get(lst, 1)                  -- 20
 ```t
 p = pipeline { a = 1, b = 2 }
 get(p, "a")                  -- 1
+get(p, "missing")            -- KeyError: "Node `missing` not found in Pipeline."
+get(p, "missing", 99)        -- 99 (default when node is absent)
 ```
+Looking up an absent node without a default raises `KeyError: "Node \`missing\` not found in Pipeline."` rather than silently returning `NA`, matching `pipeline_node`. A node whose value happens to be `NA` is not treated as missing.
 
 #### 4. Dict Key Lookup
 ```t
