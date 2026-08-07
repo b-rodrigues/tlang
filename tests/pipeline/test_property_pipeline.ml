@@ -248,7 +248,7 @@ let run_tests _pass_count _fail_count _failures _eval_string eval_string_env _te
     "computed_node";
   test_env env "get(p, 42) raises TypeError for unsupported selector"
     {|p = pipeline { a = 0 }; get(p, 42)|}
-    {|Error(TypeError: "Function `get` does not support (Pipeline, Int) retrieval|};
+    {|Error(TypeError: "Function `get` does not support (Pipeline, Int) retrieval. Supported forms: (collection, Int), (Dict, String), (Pipeline, String), (data, Lens), (NA, default), (Error, default).")|};
   test_env env "pipeline_node(p, missing) raises KeyError"
     {|p = pipeline { a = 0 }; pipeline_node(p, "missing")|}
     {|Error(KeyError: "Node `missing` not found in Pipeline.")|};
@@ -272,5 +272,14 @@ let run_tests _pass_count _fail_count _failures _eval_string eval_string_env _te
   test_env env "get(p, $a) agrees with get(p, \"a\")"
     {|p = pipeline { a = 0; b = a + 1 }; identical(get(p, $a), get(p, "a"))|}
     "true";
+  test_env env "get(p, \"$a\") string form also strips the dollar prefix"
+    {|p = pipeline { a = 0; b = a + 1 }; identical(get(p, "$a"), get(p, "a"))|}
+    "true";
+  test_env env "get(p, \"$missing\") string form raises clean KeyError"
+    {|p = pipeline { a = 0; b = a + 1 }; get(p, "$missing")|}
+    {|Error(KeyError: "Node `missing` not found in Pipeline.")|};
+  test_env env "get(p, NA-valued node, default) returns node wrapper, not default"
+    {|p = pipeline { x = NA }; get(p, "x", "dflt")|}
+    "computed_node";
 
   Printf.printf "\n"

@@ -53,6 +53,14 @@ open Ast
 --# @family core
 --# @export
 *)
+
+(* Normalize an optional leading `$` so `get(p, $a)` and `get(p, "$a")` behave
+   like `get(p, "a")`, matching the Dict lookup convention. Pipeline node names
+   are identifiers, so a genuine node can never start with `$`. *)
+let strip_dollar s =
+  if String.length s > 0 && s.[0] = '$' then String.sub s 1 (String.length s - 1)
+  else s
+
 let register ~eval_call env =
   (* Returns the retrieved artifact value or a structured VError if
      sandbox-backed lookup fails. *)
@@ -249,7 +257,7 @@ let register ~eval_call env =
 
       (* Pipeline Node Lookup (2 args: Pipeline, String/Symbol) *)
       | [VPipeline p; VString node_name] | [VPipeline p; VSymbol node_name] ->
-          let node_name = if String.length node_name > 0 && node_name.[0] = '$' then String.sub node_name 1 (String.length node_name - 1) else node_name in
+          let node_name = strip_dollar node_name in
           (* Distinguish a missing node (KeyError) from a node whose value
              happens to be NA: existence is decided by the declared node
              names, not by the resolved value. This mirrors the Dict key
@@ -264,7 +272,7 @@ let register ~eval_call env =
 
       (* Dict Key Lookup (2 args: Dict, String/Symbol) *)
       | [VDict items; VString key] | [VDict items; VSymbol key] ->
-           let key = if String.length key > 0 && key.[0] = '$' then String.sub key 1 (String.length key - 1) else key in
+           let key = strip_dollar key in
            (match List.assoc_opt key items with
             | Some v -> v
             | None -> Error.make_error KeyError (Printf.sprintf "Key `%s` not found in Dict." key))
@@ -298,11 +306,11 @@ let register ~eval_call env =
           let res = 
             match [target; selector] with
             | [VPipeline p; VString node_name] | [VPipeline p; VSymbol node_name] ->
-                let node_name = if String.length node_name > 0 && node_name.[0] = '$' then String.sub node_name 1 (String.length node_name - 1) else node_name in
+                let node_name = strip_dollar node_name in
                 Eval.pipeline_get_node_value (ref env) p node_name
             | [data; VLens l] -> apply_lens l data (ref env)
             | [VDict items; VString key] | [VDict items; VSymbol key] ->
-                let key = if String.length key > 0 && key.[0] = '$' then String.sub key 1 (String.length key - 1) else key in
+                let key = strip_dollar key in
                 (match List.assoc_opt key items with
                  | Some v -> v
                  | None -> (VNA NAGeneric))
