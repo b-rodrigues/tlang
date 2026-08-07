@@ -2028,10 +2028,13 @@ read_numeric_array_value(GArrowArray *chunk, gint64 offset, gdouble *value)
   return FALSE;
 }
 
-/* Resolve a dictionary index for a row. Returns -1 when the index array
-   uses an unsupported type. garrow_dictionary_array_get_indices is a
-   transfer-full API (returns a new owned wrapper), so the wrapper is unref'd
-   before returning. */
+/* Resolve a dictionary index for a row. garrow_dictionary_array_get_indices
+   is a transfer-full API (returns a new owned wrapper), so the wrapper is
+   unref'd before returning. Returns -1 for an unsupported index width or any
+   other resolution failure. Callers treat idx < 0 as an empty-string sentinel,
+   so "unsupported width" and a genuinely negative/overflowed index (corrupt
+   file) degrade identically and safely. Callers must also bounds-check idx
+   against the dictionary length before dereferencing levels. */
 static gint64
 dictionary_index_at(GArrowDictionaryArray *dict_array, gint64 offset)
 {
@@ -2183,7 +2186,8 @@ cell_value_as_string(GArrowTable *table, int col_idx, gint64 row_idx)
     GArrowArray *dict_levels = garrow_dictionary_array_get_dictionary(dict_arr);
     if (GARROW_IS_STRING_ARRAY(dict_levels)) {
       gint64 idx = dictionary_index_at(dict_arr, offset);
-      if (idx < 0) {
+      gint64 n_levels = garrow_array_get_length(dict_levels);
+      if (idx < 0 || idx >= n_levels) {
         result = g_strdup("");
       } else {
         result = g_strdup(garrow_string_array_get_string(GARROW_STRING_ARRAY(dict_levels), idx));
@@ -2512,7 +2516,8 @@ CAMLprim value caml_arrow_table_group_by(value v_ptr, value v_key_names) {
               GArrowArray *dict_levels = garrow_dictionary_array_get_dictionary(dict_arr);
               if (GARROW_IS_STRING_ARRAY(dict_levels)) {
                 gint64 idx = dictionary_index_at(dict_arr, offset);
-                if (idx < 0) {
+                gint64 n_levels = garrow_array_get_length(dict_levels);
+                if (idx < 0 || idx >= n_levels) {
                   cell = g_strdup("");
                 } else {
                   cell = g_strdup(garrow_string_array_get_string(GARROW_STRING_ARRAY(dict_levels), idx));
@@ -2771,6 +2776,16 @@ build_dict_key_column(GroupedTable *gt, int k, int col_idx,
      rebuilt dictionary is always consistent with the group order. */
   GPtrArray *levels = collect_dict_levels(gt->table, col_idx);
 
+  /* Hash map from level string to level index (encoded i+1 so a missing
+     lookup yields NULL), built from the same collected levels so ordering
+     stays consistent; gives O(1) group lookups below. */
+  GHashTable *lv_map = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
+  for (guint i = 0; i < levels->len; i++) {
+    g_hash_table_insert(lv_map,
+                        g_strdup((const gchar *)g_ptr_array_index(levels, i)),
+                        GINT_TO_POINTER((gint)i + 1));
+  }
+
   gboolean dict_ordered = FALSE;
   if (GARROW_IS_DICTIONARY_DATA_TYPE(dtype)) {
     dict_ordered = garrow_dictionary_data_type_is_ordered(
@@ -2784,13 +2799,8 @@ build_dict_key_column(GroupedTable *gt, int k, int col_idx,
     if (lvl == NULL) {
       garrow_array_builder_append_null(GARROW_ARRAY_BUILDER(idx_builder), &err);
     } else {
-      gint32 lv_idx = -1;
-      for (guint i = 0; i < levels->len; i++) {
-        if (g_strcmp0((const gchar *)g_ptr_array_index(levels, i), lvl) == 0) {
-          lv_idx = (gint32)i;
-          break;
-        }
-      }
+      gpointer lvl_ptr = g_hash_table_lookup(lv_map, lvl);
+      gint32 lv_idx = lvl_ptr ? GPOINTER_TO_INT(lvl_ptr) - 1 : -1;
       if (lv_idx < 0) {
         garrow_array_builder_append_null(GARROW_ARRAY_BUILDER(idx_builder), &err);
       } else {
@@ -2811,6 +2821,7 @@ build_dict_key_column(GroupedTable *gt, int k, int col_idx,
   }
   GArrowArray *lv_arr = garrow_array_builder_finish(GARROW_ARRAY_BUILDER(lv_builder), &err);
   g_object_unref(lv_builder);
+  g_hash_table_destroy(lv_map);
   g_ptr_array_free(levels, TRUE);
 
   /* If either array failed to build, fall back to a plain string column so the
