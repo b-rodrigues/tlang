@@ -443,13 +443,22 @@ p = pipeline { a = 1, b = 2 }
 get(p, "a")                  -- 1
 ```
 
-#### 4. Lens Focus
+#### 4. Dict Key Lookup
+```t
+d = [a: 1, b: 2]
+get(d, "a")                  -- 1
+get(d, $b)                   -- 2 (bare symbol syntax)
+get(d, "missing", 99)        -- 99 (default when key is absent)
+```
+Looking up an absent key without a default raises `KeyError: "Key \`missing\` not found in Dict."` rather than silently returning the dict.
+
+#### 5. Lens Focus
 ```t
 l = col_lens("mpg")
 get(mtcars, l)               -- Vector of 'mpg' column
 ```
 
-#### 5. Data-Mask Aware Lookup (inside NSE verbs)
+#### 6. Data-Mask Aware Lookup (inside NSE verbs)
 When called with a single string or symbol inside an NSE data verb (`mutate`, `filter`, `summarize`, …), `get()` checks the **data mask** first. The name is looked up in the current row's columns (if the lambda is evaluated per-row) or the whole DataFrame; if not found there, it falls back to the global environment.
 ```t
 df = dataframe(a = [1, 2, 3])

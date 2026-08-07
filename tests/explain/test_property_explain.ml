@@ -19,7 +19,7 @@ let run_tests _pass_count _fail_count _failures _eval_string eval_string_env _te
       m_explain_df_shape = prop_named("explain_df_shape", \(df) { e = explain(df); e.kind == "to_dataframe" && e.nrow == nrow(df) && e.ncol == ncol(df) && type(e.hint) == "String" })
       m_explain_df_examples = prop_named("explain_df_examples", \(df) { e = explain(df); length(e.example_rows) == min([5, nrow(df)]) })
       m_explain_df_schema = prop_named("explain_df_schema", \(df) { e = explain(df); length(e.schema) == ncol(df) && sum(map(seq(0, ncol(df) - 1), \(i) ifelse(get(e.schema, i).name == get(colnames(df), i), 1, 0))) == ncol(df) })
-      m_explain_df_na_stats = prop_named("explain_df_na_stats", \(df) { e = explain(df); identical(map(colnames(df), \(c) get(e.na_stats, col_lens(c))), map(colnames(df), \(c) sum(map(pull(df, c), \(x) ifelse(is_na(x), 1, 0))))) })
+      m_explain_df_na_stats = prop_named("explain_df_na_stats", \(df) { e = explain(df); identical(map(colnames(df), \(c) get(e.na_stats, c)), map(colnames(df), \(c) sum(map(pull(df, c), \(x) ifelse(is_na(x), 1, 0))))) })
       m_explain_df_backend = prop_named("explain_df_backend", \(df) { e = explain(df); (e.storage_backend == "native_arrow") == e.native_path_active && type(e.performance_note) == "String" })
       m_explain_dict = prop_named("explain_dict", \(p) { e = explain(p); e.kind == "value" && e.type == "Dict" && e.length == length(p) && length(e.keys) == length(p) })
       m_intent_roundtrip = prop_named("intent_roundtrip", \(p) { i = intent { a: p.a, b: p.b }; intent_get(i, "a") == p.a && intent_get(i, "b") == p.b })
