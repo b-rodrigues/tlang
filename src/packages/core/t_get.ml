@@ -249,6 +249,7 @@ let register ~eval_call env =
 
       (* Pipeline Node Lookup (2 args: Pipeline, String/Symbol) *)
       | [VPipeline p; VString node_name] | [VPipeline p; VSymbol node_name] ->
+          let node_name = if String.length node_name > 0 && node_name.[0] = '$' then String.sub node_name 1 (String.length node_name - 1) else node_name in
           (* Distinguish a missing node (KeyError) from a node whose value
              happens to be NA: existence is decided by the declared node
              names, not by the resolved value. This mirrors the Dict key
@@ -297,6 +298,7 @@ let register ~eval_call env =
           let res = 
             match [target; selector] with
             | [VPipeline p; VString node_name] | [VPipeline p; VSymbol node_name] ->
+                let node_name = if String.length node_name > 0 && node_name.[0] = '$' then String.sub node_name 1 (String.length node_name - 1) else node_name in
                 Eval.pipeline_get_node_value (ref env) p node_name
             | [data; VLens l] -> apply_lens l data (ref env)
             | [VDict items; VString key] | [VDict items; VSymbol key] ->

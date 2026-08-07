@@ -3403,25 +3403,23 @@ pipeline_nodes(p)  -- ["x", "y", "z"]
 
 ---
 
-### `pipeline_deps(pipeline, node_name)`
+### `pipeline_deps(pipeline)`
 
-Get dependencies of a specific node.
+Return the full dependency graph as a dictionary mapping each node name to its dependencies.
 
 **Parameters:**
 
 
 - `pipeline` — Pipeline object
-- `node_name` — Name of the node (String)
 
 **Returns:**
 
-List of Strings (dependency names)
+Dict of node name → List of Strings (dependency names)
 
 **Examples:**
 ```t
 p = pipeline { x = 1; y = 2; z = x + y }
-pipeline_deps(p, "z")  -- ["x", "y"]
-pipeline_deps(p, "x")  -- []
+pipeline_deps(p)  -- {`x`: [], `y`: [], `z`: ["x", "y"]}
 ```
 
 ---

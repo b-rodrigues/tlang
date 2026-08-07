@@ -157,6 +157,19 @@ let run_tests _pass_count _fail_count _failures _eval_string eval_string_env _te
   Printf.printf "Propcraft dogfooding — pipeline:\n";
   let env = Packages.init_env () in
 
+  (* Stale build logs from previous runs (e.g. a real `dune runtest` build)
+     hydrate nodes by name match, so a `get(p, "a")` assertion could resolve
+     to a built artifact instead of a computed_node. Remove them first, as
+     Test_pipeline does. *)
+  (try
+     if Sys.file_exists "_pipeline" && Sys.is_directory "_pipeline" then begin
+       Sys.readdir "_pipeline"
+       |> Array.iter (fun f ->
+         if String.length f >= 10 && String.sub f 0 10 = "build_log_" then
+           Sys.remove (Filename.concat "_pipeline" f))
+     end
+   with _ -> ());
+
   Printf.printf "  Generative DAG invariants:\n";
   List.iter (fun seed ->
     let rng = Random.State.make [| seed |] in
@@ -242,5 +255,22 @@ let run_tests _pass_count _fail_count _failures _eval_string eval_string_env _te
   test_env env "pipeline_node(p, existing node) returns node value"
     {|p = pipeline { a = 0; b = a + 1 }; pipeline_node(p, "b")|}
     "computed_node";
+
+  Printf.printf "  get(p, $symbol) dollar-prefix normalization:\n";
+  test_env env "get(p, $a) retrieves node a (dict-style $ stripping)"
+    {|p = pipeline { a = 0; b = a + 1 }; get(p, $a)|}
+    "computed_node";
+  test_env env "get(p, $b, 99) returns node b, not the default"
+    {|p = pipeline { a = 0; b = a + 1 }; get(p, $b, 99)|}
+    "computed_node";
+  test_env env "get(p, $missing) raises KeyError with clean node name"
+    {|p = pipeline { a = 0; b = a + 1 }; get(p, $missing)|}
+    {|Error(KeyError: "Node `missing` not found in Pipeline.")|};
+  test_env env "get(p, $missing, string default) returns default"
+    {|p = pipeline { a = 0; b = a + 1 }; get(p, $missing, "dflt")|}
+    "dflt";
+  test_env env "get(p, $a) agrees with get(p, \"a\")"
+    {|p = pipeline { a = 0; b = a + 1 }; identical(get(p, $a), get(p, "a"))|}
+    "true";
 
   Printf.printf "\n"
