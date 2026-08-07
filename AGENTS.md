@@ -18,6 +18,7 @@ This file provides instructions for AI agents (and human contributors) working o
 - [Syntax and Behaviour Changes](#syntax-and-behaviour-changes)
 - [Commit and PR Workflow](#commit-and-pr-workflow)
 - [Maintenance and Release](#maintenance-and-release)
+- [Communication Style Requirement](#communication-style-requirement)
 
 ---
 
@@ -59,7 +60,7 @@ nix build .#t-coverage
 ./result/bin/bisect-ppx-report html
 ```
 
-**Do not edit `flake.nix` unless absolutely necessary.** The only valid reason to touch it is to add a new system-level dependency required by newly developed functionality (e.g., a new C library or OCaml package). Any such change must be discussed and justified in the PR description.
+**Do not edit `flake.nix` unless absolutely necessary.** The only valid reason to touch it is to add a new system-level dependency required by newly developed functionality (e.g., a new C library or OS package).
 
 ---
 
@@ -97,8 +98,8 @@ This runs immediately, then re-runs on every file save. Press Ctrl+C to stop. Ex
 
 ### Agent Check-Fix Loop Rules (Critical for LLMs)
 
-- **`t fix` is Not Idempotent:** `t fix` does not check if a suggestion was already applied. If you run `t check` -> `t fix` in a loop, you must count the number of diagnostics/errors returned. If the count does not decrease after a fix, **stop immediately** and do not run `t fix` again; otherwise, you will insert duplicate code blocks (e.g. repeated cast mutations).
-- **Suggested Fix Confidence Levels:** Every suggested fix contains a `"confidence"` string field in JSON (`"high"`, `"medium"`, or `"low"`) indicating whether the fix is deterministic or heuristic. Confidence is computed dynamically from diagnostic context, not static per fix kind:
+- **`t fix` is Not Idempotent:** `t fix` does not check if a suggestion was already applied. If you run `t check` -> `t fix` in a loop, you must count the number of diagnostics/errors returned. If the count does not decrease, stop. Re-applying can duplicate edits.
+- **Suggested Fix Confidence Levels:** Every suggested fix contains a `"confidence"` string field in JSON (`"high"`, `"medium"`, or `"low"`) indicating whether the fix is deterministic or heuristic. Confidence does not block application but should guide automation policy:
   - `Cast`: `"high"` when schema chain is intact, `"medium"` when broken (missing upstream column)
   - `Rename_column`: `"high"` at edit distance 1 and unique, `"medium"` at distance 2, `"low"` at 3+
   - `Add_node_arg`: always `"medium"` (heuristic, verify before applying)
@@ -106,7 +107,7 @@ This runs immediately, then re-runs on every file save. Press Ctrl+C to stop. Ex
   - `Run_command`: always `"low"` (actionable commands, check manual commands before execution)
   - **Note:** `t fix` applies all non-`NoFix` suggestions regardless of confidence. Confidence is informational for agents/tools to decide whether to auto-apply or review first.
 - **Avoid Watch Mode:** Do NOT use `--watch` (e.g., `t check --watch`). It runs a blocking loop that waits for file changes and requires a manual `Ctrl+C` interrupt, which hangs agent execution.
-- **Schema Silencing on Custom Verbs:** If you use a custom or unrecognized function in a pipe chain, the schema compiler drops the schema to empty (`[]`). This silences subsequent column-reference checks downstream. Always manually verify column references if custom verbs are introduced.
+- **Schema Silencing on Custom Verbs:** If you use a custom or unrecognized function in a pipe chain, the schema compiler drops the schema to empty (`[]`). This silences subsequent column-reference checks and can hide real errors. During development, prefer known verbs or add schema support before relying on downstream checks.
 
 ---
 
@@ -168,15 +169,15 @@ These rules are **mandatory** and apply to every line of OCaml code added or mod
 
 2. **No partial pattern matches.** All `match` expressions must handle every reachable case. Use the catch-all `| _ ->` only when genuinely exhaustive handling is impossible, and document why.
 
-3. **No raw OCaml exceptions in user-facing paths.** Return `VError { … }` (or use the helpers in `error.ml`) instead of `failwith`, `raise`, or `assert false`. OCaml exceptions are acceptable only for truly unexpected internal invariant violations that represent programmer error, not user error.
+3. **No raw OCaml exceptions in user-facing paths.** Return `VError { … }` (or use the helpers in `error.ml`) instead of `failwith`, `raise`, or `assert false`. OCaml exceptions are acceptable only at controlled boundaries (e.g., parser internals) and must be converted to structured errors before surfacing to users.
 
-4. **No mutable state unless strictly necessary.** Prefer `let` bindings and functional style. When mutable references (`ref`) are needed (e.g., accumulating errors in a loop over an array), document why.
+4. **No mutable state unless strictly necessary.** Prefer `let` bindings and functional style. When mutable references (`ref`) are needed (e.g., accumulating errors in a loop over an array), document why immutability would be impractical.
 
 5. **No silent NA propagation.** Functions that receive NA values must either propagate the error explicitly or respect an `na_rm` parameter, consistent with the rest of the standard library.
 
-6. **Strict Variable Lookup & Known Symbols.** Unbound variables evaluate strictly to a `NameError`. They do not silently fall back to symbols. However, to support convenient "bare word" syntax in pipeline configurations, certain names (like `R`, `Python`, `T`, `Julia`, `Quarto`, `sh`, `write_rds`, `default`) are explicitly pre-registered as `VSymbol` in `src/packages/core/packages.ml` via the `known_symbols` list. **If you introduce a new runtime or a new standard serializer, you MUST add its name to `known_symbols`** so users can write `runtime = Julia` instead of `runtime = "Julia"`.
+6. **Strict Variable Lookup & Known Symbols.** Unbound variables evaluate strictly to a `NameError`. They do not silently fall back to symbols. However, to support convenient "bare word" syntax in pipelines, a fixed set of known symbols may be recognized explicitly where designed. Do not expand this set casually.
 
-7. **No Silent Magic.** Never implement "placeholders" that appear to work by secretly substituting requested behavior with a fallback (e.g., never silently use JSON if ONNX serialization is requested but unsupported). If an operation cannot be performed natively and correctly as requested, always return an explicit `VError` with a helpful message. Transparency and developer predictability are prioritized over "magical" implicit success.
+7. **No Silent Magic.** Never implement "placeholders" that appear to work by secretly substituting requested behavior with a fallback (e.g., never silently use JSON if ONNX serialization is requested and unavailable). If a requested mode is unsupported, return an explicit error.
 
 8. **Death to Null.** Under no circumstances should `null` be implemented or used. Missingness is handled via `NA` and optionality via `Error` or explicit missing values.
 
@@ -204,7 +205,7 @@ failwith "unexpected input"    (* unstructured error   *)
 
 ### Data Argument Comes First
 
-For **every** function that takes a data argument (a `DataFrame`, `Vector`, `List`, or `Model`), **the data argument must be the first positional parameter**. This is required for the pipe operator (`|>`) to work correctly and is a core language convention.
+For **every** function that takes a data argument (a `DataFrame`, `Vector`, `List`, or `Model`), **the data argument must be the first positional parameter**. This is required for the pipe operator (`|>`):
 
 ```ocaml
 (* Good: data first *)
@@ -293,8 +294,8 @@ Follow this checklist whenever you add a new function or language feature:
 
 ### 2. Add Tests
 
-- **Unit tests**: add a test module in the appropriate `tests/` subdirectory. Use `test` for stateless assertions, `test_env` when the test depends on prior env state. Register the module in `test_runner.ml` with `run` (for `test`-only modules) or `run_with_env` (for modules using `test_env`), and in the corresponding `dune` file.
-- **Golden tests** (preferred for numerical or statistical functions): add a `.t` script in `tests/golden/t_scripts/`, a matching R script in `tests/golden/r_scripts/` (or extend `generate_expected.R`), and a `test_that(…)` block in `tests/golden/test_golden_r.R`.
+- **Unit tests**: add a test module in the appropriate `tests/` subdirectory. Use `test` for stateless assertions, `test_env` when the test depends on prior env state. Register the module in `tests/test_runner.ml`.
+- **Golden tests** (preferred for numerical or statistical functions): add a `.t` script in `tests/golden/t_scripts/`, a matching R script in `tests/golden/r_scripts/` (or extend `generate_expected.R`), and compare in `tests/golden/test_golden_r.R`.
 
   Golden tests are **required** for any function that produces numeric or statistical output that can be verified against R or Python.
 
@@ -342,14 +343,14 @@ When adding new builtins to the standard library, you **must** update the `#matc
 
 ### Test Infrastructure
 
-All OCaml tests are orchestrated by `tests/test_runner.ml`, which provides shared helpers and counts pass/fail across all modules. **Do not write standalone test runners** — add your test function to a module registered in `test_runner.ml`.
+All OCaml tests are orchestrated by `tests/test_runner.ml`, which provides shared helpers and counts pass/fail across all modules. **Do not write standalone test runners** — add your test function to existing suites.
 
 #### Helpers
 
 | Helper | Signature | Use when |
 |--------|-----------|----------|
 | `test name input expected` | Evaluates `input` against `shared_env`, compares string output to `expected`. | The test expression doesn't depend on prior state (no CSV loads, no pipeline setup). |
-| `test_env env name input expected` | Evaluates `input` against an explicit `env`, compares string output to `expected`. | The test depends on prior state — e.g. a CSV was loaded, a pipeline was created, or a variable was bound earlier in the same test. |
+| `test_env env name input expected` | Evaluates `input` against an explicit `env`, compares string output to `expected`. | The test depends on prior state — e.g. a CSV was loaded, a pipeline was created, or mutable env setup is required. |
 
 Both helpers:
 1. Try exact string match first.
@@ -367,7 +368,7 @@ Use `test`/`test_env` for all simple assertions. Keep OCaml-level assertions (ma
 - **Multi-step try/with with env injection** — e.g. evaluating an expression, catching an exception, then injecting the result into a new env for a follow-up check (see `test_colcraft_edge_cases.ml`)
 - **Substring/contains checks** — `test_env` does substring matching, but if you need to assert the *absence* of a substring, or use a custom predicate, use OCaml-level code
 
-Never use manual `incr pass_count` for assertions that `test`/`test_env` can express — it's error-prone (easy to increment on both branches of an if/else) and can hide individual hollow branches that strict mode's module-level check won't catch.
+Never use manual `incr pass_count` for assertions that `test`/`test_env` can express — it's error-prone (easy to increment on both branches of an if/else) and can hide individual hollow branches that silently stopped asserting.
 
 ### Unit Tests (OCaml)
 
@@ -420,7 +421,7 @@ run_with_env "Test_my_thing" Test_my_thing.run_tests;
 
 ### Strict Mode
 
-Set `TLANG_TEST_STRICT=1` to enable strict mode. The `run_module` wrapper tracks assertion counts per module and reports any module that produced **zero assertions** — catches hollow tests that print but never assert.
+Set `TLANG_TEST_STRICT=1` to enable strict mode. The `run_module` wrapper tracks assertion counts per module and reports any module that produced **zero assertions** — catches hollow tests that print headers but never validate behavior.
 
 ```bash
 TLANG_TEST_STRICT=1 dune exec tests/test_runner.exe
@@ -448,11 +449,11 @@ Current mutation targets:
 | `clean_safe_char` | `src/packages/dataframe/clean_colnames.ml` | `c >= 'a'` → `c > 'a'` (excludes `'a'`) | Column name cleaning tests |
 | `clean_collision` | `src/packages/dataframe/clean_colnames.ml` | Collision counter `count + 1` → `count - 1` | Duplicate column name tests |
 | `csv_type_fallback` | `src/packages/dataframe/t_read_csv.ml` | String fallback → `VInt 0` | CSV type inference tests |
-| `global_deps_guard` | `src/packages/pipeline/set_pipeline_global_options.ml` | `p_explicit_deps` rewritten unconditionally (flips `None` → `Some []`) when `dependencies` omitted | `set_pipeline_global_options` deps-omitted regression test |
+| `global_deps_guard` | `src/packages/pipeline/set_pipeline_global_options.ml` | `p_explicit_deps` rewritten unconditionally (flips `None` → `Some []`) when `dependencies` omitted | `set_pipeline_global_options` tests |
 
-The script verifies each mutation was actually applied (via `diff -q`) before building/testing. If a mutation pattern doesn't match the current source, it reports "pattern did not match" instead of a false SURVIVED. The backup/restore mechanism uses an associative array to support mutations across multiple source files.
+The script verifies each mutation was actually applied (via `diff -q`) before building/testing. If a mutation pattern doesn't match the current source, it reports "pattern did not match" instead of a false green.
 
-**Mutation-test hygiene:** if `mutation_test.sh` is interrupted or aborted mid-run, the target source file can be left mutated (e.g. `src/eval.ml`) and a `.bak` file left behind. After any run, verify with `git status` that no unexpected `.ml` files are modified and no stray `*.bak` files exist. Restore with `git checkout <file>` and `rm <file>.bak`.
+**Mutation-test hygiene:** if `mutation_test.sh` is interrupted or aborted mid-run, the target source file can be left mutated (e.g. `src/eval.ml`) and a `.bak` file left behind. After any run, verify `git status` is clean and remove leftovers before committing.
 
 ### Golden Tests (T vs R)
 
@@ -489,7 +490,7 @@ Or just re-run T scripts and compare (when data already exists):
 make golden-quick
 ```
 
-**When T and R disagree:** If T's behavior is correct but differs from R (e.g. tie-breaking, NA handling, sort stability), maintain the expected CSV manually (checked-in) and remove the generation block from `generate_expected.R` (so it isn't auto-overwritten), but keep the `compare_csvs(...)` call in `test_golden_r.R` so the manually-maintained CSV is still enforced. Add a `#` comment in both files explaining why.
+**When T and R disagree:** If T's behavior is correct but differs from R (e.g. tie-breaking, NA handling, sort stability), maintain the expected CSV manually (checked-in) and remove the generation block from `generate_expected.R` for that case.
 
 ---
 
@@ -519,10 +520,10 @@ runner's expected output.
 
 ### 3. Dependency Check Failures
 **Symptoms**: `Error(FileError: "Dependency Check Failure: Missing R package 'jsonlite' in tproject.toml")`
-**Cause**: The project enforces **Explicit Dependency Declaration**. Automatic dependency injection is disabled by default in the Nix emitter. CI workflows do not set `TLANG_AUTO_ADD_PIPELINE_DEPS=1`; tests and local runs must not rely on that flag being present.
+**Cause**: The project enforces **Explicit Dependency Declaration**. Automatic dependency injection is disabled by default in the Nix emitter. CI workflows do not set `TLANG_AUTO_ADD_PIPELINE_DEPS=1`; tests that rely on undeclared dependencies will fail.
 **Fix**: 
 - If the test is intended to fail without dependencies, update the expectation to match the `FileError`.
-- If the test should succeed, ensure a `tproject.toml` is present in the test environment. Do not rely on `TLANG_AUTO_ADD_PIPELINE_DEPS=1` being set; use `build=false` in `populate_pipeline` if only static analysis is being tested.
+- If the test should succeed, ensure a `tproject.toml` is present in the test environment. Do not rely on `TLANG_AUTO_ADD_PIPELINE_DEPS=1` being set; use `build=false` in `populate_pipeline` if only structure should be validated.
 
 ### 4. Nix Build Failures in Tests
 **Symptoms**: `✖ Pipeline build failed [General Nix build failure]` during `dune runtest`.
@@ -577,7 +578,7 @@ When updating `docs/changelog.md`, always focus on features, enhancements, and b
 - Changing the semantics of an existing function,
 - Changing the evaluation order or scoping rules,
 
-**stop and ask the human maintainer for validation before proceeding**. Describe the proposed change, why it is needed, and what existing behaviour would be affected. Do not implement the change until you have explicit approval.
+**stop and ask the human maintainer for validation before proceeding**. Describe the proposed change, why it is needed, and what existing behaviour would be affected. Do not implement the change until explicit approval is given.
 
 Safe changes (no approval needed):
 - Adding entirely new functions that do not conflict with existing names.
@@ -588,7 +589,7 @@ Safe changes (no approval needed):
 
 ## Commit and PR Workflow
 
-1. **Branch Management**: NEVER push straight to `main` unless explicitly told otherwise. Always push to a new branch or the currently checked-out branch if it is different from `main`. In case of doubt, ALWAYS ask before pushing!
+1. **Branch Management**: NEVER push straight to `main` unless explicitly told otherwise. Always push to a new branch or the currently checked-out branch if it is different from `main`. In case of doubt, create a new branch.
 2. **No Merging**: NEVER merge a branch into `main` or any other branch unless explicitly told to do so. Only the human maintainer merges.
 2. Make changes in a focused branch.
 2. Run `dune build` and `dune runtest` — all tests must pass.
@@ -693,3 +694,9 @@ T uses a single source of truth for its version. To release a new version:
 - No excessively long functions — hard to reason about control flow
 - `begin/end` blocks are not masking complex branching logic
 - `fun _ ->` (ignoring an argument) is intentional, not accidental
+
+---
+
+## Communication Style Requirement
+
+Only report to me in ASD-STE100 Simplified Technical English.
