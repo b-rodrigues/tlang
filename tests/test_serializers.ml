@@ -142,7 +142,7 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env _test 
 
   (* 2. Custom Serializers *)
   let env = Packages.init_env () in
-  let (_, env) = eval_string_env {|
+  let env = Test_helpers.eval_setup eval_string_env env "test_serializers:145" {|
     my_ser = [
       format: "custom",
       writer: \(path, val) { print("writing"); Ok(NA) },
@@ -150,7 +150,7 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env _test 
       r_writer: <{ function(obj, path) { saveRDS(obj, path) } }>,
       py_writer: <{ lambda obj, path: pickle.dump(obj, open(path, 'wb')) }>
     ]
-  |} env in
+  |} in
   let (v, _) = eval_string_env {| type(my_ser) |} env in
   if Ast.Utils.value_to_string v = {|"Dict"|} then begin
     incr pass_count; Printf.printf "  ✓ Custom serializer with foreign snippets (mock)\n"

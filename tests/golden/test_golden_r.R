@@ -676,6 +676,10 @@ test_that("FACTOR: month sort", {
   compare_csvs("factor_months_sort")
 })
 
+test_that("FACTOR: count on factor column matches dplyr", {
+  compare_csvs("factor_count")
+})
+
 # ============================================================================
 # Test Suite 24: PMML Random Forest
 # ============================================================================

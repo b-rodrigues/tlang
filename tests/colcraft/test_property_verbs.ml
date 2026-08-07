@@ -8,12 +8,9 @@ let run_tests _pass_count _fail_count _failures _eval_string eval_string_env _te
   let env = Packages.init_env () in
 
   (* `right` lookup table must be defined before macros that reference it *)
-  let (_, env) =
-    eval_string_env "right = to_dataframe([[g: \"a\", val: 1], [g: \"b\", val: 2]])" env
-  in
+  let env = Test_helpers.eval_setup eval_string_env env "test_property_verbs:11" "right = to_dataframe([[g: \"a\", val: 1], [g: \"b\", val: 2]])" in
 
-  let (_, env) =
-    eval_string_env {|
+  let env = Test_helpers.eval_setup eval_string_env env "test_property_verbs:15" {|
       m_mutate   = prop_named("mutate_preserves_nrow",   \(df) nrow(mutate(df, $z = $x * 2)) == nrow(df))
       m_arrange  = prop_named("arrange_preserves_nrow",   \(df) nrow(arrange(df, $x)) == nrow(df))
       m_filter   = prop_named("filter_leq_input",         \(df) nrow(filter(df, $x > 50)) <= nrow(df))
@@ -48,8 +45,7 @@ let run_tests _pass_count _fail_count _failures _eval_string eval_string_env _te
       m_relocate_first = prop_named("relocate_moves_col", \(df) get(colnames(relocate(df, $x)), 0) == "x")
       m_pivot_longer_n = prop_named("pivot_longer_single", \(df) nrow(pivot_longer(df, $x, names_to = "k", values_to = "v")) == nrow(df))
       m_replace_na_clean = prop_named("replace_na_removes", \(df) sum(ifelse(is_na(pull(replace_na(df, [x: 0]), "x")), 1, 0)) == 0)
-    |} env
-  in
+    |} in
 
   (* Two generator specs per property to dogfood macro reuse *)
   let float_df  = "prop_gen_df([x: prop_gen_float_range(0.0, 100.0)], nrows = 40, na_prob = 0.2)" in
@@ -61,8 +57,8 @@ let run_tests _pass_count _fail_count _failures _eval_string eval_string_env _te
   let fct_na_df  = "prop_gen_df([g: prop_gen_factor([\"a\", \"b\"])], nrows = 30, na_prob = 0.2)" in
   let str_na_df  = "prop_gen_df([g: prop_gen_one_of([\"a\", \"b\"])], nrows = 30, na_prob = 0.2)" in
   let df_from_gen = "prop_gen_df_from(mt, nrows = 40, na_prob = 0.2)" in
-  let (_, env) = eval_string_env "mt = to_dataframe([x: [1, 2, 3], s: [\"a\", \"b\", \"c\"], f: to_factor([\"p\", \"q\", \"p\"])])" env in
-  let (_, env) = eval_string_env "mt2 = to_dataframe([x: [1, 1, 2, 2, 3], s: [\"z\", \"z\", \"z\", \"z\", \"z\"]])" env in
+  let env = Test_helpers.eval_setup eval_string_env env "test_property_verbs:64" "mt = to_dataframe([x: [1, 2, 3], s: [\"a\", \"b\", \"c\"], f: to_factor([\"p\", \"q\", \"p\"])])" in
+  let env = Test_helpers.eval_setup eval_string_env env "test_property_verbs:65" "mt2 = to_dataframe([x: [1, 1, 2, 2, 3], s: [\"z\", \"z\", \"z\", \"z\", \"z\"]])" in
   let date_df    = "prop_gen_df([d: prop_gen_ymd(2000, 2024), x: prop_gen_int_range(0, 100)], nrows = 30, na_prob = 0.3)" in
   let nan_df     = "prop_gen_df([f: prop_gen_one_of([to_float(\"NaN\"), 1.0, 2.0])], nrows = 20, na_prob = 0.0)" in
   let wt_df      = "prop_gen_df([w: prop_gen_int_range(1, 3)], nrows = 20, na_prob = 0.0)" in
@@ -138,6 +134,7 @@ let run_tests _pass_count _fail_count _failures _eval_string eval_string_env _te
   Test_helpers.prop_test_seeded test_env env "bind_rows doubles rows (int df)" "m_bind_rows" int_df 25 seeds;
   Test_helpers.prop_test_seeded test_env env "slice_min returns min(n, nrow) rows (float)" "m_slice_min_n" float_df 25 seeds;
   Test_helpers.prop_test_seeded test_env env "count matches n_distinct of group (string)" "m_count_n" str_df 25 seeds;
+  Test_helpers.prop_test_seeded test_env env "count matches n_distinct of group (factor)" "m_count_n" factor_df 25 seeds;
   Test_helpers.prop_test_seeded test_env env "uncount expands to the weight sum" "m_uncount_n" wt_df 25 seeds;
   Test_helpers.prop_test_seeded test_env env "relocate moves the column to the front" "m_relocate_first" fct_int_df 25 seeds;
   Test_helpers.prop_test_seeded test_env env "pivot_longer on one column preserves nrow" "m_pivot_longer_n" int_df 25 seeds;

@@ -24,7 +24,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   Printf.printf "Phase 2 — read_csv():\n";
   (* Use shared env for multi-step DataFrame tests *)
   let env = Packages.init_env () in
-  let (_, env) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_path) env in
+  let env = Test_helpers.eval_setup eval_string_env env "test_dataframe:27" (Printf.sprintf {|df = read_csv("%s")|} csv_path) in
   test_env env "read_csv returns DataFrame"
     "type(df)" {|"DataFrame"|};
 
@@ -77,7 +77,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   print_newline ();
 
   Printf.printf "Phase 2 — DataFrame Type Inference:\n";
-  let (_, env2) = eval_string_env (Printf.sprintf {|df2 = read_csv("%s")|} csv_path_types) env in
+  let env2 = Test_helpers.eval_setup eval_string_env env "test_dataframe:80" (Printf.sprintf {|df2 = read_csv("%s")|} csv_path_types) in
   test_env env2 "integer columns inferred correctly"
     "df2.id" "Vector[1, 2, 3]";
   test_env env2 "boolean columns inferred correctly"
@@ -87,13 +87,13 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   print_newline ();
 
   Printf.printf "Phase 2 — NA in CSV:\n";
-  let (_, env3) = eval_string_env (Printf.sprintf {|df3 = read_csv("%s")|} csv_path_na) env in
+  let env3 = Test_helpers.eval_setup eval_string_env env "test_dataframe:90" (Printf.sprintf {|df3 = read_csv("%s")|} csv_path_na) in
   test_env env3 "NA values preserved in CSV import"
     "df3.x" "Vector[1, NA(Int), 3]";
   print_newline ();
 
   Printf.printf "Phase 2 — Empty DataFrame:\n";
-  let (_, env4) = eval_string_env (Printf.sprintf {|df4 = read_csv("%s")|} csv_path_empty) env in
+  let env4 = Test_helpers.eval_setup eval_string_env env "test_dataframe:96" (Printf.sprintf {|df4 = read_csv("%s")|} csv_path_empty) in
   test_env env4 "empty CSV has 0 rows"
     "nrow(df4)" "0";
   test_env env4 "empty CSV retains column count"
@@ -143,7 +143,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
 
   (* Test read_csv with separator *)
   let env5 = Packages.init_env () in
-  let (_, env5) = eval_string_env (Printf.sprintf {|df = read_csv("%s", separator = ";")|} csv_path_sep) env5 in
+  let env5 = Test_helpers.eval_setup eval_string_env env5 "test_dataframe:146" (Printf.sprintf {|df = read_csv("%s", separator = ";")|} csv_path_sep) in
   test_env env5 "read_csv with separator=\";\" reads correct rows"
     "nrow(df)" "2";
   test_env env5 "read_csv with separator=\";\" reads correct columns"
@@ -151,7 +151,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
 
   (* Test read_csv with skip_lines *)
   let env6 = Packages.init_env () in
-  let (_, env6) = eval_string_env (Printf.sprintf {|df = read_csv("%s", skip_lines = 2)|} csv_path_skip) env6 in
+  let env6 = Test_helpers.eval_setup eval_string_env env6 "test_dataframe:154" (Printf.sprintf {|df = read_csv("%s", skip_lines = 2)|} csv_path_skip) in
   test_env env6 "read_csv with skip_lines=2 skips comment lines"
     "nrow(df)" "2";
   test_env env6 "read_csv with skip_lines=2 reads correct header"
@@ -159,7 +159,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
 
   (* Test read_csv with skip_header *)
   let env7 = Packages.init_env () in
-  let (_, env7) = eval_string_env (Printf.sprintf {|df = read_csv("%s", skip_header = true)|} csv_path_noheader) env7 in
+  let env7 = Test_helpers.eval_setup eval_string_env env7 "test_dataframe:162" (Printf.sprintf {|df = read_csv("%s", skip_header = true)|} csv_path_noheader) in
   test_env env7 "read_csv with skip_header=true reads all lines as data"
     "nrow(df)" "2";
   test_env env7 "read_csv with skip_header=true generates V1,V2,V3 column names"
@@ -171,12 +171,12 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
 
   let csv_out_sep = "test_phase5_write_sep.csv" in
   let env_w = Packages.init_env () in
-  let (_, env_w) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_path) env_w in
+  let env_w = Test_helpers.eval_setup eval_string_env env_w "test_dataframe:174" (Printf.sprintf {|df = read_csv("%s")|} csv_path) in
   test_env env_w "write_csv with separator=\";\" returns NA"
     (Printf.sprintf {|write_csv(df, "%s", separator = ";")|} csv_out_sep) "NA";
 
   (* Roundtrip: read back the semicolon-separated file *)
-  let (_, env_w2) = eval_string_env (Printf.sprintf {|df2 = read_csv("%s", separator = ";")|} csv_out_sep) env_w in
+  let env_w2 = Test_helpers.eval_setup eval_string_env env_w "test_dataframe:179" (Printf.sprintf {|df2 = read_csv("%s", separator = ";")|} csv_out_sep) in
   test_env env_w2 "roundtrip with separator=\";\" preserves row count"
     "nrow(df2)" "3";
   test_env env_w2 "roundtrip with separator=\";\" preserves column names"
@@ -195,7 +195,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   close_out oc_s;
 
   let env_c1 = Packages.init_env () in
-  let (_, env_c1) = eval_string_env (Printf.sprintf {|df = read_csv("%s", clean_colnames = true)|} csv_path_symbols) env_c1 in
+  let env_c1 = Test_helpers.eval_setup eval_string_env env_c1 "test_dataframe:198" (Printf.sprintf {|df = read_csv("%s", clean_colnames = true)|} csv_path_symbols) in
   test_env env_c1 "clean_colnames expands symbols"
     "colnames(df)" {|["growth_percent", "million_euro", "price_dollar"]|};
 
@@ -206,7 +206,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   close_out oc_p;
 
   let env_c2 = Packages.init_env () in
-  let (_, env_c2) = eval_string_env (Printf.sprintf {|df = read_csv("%s", clean_colnames = true)|} csv_path_punct) env_c2 in
+  let env_c2 = Test_helpers.eval_setup eval_string_env env_c2 "test_dataframe:209" (Printf.sprintf {|df = read_csv("%s", clean_colnames = true)|} csv_path_punct) in
   test_env env_c2 "clean_colnames handles punctuation"
     "colnames(df)" {|["a_1", "foo_bar", "hello_world"]|};
 
@@ -217,7 +217,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   close_out oc_u;
 
   let env_c3 = Packages.init_env () in
-  let (_, env_c3) = eval_string_env (Printf.sprintf {|df = read_csv("%s", clean_colnames = true)|} csv_path_unicode) env_c3 in
+  let env_c3 = Test_helpers.eval_setup eval_string_env env_c3 "test_dataframe:220" (Printf.sprintf {|df = read_csv("%s", clean_colnames = true)|} csv_path_unicode) in
   test_env env_c3 "clean_colnames strips diacritics"
     "colnames(df)" {|["cafe", "naive"]|};
 
@@ -228,7 +228,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   close_out oc_co;
 
   let env_c4 = Packages.init_env () in
-  let (_, env_c4) = eval_string_env (Printf.sprintf {|df = read_csv("%s", clean_colnames = true)|} csv_path_collide) env_c4 in
+  let env_c4 = Test_helpers.eval_setup eval_string_env env_c4 "test_dataframe:231" (Printf.sprintf {|df = read_csv("%s", clean_colnames = true)|} csv_path_collide) in
   test_env env_c4 "clean_colnames resolves collisions"
     "colnames(df)" {|["a_1", "a_1_2", "a_1_3"]|};
 
@@ -239,20 +239,20 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   close_out oc_d;
 
   let env_c5 = Packages.init_env () in
-  let (_, env_c5) = eval_string_env (Printf.sprintf {|df = read_csv("%s", clean_colnames = true)|} csv_path_digits) env_c5 in
+  let env_c5 = Test_helpers.eval_setup eval_string_env env_c5 "test_dataframe:242" (Printf.sprintf {|df = read_csv("%s", clean_colnames = true)|} csv_path_digits) in
   test_env env_c5 "clean_colnames prefixes digit-leading names"
     "colnames(df)" {|["x_1st", "x_2nd_col", "normal"]|};
 
   (* Test clean_colnames = false preserves original names *)
   let env_c6 = Packages.init_env () in
-  let (_, env_c6) = eval_string_env (Printf.sprintf {|df = read_csv("%s", clean_colnames = false)|} csv_path_punct) env_c6 in
+  let env_c6 = Test_helpers.eval_setup eval_string_env env_c6 "test_dataframe:248" (Printf.sprintf {|df = read_csv("%s", clean_colnames = false)|} csv_path_punct) in
   test_env env_c6 "clean_colnames = false preserves original names"
     "colnames(df)" {|["A.1", "foo---bar", "hello world"]|};
 
   (* Test standalone clean_colnames() on a DataFrame *)
   let env_c7 = Packages.init_env () in
-  let (_, env_c7) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_path_punct) env_c7 in
-  let (_, env_c7) = eval_string_env "df2 = clean_colnames(df)" env_c7 in
+  let env_c7 = Test_helpers.eval_setup eval_string_env env_c7 "test_dataframe:254" (Printf.sprintf {|df = read_csv("%s")|} csv_path_punct) in
+  let env_c7 = Test_helpers.eval_setup eval_string_env env_c7 "test_dataframe:255" "df2 = clean_colnames(df)" in
   test_env env_c7 "standalone clean_colnames() on DataFrame"
     "colnames(df2)" {|["a_1", "foo_bar", "hello_world"]|};
 
@@ -263,8 +263,8 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
 
   (* Test idempotence: clean(clean(x)) == clean(x) *)
   let env_c9 = Packages.init_env () in
-  let (_, env_c9) = eval_string_env (Printf.sprintf {|df = read_csv("%s", clean_colnames = true)|} csv_path_symbols) env_c9 in
-  let (_, env_c9) = eval_string_env "df2 = clean_colnames(df)" env_c9 in
+  let env_c9 = Test_helpers.eval_setup eval_string_env env_c9 "test_dataframe:266" (Printf.sprintf {|df = read_csv("%s", clean_colnames = true)|} csv_path_symbols) in
+  let env_c9 = Test_helpers.eval_setup eval_string_env env_c9 "test_dataframe:267" "df2 = clean_colnames(df)" in
   let (v1, _) = eval_string_env "colnames(df)" env_c9 in
   let (v2, _) = eval_string_env "colnames(df2)" env_c9 in
   let r1 = Ast.Utils.value_to_string v1 in
@@ -287,7 +287,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   close_out oc_sa;
 
   let env_sa = Packages.init_env () in
-  let (_, env_sa) = eval_string_env (Printf.sprintf {|df = read_csv("%s", separator = "|")|} csv_path_sep_alias) env_sa in
+  let env_sa = Test_helpers.eval_setup eval_string_env env_sa "test_dataframe:290" (Printf.sprintf {|df = read_csv("%s", separator = "|")|} csv_path_sep_alias) in
   test_env env_sa "read_csv with separator=\"|\" reads correct rows"
     "nrow(df)" "2";
   test_env env_sa "read_csv with separator=\"|\" reads correct columns"
@@ -298,12 +298,12 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   (* Test write_csv with separator alias *)
   let csv_out_sep_alias = "test_write_sep_alias.csv" in
   let env_wsa = Packages.init_env () in
-  let (_, env_wsa) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_path) env_wsa in
+  let env_wsa = Test_helpers.eval_setup eval_string_env env_wsa "test_dataframe:301" (Printf.sprintf {|df = read_csv("%s")|} csv_path) in
   test_env env_wsa "write_csv with separator=\";\" returns NA"
     (Printf.sprintf {|write_csv(df, "%s", separator = ";")|} csv_out_sep_alias) "NA";
 
   (* Roundtrip: read back the semicolon-separated file written with separator alias *)
-  let (_, env_wsa2) = eval_string_env (Printf.sprintf {|df2 = read_csv("%s", separator = ";")|} csv_out_sep_alias) env_wsa in
+  let env_wsa2 = Test_helpers.eval_setup eval_string_env env_wsa "test_dataframe:306" (Printf.sprintf {|df2 = read_csv("%s", separator = ";")|} csv_out_sep_alias) in
   test_env env_wsa2 "roundtrip with separator=\";\" preserves row count"
     "nrow(df2)" "3";
   test_env env_wsa2 "roundtrip with separator=\";\" preserves column names"
@@ -328,7 +328,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   close_out oc_ht;
 
   let env_ht = Packages.init_env () in
-  let (_, env_ht) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_path_ht) env_ht in
+  let env_ht = Test_helpers.eval_setup eval_string_env env_ht "test_dataframe:331" (Printf.sprintf {|df = read_csv("%s")|} csv_path_ht) in
 
   test_env env_ht "head(df) returns 5 rows by default"
     "nrow(head(df))" "5";
@@ -366,7 +366,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   Printf.printf "Phase — glimpse():\n";
 
   let env_gl = Packages.init_env () in
-  let (_, env_gl) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_path) env_gl in
+  let env_gl = Test_helpers.eval_setup eval_string_env env_gl "test_dataframe:369" (Printf.sprintf {|df = read_csv("%s")|} csv_path) in
 
   test_env env_gl "glimpse returns NA (prints to stdout)"
     "g = glimpse(df)" "NA";
@@ -385,7 +385,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   Printf.printf "Phase — explain() compact display for DataFrames:\n";
 
   let env_ex = Packages.init_env () in
-  let (_, env_ex) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_path) env_ex in
+  let env_ex = Test_helpers.eval_setup eval_string_env env_ex "test_dataframe:388" (Printf.sprintf {|df = read_csv("%s")|} csv_path) in
 
   (* Compact display should not contain schema, na_stats, example_rows *)
   let (v, _) = eval_string_env "explain(df)" env_ex in
@@ -429,7 +429,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   let url = "https://raw.githubusercontent.com/b-rodrigues/rixpress_demos/refs/heads/master/r_python_quarto/data/mtcars.csv" in
   (* Note: This test requires internet access *)
   let env_url = Packages.init_env () in
-  let (_, env_url) = eval_string_env (Printf.sprintf {|df = read_csv("%s", separator = "|")|} url) env_url in
+  let env_url = Test_helpers.eval_setup eval_string_env env_url "test_dataframe:432" (Printf.sprintf {|df = read_csv("%s", separator = "|")|} url) in
   
   test_env env_url "read_csv from URL with separator=\"|\" reads correct rows (32)"
     "nrow(df)" "32";

@@ -2,8 +2,8 @@ let run_tests _pass_count _fail_count _failures _eval_string eval_string_env _te
   Printf.printf "Phase 2 — Colcraft: drop_na and factor functions:\n";
 
   let env = Packages.init_env () in
-  let (_, env) = eval_string_env {|df = to_dataframe([x: [1, NA, 3], y: [4, 5, 6]])|} env in
-  let (_, env) = eval_string_env {|f = to_factor(["a", "a", "b", "c", "c", "c"])|} env in
+  let env = Test_helpers.eval_setup eval_string_env env "test_drop_na_and_factors:5" {|df = to_dataframe([x: [1, NA, 3], y: [4, 5, 6]])|} in
+  let env = Test_helpers.eval_setup eval_string_env env "test_drop_na_and_factors:6" {|f = to_factor(["a", "a", "b", "c", "c", "c"])|} in
 
   Printf.printf "  drop_na():\n";
   test_env env "drop_na drops rows with any NA"

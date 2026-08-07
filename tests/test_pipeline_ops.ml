@@ -1021,9 +1021,7 @@ meta.stats.summary.name|}
 
   (* Regular pipeline: name should resolve to its variable name *)
   let env_r = Packages.init_env () in
-  let (_, env_r) = eval_string_env
-    {|my_pipe = pipeline { a = 1; b = a + 1 }|}
-    env_r in
+  let env_r = Test_helpers.eval_setup eval_string_env env_r "test_pipeline_ops:1024" {|my_pipe = pipeline { a = 1; b = a + 1 }|} in
   let (v_r, _) = eval_string_env
     {|my_pipe|}
     env_r in
@@ -1050,11 +1048,9 @@ meta.stats.summary.name|}
 
   (* Meta pipeline: name should resolve to its variable name *)
   let env_m = Packages.init_env () in
-  let (_, env_m) = eval_string_env
-    {|p_etl = pipeline { raw = 1; clean = raw + 1 };
+  let env_m = Test_helpers.eval_setup eval_string_env env_m "test_pipeline_ops:1053" {|p_etl = pipeline { raw = 1; clean = raw + 1 };
       p_stats = pipeline { summary = 2 };
-      meta = pipeline_of { etl = p_etl; stats = p_stats }|}
-    env_m in
+      meta = pipeline_of { etl = p_etl; stats = p_stats }|} in
   let (flat_v, _) = eval_string_env
     {|meta_flatten(meta)|}
     env_m in
@@ -1108,9 +1104,7 @@ meta.stats.summary.name|}
     {|Error(TypeError: "[L1:C1] Function `pipeline_report` expects a Pipeline, but got Int.")|};
 
   let env_rep = Packages.init_env () in
-  let (_, env_rep) = eval_string_env
-    {|p = pipeline { a = 1; b = a + 1 }|}
-    env_rep in
+  let env_rep = Test_helpers.eval_setup eval_string_env env_rep "test_pipeline_ops:1111" {|p = pipeline { a = 1; b = a + 1 }|} in
 
   test "pipeline_report rejects invalid target value"
     {|p = pipeline { a = 1 }; pipeline_report(p, target = "pdf")|}

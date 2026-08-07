@@ -193,7 +193,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   close_out oc;
 
   let env = Packages.init_env () in
-  let (_, env) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_path) env in
+  let env = Test_helpers.eval_setup eval_string_env env "test_arrow_integration:196" (Printf.sprintf {|df = read_csv("%s")|} csv_path) in
 
   if Arrow_ffi.arrow_available then begin
     match Ast.Env.find_opt "df" env with
@@ -377,9 +377,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   output_string oc "junk1,junk2\nname,age\nAlice,30\nBob,25\n";
   close_out oc;
   let env_skip = Packages.init_env () in
-  let (_, env_skip) =
-    eval_string_env (Printf.sprintf {|df_skip = read_csv("%s", skip_lines = 1)|} csv_skip_path) env_skip
-  in
+  let env_skip = Test_helpers.eval_setup eval_string_env env_skip "test_arrow_integration:380" (Printf.sprintf {|df_skip = read_csv("%s", skip_lines = 1)|} csv_skip_path) in
   let (v, _) = eval_string_env "nrow(df_skip)" env_skip in
   let skip_nrow = Ast.Utils.value_to_string v in
   if skip_nrow = "2" then begin
@@ -513,7 +511,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   close_out oc2;
 
   let env_c = Packages.init_env () in
-  let (_, env_c) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_compute) env_c in
+  let env_c = Test_helpers.eval_setup eval_string_env env_c "test_arrow_integration:516" (Printf.sprintf {|df = read_csv("%s")|} csv_compute) in
 
   (* Test arrange ascending on native-backed table *)
   test "Compute: arrange ascending (native sort)"
@@ -2063,13 +2061,9 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
          incr fail_count; Printf.printf "  ✗ DatetimeColumn IPC write failed: %s\n" msg);
 
     let env_ipc = Packages.init_env () in
-    let (_, env_ipc) =
-      eval_string_env
-        (Printf.sprintf
+    let env_ipc = Test_helpers.eval_setup eval_string_env env_ipc "test_arrow_integration:2066" (Printf.sprintf
            {|df_ipc = to_dataframe([[id: 10, grp: "x"], [id: 20, grp: "y"]]); write_ipc(df_ipc, "%s")|}
-           ipc_path)
-        env_ipc
-    in
+           ipc_path) in
     let (v, _) = eval_string_env (Printf.sprintf {|nrow(read_ipc("%s"))|} ipc_path) env_ipc in
     let nrow_result = Ast.Utils.value_to_string v in
     if nrow_result = "2" then begin
@@ -2235,13 +2229,9 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
          incr fail_count; Printf.printf "  ✗ Arrow_io.write_parquet failed: %s\n" msg);
 
     let env_parquet = Packages.init_env () in
-    let (_, env_parquet) =
-      eval_string_env
-        (Printf.sprintf
+    let env_parquet = Test_helpers.eval_setup eval_string_env env_parquet "test_arrow_integration:2238" (Printf.sprintf
            {|df_parquet = to_dataframe([[id: 10, grp: "x"], [id: 20, grp: "y"]]); write_parquet(df_parquet, "%s")|}
-           parquet_write_path)
-        env_parquet
-    in
+           parquet_write_path) in
     let (v, _) = eval_string_env (Printf.sprintf {|nrow(read_parquet("%s"))|} parquet_write_path) env_parquet in
     let nrow_result = Ast.Utils.value_to_string v in
     if nrow_result = "2" then begin

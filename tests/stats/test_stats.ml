@@ -52,7 +52,7 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
   output_string oc_cor "x,y,z,w\n1,2,6,1\n2,4,4,1\n3,6,2,1\n";
   close_out oc_cor;
   let env_cor = Packages.init_env () in
-  let (_, env_cor) = eval_string_env (Printf.sprintf {|cdf = read_csv("%s")|} csv_p5_cor) env_cor in
+  let env_cor = Test_helpers.eval_setup eval_string_env env_cor "test_stats:55" (Printf.sprintf {|cdf = read_csv("%s")|} csv_p5_cor) in
 
   test_env env_cor "perfect positive correlation"
     "cor(cdf.x, cdf.y)"
@@ -133,10 +133,10 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
   close_out oc_lm;
 
   let env_lm = Packages.init_env () in
-  let (_, env_lm) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_p5_lm) env_lm in
-  let (_, env_lm) = eval_string_env {|model = lm(data = df, formula = y ~ x)|} env_lm in
-  let (_, env_lm) = eval_string_env {|weighted_df = to_dataframe([x: [1, 2, 3, 4], y: [1, 2, 2, 4]])|} env_lm in
-  let (_, env_lm) = eval_string_env {|weighted_model = lm(data = weighted_df, formula = y ~ x, weights = [1, 1, 2, 2])|} env_lm in
+  let env_lm = Test_helpers.eval_setup eval_string_env env_lm "test_stats:136" (Printf.sprintf {|df = read_csv("%s")|} csv_p5_lm) in
+  let env_lm = Test_helpers.eval_setup eval_string_env env_lm "test_stats:137" {|model = lm(data = df, formula = y ~ x)|} in
+  let env_lm = Test_helpers.eval_setup eval_string_env env_lm "test_stats:138" {|weighted_df = to_dataframe([x: [1, 2, 3, 4], y: [1, 2, 2, 4]])|} in
+  let env_lm = Test_helpers.eval_setup eval_string_env env_lm "test_stats:139" {|weighted_model = lm(data = weighted_df, formula = y ~ x, weights = [1, 1, 2, 2])|} in
 
   let test_env_regex name input expected =
     let (v, _) = eval_string_env input env_lm in
