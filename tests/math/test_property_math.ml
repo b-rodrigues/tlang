@@ -1,5 +1,7 @@
 (* Dogfooding: algebraic invariants of math functions exercised via
-   prop_named / prop_test over generated scalar domains. *)
+   prop_named / prop_test over generated scalar domains. Each property runs
+   under several fixed seeds via prop_test_seeded so that seed-dependent
+   counterexamples cannot hide behind a single canonical seed. *)
 
 let run_tests _pass_count _fail_count _failures _eval_string eval_string_env _test test_env =
   Printf.printf "Propcraft dogfooding — math:\n";
@@ -21,55 +23,49 @@ let run_tests _pass_count _fail_count _failures _eval_string eval_string_env _te
       m_pow_square      = prop_named("pow_square",     \(n) pow(n, 2) == n * n)
       m_int_min_le_max  = prop_named("int_min_le_max", \(xs) min(xs) <= max(xs))
       m_floor_round_ceil = prop_named("floor_round_ceil", \(x) floor(x) <= round(x) && round(x) <= ceiling(x))
+      m_abs_idem       = prop_named("abs_idem",        \(x) abs(abs(x)) == abs(x))
+      m_floor_neg      = prop_named("floor_neg_ceil",  \(x) floor(x) == -ceiling(-x))
+      m_sign_class     = prop_named("sign_class",      \(x) ifelse(x > 0.0, 1.0, ifelse(x < 0.0, -1.0, 0.0)) == sign(x))
+      m_exp_pos        = prop_named("exp_pos",         \(x) exp(x) > 0.0)
+      m_cos_range      = prop_named("cos_in_1_1",      \(x) cos(x) >= -1.0 && cos(x) <= 1.0)
+      m_round_half     = prop_named("round_half_away", \(x) round(x) == ifelse(x >= 0.0, floor(x + 0.5), ceiling(x - 0.5)))
+      m_pow_zero       = prop_named("pow_zero",        \(n) pow(n, 0) == 1)
+      m_mod_smaller    = prop_named("mod_smaller",     \(xy) get(xy, 1) == 0 || abs(get(xy, 0) % get(xy, 1)) < abs(get(xy, 1)))
+      m_div_mod_id     = prop_named("div_mod_id",      \(xy) get(xy, 1) == 0 || to_integer(get(xy, 0) / get(xy, 1)) * get(xy, 1) + (get(xy, 0) % get(xy, 1)) == get(xy, 0))
     |} env
   in
 
+  let seeds = [ 1; 7; 42 ] in
   let float_domain   = "prop_gen_float_range(-100.0, 100.0)" in
   let pos_float      = "prop_gen_float_range(0.0, 100.0)" in
   let small_float    = "prop_gen_float_range(-10.0, 10.0)" in
   let int_domain     = "prop_gen_int_range(-50, 50)" in
   let int_pair       = "prop_gen_list(prop_gen_int_range(-50, 50), 2)" in
 
-  test_env env "sqrt(x*x) == abs(x) on positive floats"
-    (Printf.sprintf "set_seed(1)\nprop_test(m_sqrt_abs, %s, n = 30)" pos_float) "PASS";
+  Test_helpers.prop_test_seeded test_env env "sqrt(x*x) == abs(x) on positive floats" "m_sqrt_abs" pos_float 30 seeds;
+  Test_helpers.prop_test_seeded test_env env "abs(x) >= x on float domain" "m_abs_geq" float_domain 30 seeds;
+  Test_helpers.prop_test_seeded test_env env "log(exp(x)) ~ x on small floats" "m_log_exp" small_float 30 seeds;
+  Test_helpers.prop_test_seeded test_env env "exp(log(x)) ~ x on positive floats" "m_exp_log" pos_float 30 seeds;
+  Test_helpers.prop_test_seeded test_env env "sin^2 + cos^2 ~ 1 on float domain" "m_sin_cos" float_domain 30 seeds;
+  Test_helpers.prop_test_seeded test_env env "tanh(x) in [-1, 1]" "m_tanh_range" float_domain 30 seeds;
+  Test_helpers.prop_test_seeded test_env env "floor <= x <= ceiling" "m_floor_ceil" float_domain 30 seeds;
+  Test_helpers.prop_test_seeded test_env env "sign(x) * abs(x) == x" "m_sign_abs" float_domain 30 seeds;
+  Test_helpers.prop_test_seeded test_env env "round(x) within 0.5 of x" "m_round_dev" float_domain 30 seeds;
+  Test_helpers.prop_test_seeded test_env env "abs(x) >= 0" "m_abs_nonneg" float_domain 30 seeds;
+  Test_helpers.prop_test_seeded test_env env "sqrt(x) >= 0 for x >= 0" "m_sqrt_nonneg" float_domain 30 seeds;
+  Test_helpers.prop_test_seeded test_env env "pow(n, 2) == n * n on integers" "m_pow_square" int_domain 30 seeds;
+  Test_helpers.prop_test_seeded test_env env "min(xs) <= max(xs) on integer pairs" "m_int_min_le_max" int_pair 30 seeds;
+  Test_helpers.prop_test_seeded test_env env "floor(x) <= round(x) <= ceiling(x)" "m_floor_round_ceil" float_domain 30 seeds;
 
-  test_env env "abs(x) >= x on float domain"
-    (Printf.sprintf "set_seed(1)\nprop_test(m_abs_geq, %s, n = 30)" float_domain) "PASS";
-
-  test_env env "log(exp(x)) ~ x on small floats"
-    (Printf.sprintf "set_seed(1)\nprop_test(m_log_exp, %s, n = 30)" small_float) "PASS";
-
-  test_env env "exp(log(x)) ~ x on positive floats"
-    (Printf.sprintf "set_seed(1)\nprop_test(m_exp_log, %s, n = 30)" pos_float) "PASS";
-
-  test_env env "sin^2 + cos^2 ~ 1 on float domain"
-    (Printf.sprintf "set_seed(1)\nprop_test(m_sin_cos, %s, n = 30)" float_domain) "PASS";
-
-  test_env env "tanh(x) in [-1, 1]"
-    (Printf.sprintf "set_seed(1)\nprop_test(m_tanh_range, %s, n = 30)" float_domain) "PASS";
-
-  test_env env "floor <= x <= ceiling"
-    (Printf.sprintf "set_seed(1)\nprop_test(m_floor_ceil, %s, n = 30)" float_domain) "PASS";
-
-  test_env env "sign(x) * abs(x) == x"
-    (Printf.sprintf "set_seed(1)\nprop_test(m_sign_abs, %s, n = 30)" float_domain) "PASS";
-
-  test_env env "round(x) within 0.5 of x"
-    (Printf.sprintf "set_seed(1)\nprop_test(m_round_dev, %s, n = 30)" float_domain) "PASS";
-
-  test_env env "abs(x) >= 0"
-    (Printf.sprintf "set_seed(1)\nprop_test(m_abs_nonneg, %s, n = 30)" float_domain) "PASS";
-
-  test_env env "sqrt(x) >= 0 for x >= 0"
-    (Printf.sprintf "set_seed(1)\nprop_test(m_sqrt_nonneg, %s, n = 30)" float_domain) "PASS";
-
-  test_env env "pow(n, 2) == n * n on integers"
-    (Printf.sprintf "set_seed(1)\nprop_test(m_pow_square, %s, n = 30)" int_domain) "PASS";
-
-  test_env env "min(xs) <= max(xs) on integer pairs"
-    (Printf.sprintf "set_seed(1)\nprop_test(m_int_min_le_max, %s, n = 30)" int_pair) "PASS";
-
-  test_env env "floor(x) <= round(x) <= ceiling(x)"
-    (Printf.sprintf "set_seed(1)\nprop_test(m_floor_round_ceil, %s, n = 30)" float_domain) "PASS";
+  (* Hardened invariants *)
+  Test_helpers.prop_test_seeded test_env env "abs is idempotent" "m_abs_idem" float_domain 30 seeds;
+  Test_helpers.prop_test_seeded test_env env "floor(x) == -ceiling(-x)" "m_floor_neg" float_domain 30 seeds;
+  Test_helpers.prop_test_seeded test_env env "sign classifies into -1/0/+1" "m_sign_class" float_domain 30 seeds;
+  Test_helpers.prop_test_seeded test_env env "exp(x) > 0" "m_exp_pos" float_domain 30 seeds;
+  Test_helpers.prop_test_seeded test_env env "cos(x) in [-1, 1]" "m_cos_range" float_domain 30 seeds;
+  Test_helpers.prop_test_seeded test_env env "round rounds half away from zero" "m_round_half" float_domain 30 seeds;
+  Test_helpers.prop_test_seeded test_env env "pow(n, 0) == 1 on integers" "m_pow_zero" int_domain 30 seeds;
+  Test_helpers.prop_test_seeded test_env env "|a mod b| < |b| for b != 0" "m_mod_smaller" int_pair 30 seeds;
+  Test_helpers.prop_test_seeded test_env env "trunc(a/b)*b + a mod b == a for b != 0" "m_div_mod_id" int_pair 30 seeds;
 
   Printf.printf "\n"
