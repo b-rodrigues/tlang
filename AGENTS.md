@@ -18,6 +18,7 @@ This file provides instructions for AI agents (and human contributors) working o
 - [Syntax and Behaviour Changes](#syntax-and-behaviour-changes)
 - [Commit and PR Workflow](#commit-and-pr-workflow)
 - [Maintenance and Release](#maintenance-and-release)
+- [Communication Style Requirement](#communication-style-requirement)
 
 ---
 
@@ -678,3 +679,9 @@ T uses a single source of truth for its version. To release a new version:
 - No excessively long functions — hard to reason about control flow
 - `begin/end` blocks are not masking complex branching logic
 - `fun _ ->` (ignoring an argument) is intentional, not accidental
+
+---
+
+## Communication Style Requirement
+
+Only report to me in ASD-STE100 Simplified Technical English.
