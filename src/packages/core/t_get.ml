@@ -307,6 +307,15 @@ let register ~eval_call env =
             match [target; selector] with
             | [VPipeline p; VString node_name] | [VPipeline p; VSymbol node_name] ->
                 let node_name = strip_dollar node_name in
+                (* Unlike the 2-arg form, existence is deliberately NOT checked
+                   here: a missing node falls through pipeline_get_node_value's
+                   VNA -> default path, per the documented safe-retrieval
+                   semantics. This means an NA-valued node is only kept (default
+                   not applied) because declared nodes are returned wrapped in a
+                   computed_node — never a bare VNA at this level. If that return
+                   representation ever unwraps scalar NA nodes, this form would
+                   silently return the default instead; the 2-arg existence guard
+                   does not protect this path. *)
                 Eval.pipeline_get_node_value (ref env) p node_name
             | [data; VLens l] -> apply_lens l data (ref env)
             | [VDict items; VString key] | [VDict items; VSymbol key] ->

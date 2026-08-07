@@ -278,6 +278,12 @@ let run_tests _pass_count _fail_count _failures _eval_string eval_string_env _te
   test_env env "get(p, \"$missing\") string form raises clean KeyError"
     {|p = pipeline { a = 0; b = a + 1 }; get(p, "$missing")|}
     {|Error(KeyError: "Node `missing` not found in Pipeline.")|};
+  (* The 3-arg form has no existence guard (missing -> NA -> default is its
+     documented safe-retrieval semantics). This passes only because declared
+     nodes are returned wrapped in a computed_node, never a bare VNA at the
+     get() level. If pipeline_get_node_value ever unwraps scalar NA nodes to a
+     bare VNA, this expectation would silently flip to "dflt" with no guard in
+     the 3-arg code path — the 2-arg p_exprs check does not protect it. *)
   test_env env "get(p, NA-valued node, default) returns node wrapper, not default"
     {|p = pipeline { x = NA }; get(p, "x", "dflt")|}
     "computed_node";
