@@ -153,6 +153,7 @@ let () =
   run_with_env "Test_property_stats" Test_property_stats.run_tests;
   run_with_env "Test_property_dataframe" Test_property_dataframe.run_tests;
   run_with_env "Test_property_lens" Test_property_lens.run_tests;
+  run_with_env "Test_property_explain" Test_property_explain.run_tests;
   run "Test_fetchurl" Test_fetchurl.run_tests;
 
   (* Domain-specific tests *)

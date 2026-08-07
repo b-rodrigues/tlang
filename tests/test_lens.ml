@@ -27,6 +27,31 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
     {|items = [[a: 1], [a: 2]]; l = col_lens("a"); get(items, l)|}
     "[1, 2]";
 
+  (* Direct dict key lookup via get(dict, "key") *)
+  test "get dict by string key"
+    {|d = [a: 1, b: 2]; get(d, "a")|}
+    "1";
+
+  test "get dict by symbol key"
+    {|d = [a: 1, b: 2]; get(d, $b)|}
+    "2";
+
+  test "get dict missing key raises KeyError"
+    {|d = [a: 1, b: 2]; get(d, "missing")|}
+    {|Error(KeyError: "Key `missing` not found in Dict.")|};
+
+  test "get dict with default returns value when present"
+    {|d = [a: 1, b: 2]; get(d, "a", 99)|}
+    "1";
+
+  test "get dict with default returns default when missing"
+    {|d = [a: 1, b: 2]; get(d, "missing", 99)|}
+    "99";
+
+  test "get rejects unsupported 2-arg retrieval instead of returning input"
+    {|get(42, "x")|}
+    {|Error(TypeError: "Function `get` does not support (Int, String) retrieval. Supported forms: (collection, Int), (Dict, String), (Pipeline, String), (data, Lens), (NA, default), (Error, default).")|};
+
   (* 2. col_lens on DataFrame *)
   test "col_lens over on DataFrame"
     {|df = to_dataframe([[x: 1, y: 3], [x: 2, y: 4]]); l = col_lens("x"); df2 = over(df, l, \(v) v .* 10); df2.x|}
@@ -271,9 +296,9 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
     {|get(error("ValueError", "oops"), 0)|}
     "0";
 
-  test "get(non-NA/Error value, default) returns the value unchanged"
+  test "get(unsupported 2-arg pair) raises TypeError instead of returning input unchanged"
     {|get(42, 0)|}
-    "42";
+    {|Error(TypeError: "Function `get` does not support (Int, Int) retrieval. Supported forms: (collection, Int), (Dict, String), (Pipeline, String), (data, Lens), (NA, default), (Error, default).")|};
 
   test "get(list, oob_index, default) returns default"
     {|get([10, 20, 30], 99, -1)|}
