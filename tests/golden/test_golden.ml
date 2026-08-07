@@ -47,7 +47,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
 
   (* Golden test 9: Pipeline introspection - deps *)
   let env_g = Packages.init_env () in
-  let (_, env_g) = eval_string_env "p = pipeline {\n  a = 1\n  b = 2\n  c = a + b\n}" env_g in
+  let env_g = Test_helpers.eval_setup eval_string_env env_g "test_golden:50" "p = pipeline {\n  a = 1\n  b = 2\n  c = a + b\n}" in
   test_env env_g "golden: introspection deps"
     "pipeline_deps(p)"
     {|{`a`: [], `b`: [], `c`: ["a", "b"]}|};
@@ -161,7 +161,7 @@ Valid arguments: pipeline_script (positional/named), name, file.")|};
   close_out oc;
 
   let env_gd = Packages.init_env () in
-  let (_, env_gd) = eval_string_env (Printf.sprintf
+  let env_gd = Test_helpers.eval_setup eval_string_env env_gd "test_golden:164" (Printf.sprintf
     {|p = pipeline {
   data = read_csv("%s")
   rows = data |> nrow
@@ -169,7 +169,7 @@ Valid arguments: pipeline_script (positional/named), name, file.")|};
   names = data |> colnames
   filtered = filter(data, $value > 150)
   filtered_count = filtered |> nrow
-}|} csv_golden) env_gd in
+}|} csv_golden) in
 
   test_env env_gd "golden: data pipeline nrow returns FileError for unbuilt pipeline"
     "read_node(p.rows)"
@@ -204,13 +204,13 @@ Valid arguments: pipeline_script (positional/named), name, file.")|};
 
   (* Test: read_csv -> write_csv -> read_csv roundtrip *)
   let env_rw = Packages.init_env () in
-  let (_, env_rw) = eval_string_env (Printf.sprintf
-    {|df = read_csv("%s")|} csv_golden_rw) env_rw in
+  let env_rw = Test_helpers.eval_setup eval_string_env env_rw "test_golden:207" (Printf.sprintf
+    {|df = read_csv("%s")|} csv_golden_rw) in
   let csv_golden_out = "test_golden_rw_out.csv" in
-  let (_, env_rw) = eval_string_env (Printf.sprintf
-    {|write_csv(df, "%s")|} csv_golden_out) env_rw in
-  let (_, env_rw) = eval_string_env (Printf.sprintf
-    {|df2 = read_csv("%s")|} csv_golden_out) env_rw in
+  let env_rw = Test_helpers.eval_setup eval_string_env env_rw "test_golden:210" (Printf.sprintf
+    {|write_csv(df, "%s")|} csv_golden_out) in
+  let env_rw = Test_helpers.eval_setup eval_string_env env_rw "test_golden:212" (Printf.sprintf
+    {|df2 = read_csv("%s")|} csv_golden_out) in
   test_env env_rw "golden: read->write->read roundtrip preserves rows"
     "nrow(df2)" "3";
   test_env env_rw "golden: read->write->read roundtrip preserves columns"
@@ -218,10 +218,10 @@ Valid arguments: pipeline_script (positional/named), name, file.")|};
 
   (* Test: write_csv with custom separator and read back *)
   let csv_golden_sep_out = "test_golden_sep_out.csv" in
-  let (_, env_rw) = eval_string_env (Printf.sprintf
-    {|write_csv(df, "%s", separator = ";")|} csv_golden_sep_out) env_rw in
-  let (_, env_rw) = eval_string_env (Printf.sprintf
-    {|df3 = read_csv("%s", separator = ";")|} csv_golden_sep_out) env_rw in
+  let env_rw = Test_helpers.eval_setup eval_string_env env_rw "test_golden:221" (Printf.sprintf
+    {|write_csv(df, "%s", separator = ";")|} csv_golden_sep_out) in
+  let env_rw = Test_helpers.eval_setup eval_string_env env_rw "test_golden:223" (Printf.sprintf
+    {|df3 = read_csv("%s", separator = ";")|} csv_golden_sep_out) in
   test_env env_rw "golden: write separator=\";\" -> read separator=\";\" roundtrip preserves rows"
     "nrow(df3)" "3";
   test_env env_rw "golden: write separator=\";\" -> read separator=\";\" roundtrip preserves columns"
@@ -230,14 +230,13 @@ Valid arguments: pipeline_script (positional/named), name, file.")|};
   (* Test: write empty DataFrame *)
   let csv_golden_empty = "test_golden_empty_rw.csv" in
   let env_empty = Packages.init_env () in
-  let (_, env_empty) = eval_string_env (Printf.sprintf
-    {|df = read_csv("%s")|} csv_golden_rw) env_empty in
-  let (_, env_empty) = eval_string_env
-    {|empty_df = filter(df, $value > 9999)|} env_empty in
-  let (_, env_empty) = eval_string_env (Printf.sprintf
-    {|write_csv(empty_df, "%s")|} csv_golden_empty) env_empty in
-  let (_, env_empty) = eval_string_env (Printf.sprintf
-    {|df_back = read_csv("%s")|} csv_golden_empty) env_empty in
+  let env_empty = Test_helpers.eval_setup eval_string_env env_empty "test_golden:233" (Printf.sprintf
+    {|df = read_csv("%s")|} csv_golden_rw) in
+  let env_empty = Test_helpers.eval_setup eval_string_env env_empty "test_golden:235" {|empty_df = filter(df, $value > 9999)|} in
+  let env_empty = Test_helpers.eval_setup eval_string_env env_empty "test_golden:237" (Printf.sprintf
+    {|write_csv(empty_df, "%s")|} csv_golden_empty) in
+  let env_empty = Test_helpers.eval_setup eval_string_env env_empty "test_golden:239" (Printf.sprintf
+    {|df_back = read_csv("%s")|} csv_golden_empty) in
   test_env env_empty "golden: write empty DataFrame roundtrip"
     "nrow(df_back)" "0";
 
@@ -248,12 +247,12 @@ Valid arguments: pipeline_script (positional/named), name, file.")|};
   output_string oc "x,y\n1,hello\nNA,world\n3,NA\n";
   close_out oc;
   let env_na = Packages.init_env () in
-  let (_, env_na) = eval_string_env (Printf.sprintf
-    {|df = read_csv("%s")|} csv_golden_na_src) env_na in
-  let (_, env_na) = eval_string_env (Printf.sprintf
-    {|write_csv(df, "%s")|} csv_golden_na) env_na in
-  let (_, env_na) = eval_string_env (Printf.sprintf
-    {|df2 = read_csv("%s")|} csv_golden_na) env_na in
+  let env_na = Test_helpers.eval_setup eval_string_env env_na "test_golden:251" (Printf.sprintf
+    {|df = read_csv("%s")|} csv_golden_na_src) in
+  let env_na = Test_helpers.eval_setup eval_string_env env_na "test_golden:253" (Printf.sprintf
+    {|write_csv(df, "%s")|} csv_golden_na) in
+  let env_na = Test_helpers.eval_setup eval_string_env env_na "test_golden:255" (Printf.sprintf
+    {|df2 = read_csv("%s")|} csv_golden_na) in
   test_env env_na "golden: write NA DataFrame roundtrip preserves rows"
     "nrow(df2)" "3";
 
@@ -572,10 +571,10 @@ Valid arguments: pipeline_script (positional/named), name, file.")|};
 
   if Sys.file_exists iris_csv && Sys.file_exists iris_onnx then begin
     let env_ml = Packages.init_env () in
-    let (_, env_ml) = eval_string_env (Printf.sprintf
+    let env_ml = Test_helpers.eval_setup eval_string_env env_ml "test_golden:575" (Printf.sprintf
       {|df = read_csv("%s")
         model = t_read_onnx("%s")
-      |} iris_csv iris_onnx) env_ml in
+      |} iris_csv iris_onnx) in
 
     (* Test: Metadata extraction *)
     test_env env_ml "golden onnx: input_width extraction"
@@ -597,10 +596,10 @@ Valid arguments: pipeline_script (positional/named), name, file.")|};
 
   if Sys.file_exists iris_csv && Sys.file_exists iris_pmml then begin
     let env_pmml = Packages.init_env () in
-    let (_, env_pmml) = eval_string_env (Printf.sprintf
+    let env_pmml = Test_helpers.eval_setup eval_string_env env_pmml "test_golden:600" (Printf.sprintf
       {|df = read_csv("%s")
         model = t_read_pmml("%s")
-      |} iris_csv iris_pmml) env_pmml in
+      |} iris_csv iris_pmml) in
 
     (* Test: Metadata check *)
     test_env env_pmml "golden jpmml: model import successful"

@@ -425,6 +425,7 @@ and build_ocaml_groups (t : Arrow_table.t) (keys : string list) : (string * int 
     | (Ast.VFloat x, Ast.VInt y) -> compare x (float_of_int y)
     | (Ast.VString x, Ast.VString y) -> String.compare x y
     | (Ast.VBool x, Ast.VBool y) -> compare x y
+    | (Ast.VFactor (i1, _, _), Ast.VFactor (i2, _, _)) -> compare i1 i2
     | (Ast.VNA _, _) -> 1
     | (_, Ast.VNA _) -> -1
     | _ -> 0

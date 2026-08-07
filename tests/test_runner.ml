@@ -151,6 +151,8 @@ let () =
   run_with_env "Test_property_core" Test_property_core.run_tests;
   run_with_env "Test_property_chrono" Test_property_chrono.run_tests;
   run_with_env "Test_property_stats" Test_property_stats.run_tests;
+  run_with_env "Test_property_dataframe" Test_property_dataframe.run_tests;
+  run_with_env "Test_property_lens" Test_property_lens.run_tests;
   run "Test_fetchurl" Test_fetchurl.run_tests;
 
   (* Domain-specific tests *)
@@ -239,6 +241,7 @@ let () =
   (* Full coverage push — new test modules *)
   run_with_env "Test_model_accessors" Test_model_accessors.run_tests;
   run_with_env "Test_drop_na_and_factors" Test_drop_na_and_factors.run_tests;
+  run_with_env "Test_factor_grouping" Test_factor_grouping.run_tests;
   run "Test_chrono_components" Test_chrono_components.run_tests;
   run "Test_trig_hyperbolic" Test_trig_hyperbolic.run_tests;
   run "Test_misc_functions" Test_misc_functions.run_tests;

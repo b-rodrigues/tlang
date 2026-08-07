@@ -51,11 +51,13 @@
      test_check test_fix test_ndjson
      test_expect_equal test_expect_more test_expect_condition test_expect_pipeline
        test_expect_pass_fail_msg test_expect_ds_coverage
-       test_property
-       test_property_verbs
-        test_property_math test_property_strcraft test_property_core
-        test_property_chrono test_property_stats
+        test_property
+        test_property_verbs
+         test_property_math test_property_strcraft test_property_core
+         test_property_chrono test_property_stats
+         test_property_dataframe test_property_lens
       test_model_accessors test_drop_na_and_factors test_chrono_components
+      test_factor_grouping
      test_trig_hyperbolic test_misc_functions
   )
   (libraries t_lang menhirLib otoml unix str)
@@ -68,6 +70,7 @@
    test_arrow_native_runner
    test_arrow_integration
    test_arrow_performance
+   test_helpers
  )
  (libraries t_lang menhirLib otoml unix str)
 )

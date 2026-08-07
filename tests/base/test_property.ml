@@ -668,4 +668,13 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env _test 
   in
   test_restore_after_error pass_count fail_count;
 
+  (* Multi-seed dogfooding: combinators must hold under several fixed seeds,
+     not just the canonical seed. *)
+  let seeds = [ 1; 7; 42 ] in
+  Test_helpers.prop_test_seeded test_env env "one_of stays within its values" "prop_named(\"one_of_domain\", \\(x) x == 10 || x == 20 || x == 30)" "prop_gen_one_of([10, 20, 30])" 30 seeds;
+  Test_helpers.prop_test_seeded test_env env "choice draws from one of its branches" "prop_named(\"choice_domain\", \\(x) (x == 0 || x == 1) || (x == true || x == false))" "prop_gen_choice([prop_gen_int_range(0, 1), prop_gen_bool()])" 30 seeds;
+  Test_helpers.prop_test_seeded test_env env "frequency respects its branch domains" "prop_named(\"freq_domain\", \\(x) (x >= 0 && x <= 5) || (x >= 10 && x <= 20))" "prop_gen_frequency([[5, prop_gen_int_range(0, 5)], [1, prop_gen_int_range(10, 20)]])" 30 seeds;
+  Test_helpers.prop_test_seeded test_env env "such_that filters the inner domain" "prop_named(\"such_that_even\", \\(x) x % 2 == 0)" "prop_such_that(prop_gen_int_range(0, 40), \\(x) x % 2 == 0)" 30 seeds;
+  Test_helpers.prop_test_seeded ~preamble:"mt = to_dataframe([x: [1, 2, 3], s: [\"a\", \"b\", \"c\"]])" test_env env "df_from round-trips nrows across seeds" "prop_named(\"df_from_nrows\", \\(df) nrow(df) == 40 && ncol(df) == 2)" "prop_gen_df_from(mt, nrows = 40, na_prob = 0.2)" 10 seeds;
+
   Printf.printf "\n"

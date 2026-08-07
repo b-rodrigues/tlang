@@ -9,7 +9,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   close_out oc;
 
   let env0 = Packages.init_env () in
-  let (_, env0) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_edge) env0 in
+  let env0 = Test_helpers.eval_setup eval_string_env env0 "test_colcraft_edge_cases:12" (Printf.sprintf {|df = read_csv("%s")|} csv_edge) in
 
   Printf.printf "Edge Cases — Empty Groups (filter to zero rows):\n";
 
@@ -33,7 +33,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   close_out oc_na;
 
   let env_na = Packages.init_env () in
-  let (_, env_na) = eval_string_env (Printf.sprintf {|df_na = read_csv("%s")|} csv_na) env_na in
+  let env_na = Test_helpers.eval_setup eval_string_env env_na "test_colcraft_edge_cases:36" (Printf.sprintf {|df_na = read_csv("%s")|} csv_na) in
 
   (* Grouped summarize with mean(na_rm=true) on all-NA values *)
   let step_result = (try
@@ -75,7 +75,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   close_out oc_single;
 
   let env_single = Packages.init_env () in
-  let (_, env_single) = eval_string_env (Printf.sprintf {|df_single = read_csv("%s")|} csv_single) env_single in
+  let env_single = Test_helpers.eval_setup eval_string_env env_single "test_colcraft_edge_cases:78" (Printf.sprintf {|df_single = read_csv("%s")|} csv_single) in
 
   (* group_by unique id, then summarize with sd — each group has 1 row *)
   test_env env_single "single-row groups summarize produces 3 rows"
@@ -103,7 +103,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   close_out oc_multi;
 
   let env_multi = Packages.init_env () in
-  let (_, env_multi) = eval_string_env (Printf.sprintf {|df_multi = read_csv("%s")|} csv_multi) env_multi in
+  let env_multi = Test_helpers.eval_setup eval_string_env env_multi "test_colcraft_edge_cases:106" (Printf.sprintf {|df_multi = read_csv("%s")|} csv_multi) in
 
   (* group_by two columns *)
   test_env env_multi "group_by two columns produces 4 rows"
@@ -122,7 +122,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   close_out oc_gm;
 
   let env_gm = Packages.init_env () in
-  let (_, env_gm) = eval_string_env (Printf.sprintf {|df_gm = read_csv("%s")|} csv_gm) env_gm in
+  let env_gm = Test_helpers.eval_setup eval_string_env env_gm "test_colcraft_edge_cases:125" (Printf.sprintf {|df_gm = read_csv("%s")|} csv_gm) in
 
   test_env env_gm "grouped mutate on single-row groups returns 3 rows"
     {|df_gm |> group_by($id) |> mutate($grp_size = nrow($id)) |> nrow|}

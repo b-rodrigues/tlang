@@ -21,7 +21,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   close_out oc_mv;
 
   let env_mv = Packages.init_env () in
-  let (_, env_mv) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_mv) env_mv in
+  let env_mv = Test_helpers.eval_setup eval_string_env env_mv "test_formula_edge_cases:24" (Printf.sprintf {|df = read_csv("%s")|} csv_mv) in
 
   let (v, _) = eval_string_env {|lm(data = df, formula = y ~ x1 + x2)|} env_mv in
   let result = Ast.Utils.value_to_string v in
@@ -42,8 +42,8 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   close_out oc_inter;
 
   let env_inter = Packages.init_env () in
-  let (_, env_inter) = eval_string_env (Printf.sprintf {|df_inter = read_csv("%s")|} csv_inter) env_inter in
-  let (_, env_inter) = eval_string_env {|model_inter = lm(data = df_inter, formula = y ~ x1 * x2)|} env_inter in
+  let env_inter = Test_helpers.eval_setup eval_string_env env_inter "test_formula_edge_cases:45" (Printf.sprintf {|df_inter = read_csv("%s")|} csv_inter) in
+  let env_inter = Test_helpers.eval_setup eval_string_env env_inter "test_formula_edge_cases:46" {|model_inter = lm(data = df_inter, formula = y ~ x1 * x2)|} in
 
   test_env env_inter "lm() includes interaction term in tidy output"
     {|model_inter._tidy_df.term|}
@@ -64,7 +64,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   close_out oc_collinear;
 
   let env_collinear = Packages.init_env () in
-  let (_, env_collinear) = eval_string_env (Printf.sprintf {|df_collinear = read_csv("%s")|} csv_collinear) env_collinear in
+  let env_collinear = Test_helpers.eval_setup eval_string_env env_collinear "test_formula_edge_cases:67" (Printf.sprintf {|df_collinear = read_csv("%s")|} csv_collinear) in
 
   test_env env_collinear "lm() reports collinearity explicitly"
     {|lm(data = df_collinear, formula = y ~ x1 + x2)|}
@@ -81,7 +81,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   close_out oc_na;
 
   let env_na = Packages.init_env () in
-  let (_, env_na) = eval_string_env (Printf.sprintf {|df_na = read_csv("%s")|} csv_na) env_na in
+  let env_na = Test_helpers.eval_setup eval_string_env env_na "test_formula_edge_cases:84" (Printf.sprintf {|df_na = read_csv("%s")|} csv_na) in
 
   (* lm() should handle NA in columns — either error or success is acceptable *)
   let (v, _) = eval_string_env {|lm(data = df_na, formula = y ~ x)|} env_na in
@@ -103,7 +103,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   close_out oc_zv;
 
   let env_zv = Packages.init_env () in
-  let (_, env_zv) = eval_string_env (Printf.sprintf {|df_zv = read_csv("%s")|} csv_zv) env_zv in
+  let env_zv = Test_helpers.eval_setup eval_string_env env_zv "test_formula_edge_cases:106" (Printf.sprintf {|df_zv = read_csv("%s")|} csv_zv) in
 
   let (v, _) = eval_string_env {|lm(data = df_zv, formula = y ~ x)|} env_zv in
   let result = Ast.Utils.value_to_string v in
@@ -124,7 +124,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   close_out oc_small;
 
   let env_small = Packages.init_env () in
-  let (_, env_small) = eval_string_env (Printf.sprintf {|df_small = read_csv("%s")|} csv_small) env_small in
+  let env_small = Test_helpers.eval_setup eval_string_env env_small "test_formula_edge_cases:127" (Printf.sprintf {|df_small = read_csv("%s")|} csv_small) in
 
   let (v, _) = eval_string_env {|lm(data = df_small, formula = y ~ x)|} env_small in
   let result = Ast.Utils.value_to_string v in
@@ -162,8 +162,8 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   close_out oc_perf;
 
   let env_perf = Packages.init_env () in
-  let (_, env_perf) = eval_string_env (Printf.sprintf {|df_perf = read_csv("%s")|} csv_perf) env_perf in
-  let (_, env_perf) = eval_string_env {|model = lm(data = df_perf, formula = y ~ x)|} env_perf in
+  let env_perf = Test_helpers.eval_setup eval_string_env env_perf "test_formula_edge_cases:165" (Printf.sprintf {|df_perf = read_csv("%s")|} csv_perf) in
+  let env_perf = Test_helpers.eval_setup eval_string_env env_perf "test_formula_edge_cases:166" {|model = lm(data = df_perf, formula = y ~ x)|} in
 
   test_env env_perf "perfect fit has R²=1.0"
     "model._model_data.r_squared"
