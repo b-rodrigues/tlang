@@ -763,7 +763,11 @@ CAMLprim value caml_arrow_read_dictionary_column(value v_array_ptr) {
     }
   }
 
-  /* indices_arr and dictionary are borrowed components - don't unref them */
+  /* dictionary and indices_arr are transfer-full wrappers (owned by us):
+     unref both before returning. */
+  g_object_unref(dictionary);
+  g_object_unref(indices_arr);
+
   /* Build result tuple: (indices, levels, ordered) */
   v_result = caml_alloc(3, 0);
   Store_field(v_result, 0, v_indices);
@@ -2025,8 +2029,9 @@ read_numeric_array_value(GArrowArray *chunk, gint64 offset, gdouble *value)
 }
 
 /* Resolve a dictionary index for a row. Returns -1 when the index array
-   uses an unsupported type. The indices array is a borrowed component of
-   the dictionary array and must not be unref'd. */
+   uses an unsupported type. garrow_dictionary_array_get_indices is a
+   transfer-full API (returns a new owned wrapper), so the wrapper is unref'd
+   before returning. */
 static gint64
 dictionary_index_at(GArrowDictionaryArray *dict_array, gint64 offset)
 {
@@ -2048,7 +2053,48 @@ dictionary_index_at(GArrowDictionaryArray *dict_array, gint64 offset)
     idx = (gint64)garrow_uint32_array_get_value(GARROW_UINT32_ARRAY(indices_arr), offset);
   else if (GARROW_IS_UINT64_ARRAY(indices_arr))
     idx = (gint64)garrow_uint64_array_get_value(GARROW_UINT64_ARRAY(indices_arr), offset);
+  g_object_unref(indices_arr);
   return idx;
+}
+
+/* Collect the union of dictionary level strings for a key column, in
+   first-seen order across chunks. This single helper is the one source of
+   level ordering for both group sorting (build_dict_level_map) and result
+   column rebuilding (build_dict_key_column), so the two can never disagree
+   even when chunks carry differently-ordered dictionaries. Returns a
+   newly-allocated GPtrArray (g_free'd elements); the caller frees it with
+   g_ptr_array_free(levels, TRUE). */
+static GPtrArray *
+collect_dict_levels(GArrowTable *table, int col_idx)
+{
+  GPtrArray *levels = g_ptr_array_new();
+  GArrowChunkedArray *chunked = garrow_table_get_column_data(table, col_idx);
+  guint n_chunks = chunked ? garrow_chunked_array_get_n_chunks(chunked) : 0;
+  for (guint c = 0; c < n_chunks; c++) {
+    GArrowArray *chunk = garrow_chunked_array_get_chunk(chunked, c);
+    if (GARROW_IS_DICTIONARY_ARRAY(chunk)) {
+      GArrowDictionaryArray *dict_chunk = GARROW_DICTIONARY_ARRAY(chunk);
+      GArrowArray *dict_levels = garrow_dictionary_array_get_dictionary(dict_chunk);
+      if (GARROW_IS_STRING_ARRAY(dict_levels)) {
+        gint64 nlv = garrow_array_get_length(dict_levels);
+        for (gint64 i = 0; i < nlv; i++) {
+          const gchar *lv = garrow_string_array_get_string(GARROW_STRING_ARRAY(dict_levels), i);
+          gboolean seen = FALSE;
+          for (guint j = 0; j < levels->len; j++) {
+            if (g_strcmp0((const gchar *)g_ptr_array_index(levels, j), lv) == 0) {
+              seen = TRUE;
+              break;
+            }
+          }
+          if (!seen) g_ptr_array_add(levels, g_strdup(lv));
+        }
+      }
+      g_object_unref(dict_levels);
+    }
+    g_object_unref(chunk);
+  }
+  if (chunked) g_object_unref(chunked);
+  return levels;
 }
 
 /* Build a map from dictionary level string to level index (encoded i+1 so a
@@ -2059,28 +2105,13 @@ static GHashTable *
 build_dict_level_map(GArrowTable *table, int col_idx)
 {
   GHashTable *map = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
-  GArrowChunkedArray *chunked = garrow_table_get_column_data(table, col_idx);
-  guint n_chunks = chunked ? garrow_chunked_array_get_n_chunks(chunked) : 0;
-  gint64 next_idx = 0;
-  for (guint c = 0; c < n_chunks; c++) {
-    GArrowArray *chunk = garrow_chunked_array_get_chunk(chunked, c);
-    if (GARROW_IS_DICTIONARY_ARRAY(chunk)) {
-      GArrowDictionaryArray *dict_chunk = GARROW_DICTIONARY_ARRAY(chunk);
-      GArrowArray *dict_levels = garrow_dictionary_array_get_dictionary(dict_chunk);
-      if (GARROW_IS_STRING_ARRAY(dict_levels)) {
-        gint64 nlv = garrow_array_get_length(dict_levels);
-        for (gint64 i = 0; i < nlv; i++) {
-          const gchar *lv = garrow_string_array_get_string(GARROW_STRING_ARRAY(dict_levels), i);
-          if (!g_hash_table_lookup(map, lv)) {
-            g_hash_table_insert(map, g_strdup(lv), GINT_TO_POINTER((gint)next_idx + 1));
-            next_idx++;
-          }
-        }
-      }
-    }
-    g_object_unref(chunk);
+  GPtrArray *levels = collect_dict_levels(table, col_idx);
+  for (guint i = 0; i < levels->len; i++) {
+    g_hash_table_insert(map,
+                        g_strdup((const gchar *)g_ptr_array_index(levels, i)),
+                        GINT_TO_POINTER((gint)i + 1));
   }
-  if (chunked) g_object_unref(chunked);
+  g_ptr_array_free(levels, TRUE);
   return map;
 }
 
@@ -2160,6 +2191,7 @@ cell_value_as_string(GArrowTable *table, int col_idx, gint64 row_idx)
     } else {
       result = g_strdup("");
     }
+    g_object_unref(dict_levels);
   } else if (GARROW_IS_STRING_ARRAY(chunk)) {
     result = garrow_string_array_get_string(GARROW_STRING_ARRAY(chunk), offset);
   } else {
@@ -2211,8 +2243,8 @@ compare_group_keys(gconstpointer a, gconstpointer b, gpointer user_data)
       GHashTable *map = ctx->dict_level_maps ? ctx->dict_level_maps[k] : NULL;
       gint64 i1 = 0, i2 = 0;
       if (map) {
-        i1 = GPOINTER_TO_SIZE(g_hash_table_lookup(map, s1));
-        i2 = GPOINTER_TO_SIZE(g_hash_table_lookup(map, s2));
+        i1 = GPOINTER_TO_INT(g_hash_table_lookup(map, s1));
+        i2 = GPOINTER_TO_INT(g_hash_table_lookup(map, s2));
       }
       if (i1 < i2) return -1;
       if (i1 > i2) return 1;
@@ -2488,6 +2520,7 @@ CAMLprim value caml_arrow_table_group_by(value v_ptr, value v_key_names) {
               } else {
                 cell = g_strdup("");
               }
+              g_object_unref(dict_levels);
             }
             break;
           default:
@@ -2732,34 +2765,11 @@ build_dict_key_column(GroupedTable *gt, int k, int col_idx,
                       GArrowDataType *dtype, GArrowChunkedArray **out_chunked)
 {
   GError *err = NULL;
-  GArrowChunkedArray *key_chunked = garrow_table_get_column_data(gt->table, col_idx);
-  guint nk_chunks = key_chunked ? garrow_chunked_array_get_n_chunks(key_chunked) : 0;
 
-  /* Union of level strings across chunks (first-seen order). */
-  GPtrArray *levels = g_ptr_array_new();
-  for (guint c = 0; c < nk_chunks; c++) {
-    GArrowArray *chunk = garrow_chunked_array_get_chunk(key_chunked, c);
-    if (GARROW_IS_DICTIONARY_ARRAY(chunk)) {
-      GArrowDictionaryArray *dict_chunk = GARROW_DICTIONARY_ARRAY(chunk);
-      GArrowArray *dict_levels = garrow_dictionary_array_get_dictionary(dict_chunk);
-      if (GARROW_IS_STRING_ARRAY(dict_levels)) {
-        gint64 nlv = garrow_array_get_length(dict_levels);
-        for (gint64 i = 0; i < nlv; i++) {
-          const gchar *lv = garrow_string_array_get_string(GARROW_STRING_ARRAY(dict_levels), i);
-          gboolean seen = FALSE;
-          for (guint j = 0; j < levels->len; j++) {
-            if (g_strcmp0((const gchar *)g_ptr_array_index(levels, j), lv) == 0) {
-              seen = TRUE;
-              break;
-            }
-          }
-          if (!seen) g_ptr_array_add(levels, g_strdup(lv));
-        }
-      }
-    }
-    g_object_unref(chunk);
-  }
-  if (key_chunked) g_object_unref(key_chunked);
+  /* Union of level strings in the shared canonical order (first-seen across
+     chunks) — the same order build_dict_level_map uses for sorting, so the
+     rebuilt dictionary is always consistent with the group order. */
+  GPtrArray *levels = collect_dict_levels(gt->table, col_idx);
 
   gboolean dict_ordered = FALSE;
   if (GARROW_IS_DICTIONARY_DATA_TYPE(dtype)) {

@@ -427,14 +427,23 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   Printf.printf "Phase — read_csv() from URL with separator:\n";
 
   let url = "https://raw.githubusercontent.com/b-rodrigues/rixpress_demos/refs/heads/master/r_python_quarto/data/mtcars.csv" in
-  (* Note: This test requires internet access *)
-  let env_url = Packages.init_env () in
-  let env_url = Test_helpers.eval_setup eval_string_env env_url "test_dataframe:432" (Printf.sprintf {|df = read_csv("%s", separator = "|")|} url) in
-  
-  test_env env_url "read_csv from URL with separator=\"|\" reads correct rows (32)"
-    "nrow(df)" "32";
-  test_env env_url "read_csv from URL with separator=\"|\" reads correct columns (11)"
-    "ncol(df)" "11";
+  (* Note: This test requires internet access. eval_setup is fail-fast, so a
+     VError here (e.g. no network) would raise Failure and abort the whole
+     test binary. Catch it and skip just the URL-dependent assertions instead. *)
+  let env_url =
+    try
+      Some (Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_dataframe:432" (Printf.sprintf {|df = read_csv("%s", separator = "|")|} url))
+    with Failure _ ->
+      Printf.printf "  - [setup:test_dataframe:432] read_csv from URL unavailable (offline?) — skipping URL tests\n";
+      None
+  in
+  (match env_url with
+  | Some env_url ->
+    test_env env_url "read_csv from URL with separator=\"|\" reads correct rows (32)"
+      "nrow(df)" "32";
+    test_env env_url "read_csv from URL with separator=\"|\" reads correct columns (11)"
+      "ncol(df)" "11";
+  | None -> ());
   Printf.printf "Phase — to_array():\n";
   test "to_array with list of symbols"
     "df_arr = to_dataframe([[a: 1, b: 2], [a: 3, b: 4]]); to_array(df_arr, [$a, $b]) |> type"
