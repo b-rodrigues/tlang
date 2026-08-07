@@ -1,6 +1,6 @@
 # T Language Overview
 
-> **Version**: 0.54.3
+> **Version**: 0.55.0
 
 T is a functional programming language designed for declarative, tabular data manipulation. It combines the pipeline-driven style of R's tidyverse with OCaml's type discipline, producing a small, focused language for data wrangling and basic statistics.
 
@@ -443,13 +443,22 @@ p = pipeline { a = 1, b = 2 }
 get(p, "a")                  -- 1
 ```
 
-#### 4. Lens Focus
+#### 4. Dict Key Lookup
+```t
+d = [a: 1, b: 2]
+get(d, "a")                  -- 1
+get(d, $b)                   -- 2 (bare symbol syntax)
+get(d, "missing", 99)        -- 99 (default when key is absent)
+```
+Looking up an absent key without a default raises `KeyError: "Key \`missing\` not found in Dict."` rather than silently returning the dict.
+
+#### 5. Lens Focus
 ```t
 l = col_lens("mpg")
 get(mtcars, l)               -- Vector of 'mpg' column
 ```
 
-#### 5. Data-Mask Aware Lookup (inside NSE verbs)
+#### 6. Data-Mask Aware Lookup (inside NSE verbs)
 When called with a single string or symbol inside an NSE data verb (`mutate`, `filter`, `summarize`, …), `get()` checks the **data mask** first. The name is looked up in the current row's columns (if the lambda is evaluated per-row) or the whole DataFrame; if not found there, it falls back to the global environment.
 ```t
 df = dataframe(a = [1, 2, 3])
@@ -849,7 +858,7 @@ Key properties:
 
 Pipelines define named computation nodes with automatic dependency resolution and provide the foundation for reproducible, polyglot workflows. You can see a complete, polyglot version of this example in the [`examples/polyglot_pipeline.t`](../examples/polyglot_pipeline.t) file. T supports R (`rn()`), Python (`pyn()`), Julia (`jln()`), Quarto (`qn()`), and Shell (`shn()`) nodes out of the box.
 
-Built-in serializer symbols include `^csv`, `^arrow`, `^pmml`, and `^onnx`, which you pass to node constructors like `serializer = ^csv`.
+Built-in serializer symbols include `^csv`, `^ipc`, `^pmml`, and `^onnx`, which you pass to node constructors like `serializer = ^csv`.
 
 The **ONNX** system provides full cross-runtime model portability:
 

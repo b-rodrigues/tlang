@@ -41,7 +41,8 @@ Do **not** install these packages manually inside the language package manager i
 Common examples:
 
 - If you debug a **Julia** node that reads an ancestor serialized as **CSV**, add `CSV` and `DataFrames` to `[jl-dependencies].packages`.
-- If you debug a **Julia** node that reads an ancestor serialized as **Arrow/Parquet/Feather**, add `Arrow` and `DataFrames` to `[jl-dependencies].packages`.
+- If you debug a **Julia** node that reads an ancestor serialized as **IPC (Feather v2)**, add `Arrow` and `DataFrames` to `[jl-dependencies].packages`.
+- If you debug a **Julia** node that reads an ancestor serialized as **Parquet**, add `Parquet2` and `DataFrames` to `[jl-dependencies].packages`.
 - If you debug a **Julia** node that reads JSON inputs, add `JSON` to `[jl-dependencies].packages`.
 - If you debug a **Python** node that reads CSV inputs, add `pandas` to `[py-dependencies].packages`.
 - If you debug a **Python** node that reads Arrow/Parquet/Feather inputs, add `pandas` and `pyarrow` to `[py-dependencies].packages`.

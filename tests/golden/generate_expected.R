@@ -453,6 +453,15 @@ months_df %>%
   arrange(m_fct) %>%
   save_output("factor_months_sort", "factor(months) sort")
 
+# Test 23.9: count on a factor column
+# Regression test for factor-grouping: dplyr::count orders groups by factor
+# level order (not first-appearance), drops unused levels, and keeps NA as a
+# group. T must produce the same groups, counts, and order.
+data.frame(g = factor(c("a", NA, "a", "b", "b", "c", NA), levels = c("c", "a", "b", "d")),
+           x = 1:7) %>%
+  dplyr::count(g) %>%
+  save_output("factor_count", "dplyr::count on factor column")
+
 # ============================================================================
 # Test Suite 24: PMML Random Forest
 # ============================================================================

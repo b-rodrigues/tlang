@@ -20,17 +20,25 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
   test "length vector of strings" "length([\"a\", \"bc\"])" "2";
   test "nchar string" "str_nchar(\"hello\")" "5";
   test "nchar vector" "str_nchar([\"a\", \"bc\"])" "[1, 2]";
-  
+  test "nchar counts unicode code points" "str_nchar(\"h\u{00E9}llo\")" "5";
+  test "nchar counts multibyte CJK" "str_nchar(\"\u{65E5}\u{672C}\u{8A9E}\")" "3";
+
   Printf.printf "  Substrings:\n";
   test "substring simple" "str_substring(\"hello\", 1, 3)" "\"el\"";
   test "slice alias" "slice(\"hello\", 0, 5)" "\"hello\"";
   test "char_at" "char_at(\"abc\", 1)" "\"b\"";
+  test "substring utf8 never splits characters" "str_substring(\"\u{65E5}\u{672C}\u{8A9E}\", 0, 2)" "\"\u{65E5}\u{672C}\"";
+  test "substring utf8 self roundtrip" "str_substring(\"h\u{00E9}llo\", 0, str_nchar(\"h\u{00E9}llo\"))" "\"h\u{00E9}llo\"";
+  test "char_at utf8 returns whole character" "char_at(\"h\u{00E9}llo\", 1)" "\"\u{00E9}\"";
   test "substring out of bounds" "str_substring(\"a\", 0, 2)" {|Error(ValueError: "Invalid substring indices.")|};
   
   Printf.printf "  Search:\n";
   test "index_of found" "index_of(\"hello\", \"l\")" "2";
   test "index_of not found" "index_of(\"hello\", \"z\")" "-1";
+  test "index_of returns character index for multibyte" "index_of(\"h\u{00E9}llo\", \"llo\")" "2";
   test "last_index_of found" "last_index_of(\"hello\", \"l\")" "3";
+  test "last_index_of returns character index for multibyte" "last_index_of(\"h\u{00E9}llo\", \"l\")" "3";
+  test "last_index_of empty needle returns char count" "last_index_of(\"h\u{00E9}llo\", \"\")" "5";
   test "contains false" "contains(\"team\", \"i\")" "false"; 
   test "contains true" "contains(\"team\", \"ea\")" "true";
   test "starts_with true" "starts_with(\"prefix\", \"pre\")" "true";
@@ -44,6 +52,11 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
   Printf.printf "  Case:\n";
   test "to_upper" "to_upper(\"test\")" "\"TEST\"";
   test "to_lower" "to_lower(\"TEST\")" "\"test\"";
+  test "to_upper unicode" "to_upper(\"éàüç\")" "\"ÉÀÜÇ\"";
+  test "to_lower unicode" "to_lower(\"ÉÀÜÇ\")" "\"éàüç\"";
+  test "to_upper eszett expands to SS" "to_upper(\"ß\")" "\"SS\"";
+  test "to_lower eszett" "to_lower(\"ß\")" "\"ß\"";
+  test "to_upper roundtrip back to lower" "to_lower(to_upper(\"éàüç\"))" "\"éàüç\"";
   
   Printf.printf "  Vectorization:\n";
   test "to_upper vector" "to_upper([\"hello\", \"world\"])" "[\"HELLO\", \"WORLD\"]";
@@ -89,5 +102,39 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
   test "str_trunc right" "str_trunc(\"abcdefgh\", 5)" "\"ab...\"";
   test "str_flatten collapse" "str_flatten([\"a\", \"b\", \"c\"], collapse = \"-\")" "\"a-b-c\"";
   test "str_count regex" "str_count(\"banana\", \"a\")" "3";
+  test "str_detect dot matches a full multibyte char" "str_detect([\"h\u{00E9}llo\"], \"^h.llo$\")" "[true]";
+  test "str_count dot counts code points not bytes" "str_count(\"h\u{00E9}llo\", \".\")" "5";
+  test "str_extract unicode letter class" "str_extract(\"h\u{00E9}llo\", \"\\\\p{L}+\")" "\"h\u{00E9}llo\"";
+  test "str_extract_all unicode letters split by digit" "str_extract_all(\"h\u{00E9}1llo2\", \"\\\\p{L}+\")" "[\"h\u{00E9}\", \"llo\"]";
+  test "str_detect ascii class still excludes accents" "str_detect([\"h\u{00E9}llo\"], \"^[a-z]+$\")" "[false]";
+  test "str_extract_all trailing zero-width match terminates"
+    "str_extract_all(\"abc\", \"a*\")"
+    "[\"a\", \"\", \"\", \"\"]";
+  test "str_count trailing zero-width match terminates"
+    "str_count(\"abc\", \"a*\")"
+    "4";
+  test "str_extract_all zero-width on empty string terminates"
+    "str_extract_all(\"\", \"a*\")"
+    "[\"\"]";
+  test "str_count zero-width on empty string terminates"
+    "str_count(\"\", \"a*\")"
+    "1";
+
+  Printf.printf "  UTF-8 regressions:\n";
+  test "str_split empty separator splits code points not bytes"
+    "str_split(\"h\u{00E9}llo\", \"\")"
+    "[\"h\", \"\u{00E9}\", \"l\", \"l\", \"o\"]";
+  test "str_pad counts characters not bytes"
+    "str_pad(\"\u{00E9}\", 3, side = \"left\", pad = \"x\")"
+    "\"xx\u{00E9}\"";
+  test "str_trunc keeps full multibyte string at char width"
+    "str_trunc(\"\u{00E9}llo\", 4)"
+    "\"\u{00E9}llo\"";
+  test "str_trunc never splits a multibyte character"
+    "str_trunc(\"\u{65E5}\u{672C}\u{8A9E}\", 2)"
+    "\"..\"";
+  test "index_of empty needle returns zero"
+    "index_of(\"h\u{00E9}llo\", \"\")"
+    "0";
 
   print_newline ()

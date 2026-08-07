@@ -17,9 +17,7 @@ let run_tests _pass_count _fail_count _failures _eval_string eval_string_env tes
 
   (* The non-imported name should not be in scope *)
   let env = Packages.init_env () in
-  let (_, env2) = eval_string_env
-    (Printf.sprintf {|import "%s"[foo]|} tmp_file)
-    env in
+  let env2 = Test_helpers.eval_setup eval_string_env env "test_import_file_from:20" (Printf.sprintf {|import "%s"[foo]|} tmp_file) in
   test_env env2 "non-imported name is not in scope"
     "bar"
     "Error";
@@ -38,9 +36,7 @@ let run_tests _pass_count _fail_count _failures _eval_string eval_string_env tes
 
   (* The original name should not be bound when an alias is used *)
   let env_alias = Packages.init_env () in
-  let (_, env_alias2) = eval_string_env
-    (Printf.sprintf {|import "%s"[myalias=foo]|} tmp_file)
-    env_alias in
+  let env_alias2 = Test_helpers.eval_setup eval_string_env env_alias "test_import_file_from:41" (Printf.sprintf {|import "%s"[myalias=foo]|} tmp_file) in
   test_env env_alias2 "original name not in scope when alias used"
     "foo"
     "Error";

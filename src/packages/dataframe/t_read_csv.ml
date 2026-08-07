@@ -214,17 +214,20 @@ let register env =
                   (fun () -> really_input_string ch (in_channel_length ch))
               in
 
-              let content =
+              let content_result =
                 if Arrow_io.is_url path then
                   match Arrow_io.download_url path with
                   | Ok temp_path ->
                       let c = read_content_from_path temp_path in
                       (try Sys.remove temp_path with Sys_error _ -> ());
-                      c
-                  | Error msg -> failwith msg
+                      Ok c
+                  | Error msg -> Error msg
                 else
-                  read_content_from_path path
+                  Ok (read_content_from_path path)
               in
+              match content_result with
+              | Error msg -> Error.make_error FileError msg
+              | Ok content ->
               parse_csv_string ~sep ~skip_header ~skip_lines ~clean_colnames:do_clean content
             with
             | e -> Error.make_error FileError (Printexc.to_string e))

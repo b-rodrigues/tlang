@@ -55,7 +55,7 @@ open Ast
 --# @family pipeline
 --# @export
 --# @example
---#   set_pipeline_global_options(p, runtimes = ["R"], serializer = ^arrow)
+--#   set_pipeline_global_options(p, runtimes = ["R"], serializer = ^ipc)
 --#   set_pipeline_global_options(p, nodes = ["n1", "n3"], noop = true)
 --*)
 
@@ -65,7 +65,7 @@ let register env =
       let known_keys = ["functions"; "include"; "env_vars"; "serializer"; "deserializer";
                         "noop"; "args"; "shell"; "shell_args"; "flake"; "dependencies";
                         "runtimes"; "nodes"] in
-      match List.find_opt (fun (k, _) -> k <> None && not (List.mem (Option.get k) known_keys)) named_args with
+      match List.find_opt (fun (k, _) -> match k with Some name -> not (List.mem name known_keys) | None -> false) named_args with
       | Some (Some k, _) ->
           Error.type_error (Printf.sprintf
             "set_pipeline_global_options: unknown argument '%s'. Supported arguments are: functions, include, env_vars, serializer, deserializer, noop, args, shell, shell_args, flake, dependencies, runtimes, nodes."

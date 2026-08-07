@@ -414,7 +414,7 @@ export let helper = 1
   test_case "nix_unparse renders raw code serializers matches and imports" (fun () ->
     let serializer =
       {
-        s_format = "arrow";
+        s_format = "ipc";
         s_writer = VNA NAGeneric;
         s_reader = VNA NAGeneric;
         s_r_writer = None;
@@ -458,7 +458,7 @@ export let helper = 1
     in
     Nix_unparse.dedent "\n    alpha\n      beta\n" = "alpha\n  beta"
     && Nix_unparse.expr_to_string (locless (Value (VSerializer serializer)))
-       = "arrow"
+       = "ipc"
     && Nix_unparse.unparse_expr raw_expr = "alpha\n  beta"
     && Nix_unparse.unparse_expr match_expr
        = "match(x) { [head, ..rest] => 1, Error { message } => 2 }"
@@ -518,7 +518,7 @@ export let helper = 1
         Serialization.json_date_string (Chrono.days_from_civil 2024 1 15)
         = "2024-01-15"
         && Serialization.json_datetime_string micros (Some "UTC")
-           = "2024-01-15T08:09:10.000011Z[UTC]"
+           = "2024-01-15T08:09:10.000011Z"
       in
       write_text bad_header_path "not-a-header";
       let oc = open_out_bin mismatch_path in

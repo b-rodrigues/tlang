@@ -65,8 +65,8 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env _test
   close_out oc;
 
   let env = Packages.init_env () in
-  let (_, env) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_broom) env in
-  let (_, env) = eval_string_env {|model = lm(data = df, formula = y ~ x1 + x2)|} env in
+  let env = Test_helpers.eval_setup eval_string_env env "test_broom_golden:68" (Printf.sprintf {|df = read_csv("%s")|} csv_broom) in
+  let env = Test_helpers.eval_setup eval_string_env env "test_broom_golden:69" {|model = lm(data = df, formula = y ~ x1 + x2)|} in
 
   (* === TIDY (broom::tidy) === *)
   (* Reference: broom::tidy(fit)
@@ -138,7 +138,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env _test
      nobs = 10
   *)
 
-  let (_, env_g) = eval_string_env "gs = fit_stats(model)" env in
+  let env_g = Test_helpers.eval_setup eval_string_env env "test_broom_golden:141" "gs = fit_stats(model)" in
 
   (* fit_stats returns a 1-row DataFrame; column access returns a 1-element Vector *)
   check_scalar_col ~pass_count ~fail_count ~eval_string_env ~env:env_g
@@ -169,7 +169,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env _test
   (* === AUGMENT (broom::augment via add_diagnostics()) === *)
   Printf.printf "Golden — Broom: add_diagnostics() (broom::augment):\n";
 
-  let (_, env_a) = eval_string_env "aug = add_diagnostics(model, data = df)" env in
+  let env_a = Test_helpers.eval_setup eval_string_env env "test_broom_golden:172" "aug = add_diagnostics(model, data = df)" in
 
   (* Check we have the right number of rows *)
   let (v, _) = eval_string_env "nrow(aug)" env_a in
@@ -200,11 +200,11 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env _test
 
   (* Use select to extract diagnostic columns and access via DataFrame *)
   (* Since column names start with ".", we use select() which operates by name *)
-  let (_, env_a) = eval_string_env {|fitted_col = select(aug, "fitted")|} env_a in
-  let (_, env_a) = eval_string_env {|resid_col = select(aug, "resid")|} env_a in
-  let (_, env_a) = eval_string_env {|hat_col = select(aug, "hat")|} env_a in
-  let (_, env_a) = eval_string_env {|cooksd_col = select(aug, "cooksd")|} env_a in
-  let (_, env_a) = eval_string_env {|stdr_col = select(aug, "std_resid")|} env_a in
+  let env_a = Test_helpers.eval_setup eval_string_env env_a "test_broom_golden:203" {|fitted_col = select(aug, "fitted")|} in
+  let env_a = Test_helpers.eval_setup eval_string_env env_a "test_broom_golden:204" {|resid_col = select(aug, "resid")|} in
+  let env_a = Test_helpers.eval_setup eval_string_env env_a "test_broom_golden:205" {|hat_col = select(aug, "hat")|} in
+  let env_a = Test_helpers.eval_setup eval_string_env env_a "test_broom_golden:206" {|cooksd_col = select(aug, "cooksd")|} in
+  let env_a = Test_helpers.eval_setup eval_string_env env_a "test_broom_golden:207" {|stdr_col = select(aug, "std_resid")|} in
 
   (* Now extract using colnames-based access — the select()ed df has one column *)
   (* Actually, we can extract the model_data directly for diagnostics *)

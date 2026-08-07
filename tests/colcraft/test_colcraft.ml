@@ -37,7 +37,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   close_out oc6;
 
   let env_p4 = Packages.init_env () in
-  let (_, env_p4) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_p4) env_p4 in
+  let env_p4 = Test_helpers.eval_setup eval_string_env env_p4 "test_colcraft:40" (Printf.sprintf {|df = read_csv("%s")|} csv_p4) in
 
   Printf.printf "Phase 4 — select():\n";
   test_env env_p4 "select two columns"
@@ -212,6 +212,26 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     {|n_distinct([to_float("NaN"), to_float("NaN"), 1.0])|}
     "2";
 
+  Printf.printf "Phase 4 — Bug-fix regressions (drop_na / joins / distinct):\n";
+  test "drop_na keeps all rows when only date columns present"
+    "d = to_dataframe([[x: ymd(\"2024-01-01\"), y: 1], [x: ymd(\"2024-01-02\"), y: 2]]); drop_na(d) |> nrow"
+    "2";
+  test "drop_na removes rows with NA in date DataFrames"
+    "d = to_dataframe([[x: ymd(\"2024-01-01\"), y: NA], [x: ymd(\"2024-01-02\"), y: 2]]); drop_na(d) |> nrow"
+    "1";
+  test "drop_na on a specific date column keeps rows"
+    "d = to_dataframe([[x: ymd(\"2024-01-01\"), y: NA], [x: ymd(\"2024-01-02\"), y: 2]]); drop_na(d, $x) |> nrow"
+    "2";
+  test "left_join matches integer key to float key of same value"
+    {|left_join(to_dataframe([[id: 1, x: "a"]]), to_dataframe([[id: 1.0, y: "b"]]), by = "id") |> pull("y")|}
+    "Vector[\"b\"]";
+  test "left_join leaves float and integer keys unmatchable when unequal"
+    {|left_join(to_dataframe([[id: 1, x: "a"]]), to_dataframe([[id: 2.0, y: "b"]]), by = "id") |> pull("y")|}
+    "Vector[NA]";
+  test "distinct deduplicates repeated NaN rows consistently with n_distinct"
+    {|distinct(to_dataframe([[x: to_float("NaN")], [x: to_float("NaN")]]), $x) |> nrow|}
+    "1";
+
   test "n public arity remains zero-arg"
     {|n(1, 2)|}
     {|Error(ArityError: "Function `n` expects 0 arguments but received 2.")|};
@@ -297,12 +317,10 @@ df |> mutate($senior = $age >= 30)
   close_out oc_nas;
 
   let env_nas = Packages.init_env () in
-  let (_, env_nas) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_nas) env_nas in
+  let env_nas = Test_helpers.eval_setup eval_string_env env_nas "test_colcraft:320" (Printf.sprintf {|df = read_csv("%s")|} csv_nas) in
 
   let step1_result = (try
-    let (_, env_n) = eval_string_env
-      {|step1 = df |> mutate($temp_category = if ($Temp > 75) "hot" else "cool")|}
-      env_nas in
+    let env_n = Test_helpers.eval_setup eval_string_env env_nas "test_colcraft:323" {|step1 = df |> mutate($temp_category = if ($Temp > 75) "hot" else "cool")|} in
     let (v, _) = eval_string_env "step1" env_n in
     Ok (v, env_n)
   with e -> Error (Printexc.to_string e))
@@ -317,9 +335,7 @@ df |> mutate($senior = $age >= 30)
     end;
 
     let step2_result = (try
-      let (_, env_n2) = eval_string_env
-        {|result = step1 |> group_by($temp_category) |> summarize($mean_ozone = mean($Ozone, na_rm = true), $count = nrow($temp_category))|}
-        env_nas2 in
+      let env_n2 = Test_helpers.eval_setup eval_string_env env_nas2 "test_colcraft:340" {|result = step1 |> group_by($temp_category) |> summarize($mean_ozone = mean($Ozone, na_rm = true), $count = nrow($temp_category))|} in
       let (v2, _) = eval_string_env "result" env_n2 in
       Ok v2
     with e -> Error (Printexc.to_string e))
@@ -374,16 +390,13 @@ df |> filter($age > 25)
   Printf.printf "Phase 4 — complete():\n";
 
   let env_complete = Packages.init_env () in
-  let (_, env_complete) = eval_string_env
-    {|df_dates = to_dataframe([
+  let env_complete = Test_helpers.eval_setup eval_string_env env_complete "test_colcraft:397" {|df_dates = to_dataframe([
   [group: "a", d: ymd("2024-01-01"), value: 1],
   [group: "a", d: ymd("2024-01-02"), value: 2],
   [group: "b", d: ymd("2024-01-01"), value: 3]
-])|}
-    env_complete in
+])|} in
 
-  let (_, env_complete) =
-    eval_string_env {|result_dates = complete(df_dates, $group, $d, fill = [value: 0]); result_dates|} env_complete in
+  let env_complete = Test_helpers.eval_setup eval_string_env env_complete "test_colcraft:405" {|result_dates = complete(df_dates, $group, $d, fill = [value: 0]); result_dates|} in
 
   test_env env_complete "complete expands date id columns"
     {|nrow(result_dates)|}
@@ -397,16 +410,12 @@ df |> filter($age > 25)
     {|result_dates.value|}
     "Vector[1, 2, 3, 0]";
 
-  let (_, env_complete) = eval_string_env
-    {|df_datetimes = to_dataframe([
+  let env_complete = Test_helpers.eval_setup eval_string_env env_complete "test_colcraft:420" {|df_datetimes = to_dataframe([
   [group: "a", ts: ymd_hms("2024-01-01 09:00:00"), value: 1],
   [group: "a", ts: ymd_hms("2024-01-01 10:00:00"), value: 3],
   [group: "b", ts: ymd_hms("2024-01-01 09:00:00"), value: 2]
-])|}
-    env_complete in
-  let (_, env_complete) = eval_string_env
-    {|result_datetimes = complete(df_datetimes, $group, $ts, fill = [value: 0]); result_datetimes|}
-    env_complete in
+])|} in
+  let env_complete = Test_helpers.eval_setup eval_string_env env_complete "test_colcraft:427" {|result_datetimes = complete(df_datetimes, $group, $ts, fill = [value: 0]); result_datetimes|} in
 
   test_env env_complete "complete expands datetime id columns"
     {|nrow(result_datetimes)|}
@@ -425,50 +434,41 @@ df |> filter($age > 25)
   Printf.printf "Phase 4 — date/datetime colcraft regressions:\n";
 
   let env_dates = Packages.init_env () in
-  let (_, env_dates) = eval_string_env
-    {|df_wider = to_dataframe([
+  let env_dates = Test_helpers.eval_setup eval_string_env env_dates "test_colcraft:448" {|df_wider = to_dataframe([
   [d: ymd("2024-01-01"), name: "x", score: 1],
   [d: ymd("2024-01-01"), name: "y", score: 2],
   [d: ymd("2024-01-02"), name: "x", score: 3],
   [d: ymd("2024-01-02"), name: "y", score: 4]
-])|}
-    env_dates in
+])|} in
 
   test_env env_dates "pivot_wider preserves date id columns"
     {|result_wider = pivot_wider(df_wider, names_from = $name, values_from = $score); day(result_wider.d)|}
     "Vector[1, 2]";
 
-  let (_, env_dates) = eval_string_env
-    {|df_longer = to_dataframe([
+  let env_dates = Test_helpers.eval_setup eval_string_env env_dates "test_colcraft:461" {|df_longer = to_dataframe([
   [ts: ymd_hms("2024-01-01 09:00:00"), a: 1, b: 2],
   [ts: ymd_hms("2024-01-01 10:00:00"), a: 3, b: 4]
-])|}
-    env_dates in
+])|} in
 
   test_env env_dates "pivot_longer preserves datetime id columns"
     {|result_longer = pivot_longer(df_longer, $a, $b, names_to = "name", values_to = "value"); hour(result_longer.ts)|}
     "Vector[9, 9, 10, 10]";
 
-  let (_, env_dates) = eval_string_env
-    {|df_fill = to_dataframe([
+  let env_dates = Test_helpers.eval_setup eval_string_env env_dates "test_colcraft:472" {|df_fill = to_dataframe([
   [d: ymd("2024-01-01")],
   [d: NA],
   [d: ymd("2024-01-03")]
-])|}
-    env_dates in
+])|} in
 
   test_env env_dates "fill propagates date values"
     {|result_fill = fill(df_fill, $d); day(result_fill.d)|}
     "Vector[1, 1, 3]";
 
-  let (_, env_dates) = eval_string_env
-    {|df_replace = to_dataframe([
+  let env_dates = Test_helpers.eval_setup eval_string_env env_dates "test_colcraft:484" {|df_replace = to_dataframe([
   [d: ymd("2024-01-01"), ts: ymd_hms("2024-01-01 09:00:00")],
   [d: NA, ts: NA]
-])|}
-    env_dates in
-  let (_, env_dates) =
-    eval_string_env {|result_replace = replace_na(df_replace, [d: ymd("2024-01-02"), ts: ymd_hms("2024-01-01 10:00:00")]); result_replace|} env_dates in
+])|} in
+  let env_dates = Test_helpers.eval_setup eval_string_env env_dates "test_colcraft:490" {|result_replace = replace_na(df_replace, [d: ymd("2024-01-02"), ts: ymd_hms("2024-01-01 10:00:00")]); result_replace|} in
 
   test_env env_dates "replace_na fills date columns"
     {|day(result_replace.d)|}

@@ -1,7 +1,7 @@
 let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env test =
   Printf.printf "Chrono:\n";
   test "ymd parses date" {|ymd("2024-01-15")|} "Date(2024-01-15)";
-  test "ymd_hms parses datetime" {|ymd_hms("2024-01-15 09:30:00")|} "Datetime(2024-01-15T09:30:00Z[UTC])";
+  test "ymd_hms parses datetime" {|ymd_hms("2024-01-15 09:30:00")|} "Datetime(2024-01-15T09:30:00Z)";
   test "parse_date supports month names" {|parse_date("15 Jan 2024", "%d %b %Y")|} "Date(2024-01-15)";
   test "date components extract values" {|[year(ymd("2024-07-04")), month(ymd("2024-07-04")), day(ymd("2024-07-04"))]|} "[2024, 7, 4]";
   test "month label works" {|month(ymd("2024-07-04"), label = true)|} {|"Jul"|};
@@ -10,16 +10,20 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
   test "date subtraction returns period" {|ymd("2024-07-04") - ymd("2024-01-01")|} "Period(years=0, months=0, days=185, hours=0, minutes=0, seconds=0, micros=0)";
   test "format_date renders tokens" {|format_date(ymd("2024-07-04"), "%B %d, %Y")|} {|"July 04, 2024"|};
   test "type predicates recognize date types" {|[is_date(ymd("2024-01-01")), is_datetime(ymd_hms("2024-01-01 00:00:00"))]|} "[true, true]";
-  test "floor_date rounds down hour" {|floor_date(ymd_hms("2024-01-15 09:37:42"), "hour")|} "Datetime(2024-01-15T09:00:00Z[UTC])";
-  test "ceiling_date rounds up hour" {|ceiling_date(ymd_hms("2024-01-15 09:37:42"), "hour")|} "Datetime(2024-01-15T10:00:00Z[UTC])";
-  test "round_date rounds to nearest hour" {|round_date(ymd_hms("2024-01-15 09:37:42"), "hour")|} "Datetime(2024-01-15T10:00:00Z[UTC])";
-  test "with_tz updates timezone label" {|with_tz(ymd_hms("2024-01-15 09:30:00"), "Europe/Paris")|} "Datetime(2024-01-15T09:30:00Z[Europe/Paris])";
-  test "force_tz adjusts micros and updates timezone label" {|force_tz(ymd_hms("2024-01-15 09:30:00"), "Europe/Paris")|} "Datetime(2024-01-15T08:30:00Z[Europe/Paris])";
+  test "floor_date rounds down hour" {|floor_date(ymd_hms("2024-01-15 09:37:42"), "hour")|} "Datetime(2024-01-15T09:00:00Z)";
+  test "ceiling_date rounds up hour" {|ceiling_date(ymd_hms("2024-01-15 09:37:42"), "hour")|} "Datetime(2024-01-15T10:00:00Z)";
+  test "round_date rounds to nearest hour" {|round_date(ymd_hms("2024-01-15 09:37:42"), "hour")|} "Datetime(2024-01-15T10:00:00Z)";
+  test "with_tz updates timezone label" {|with_tz(ymd_hms("2024-01-15 09:30:00"), "Europe/Paris")|} "Datetime(2024-01-15T09:30:00[Europe/Paris])";
+  test "force_tz adjusts micros and updates timezone label" {|force_tz(ymd_hms("2024-01-15 09:30:00"), "Europe/Paris")|} "Datetime(2024-01-15T08:30:00[Europe/Paris])";
   test "is_leap_year on integer" {|is_leap_year(2024)|} "true";
   test "days_in_month on integers" {|days_in_month(2024, 2)|} "29";
+  test "days_in_month rejects invalid month" {|days_in_month(2024, 13)|} {|Error(ValueError: "[L1:C1] Function `days_in_month` requires `month` in [1, 12], got 13.")|};
   test "within interval" {|`%within%`(ymd("2024-01-15"), interval(ymd("2024-01-01"), ymd("2024-01-31")))|} "true";
+  test "within interval infix" {|ymd("2024-01-15") %within% interval(ymd("2024-01-01"), ymd("2024-01-31"))|} "true";
+  test "modulo still works with spaces" {|7 % 3|} "1";
+  test "modulo still works without spaces" {|7%3|} "1";
   test "make_date creates valid date" {|make_date(year=2024, month=2, day=29)|} "Date(2024-02-29)";
-  test "make_datetime creates valid datetime" {|make_datetime(year=2024, month=2, day=29, hour=13, min=40)|} "Datetime(2024-02-29T13:40:00Z[UTC])";
+  test "make_datetime creates valid datetime" {|make_datetime(year=2024, month=2, day=29, hour=13, min=40)|} "Datetime(2024-02-29T13:40:00Z)";
   test "am returns true for morning" {|am(ymd_hms("2024-01-15 09:30:00"))|} "true";
   test "pm returns true for afternoon" {|pm(ymd_hms("2024-01-15 13:30:00"))|} "true";
   test "vectorized year works on pulled dates"
@@ -44,7 +48,7 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
     Serialization.value_to_yojson
       (Ast.VDatetime (Chrono.datetime_of_components 2024 1 15 9 30 0 123456, Some "UTC"))
   in
-  if datetime_json = `String "2024-01-15T09:30:00.123456Z[UTC]" then begin
+  if datetime_json = `String "2024-01-15T09:30:00.123456Z" then begin
     incr _pass_count; Printf.printf "  ✓ value_to_yojson serializes datetimes\n"
   end else begin
     incr _fail_count; Printf.printf "  ✗ value_to_yojson serializes datetimes\n"
@@ -81,8 +85,8 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
   in
   if interval_json =
       `Assoc [
-        ("start", `String "2024-01-15T09:30:00Z[UTC]");
-        ("end", `String "2024-01-15T10:00:00Z[UTC]");
+        ("start", `String "2024-01-15T09:30:00Z");
+        ("end", `String "2024-01-15T10:00:00Z");
         ("timezone", `String "UTC");
       ] then begin
     incr _pass_count; Printf.printf "  ✓ value_to_yojson serializes intervals\n"

@@ -9,9 +9,9 @@ DataFrame creation and introspection.
 | `to_dataframe(data)` | Create a DataFrame from rows or columns |
 | `read_csv(path)` | Read CSV file |
 | `read_parquet(path)` | Read Parquet file |
-| `read_arrow(path)` | Read Arrow IPC file |
+| `read_ipc(path)` | Read Arrow IPC file |
 | `write_csv(df, path)` | Write CSV file |
-| `write_arrow(df, path)` | Write Arrow IPC file |
+| `write_ipc(df, path)` | Write Arrow IPC file |
 | `nrow(df)` / `ncol(df)` | Get dimensions |
 | `colnames(df)` | Get column names |
 | `clean_colnames(df)` | Normalize column names |

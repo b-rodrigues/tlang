@@ -196,7 +196,9 @@ seq(1, 10, by = 2)
 match([1, 2]) { [h, ..t] => h, [] => 0 }
 ```
 
-String literals support escape sequences: `\n` (newline), `\r` (carriage return), `\t` (tab), `\\` (backslash), `\"` (double quote), `\xHH` (hex byte, e.g. `\x48` for `H`).
+String literals support escape sequences: `\n` (newline), `\r` (carriage return), `\t` (tab), `\\` (backslash), `\"` (double quote), `\xHH` (hex byte, e.g. `\x48` for `H`). `str_nchar`, `str_substring`, `slice`, `char_at`, `str_pad`, and `str_trunc` operate on Unicode code points, not raw bytes. `index_of`/`last_index_of` return character indices, and `str_split(s, "")` splits into code points.
+
+Any function can be called as an R-style `%name%` infix operator: `d %within% interval(start, end)` is equivalent to `%within%(d, interval(start, end))`. The lexer only interprets `%name%` as an infix operator when a `%` is immediately followed by an identifier, so modulo (`a % b`) is unaffected.
 
 ### Type annotations and inference
 
@@ -364,7 +366,7 @@ p = pipeline {
 
 ### Data interchange and sandboxes
 
-- **Arrow** is the preferred interchange for DataFrames.
+- **Arrow IPC (`^ipc`) and Parquet (`^parquet`)** are the preferred interchange formats for DataFrames (`^ipc` for fastest uncompressed round trip, `^parquet` for compressed storage and external tool sharing).
 - Arrow IPC round-trips now preserve nested `nest()`/`unnest()` list-columns with factor and timezone-aware datetime fields, including empty/all-null nested schemas.
 - **PMML** is used for model interchange. Now supports native scoring in Julia nodes via `JavaCall` and JPMML.
 - **ONNX** artifacts can now be consumed in Julia nodes through `ONNXRunTime.jl`; Julia ONNX export remains explicitly unsupported.
@@ -448,7 +450,7 @@ Purpose: printing, introspection, collections, metaprogramming, filesystem/path 
 
 Purpose: DataFrame construction, I/O, shape/column introspection, Arrow interop.
 
-- Constructors and I/O: `dataframe(...)`, `read_csv(path, separator = ",", skip_header = false, skip_lines = 0, clean_colnames = false)`, `read_parquet(path)`, `read_arrow(path)`, `write_csv(df, path)`, `write_arrow(df, path)`, `write_parquet(df, path)`
+- Constructors and I/O: `dataframe(...)`, `read_csv(path, separator = ",", skip_header = false, skip_lines = 0, clean_colnames = false)`, `read_parquet(path)`, `read_ipc(path)`, `write_csv(df, path)`, `write_ipc(df, path)`, `write_parquet(df, path)`
 - Introspection and extraction: `colnames(df)`, `nrow(df)`, `ncol(df)`, `glimpse(df)`, `pull(df, col)`, `to_array(df, cols = na())`
 - Column name cleaning: `clean_colnames(df)` and the documented normalization helper `clean_names(df)`
 
@@ -456,14 +458,14 @@ Purpose: DataFrame construction, I/O, shape/column introspection, Arrow interop.
 
 Purpose: dplyr/tidyr-style tabular verbs, joins, missing-value helpers, factors, and window functions. In these verbs, LLMs should prefer NSE column references such as `$col`.
 
-- Core verbs: `select(df, ...)`, `filter(df, predicate_or_nse)`, `mutate(df, ...)`, `arrange(df, ..., direction = "asc")`, `group_by(df, ...)`, `ungroup(df)`, `summarize(df, ...)`, `rename(df, ...)`, `relocate(df, ..., .before = na(), .after = na())`, `distinct(df, ..., .keep_all = false)`, `count(df, ..., name = "n")`
+- Core verbs: `select(df, ...)`, `filter(df, predicate_or_nse)`, `mutate(df, ...)`, `arrange(df, ..., direction = "asc")`, `group_by(df, ...)`, `ungroup(df)`, `summarize(df, ...)`, `rename(df, ...)`, `relocate(df, ..., .before = na(), .after = na())`, `distinct(df, ..., .keep_all = false)`, `count(df, ..., name = "n")`. `distinct` is NaN-aware (repeated NaN rows collapse to one), consistent with `n_distinct`.
 - Aggregation helpers: `n()`, `n_distinct(x)`
 - Row helpers: `slice(df, indices)`, `slice_min(df, order_by, n = 1)`, `slice_max(df, order_by, n = 1)`, `slice_sample(df, n = 1, replace = false)`
 - Window/ranking helpers: `row_number(x)`, `min_rank(x)`, `dense_rank(x)`, `percent_rank(x)`, `cume_dist(x)`, `ntile(x, n)`, `lag(x, n = 1)`, `lead(x, n = 1)`, `cumsum(x)`, `cummin(x)`, `cummax(x)`, `cummean(x, na_rm = false)`, `cumall(x)`, `cumany(x)`
-- Reshaping and expansion: `pivot_longer(df, ..., names_to = "name", values_to = "value")`, `pivot_wider(df, names_from, values_from)`, `complete(df, ..., fill = [:], explicit = true)`, `expand(df, ...)`, `crossing(...)`, `nesting(...)`, `nest(df, ..., name = "data")`, `unnest(df, col)`, `separate(df, col, into, sep = pattern, remove = true)`, `unite(df, name, ..., sep = "_", remove = true)`, `separate_rows(df, col, sep = pattern)`, `uncount(df, weights, .remove = true)`
-- Missing-value handling: `drop_na(df, ...)`, `replace_na(df, replace = [col: value, ...])`, `fill(df, ..., .direction = "down")`
-- Joins and binding: `left_join(x, y, by)`, `inner_join(x, y, by)`, `full_join(x, y, by)`, `semi_join(x, y, by)`, `anti_join(x, y, by)`, `bind_rows(...)`, `bind_cols(...)`
-- Selection helpers used inside `select()`: `starts_with(prefix)`, `ends_with(suffix)`, `contains(pattern)`, `everything()`, `where(predicate)`, `matches(regex)`, `all_of(names)`, `any_of(names)`, `is_numeric(x)`, `is_character(x)`, `is_logical(x)`, `is_factor(x)`
+- Reshaping and expansion: `pivot_longer(df, ..., names_to = "name", values_to = "value")`, `pivot_wider(df, names_from, values_from)`, `complete(df, ..., fill = [:], explicit = true)`, `expand(df, ...)`, `crossing(...)`, `nesting(...)`, `nest(df, ..., name = "data")`, `unnest(df, col)`, `separate(df, col, into, sep = pattern, remove = true)` (PCRE2 UTF-8 pattern), `unite(df, name, ..., sep = "_", remove = true)`, `separate_rows(df, col, sep = pattern)` (PCRE2 UTF-8 pattern), `uncount(df, weights, .remove = true)`
+- Missing-value handling: `drop_na(df, ...)`, `replace_na(df, replace = [col: value, ...])`, `fill(df, ..., .direction = "down")`. `drop_na` works across all column types, including date, datetime, dictionary, and list columns.
+- Joins and binding: `left_join(x, y, by)`, `inner_join(x, y, by)`, `full_join(x, y, by)`, `semi_join(x, y, by)`, `anti_join(x, y, by)`, `bind_rows(...)`, `bind_cols(...)`. Join keys normalize so integer `1` matches float `1.0`.
+- Selection helpers used inside `select()`: `starts_with(prefix)`, `ends_with(suffix)`, `contains(pattern)`, `everything()`, `where(predicate)`, `matches(regex)` (PCRE2 in UTF-8 mode — supports `\p{...}` classes), `all_of(names)`, `any_of(names)`, `is_numeric(x)`, `is_character(x)`, `is_logical(x)`, `is_factor(x)`
 - Factor helpers: `factor(x, levels = [], ordered = false)`, `to_factor(x)`, `to_factor(x, levels = [], ordered = false)`, `ordered(x, levels)`, `levels(x)`, `fct_infreq(x)`, `fct_reorder(f, x, .desc = false)`, `fct_relevel(f, ..., after = 0)`, `fct_rev(x)`, `fct_recode(x, new = old, ...)`, `fct_collapse(x, new_level = [old1, old2], ...)`, `fct_lump_n(x, n = 10, other_level = "Other")`, `fct_lump_min(x, min, other_level = "Other")`, `fct_lump_prop(x, prop, other_level = "Other")`, `fct_other(x, keep = [], drop = [], other_level = "Other")`, `fct_drop(x)`, `fct_expand(x, ...)`, `fct_c(...)`
 
 ### `chrono`
@@ -477,6 +479,7 @@ Purpose: parsing, constructing, formatting, extracting, and reasoning about date
 - Period accessors: `period_years(p)`, `period_months(p)`, `period_days(p)`, `period_hours(p)`, `period_minutes(p)`, `period_seconds(p)`
 - Coercion and formatting: `to_date(x)`, `to_datetime(x)`, `format_date(x, format = na())`, `format_datetime(x, format = na())`
 - Rounding and timezone labeling: `floor_date(x, unit)`, `ceiling_date(x, unit)`, `round_date(x, unit)`, `with_tz(x, tz)`, `force_tz(x, tz)`
+- Intervals: `interval(start, end)`; `%within%(x, interval)` also works as an infix operator: `d %within% interval(start, end)` (part of the general `%name%` infix-operator syntax)
 
 Current implementation note: timezone relabeling should be treated as a **current implementation limitation**; `with_tz()` and `force_tz()` are presently label-oriented rather than full offset-conversion logic.
 
@@ -494,7 +497,7 @@ Purpose: scalar math, trigonometry, rounding, and ndarray/matrix operations.
 Purpose: descriptive statistics, scaling/normalization, linear models, diagnostics, basis functions, PMML/ONNX model I/O, and distribution helpers.
 
 - Aggregation helpers: `n()`, `n_distinct(x)`
-- Descriptive statistics: `mean(x, na_rm = false, weights = NA)`, `median(x, na_rm = false, weights = NA)`, `min(x, na_rm = false)`, `max(x, na_rm = false)`, `range(x, na_rm = false)`, `var(x, na_rm = false, weights = NA)`, `sd(x, na_rm = false, weights = NA)`, `iqr(x, na_rm = false, weights = NA)`, `mad(x, constant = 1.4826)`, `fivenum(x, na_rm = false, weights = NA)`, `quantile(x, probs, na_rm = false, weights = NA)`, `skewness(x, na_rm = false, weights = NA)`, `kurtosis(x, na_rm = false, weights = NA)`, `trimmed_mean(x, trim = 0.1, na_rm = false, weights = NA)`, `winsorize(x, limits = [0.05, 0.05], na_rm = false, weights = NA)`, `cv(x, na_rm = false, weights = NA)`, `normalize(x)`, `standardize(x)`, `scale(x)`, `huber_loss(actual, predicted, delta = 1.0)`
+- Descriptive statistics: `mean(x, na_rm = false, weights = NA)`, `median(x, na_rm = false, weights = NA)`, `min(x, na_rm = false)`, `max(x, na_rm = false)`, `range(x, na_rm = false)`, `var(x, na_rm = false, weights = NA)`, `sd(x, na_rm = false, weights = NA)`, `iqr(x, na_rm = false, weights = NA)`, `mad(x, constant = 1.4826)`, `fivenum(x, na_rm = false, weights = NA)`, `quantile(x, probs, na_rm = false, weights = NA)`, `skewness(x, na_rm = false, weights = NA)`, `kurtosis(x, na_rm = false, weights = NA)`, `trimmed_mean(x, trim = 0.1, na_rm = false, weights = NA)`, `winsorize(x, limits = [0.05, 0.05], na_rm = false, weights = NA)`, `cv(x, na_rm = false, weights = NA)`, `mode(x)`, `normalize(x)`, `standardize(x)`, `scale(x)`, `huber_loss(actual, predicted, delta = 1.0)`
 - Relationship helpers and distributions: `cor(x, y, na_rm = false, weights = NA)`, `cov(x, y, na_rm = false, weights = NA)`, `pnorm(x, mean = 0, sd = 1)`, `pt(x, df)`, `pf(x, df1, df2)`, `pchisq(x, df)`, `qnorm(p, mean = 0, sd = 1)`, `qt(p, df)`, `qf(p, df1, df2)`, `qchisq(p, df)`
 - Modeling: `lm(data, formula, weights = NA)`, `predict(data, model)`, `summary(model)`, `fit_stats(model)`, `add_diagnostics(data, model)`, `coef(model)`, `conf_int(model)`, `nobs(model)`, `df_residual(model)`, `sigma(model)`, `dispersion(model)`, `vcov(model)`, `compare(model1, model2)`, `residuals(model)`, `add_diagnostics(data, model)`, `score(data, model)`, `anova(model_or_models)`, `wald_test(model, hypothesis)`
 - PMML & ONNX: Native evaluation for Decision Trees, Random Forests, XGBoost, and LightGBM via `t_read_pmml()`. Native ONNX inference via `t_read_onnx()` and `^onnx` serialization. Now supports PMML scoring in Julia nodes via `JavaCall` and JPMML, plus Julia ONNX loading through `ONNXRunTime.jl`.
@@ -556,9 +559,9 @@ Purpose: value introspection and intent-block inspection.
 Purpose: string inspection, transformation, formatting, regex operations, and text layout helpers.
 
 - Basic inspection and slicing: `str_nchar(s)`, `is_empty(s)`, `str_substring(s, start, end)`, `slice(s, start, end)`, `char_at(s, i)`, `index_of(s, sub)`, `last_index_of(s, sub)`, `contains(s, sub)`, `starts_with(s, prefix)`, `ends_with(s, suffix)`
-- Replacement and normalization: `str_replace(s, pattern, repl)`, `replace_first(s, pattern, repl)`, `to_lower(s)`, `to_upper(s)`, `str_trim(s)`, `trim_start(s)`, `trim_end(s)`
+- Replacement and normalization: `str_replace(s, pattern, repl)`, `replace_first(s, pattern, repl)`, `to_lower(s)`, `to_upper(s)` (Unicode-aware case mapping via `uucp`), `str_trim(s)`, `trim_start(s)`, `trim_end(s)`
 - Formatting and joining: `str_repeat(s, n)`, `str_format(template, values)`, `str_sprintf(fmt, ...)`, `str_join(xs, sep = "")`, `str_string(x)`, `str_split(s, sep)`, `str_flatten(xs, collapse = "")`
-- Regex/text-layout helpers: `str_lines(s)`, `str_words(s)`, `str_extract(s, pattern)`, `str_extract_all(s, pattern)`, `str_detect(s, pattern)`, `str_pad(s, width, side = "left", pad = " ")`, `str_trunc(s, width, side = "right", ellipsis = "...")`, `str_count(s, pattern)`
+- Regex/text-layout helpers: `str_lines(s)`, `str_words(s)`, `str_extract(s, pattern)`, `str_extract_all(s, pattern)`, `str_detect(s, pattern)`, `str_pad(s, width, side = "left", pad = " ")`, `str_trunc(s, width, side = "right", ellipsis = "...")`, `str_count(s, pattern)` — regexes compile as PCRE2 in UTF-8 mode, so `.`, `[...]`, and anchors match Unicode code points and `\p{...}` classes are supported.
 
 Note the overloaded names:
 - `contains`, `starts_with`, and `ends_with` also exist as `colcraft` selection helpers.
@@ -584,6 +587,27 @@ Purpose: unit-testing primitives, inspired by R's `testthat`. `expect_*` compari
 - Node & runtime configs: `expect_runtime(p, name, rt)` — checks node runtime; `expect_serializer(p, name, ser)` — checks node serializer format; `expect_deserializer(p, name, deser)` — checks node deserializer format; `expect_noop(p, name, bool)` — checks node noop flag.
 - Build state: `expect_computed(node)` — checks if node has been successfully built and evaluated.
 - Standard usage: `assert(expect_equal(a, b))` — passes silently on `Expect_pass`, raises `AssertionError` with the comparison's own diagnostic message otherwise.
+
+### `propcraft`
+
+Purpose: property-based testing primitives for hardening T's standard library and user packages. Instead of hand-writing fixed cases, you state an invariant and `prop_for_all` checks it over many generated inputs, reporting a deterministic shrunk counterexample on failure. All draws use the shared seeded RNG, so `set_seed(n)` makes every run fully reproducible.
+
+- Runner: `prop_for_all(gen, property, n = 100, max_counterexamples = 1, shrink = true)` — draws `n` values and evaluates the property on each; the property may return a Bool, an `Expect` value, or an Error (failure). Returns an `Expect` value, so `assert(prop_for_all(...))` works inside `t test` files. `max_counterexamples > 1` collects up to that many render-distinct failing inputs (each shrunk) and reports them as numbered blocks.
+- Generators are structured `Dict` specs (not closures): `prop_gen_int(min = -10, max = 10)`, `prop_gen_int_range(min, max)`, `prop_gen_float_range(min, max)`, `prop_gen_bool()`, `prop_gen_string_from(chars, min_len, max_len)`, `prop_gen_choice([g1, g2, ...])`, `prop_gen_frequency([[w, g], ...])`, `prop_gen_vector(elem, n)`, `prop_gen_list(elem, n)`, `prop_gen_factor(levels)`, `prop_gen_one_of(values)`, `prop_gen_date_range(start, end)` (Date/Datetime), `prop_gen_ymd(min_year, max_year)` (Date across all days in the year range), `prop_gen_df(columns, nrows = 30, na_prob = 0.1)`.
+- `prop_gen_df_from(df, nrows = 30, na_prob = 0.1)` derives a DataFrame generator from a real sample: Int/Float bounds from observed min/max, Strings from observed distinct values, Factors keep their levels, Dates/Datetimes keep their observed range and timezone; empty frames, NA-only columns, and unsupported column types raise explicit errors.
+- `prop_gen_fn(fn)` wraps an arbitrary callable as a generator: each draw calls `fn(size)` with the current generation size.
+- `prop_stats(gen, n = 100)` probes a generator (size ramp 1..n) and returns a Dict with `n_runs`, `n_errors`, `value_types`, `nested_sizes`, and `elapsed_ms` — useful for sanity-checking derived/custom generators.
+- `prop_gen_df` injects typed `NA` values into generated columns according to `na_prob` — the primary tool for catching verbs that mishandle missingness. Leaf scalar columns use a batched fast path so large frames draw quickly.
+- `prop_gen_dict(columns, na_prob = 0.1)`: Dict generator — one value per column, same column-spec format as `prop_gen_df`. Between-column cells shrink toward their column's lower bound.
+- Combinators: `prop_map_gen(source, fn)`, `prop_such_that(source, pred, max_tries = 100)`, `prop_resize(source, n)`.
+- Shrinking is deterministic and only affects the reported message (never pass/fail): ints/strings/lists/vectors shrink toward minimal failing inputs; DataFrames shrink by halving rows down to the empty frame and then minimizing cells to canonical values per column type (`Int` → 0, `Float` → 0.0, `Bool` → false, `String` → "", `Factor` → first level, `Date` → 1970-01-01, `Datetime` → epoch micros 0 + tz), leaving NA cells untouched.
+- `prop_gen_ymd(min_year, max_year)`: calendar-day date generator — draws a `Date` uniformly across every day in the inclusive year range. Shrinks toward `Date(min_year-01-01)` (in-domain, not the epoch). `date_range` draws shrink toward the start bound (micros 0 + preserved tz for datetimes).
+- Dogfooding: propcraft property tests exercise the colcraft/stats verbs (`mutate`, `arrange`, `filter`, `group_by`+`summarize`, `distinct`, `head`, `slice_sample`, `left_join`, `fill`, `mean`, `sd`, `drop_na`) over generated DataFrames with injected NAs, guarding row-count algebra and `na_rm` invariants; the `math`, `strcraft`, `core`, `chrono`, and `stats` packages are covered with arithmetic identities, string round-trips/idempotence (including multibyte UTF-8 generators), functional primitives, date bounds, date round-trips, and statistical invariants (mode membership, `sd`/`var` consistency, quantile bounds, `cor`/`cov` symmetry); the `dataframe` package is covered with `clean_colnames` laws (length preservation, uniqueness, idempotence, charset) and `write_csv`/`read_csv`, `write_ipc`/`read_ipc`, and `write_parquet`/`read_parquet` round-trips over frames mixing int/float/bool/string/factor/date/datetime columns with injected NAs, ordered factors, and empty frames (Parquet factor/dictionary columns are expected to flatten to plain strings, so the Parquet factor property guards value-level and NA-position fidelity against the originating string column); the `lens` package is covered with dict/list/filter/dataframe lens laws. UTF-8 colcraft properties guard `matches`/`contains` selectors, `separate` (column algebra), and `separate_rows` (row algebra) over multibyte alphabets. The `explain` package is covered with structure-agreement laws: scalar `explain` kinds/types round-trip through `value`, vector `length`/`na_count` agree with `length`/`is_na` on every column, DataFrame `nrow`/`ncol`/`example_rows`/`schema`/`na_stats`/backend fields agree with the frame and its columns, `intent_get`/`intent_fields` agree with the source dict and `explain(i).fields`, and `explain_json` always yields a non-empty string. The dogfooding suite has surfaced and driven fixes for byte-based UTF-8 bugs, Unicode case mapping, NSE handling of nested verb calls, byte-based regex in the colcraft selection helpers, `separate`, and `separate_rows`, and dictionary-level resolution for factor-grouped `count`/`summarize` in the native Arrow group-by path.
+- Standard usage: `set_seed(42)` then `assert(prop_for_all(prop_gen_int_range(0, 100), \(x) x >= 0))`. For a scoped, single-expression run that leaves the surrounding RNG untouched, use `with_seed(seed, \(u) ...)`.
+- `prop_gen_between(min, max)`: bounded int generator with in-domain shrinking — counterexamples shrink toward the lower bound (the "floor") instead of 0. Inside `prop_gen_df`, between-column cells minimize to `VInt min`.
+- `prop_show_spec(spec)`: render a generator spec back to T source text; the rendered output rebuilds a behaviorally equivalent generator (identical draws under the same seed).
+- `prop_named(name, property)` + `prop_test(named, gen, n = 100, max_counterexamples = 1, shrink = true, shrink_verify = false)`: named properties as plain Dicts — define once, test against many generators; failure reports include the property name.
+- `shrink_verify = true` (opt-in on `prop_for_all` and `prop_test`): exhaustive shrink re-verification uncaps the per-level candidate limit (default 32), guaranteeing the reported counterexample is truly minimal.
 
 Disambiguation rule of thumb for LLMs:
 - inside `select(...)`/selection-helper contexts, prefer the `colcraft` helper meaning;

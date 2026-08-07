@@ -1,5 +1,84 @@
 open Ast
 
+(* UTF-8 helpers: T strings index by character (code point), not byte.
+   A lead byte encodes its own length; continuation bytes (0x80-0xBF) are
+   merged into the preceding lead byte. Malformed bytes are treated as
+   single characters so results stay total on arbitrary input. *)
+
+let utf8_char_length c =
+  let c = Char.code c in
+  if c land 0x80 = 0x00 then 1
+  else if c land 0xE0 = 0xC0 then 2
+  else if c land 0xF0 = 0xE0 then 3
+  else if c land 0xF8 = 0xF0 then 4
+  else 1
+
+let utf8_char_count s =
+  let n = String.length s in
+  let rec go i acc =
+    if i >= n then acc
+    else go (i + utf8_char_length s.[i]) (acc + 1)
+  in
+  go 0 0
+
+let utf8_char_to_byte s char_index =
+  let n = String.length s in
+  let rec go i remaining =
+    if i >= n then None
+    else if remaining = 0 then Some i
+    else go (i + utf8_char_length s.[i]) (remaining - 1)
+  in
+  go 0 char_index
+
+let utf8_byte_to_char s byte_index =
+  let n = String.length s in
+  let rec go i acc =
+    if i >= byte_index || i >= n then acc
+    else go (i + utf8_char_length s.[i]) (acc + 1)
+  in
+  go 0 0
+
+let utf8_chars s =
+  let n = String.length s in
+  let rec go i acc =
+    if i >= n then List.rev acc
+    else
+      let len = utf8_char_length s.[i] in
+      go (i + len) (String.sub s i len :: acc)
+  in
+  go 0 []
+
+(* Split with OCaml Str.split semantics: the empty subject yields [], and
+   trailing empty tokens are dropped (internal ones are kept). Preserves the
+   behaviour of the legacy byte-oriented splitter under Pcre2 UTF-8. *)
+let split_str_semantics re s =
+  if s = "" then []
+  else
+    let parts = Pcre2.split ~rex:re ~max:(-1) s in
+    let rec drop_trailing acc = function
+      | [] -> List.rev acc
+      | "" :: rest -> drop_trailing acc rest
+      | x :: rest -> drop_trailing (x :: acc) rest
+    in
+    drop_trailing [] parts
+
+(* Unicode-aware case mapping via the uucp Unicode character database.
+   Deterministic and locale-independent (unlike C toupper/tolower), so results
+   are reproducible across machines and environments. Multi-character mappings
+   (e.g. U+00DF 'ß' -> "SS") are expanded; malformed UTF-8 bytes pass through
+   unchanged. *)
+let utf8_case_map to_case s =
+  let b = Buffer.create (String.length s * 2) in
+  let add_uchar _acc _ = function
+    | `Uchar u ->
+        (match to_case u with
+         | `Self -> Uutf.Buffer.add_utf_8 b u
+         | `Uchars us -> List.iter (fun u' -> Uutf.Buffer.add_utf_8 b u') us)
+    | `Malformed bytes -> Buffer.add_string b bytes
+  in
+  ignore (Uutf.String.fold_utf_8 add_uchar () s);
+  Buffer.contents b
+
 (* Helper: Unary Vectorization *)
 let vectorize_unary op args env =
   match args with
@@ -68,11 +147,13 @@ let is_empty_impl args env = vectorize_unary is_empty_scalar args env
 let substring_scalar args _env =
   match args with
   | [VString s; VInt start; VInt end_] ->
-      let len = String.length s in
-      if start < 0 || end_ > len || start > end_ then
+      let char_count = utf8_char_count s in
+      if start < 0 || end_ > char_count || start > end_ then
         Error.value_error "Invalid substring indices."
       else
-        VString (String.sub s start (end_ - start))
+        let start_byte = Option.value (utf8_char_to_byte s start) ~default:(String.length s) in
+        let end_byte = Option.value (utf8_char_to_byte s end_) ~default:(String.length s) in
+        VString (String.sub s start_byte (end_byte - start_byte))
   | _ -> Error.type_error "str_substring expects (string, int, int)."
 
 let substring_impl args env = vectorize_ternary substring_scalar args env
@@ -80,11 +161,12 @@ let substring_impl args env = vectorize_ternary substring_scalar args env
 let char_at_scalar args _env =
   match args with
   | [VString s; VInt i] ->
-      let len = String.length s in
-      if i < 0 || i >= len then
+      let char_count = utf8_char_count s in
+      if i < 0 || i >= char_count then
         Error.value_error "Index out of bounds."
       else
-        VString (String.make 1 (String.get s i))
+        let byte = Option.value (utf8_char_to_byte s i) ~default:(String.length s) in
+        VString (String.sub s byte (utf8_char_length s.[byte]))
   | _ -> Error.type_error "char_at expects (string, int)."
 
 let char_at_impl args env = vectorize_binary char_at_scalar args env
@@ -100,7 +182,10 @@ let index_of_scalar args _env =
           else find (idx + 1)
         with Not_found -> -1
       in
-      if sub = "" then VInt 0 else VInt (find 0)
+      if sub = "" then VInt 0
+      else
+        let byte_idx = find 0 in
+        if byte_idx < 0 then VInt (-1) else VInt (utf8_byte_to_char s byte_idx)
   | _ -> Error.type_error "index_of expects (string, string)."
 
 let index_of_impl args env = vectorize_binary index_of_scalar args env
@@ -111,14 +196,15 @@ let last_index_of_scalar args _env =
       let sub_len = String.length sub in
       let s_len = String.length s in
       if sub_len > s_len then VInt (-1)
-      else if sub = "" then VInt s_len
+      else if sub = "" then VInt (utf8_char_count s)
       else
         let rec find i =
           if i < 0 then -1
           else if String.sub s i sub_len = sub then i
           else find (i - 1)
         in
-        VInt (find (s_len - sub_len))
+        let byte_idx = find (s_len - sub_len) in
+        if byte_idx < 0 then VInt (-1) else VInt (utf8_byte_to_char s byte_idx)
   | _ -> Error.type_error "last_index_of expects (string, string)."
 
 let last_index_of_impl args env = vectorize_binary last_index_of_scalar args env
@@ -153,8 +239,8 @@ let ends_with_impl args env = vectorize_binary ends_with_scalar args env
 let replace_scalar args _env =
   match args with
   | [VString s; VString old; VString new_] ->
-      let regex = Str.regexp_string old in
-      VString (Str.global_replace regex new_ s)
+      let regex = Pcre2.regexp ~flags:[`UTF] (Pcre2.quote old) in
+      VString (Pcre2.qreplace ~rex:regex ~templ:new_ s)
   | _ -> Error.type_error "str_replace expects (string, string, string)."
 
 let replace_impl args env = vectorize_ternary replace_scalar args env
@@ -162,22 +248,22 @@ let replace_impl args env = vectorize_ternary replace_scalar args env
 let replace_first_scalar args _env =
   match args with
   | [VString s; VString old; VString new_] ->
-      let regex = Str.regexp_string old in
-      VString (Str.replace_first regex new_ s)
+      let regex = Pcre2.regexp ~flags:[`UTF] (Pcre2.quote old) in
+      VString (Pcre2.qreplace_first ~rex:regex ~templ:new_ s)
   | _ -> Error.type_error "replace_first expects (string, string, string)."
 
 let replace_first_impl args env = vectorize_ternary replace_first_scalar args env
 
 let to_lower_scalar args _env =
   match args with
-  | [VString s] -> VString (String.lowercase_ascii s)
+  | [VString s] -> VString (utf8_case_map Uucp.Case.Map.to_lower s)
   | _ -> Error.type_error "to_lower expects a string."
 
 let to_lower_impl args env = vectorize_unary to_lower_scalar args env
 
 let to_upper_scalar args _env =
   match args with
-  | [VString s] -> VString (String.uppercase_ascii s)
+  | [VString s] -> VString (utf8_case_map Uucp.Case.Map.to_upper s)
   | _ -> Error.type_error "to_upper expects a string."
 
 let to_upper_impl args env = vectorize_unary to_upper_scalar args env
@@ -204,8 +290,8 @@ let rtrim s =
     String.sub s 0 (!i + 1)
 
 (* Pre-compiled regexes for lines/words — avoid recompiling on every call *)
-let re_crlf = Str.regexp "\r\n"
-let re_whitespace = Str.regexp "[ \t]+"
+let re_crlf = Pcre2.regexp ~flags:[`UTF] "\r\n"
+let re_whitespace = Pcre2.regexp ~flags:[`UTF] "[ \t]+"
 
 (*
 --# Trim whitespace
@@ -266,7 +352,7 @@ let trim_end_impl args env = vectorize_unary trim_end_scalar args env
 let lines_impl args _env =
   let do_lines s =
     (* Normalise \r\n to \n before splitting *)
-    let normalised = Str.global_replace re_crlf "\n" s in
+    let normalised = Pcre2.qreplace ~rex:re_crlf ~templ:"\n" s in
     (* Strip a single trailing newline if present *)
     let trimmed =
       let len = String.length normalised in
@@ -303,7 +389,7 @@ let words_impl args _env =
     let trimmed = String.trim s in
     if trimmed = "" then VList []
     else
-      let parts = Str.split re_whitespace trimmed in
+      let parts = Pcre2.split ~rex:re_whitespace ~max:(-1) trimmed in
       VList (List.map (fun w -> (None, VString w)) parts)
   in
   match args with
@@ -426,15 +512,18 @@ let length_scalar args _env =
 let length_impl args env = length_scalar args env
 
 let compile_regexp function_name pattern =
-  try Ok (Str.regexp pattern)
-  with Failure msg ->
-    Error (Error.value_error (Printf.sprintf "Function `%s` received an invalid regex: %s" function_name msg))
+  try Ok (Pcre2.regexp ~flags:[`UTF] pattern)
+  with
+  | Pcre2.Error (Pcre2.BadPattern (msg, _)) ->
+      Error (Error.value_error (Printf.sprintf "Function `%s` received an invalid regex: %s" function_name msg))
+  | Pcre2.Error _ ->
+      Error (Error.value_error (Printf.sprintf "Function `%s` received an invalid regex." function_name))
 
 (* Prefer the first capture group when present; otherwise fall back to the
    full regex match so plain patterns still behave intuitively. *)
-let regex_match_value s =
-  try Str.matched_group 1 s with
-  | Invalid_argument _ | Not_found -> Str.matched_string s
+let regex_match_value m =
+  try Pcre2.get_substring m 1 with
+  | Invalid_argument _ | Not_found -> Pcre2.get_substring m 0
 
 let all_regex_matches re s =
   let len = String.length s in
@@ -442,11 +531,19 @@ let all_regex_matches re s =
     if pos > len then
       List.rev acc
     else
-      match Str.search_forward re s pos with
-      | _ ->
-          let matched = regex_match_value s in
-          let end_pos = Str.match_end () in
-          let next_pos = if end_pos = pos then pos + 1 else end_pos in
+      match Pcre2.exec ~rex:re ~pos s with
+      | m ->
+          let matched = regex_match_value m in
+          let end_pos = snd (Pcre2.get_substring_ofs m 0) in
+          (* On a zero-width match, advance past the next code point so UTF-8
+             strings are never torn mid-character. At end-of-string (pos = len)
+             fall back to pos + 1 so the loop always makes progress and cannot
+             re-match the same trailing empty match forever. *)
+          let next_pos =
+            if end_pos = pos then
+              (if pos < len then pos + utf8_char_length s.[pos] else pos + 1)
+            else end_pos
+          in
           loop next_pos (matched :: acc)
       | exception Not_found -> List.rev acc
   in
@@ -458,8 +555,8 @@ let str_extract_scalar args _env =
       (match compile_regexp "str_extract" pattern with
        | Error err -> err
        | Ok re ->
-           (match Str.search_forward re s 0 with
-            | _ -> VString (regex_match_value s)
+           (match Pcre2.exec ~rex:re s with
+            | m -> VString (regex_match_value m)
             | exception Not_found -> VNA NAString))
   | [VNA _; _] | [_; VNA _] -> VNA NAString
   | _ -> Error.type_error "str_extract expects (String, String)."
@@ -485,10 +582,7 @@ let str_detect_scalar args _env =
   | [VString s; VString pattern] ->
       (match compile_regexp "str_detect" pattern with
        | Error err -> err
-       | Ok re ->
-           (match Str.search_forward re s 0 with
-            | _ -> VBool true
-            | exception Not_found -> VBool false))
+       | Ok re -> VBool (Pcre2.pmatch ~rex:re s))
   | [VNA _; _] | [_; VNA _] -> VNA NABool
   | _ -> Error.type_error "str_detect expects (String, String)."
 
@@ -525,18 +619,24 @@ let string_named_or_positional function_name name named_args position default =
        | None -> Ok default)
 
 let repeat_to_length pad needed =
+  (* Pad to a target character width, never splitting a multi-byte character. *)
   if needed <= 0 then ""
   else
-    let pad_len = String.length pad in
-    let rec loop remaining acc =
+    let pad_chars = utf8_chars pad in
+    let pad_char_count = List.length pad_chars in
+    let buf = Buffer.create (max 16 (needed * 4)) in
+    let rec loop remaining =
       if remaining <= 0 then
-        String.concat "" (List.rev acc)
-      else if remaining >= pad_len then
-        loop (remaining - pad_len) (pad :: acc)
-      else
-        loop 0 (String.sub pad 0 remaining :: acc)
+        Buffer.contents buf
+      else if remaining >= pad_char_count then begin
+        List.iter (Buffer.add_string buf) pad_chars;
+        loop (remaining - pad_char_count)
+      end else begin
+        List.iteri (fun i c -> if i < remaining then Buffer.add_string buf c) pad_chars;
+        Buffer.contents buf
+      end
     in
-    loop needed []
+    loop needed
 
 let map_string_value function_name fn value =
   let rec apply = function
@@ -566,7 +666,7 @@ let str_pad_impl named_args _env =
              Error.value_error "Function `str_pad` pad must not be empty."
            else
              map_string_value "str_pad" (fun s ->
-               let len = String.length s in
+               let len = utf8_char_count s in
                if len >= width then
                  VString s
                else
@@ -601,23 +701,29 @@ let str_trunc_impl named_args _env =
              Error.value_error "Function `str_trunc` width must be non-negative."
            else
              map_string_value "str_trunc" (fun s ->
-               let len = String.length s in
+               let chars = utf8_chars s in
+               let len = List.length chars in
+               let ellipsis_chars = utf8_chars ellipsis in
+               let ellipsis_len = List.length ellipsis_chars in
+               let take_prefix n =
+                 List.filteri (fun i _ -> i < n) chars |> String.concat ""
+               in
+               let take_suffix n =
+                 List.filteri (fun i _ -> i >= len - n) chars |> String.concat ""
+               in
                if len <= width then
                  VString s
-               else if width <= String.length ellipsis then
-                 VString (String.sub ellipsis 0 width)
+               else if width <= ellipsis_len then
+                 VString (String.concat "" (List.filteri (fun i _ -> i < width) ellipsis_chars))
                else
-                 let keep = width - String.length ellipsis in
+                 let keep = width - ellipsis_len in
                  match side with
-                 | "right" -> VString (String.sub s 0 keep ^ ellipsis)
-                 | "left" -> VString (ellipsis ^ String.sub s (len - keep) keep)
+                 | "right" -> VString (take_prefix keep ^ ellipsis)
+                 | "left" -> VString (ellipsis ^ take_suffix keep)
                  | "center" ->
                      let left_keep = keep / 2 in
                      let right_keep = keep - left_keep in
-                     VString
-                       (String.sub s 0 left_keep
-                        ^ ellipsis
-                        ^ String.sub s (len - right_keep) right_keep)
+                     VString (take_prefix left_keep ^ ellipsis ^ take_suffix right_keep)
                  | _ ->
                      Error.value_error
                        (Printf.sprintf "Function `str_trunc` side must be \"left\", \"right\", or \"center\", got %S." side)
@@ -646,7 +752,7 @@ let str_flatten_impl named_args _env =
 
 let nchar_scalar args _env =
   match args with
-  | [VString s] -> VInt (String.length s)
+  | [VString s] -> VInt (utf8_char_count s)
   | _ -> Error.type_error "str_nchar expects a string."
 
 let nchar_impl args env = vectorize_unary nchar_scalar args env
@@ -709,7 +815,7 @@ let strsplit_impl args _env =
   let do_split s sep =
     let parts =
       if sep = "" then
-        List.init (String.length s) (fun i -> VString (String.make 1 s.[i]))
+        List.map (fun c -> VString c) (utf8_chars s)
       else if String.length sep = 1 then
         List.map (fun p -> VString p) (String.split_on_char sep.[0] s)
       else begin
@@ -772,7 +878,8 @@ let strsplit_impl args _env =
 (*
 --# Get character count
 --#
---# Returns the number of characters in a string. Vectorized.
+--# Returns the number of characters (Unicode code points) in a string.
+--# Multi-byte UTF-8 characters count as a single character. Vectorized.
 --#
 --# @name str_nchar
 --# @param x :: String | Vector[String] The input string(s).
@@ -799,6 +906,8 @@ let strsplit_impl args _env =
 --# Extract substring
 --#
 --# Returns the part of the string between `start` and `end` indices.
+--# Indices are character-based (Unicode code points), so multi-byte UTF-8
+--# characters are never split.
 --#
 --# @name str_substring
 --# @param s :: String The input string.
@@ -827,6 +936,8 @@ let strsplit_impl args _env =
 --# Get character at index
 --#
 --# Returns a single-character string at the specified index.
+--# Index is character-based (Unicode code point), so a multi-byte UTF-8
+--# character is returned whole.
 --#
 --# @name char_at
 --# @param s :: String The input string.
@@ -839,12 +950,14 @@ let strsplit_impl args _env =
 (*
 --# Find index of substring
 --#
---# Returns the index of the first occurrence of `sub` in `s`, or -1 if not found.
+--# Returns the character index of the first occurrence of `sub` in `s`,
+--# or -1 if not found. Indices are character-based (Unicode code points),
+--# matching `str_substring` and `char_at`.
 --#
 --# @name index_of
 --# @param s :: String The search string.
 --# @param sub :: String The substring to find.
---# @return :: Int The index of the first occurrence.
+--# @return :: Int The character index of the first occurrence.
 --# @family string
 --# @export
 *)
@@ -852,12 +965,13 @@ let strsplit_impl args _env =
 (*
 --# Find last index of substring
 --#
---# Returns the index of the last occurrence of `sub` in `s`, or -1 if not found.
+--# Returns the character index of the last occurrence of `sub` in `s`,
+--# or -1 if not found. Indices are character-based (Unicode code points).
 --#
 --# @name last_index_of
 --# @param s :: String The search string.
 --# @param sub :: String The substring to find.
---# @return :: Int The index of the last occurrence.
+--# @return :: Int The character index of the last occurrence.
 --# @family string
 --# @export
 *)
@@ -932,7 +1046,9 @@ let strsplit_impl args _env =
 (*
 --# Convert to lowercase
 --#
---# Converts all characters in the string to lowercase.
+--# Converts all characters in the string to lowercase, using the Unicode
+--# character database (deterministic and locale-independent). Multi-character
+--# mappings are expanded.
 --#
 --# @name to_lower
 --# @param s :: String The string to convert.
@@ -944,7 +1060,9 @@ let strsplit_impl args _env =
 (*
 --# Convert to uppercase
 --#
---# Converts all characters in the string to uppercase.
+--# Converts all characters in the string to uppercase, using the Unicode
+--# character database (deterministic and locale-independent). Multi-character
+--# mappings are expanded (e.g. `ß` becomes `SS`).
 --#
 --# @name to_upper
 --# @param s :: String The string to convert.
@@ -992,7 +1110,8 @@ let strsplit_impl args _env =
 --# Split a string on a delimiter
 --#
 --# Splits a string into a list of substrings on each occurrence of `sep`.
---# If `sep` is empty, splits into individual characters.
+--# If `sep` is empty, splits into individual characters (Unicode code
+--# points — multi-byte characters are never split).
 --# Works transparently on ShellResult values (splits stdout).
 --#
 --# @name str_split
@@ -1039,7 +1158,9 @@ let strsplit_impl args _env =
 (*
 --# Pad strings to a target width
 --#
---# Pads strings on the left, right, or both sides until they reach a requested width.
+--# Pads strings on the left, right, or both sides until they reach a requested
+--# width. Width is measured in characters (Unicode code points), so multi-byte
+--# UTF-8 strings are padded correctly and never split.
 --#
 --# @name str_pad
 --# @family string
@@ -1048,7 +1169,9 @@ let strsplit_impl args _env =
 (*
 --# Truncate strings for display
 --#
---# Shortens strings to a maximum width and appends an ellipsis when needed.
+--# Shortens strings to a maximum character width and appends an ellipsis when
+--# needed. Width is measured in characters (Unicode code points), so multi-byte
+--# UTF-8 strings are never split mid-character.
 --#
 --# @name str_trunc
 --# @family string

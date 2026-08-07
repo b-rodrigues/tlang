@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>T Programming Language - property-testing-cookbook</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    html { -webkit-text-size-adjust: 100%; }
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<nav>
+    <a href="index.html">Home</a>
+    <a href="getting-started.html">Get Started</a>
+    <a href="language_overview.html">Overview</a>
+    <a href="api-reference.html">API Docs</a>
+    <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
+</nav>
+<div class="container">
+<h1 id="property-testing-cookbook">Property Testing Cookbook</h1>
+<p>How to think in property-testing terms when hardening T’s standard
+library and your own packages. Assumes familiarity with
+<code>prop_for_all</code>, generators, and the concepts from
+<code>docs/property-testing.md</code>.</p>
+<hr />
+<h2 id="table-of-contents">Table of Contents</h2>
+<ul>
+<li><a href="#the-mental-model">The mental model</a></li>
+<li><a href="#pattern-1-round-trip">Pattern 1: Round-trip</a></li>
+<li><a href="#pattern-2-idempotence">Pattern 2: Idempotence</a></li>
+<li><a href="#pattern-3-bounds-and-ranges">Pattern 3: Bounds and
+ranges</a></li>
+<li><a href="#pattern-4-algebraic-identities">Pattern 4: Algebraic
+identities</a></li>
+<li><a href="#pattern-5-row-count-invariants">Pattern 5: Row-count
+invariants</a></li>
+<li><a href="#pattern-6-na-hardening">Pattern 6: NA hardening</a></li>
+<li><a href="#pattern-7-named-properties">Pattern 7: Named
+properties</a></li>
+<li><a href="#writing-your-first-property-test">Writing your first
+property test</a></li>
+</ul>
+<hr />
+<h2 id="the-mental-model">The mental model</h2>
+<p>A property test answers one question: <strong>“What is always true
+about this function, for every possible input?”</strong></p>
+<p>Examples of good properties:</p>
+<table>
+<colgroup>
+<col style="width: 40%" />
+<col style="width: 40%" />
+<col style="width: 20%" />
+</colgroup>
+<thead>
+<tr>
+<th>Function</th>
+<th>Property</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>str_split</code> + <code>str_join</code></td>
+<td><code>str_join(str_split(s, sep), sep) == s</code></td>
+<td>Round-trip — encode then decode should recover original</td>
+</tr>
+<tr>
+<td><code>to_lower</code></td>
+<td><code>to_lower(to_lower(s)) == to_lower(s)</code></td>
+<td>Idempotence — applying twice is the same as once</td>
+</tr>
+<tr>
+<td><code>sd</code></td>
+<td><code>sd(x) &gt;= 0</code></td>
+<td>Bounds — standard deviation is never negative</td>
+</tr>
+<tr>
+<td><code>sqrt</code></td>
+<td><code>sqrt(x * x) == abs(x)</code></td>
+<td>Algebraic identity — follows from definition</td>
+</tr>
+<tr>
+<td><code>filter</code></td>
+<td><code>nrow(filter(df, $x &gt; k)) &lt;= nrow(df)</code></td>
+<td>Monotonicity — filter never adds rows</td>
+</tr>
+</tbody>
+</table>
+<p>Bad property: <code>mean(x)</code> equals 25.3 for x in [0, 100].
+This is a <strong>fixed-case test</strong>, not a property — it only
+checks one scenario and tells you nothing about the function’s behavior
+for other inputs.</p>
+<hr />
+<h2 id="pattern-1-round-trip">Pattern 1: Round-trip</h2>
+<p><strong>Encode then decode should recover the original.</strong>
+Works for serialization, string splitting, type conversion, and any
+invertible operation.</p>
+<pre class="t"><code>-- strings
+prop_named(&quot;split_join&quot;, \(s) s == &quot;&quot; || str_join(str_split(s, &quot;,&quot;), &quot;,&quot;) == s)
+
+-- numeric conversion
+prop_named(&quot;int_float&quot;, \(x) to_integer(to_float(x)) == x)
+
+-- dates: format then parse recovers the original date
+prop_named(&quot;format_roundtrip&quot;, \(d) parse_date(format_date(d, &quot;%Y-%m-%d&quot;), &quot;%Y-%m-%d&quot;) == d)
+
+-- dates: period arithmetic is invertible
+prop_named(&quot;period_roundtrip&quot;, \(d) (d + make_period(days = 5)) - d == make_period(days = 5))</code></pre>
+<p><strong>Generator tips:</strong> - For strings,
+<code>prop_gen_string_from("abc,", 0, 12)</code> provides strings that
+may contain the split delimiter - Guard against empty inputs where the
+operation is lossy (<code>""</code> → <code>[""]</code> →
+<code>""</code>, but
+<code>str_split("a", ",") |&gt; str_join(",")</code> works) - For date
+round-trips, <code>prop_gen_ymd(2000, 2024)</code> draws real calendar
+days across a 25-year span</p>
+<p><strong>When to use:</strong> strcraft (split/join, extract/replace),
+core (serialize/deserialize, to_X conversions), dataframe I/O (write_csv
+→ read_csv), chrono (format/parse, ymd, period arithmetic).</p>
+<hr />
+<h2 id="pattern-2-idempotence">Pattern 2: Idempotence</h2>
+<p><strong>Applying the operation twice is the same as applying it
+once.</strong> Catches state leakage and side effects.</p>
+<pre class="t"><code>-- case conversion
+prop_named(&quot;lower_idem&quot;, \(s) to_lower(to_lower(s)) == to_lower(s))
+prop_named(&quot;upper_idem&quot;, \(s) to_upper(to_upper(s)) == to_upper(s))
+
+-- trimming
+prop_named(&quot;trim_idem&quot;,  \(s) str_trim(str_trim(s)) == str_trim(s))</code></pre>
+<p><strong>Generator:</strong>
+<code>prop_gen_string_from("abcdefgh", 0, 12)</code> — alphabetic
+characters, no digits or punctuation that might confuse case
+operations.</p>
+<p><strong>When to use:</strong> strcraft (trim, pad, case conversions),
+core (clean_colnames, normalize), colcraft (distinct, arrange).</p>
+<hr />
+<h2 id="pattern-3-bounds-and-ranges">Pattern 3: Bounds and ranges</h2>
+<p><strong>Output always falls within a predictable range.</strong> The
+simplest and most reliable property.</p>
+<pre class="t"><code>-- tanh always in [-1, 1]
+prop_named(&quot;tanh_range&quot;, \(x) tanh(x) &gt;= -1.0 &amp;&amp; tanh(x) &lt;= 1.0)
+
+-- sqrt of non-negative is non-negative
+prop_named(&quot;sqrt_nonneg&quot;, \(x) x &lt; 0.0 || sqrt(x) &gt;= 0.0)
+
+-- abs never negative
+prop_named(&quot;abs_nonneg&quot;, \(x) abs(x) &gt;= 0.0)</code></pre>
+<p><strong>Generator:</strong>
+<code>prop_gen_float_range(-100.0, 100.0)</code> for continuous
+functions, <code>prop_gen_int_range(-100, 100)</code> for integer-only
+operations.</p>
+<p><strong>Date bounds:</strong>
+<code>prop_gen_ymd(min_year, max_year)</code> draws calendar days
+uniformly across the year range, and counterexamples shrink to
+<code>Date(min_year-01-01)</code> (staying in-domain). Use it for chrono
+invariants:</p>
+<pre class="t"><code>-- day-of-month always within the month&#39;s real length
+prop_named(&quot;day_bound&quot;, \(d) day(d) &gt;= 1 &amp;&amp; day(d) &lt;= days_in_month(year(d), month(d)))
+
+-- leap-year flag consistent with February&#39;s length
+prop_named(&quot;leap_consistent&quot;, \(d) is_leap_year(year(d)) == (days_in_month(year(d), 2) == 29))
+
+-- weekday always in [1, 7]
+prop_named(&quot;wday_bound&quot;, \(d) wday(d) &gt;= 1 &amp;&amp; wday(d) &lt;= 7)</code></pre>
+<p><strong>When to use:</strong> math (all trig/hyperbolic/exp
+functions), stats (sd ≥ 0, cor in [-1, 1]), core (length ≥ 0, ncol ≥ 0,
+nrow ≥ 0), chrono (date-part bounds).</p>
+<hr />
+<h2 id="pattern-4-algebraic-identities">Pattern 4: Algebraic
+identities</h2>
+<p><strong>Two different computations give the same result.</strong>
+Catches implementation errors in fundamental operations.</p>
+<pre class="t"><code>-- sin² + cos² = 1
+prop_named(&quot;sin_cos&quot;, \(x) abs((sin(x) * sin(x) + cos(x) * cos(x)) - 1.0) &lt; 0.0001)
+
+-- log(exp(x)) ≈ x
+prop_named(&quot;log_exp&quot;, \(x) abs(log(exp(x)) - x) &lt; 0.0001)
+
+-- sign(x) * abs(x) == x
+prop_named(&quot;sign_abs&quot;, \(x) sign(x) * abs(x) == x)</code></pre>
+<p><strong>Important:</strong> Use approximate equality
+(<code>abs(a - b) &lt; 0.0001</code>) for floating-point identities.
+Never use <code>==</code> on floats in invariant properties.</p>
+<p><strong>Generator tip:</strong> Restrict ranges for identities that
+diverge numerically: - <code>exp(log(x))</code> needs
+<code>x &gt; 0</code> — use
+<code>prop_gen_float_range(0.0, 100.0)</code> - <code>log(exp(x))</code>
+fails for large <code>x</code> — use
+<code>prop_gen_float_range(-10.0, 10.0)</code></p>
+<hr />
+<h2 id="pattern-5-row-count-invariants">Pattern 5: Row-count
+invariants</h2>
+<p><strong>DataFrame row count follows predictable algebra.</strong> The
+workhorse for hardening colcraft verbs.</p>
+<pre class="t"><code>-- mutate never changes nrow
+prop_named(&quot;mutate_nrow&quot;, \(df) nrow(mutate(df, $z = $x * 2)) == nrow(df))
+
+-- filter never adds rows
+prop_named(&quot;filter_leq&quot;,  \(df) nrow(filter(df, $x &gt; 50)) &lt;= nrow(df))
+
+-- group sizes sum to total
+prop_named(&quot;group_sum&quot;,   \(df) to_integer(sum((df |&gt; group_by($g) |&gt; summarize($cnt = n())).cnt)) == nrow(df))</code></pre>
+<p><strong>Generator:</strong>
+<code>prop_gen_df([x: gen, g: factor_gen], nrows = 40, na_prob = 0.2)</code>
+— multiple columns with NA injection.</p>
+<p><strong>When to use:</strong> Every colcraft verb (mutate, arrange,
+filter, group_by, summarize, select, rename, distinct, head,
+slice_sample, fill, bind_rows, bind_cols, left_join, anti_join,
+etc.).</p>
+<hr />
+<h2 id="pattern-6-na-hardening">Pattern 6: NA hardening</h2>
+<p><strong>Functions don’t silently corrupt or crash on NA
+input.</strong> The single highest-value use of <code>prop_gen_df</code>
+— inject NAs and check that invariants still hold.</p>
+<pre class="t"><code>-- mutate preserves nrow even with NAs
+prop_named(&quot;mutate_na&quot;, \(df) nrow(mutate(df, $z = $x * 2)) == nrow(df))
+
+prop_test(mutate_na,
+  prop_gen_df([x: prop_gen_float_range(0.0, 100.0), g: prop_gen_factor([&quot;a&quot;, &quot;b&quot;])],
+               nrows = 40, na_prob = 0.3))</code></pre>
+<p>The property itself is the same as without NAs — the
+<code>na_prob</code> in the generator does the work. If
+<code>mutate</code> drops rows with NA or fails to propagate NAs
+correctly, the row count invariant fails and you get a shrunk
+counterexample DataFrame showing exactly which column had NAs.</p>
+<p><strong>Recommended <code>na_prob</code>:</strong> Start with
+<code>0.1</code> (10% missing) for broad coverage. Increase to
+<code>0.3</code>-<code>0.5</code> for stress-testing NA-heavy paths. Use
+<code>1.0</code> for checking that functions handle all-NA inputs
+correctly.</p>
+<hr />
+<h2 id="pattern-7-named-properties">Pattern 7: Named properties</h2>
+<p><strong>Define properties once, test against many
+generators.</strong> Use <code>prop_named</code> +
+<code>prop_test</code> instead of repeating <code>prop_for_all</code>
+with the same predicate.</p>
+<pre class="t"><code>m = prop_named(&quot;mutate_preserves_nrow&quot;, \(df) nrow(mutate(df, $z = $x * 2)) == nrow(df))
+
+-- test against float columns
+prop_test(m, prop_gen_df([x: prop_gen_float_range(0.0, 100.0)], nrows = 40, na_prob = 0.2))
+
+-- test against int columns
+prop_test(m, prop_gen_df([x: prop_gen_int_range(0, 100)], nrows = 40, na_prob = 0.2))
+
+-- test against schema-derived generators
+prop_test(m, prop_gen_df_from(mtcars, nrows = 40, na_prob = 0.2))</code></pre>
+<p>The property lives in one place. Adding a new generator is one line.
+If the verb breaks, the macro name appears in the failure:
+<code>STOP(Property mutate_preserves_nrow failed...)</code>.</p>
+<hr />
+<h2 id="writing-your-first-property-test">Writing your first property
+test</h2>
+<ol type="1">
+<li><p><strong>Pick a function</strong> — start with something simple
+and pure (math function, string operation).</p></li>
+<li><p><strong>State the invariant</strong> — what is always true? Write
+it as a lambda.</p></li>
+<li><p><strong>Choose a generator</strong> — what domain produces valid
+inputs? e.g. <code>prop_gen_float_range(0, 100)</code> for positive-only
+functions, <code>prop_gen_int_range(-100, 100)</code> for general
+integers.</p></li>
+<li><p><strong>Pick a reasonable <code>n</code></strong> — 30 for fast
+CI, 100 for thorough local checking, 1000 for release
+hardening.</p></li>
+<li><p><strong>Set a seed</strong> — always set
+<code>set_seed(42)</code> (or your favorite seed) so failures are
+reproducible.</p></li>
+<li><p><strong>Wrap in assert</strong> —
+<code>assert(prop_for_all(gen, property, n = 30))</code> so failures
+surface as assertion errors.</p></li>
+</ol>
+<h3 id="template">Template</h3>
+<pre class="t"><code>set_seed(42)
+m = prop_named(&quot;sqrt_nonneg&quot;, \(x) x &lt; 0.0 || sqrt(x) &gt;= 0.0)
+assert(prop_test(m, prop_gen_float_range(-100.0, 100.0), n = 30))</code></pre>
+<h3 id="adding-to-the-test-suite">Adding to the test suite</h3>
+<p>Property tests for T’s own packages live in the <code>tests/</code>
+directory alongside existing OCaml tests. Create a
+<code>test_property_&lt;pkg&gt;.ml</code> file, register it in
+<code>tests/test_runner.ml</code> via <code>run_with_env</code>, and add
+it to <code>tests/dune</code>. See
+<code>tests/math/test_property_math.ml</code> for an example.</p>
+<div class="sourceCode" id="cb10"><pre
+class="sourceCode ocaml"><code class="sourceCode ocaml"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co">(* tests/math/test_property_math.ml *)</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="kw">let</span> run_tests _pass_count _fail_count _failures _eval_string eval_string_env _test test_env =</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">Printf</span>.printf <span class="st">&quot;Propcraft dogfooding — math:</span><span class="ch">\n</span><span class="st">&quot;</span>;</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> env = Packages.init_env () <span class="kw">in</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> (_, env) = eval_string_env <span class="st">{|</span></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a><span class="st">    m_sqrt_abs = prop_named(&quot;sqrt_abs&quot;, \(x) sqrt(x * x) == abs(x))</span></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a><span class="st">  |}</span> env <span class="kw">in</span></span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>  test_env env <span class="st">&quot;sqrt(x*x) == abs(x)&quot;</span></span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>    (<span class="dt">Printf</span>.sprintf <span class="st">&quot;set_seed(1)</span><span class="ch">\n</span><span class="st">prop_test(m_sqrt_abs, %s, n = 30)&quot;</span></span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>       <span class="st">&quot;prop_gen_float_range(0.0, 100.0)&quot;</span>)</span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;PASS&quot;</span>;</span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>  <span class="dt">Printf</span>.printf <span class="st">&quot;</span><span class="ch">\n</span><span class="st">&quot;</span></span></code></pre></div>
+<hr />
+<h2 id="anti-patterns">Anti-patterns</h2>
+<ul>
+<li><p><strong>Fixed inputs instead of generators.</strong>
+<code>prop_for_all(prop_gen_one_of([1, 2, 3]), ...)</code> only tests
+three values. Use <code>prop_gen_int_range</code> /
+<code>prop_gen_float_range</code> / <code>prop_gen_string_from</code>
+instead.</p></li>
+<li><p><strong>Too-specific predicates.</strong>
+<code>\(x) mean(x) == 25.3</code> is a regression test, not a property.
+Ask: “would this still hold if the generator changed?”</p></li>
+<li><p><strong>No seed.</strong> Without <code>set_seed</code>, failures
+are unrepeatable. Always set a seed first.</p></li>
+<li><p><strong>NaN comparisons.</strong> Never use <code>==</code> on
+floats in invariants. Use <code>abs(a - b) &lt; tolerance</code> for
+approximate equality.</p></li>
+<li><p><strong>Ignoring edge cases.</strong> If your function doesn’t
+handle empty strings, negative numbers, or NA, write guards:
+<code>s == "" || f(s) == expected</code>. A property with guard clauses
+is better than a property that crashes.</p></li>
+</ul>
+</div>
+<footer>
+    <p>Best viewed with a sense of curiosity.</p>
+    <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
+</footer>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const blocks = document.querySelectorAll("pre");
+        for (const block of blocks) {
+            const button = document.createElement("button");
+            button.className = "copy-btn";
+            button.innerText = "COPY";
+
+            button.addEventListener("click", () => {
+                // Get pre content excluding the button specifically
+                // Since button is not inside a potential code tag if pandoc produces <pre><code>
+                // but if we use innerText on pre, we might get the button's text too.
+                const clone = block.cloneNode(true);
+                const btnInClone = clone.querySelector(".copy-btn");
+                if (btnInClone) btnInClone.remove();
+
+                const code = clone.innerText.trim();
+
+                navigator.clipboard.writeText(code).then(() => {
+                    button.innerText = "COPIED!";
+                    setTimeout(() => { button.innerText = "COPY"; }, 2000);
+                }).catch((err) => {
+                    console.error("Failed to copy!", err);
+                });
+            });
+
+            block.appendChild(button);
+        }
+    });
+</script>
+</body>
+</html>

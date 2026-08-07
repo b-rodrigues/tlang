@@ -86,7 +86,7 @@ List[String] (Optional) Combine (prepend).</p></li>
 <h2 id="returns">Returns</h2>
 <p>A new pipeline with the settings merged into the target nodes.</p>
 <h2 id="examples">Examples</h2>
-<pre class="t"><code>set_pipeline_global_options(p, runtimes = [&quot;R&quot;], serializer = ^arrow)
+<pre class="t"><code>set_pipeline_global_options(p, runtimes = [&quot;R&quot;], serializer = ^ipc)
 set_pipeline_global_options(p, nodes = [&quot;n1&quot;, &quot;n3&quot;], noop = true)</code></pre>
 </div>
 <footer>

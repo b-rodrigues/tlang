@@ -137,6 +137,8 @@ introspection</li>
 debugging tools</li>
 <li><a href="#testcraft-package">Testcraft Package</a> — Unit-testing
 primitives</li>
+<li><a href="#propcraft-package">Propcraft Package</a> — Property-based
+testing primitives</li>
 </ul>
 <hr />
 <p>For generated one-page documentation for every exported function,
@@ -805,6 +807,33 @@ seed, enabling reproducible random draws from <code>sample()</code> and
 <pre class="t"><code>set_seed(42)
 sample([1, 2, 3, 4, 5], n = 3)</code></pre>
 <hr />
+<h3 id="with_seedseed-thunk"><code>with_seed(seed, thunk)</code></h3>
+<p>Runs a one-parameter lambda (the argument is ignored) with the global
+random number generator scoped to <code>seed</code>, then restores the
+previous RNG state. Outer random draws are unaffected, making this the
+natural way to scope determinism to a single expression — e.g. a
+reproducible <code>prop_for_all</code> run or a reproducible sample.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>seed</code> — Integer seed value to scope the RNG to.</li>
+<li><code>thunk</code> — One-parameter lambda evaluated under
+<code>seed</code>. The argument is ignored; the lambda form makes the
+body lazy.</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p>The result of evaluating <code>thunk</code> (any type).</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>with_seed(42, \(u) sample([1, 2, 3, 4, 5], n = 3))
+with_seed(42, \(u) prop_for_all(prop_gen_int_range(0, 100), \(x) x &gt;= 0))</code></pre>
+<p><strong>Notes:</strong></p>
+<ul>
+<li><code>with_seed</code> is exception-safe: if the thunk raises, the
+RNG state is still restored.</li>
+<li>Nesting works:
+<code>with_seed(1, \(u) with_seed(2, \(v) ...))</code> restores the
+outer seed after the inner scope.</li>
+</ul>
+<hr />
 <h3
 id="samplex-n-1-replace-false"><code>sample(x, n = 1, replace = false)</code></h3>
 <p>Draw a random sample of size n from a Vector or List, with or without
@@ -1208,8 +1237,10 @@ id="quantilex-p-na_rm-false-weights-na"><code>quantile(x, p, na_rm = false, weig
 non-negative observation weights.</p>
 <hr />
 <h4 id="modex"><code>mode(x)</code></h4>
-<p>Return the most frequent value. Does not currently support
-<code>na_rm</code>.</p>
+<p>Return the most frequent value. Values are compared with type-aware,
+NaN-aware equality, so different types never collide. Ties break
+deterministically by first occurrence in input order. Does not currently
+support <code>na_rm</code>.</p>
 <hr />
 <h3 id="data-transformation">Data Transformation</h3>
 <h4 id="normalizex-standardizex-scalex"><code>normalize(x)</code> /
@@ -1349,12 +1380,23 @@ names (default: false)</li>
 id="read_parquetpath-write_parquetto_dataframe-path"><code>read_parquet(path)</code>
 / <code>write_parquet(to_dataframe, path)</code></h3>
 <p>Read or write Parquet files using the native parquet-glib
-reader/writer.</p>
+reader/writer. Prefer Parquet for compressed, long-term storage of large
+datasets or when sharing data with external analytics tooling. For the
+fastest possible round trip (no compression), use <code>read_ipc</code>
+/ <code>write_ipc</code> instead. See <a
+href="data-formats.md#parquet-vs-arrow-ipc-how-to-choose">Parquet vs
+Arrow IPC: How to Choose</a>.</p>
 <hr />
 <h3
-id="read_arrowpath-write_arrowto_dataframe-path"><code>read_arrow(path)</code>
-/ <code>write_arrow(to_dataframe, path)</code></h3>
-<p>Read or write Arrow IPC files.</p>
+id="read_ipcpath-write_ipcto_dataframe-path"><code>read_ipc(path)</code>
+/ <code>write_ipc(to_dataframe, path)</code></h3>
+<p>Read or write Arrow IPC files (Feather v2). IPC is the fastest format
+to read and write (no compression), ideal for pipeline intermediates and
+cross-runtime exchange. For compressed, long-term storage of large
+datasets, use <code>read_parquet</code> / <code>write_parquet</code>
+instead. See <a
+href="data-formats.md#parquet-vs-arrow-ipc-how-to-choose">Parquet vs
+Arrow IPC: How to Choose</a>.</p>
 <hr />
 <h3
 id="write_csvto_dataframe-path-separator"><code>write_csv(to_dataframe, path, separator = ",")</code></h3>
@@ -1452,7 +1494,15 @@ df2 = clean_colnames(df)  -- DataFrame with cleaned column names</code></pre>
 <h3 id="data-verbs">Data Verbs</h3>
 <h4
 id="selectto_dataframe-...columns"><code>select(to_dataframe, ...columns)</code></h4>
-<p>Select columns by name. Supports dollar-prefix NSE syntax.</p>
+<p>Select columns by name. Supports dollar-prefix NSE syntax and the
+selection helpers <code>starts_with</code>, <code>ends_with</code>,
+<code>contains</code>, <code>everything</code>, <code>where</code>,
+<code>all_of</code>, <code>any_of</code>, and <code>matches</code>.
+<code>matches</code> compiles its pattern with PCRE2 in UTF-8 mode, so
+<code>.</code> matches a code point and <code>\p{...}</code> Unicode
+property classes are supported
+(e.g. <code>select(df, matches("^\\p{L}+$"))</code>);
+<code>contains</code> performs a plain literal substring search.</p>
 <p><strong>Parameters:</strong></p>
 <ul>
 <li><code>to_dataframe</code> — DataFrame</li>
@@ -1588,7 +1638,9 @@ df |&gt; group_by($dept) |&gt; summarize($count, \(g) nrow(g))</code></pre>
 id="left_joinx-y-by-na-inner_join-full_join-semi_join-anti_join"><code>left_join(x, y, by = NA)</code>
 / <code>inner_join</code> / <code>full_join</code> /
 <code>semi_join</code> / <code>anti_join</code></h4>
-<p>Join two DataFrames.</p>
+<p>Join two DataFrames. Join keys are normalized so that integer
+<code>1</code> and float <code>1.0</code> match, mirroring R’s
+coercion-to-character semantics.</p>
 <p><strong>Parameters:</strong></p>
 <ul>
 <li><code>x</code>, <code>y</code> — DataFrames to join</li>
@@ -1609,10 +1661,13 @@ side-by-side.</p>
 <hr />
 <h4
 id="distinctdf-...columns"><code>distinct(df, ...columns)</code></h4>
-<p>Keep only unique rows.</p>
+<p>Keep only unique rows. Repeated <code>NaN</code> values collapse to a
+single row, consistent with <code>n_distinct</code>.</p>
 <hr />
 <h4 id="drop_nadf-...columns"><code>drop_na(df, ...columns)</code></h4>
-<p>Drop rows containing NA values in the specified columns.</p>
+<p>Drop rows containing NA values in the specified columns. Works across
+all column types, including date, datetime, dictionary, and list
+columns.</p>
 <hr />
 <h4 id="replace_nadf-values"><code>replace_na(df, values)</code></h4>
 <p>Replace NA values with specified defaults.</p>
@@ -1645,7 +1700,10 @@ id="pivot_widerdf-names_from-name-values_from-value"><code>pivot_wider(df, names
 id="separatedf-col-into-sep-a-za-z0-9-unitedf-col-...from-sep-_"><code>separate(df, col, into, sep = "[^a-zA-Z0-9]+")</code>
 / <code>unite(df, col, ...from, sep = "_")</code></h4>
 <p>Split a column into multiple columns, or combine multiple columns
-into one.</p>
+into one. The <code>sep</code> pattern is compiled with PCRE2 in UTF-8
+mode, so multibyte values are never torn. Split semantics match legacy
+<code>Str.split</code>: trailing empty tokens are dropped and an empty
+subject yields no tokens.</p>
 <hr />
 <h3 id="factor-manipulation">Factor Manipulation</h3>
 <h4
@@ -1942,6 +2000,11 @@ patterns.</p>
 id="intervalstart-end-withinx-interval"><code>interval(start, end)</code>
 / <code>%within%(x, interval)</code></h3>
 <p>Construct temporal intervals and test membership.</p>
+<p><code>%within%</code> can be used as an infix operator:
+<code>d %within% interval(start, end)</code> desugars to
+<code>%within%(d, interval(start, end))</code>. Any function name can be
+used infix with <code>%name%</code> syntax (R-style), resolving to the
+same-named builtin or user function.</p>
 <hr />
 <h3
 id="yearsn-monthsn-weeksn-daysn-hoursn-minutesn-secondsn"><code>years(n)</code>
@@ -1977,7 +2040,14 @@ id="str_replacestring-pattern-replacement-replace_firststring-pattern-replacemen
 <h3
 id="str_detectstring-pattern-containss-sub"><code>str_detect(string, pattern)</code>
 / <code>contains(s, sub)</code></h3>
-<p>Check if a pattern or substring exists.</p>
+<p>Check if a pattern or substring exists. <code>str_detect</code>
+compiles <code>pattern</code> as a PCRE2 regular expression in UTF-8
+mode, so <code>.</code>, <code>[...]</code>, anchors, and
+<code>\p{...}</code> classes operate on Unicode code points —
+<code>str_detect("héllo", "^h.llo$")</code> is <code>true</code> and
+<code>str_extract_all("héllo", "\\p{L}")</code> returns
+<code>["h", "é", "l", "l", "o"]</code>. <code>contains</code> performs a
+plain substring search.</p>
 <hr />
 <h3
 id="starts_withs-prefix-ends_withs-suffix"><code>starts_with(s, prefix)</code>
@@ -1987,14 +2057,15 @@ id="starts_withs-prefix-ends_withs-suffix"><code>starts_with(s, prefix)</code>
 <h3
 id="str_extracts-pattern-str_extract_alls-pattern"><code>str_extract(s, pattern)</code>
 / <code>str_extract_all(s, pattern)</code></h3>
-<p>Extract matching substrings. <code>str_extract</code> returns the
-first match; <code>str_extract_all</code> returns a List of all
-matches.</p>
+<p>Extract matching substrings using UTF-8-aware PCRE2 patterns (see
+<code>str_detect</code>). <code>str_extract</code> returns the first
+match; <code>str_extract_all</code> returns a List of all matches.</p>
 <hr />
 <h3
 id="str_counts-pattern-str_nchars"><code>str_count(s, pattern)</code> /
 <code>str_nchar(s)</code></h3>
-<p>Count matches or total characters.</p>
+<p>Count regex matches (PCRE2, UTF-8 aware — each code point matched by
+<code>.</code> counts once) or total characters.</p>
 <hr />
 <h3 id="str_trims-trim_starts-trim_ends"><code>str_trim(s)</code> /
 <code>trim_start(s)</code> / <code>trim_end(s)</code></h3>
@@ -2003,15 +2074,20 @@ id="str_counts-pattern-str_nchars"><code>str_count(s, pattern)</code> /
 <h3 id="str_liness-str_wordss-str_splits-sep"><code>str_lines(s)</code>
 / <code>str_words(s)</code> / <code>str_split(s, sep)</code></h3>
 <p>Split strings into parts. <code>str_lines</code> splits on newlines;
-<code>str_words</code> splits on any whitespace.</p>
+<code>str_words</code> splits on any whitespace. With an empty
+separator, <code>str_split(s, "")</code> splits into individual Unicode
+code points (multi-byte characters are never torn apart).</p>
 <hr />
 <h3
 id="str_pads-width-side-left-pad"><code>str_pad(s, width, side = "left", pad = " ")</code></h3>
-<p>Pad strings to a fixed width.</p>
+<p>Pad strings to a fixed width. Width is measured in characters
+(Unicode code points), not bytes.</p>
 <hr />
 <h3
 id="str_truncs-width-side-right-ellipsis-..."><code>str_trunc(s, width, side = "right", ellipsis = "...")</code></h3>
-<p>Truncate strings with an ellipsis.</p>
+<p>Truncate strings with an ellipsis. Width is measured in characters
+(Unicode code points); truncation never splits a multi-byte character in
+half.</p>
 <hr />
 <h3
 id="str_flattenvalues-collapse-str_joinitems-sep"><code>str_flatten(values, collapse = "")</code>
@@ -2020,7 +2096,12 @@ id="str_flattenvalues-collapse-str_joinitems-sep"><code>str_flatten(values, coll
 <hr />
 <h3 id="to_lowers-to_uppers"><code>to_lower(s)</code> /
 <code>to_upper(s)</code></h3>
-<p>Case normalization.</p>
+<p>Unicode-aware case mapping (not locale-dependent):
+<code>to_upper("éàüç")</code> is <code>"ÉÀÜÇ"</code>,
+<code>to_lower("ÉÀÜÇ")</code> is <code>"éàüç"</code>, and full case
+folding is applied where Unicode requires it
+(e.g. <code>to_upper("ß")</code> is <code>"SS"</code>). Multi-character
+mappings never split UTF-8 code points.</p>
 <hr />
 <h3 id="str_repeats-n"><code>str_repeat(s, n)</code></h3>
 <p>Repeat a string <code>n</code> times.</p>
@@ -2309,7 +2390,7 @@ q = set_pipeline_global_options(p,
 )
 
 # Scope to R nodes only
-q2 = set_pipeline_global_options(p, runtimes = [&quot;rn&quot;], serializer = ^arrow)
+q2 = set_pipeline_global_options(p, runtimes = [&quot;rn&quot;], serializer = ^ipc)
 
 # Scope to specific nodes
 q3 = set_pipeline_global_options(p, nodes = [&quot;a&quot;], noop = true)</code></pre>
@@ -2635,7 +2716,7 @@ node (must be enclosed in <code>&lt;{ ... }&gt;</code> blocks).</li>
 <li><code>script</code> — Path to an external <code>.jl</code> file to
 execute as the node body.</li>
 <li><code>serializer</code> (optional) — Custom serializer symbol (e.g.,
-<code>^csv</code>, <code>^json</code>, <code>^arrow</code>,
+<code>^csv</code>, <code>^json</code>, <code>^ipc</code>,
 <code>^onnx</code>). Default: runtime-native binary serialization
 (<code>jl_serialize</code>).</li>
 <li><code>deserializer</code> (optional) — Custom deserializer symbol.
@@ -3169,12 +3250,12 @@ graph structure (wire), types (schema), and environment (missing files).
 The reported <code>tier</code> and <code>phase</code> reflect the
 deepest phase reached during evaluation, not a fixed depth limit.</p>
 <p><strong>Usage:</strong></p>
-<div class="sourceCode" id="cb97"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb97-1"><a href="#cb97-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> check path/to/script.t              <span class="co"># human-readable output</span></span>
-<span id="cb97-2"><a href="#cb97-2" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> check <span class="at">--json</span> path/to/script.t       <span class="co"># machine-readable JSON output</span></span>
-<span id="cb97-3"><a href="#cb97-3" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> check <span class="at">--schema</span> path/to/script.t     <span class="co"># include column-level schema validation</span></span>
-<span id="cb97-4"><a href="#cb97-4" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> check <span class="at">--env</span> path/to/script.t        <span class="co"># include environment resolution checks</span></span>
-<span id="cb97-5"><a href="#cb97-5" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> check <span class="at">--schema</span> <span class="at">--env</span> <span class="at">--json</span> path/to/script.t  <span class="co"># combined: tier 1+2+3 in JSON</span></span></code></pre></div>
+<div class="sourceCode" id="cb98"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb98-1"><a href="#cb98-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> check path/to/script.t              <span class="co"># human-readable output</span></span>
+<span id="cb98-2"><a href="#cb98-2" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> check <span class="at">--json</span> path/to/script.t       <span class="co"># machine-readable JSON output</span></span>
+<span id="cb98-3"><a href="#cb98-3" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> check <span class="at">--schema</span> path/to/script.t     <span class="co"># include column-level schema validation</span></span>
+<span id="cb98-4"><a href="#cb98-4" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> check <span class="at">--env</span> path/to/script.t        <span class="co"># include environment resolution checks</span></span>
+<span id="cb98-5"><a href="#cb98-5" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> check <span class="at">--schema</span> <span class="at">--env</span> <span class="at">--json</span> path/to/script.t  <span class="co"># combined: tier 1+2+3 in JSON</span></span></code></pre></div>
 <p><strong>Exit codes:</strong></p>
 <table>
 <thead>
@@ -3203,14 +3284,14 @@ class="sourceCode bash"><code class="sourceCode bash"><span id="cb97-1"><a href=
 </tbody>
 </table>
 <p><strong>JSON output format (<code>--json</code>):</strong></p>
-<div class="sourceCode" id="cb98"><pre
-class="sourceCode json"><code class="sourceCode json"><span id="cb98-1"><a href="#cb98-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
-<span id="cb98-2"><a href="#cb98-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;schema_version&quot;</span><span class="fu">:</span> <span class="st">&quot;1&quot;</span><span class="fu">,</span></span>
-<span id="cb98-3"><a href="#cb98-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;status&quot;</span><span class="fu">:</span> <span class="st">&quot;ok&quot;</span><span class="fu">,</span></span>
-<span id="cb98-4"><a href="#cb98-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;phase&quot;</span><span class="fu">:</span> <span class="st">&quot;wire&quot;</span><span class="fu">,</span></span>
-<span id="cb98-5"><a href="#cb98-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;tier&quot;</span><span class="fu">:</span> <span class="dv">1</span><span class="fu">,</span></span>
-<span id="cb98-6"><a href="#cb98-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;diagnostics&quot;</span><span class="fu">:</span> <span class="ot">[]</span></span>
-<span id="cb98-7"><a href="#cb98-7" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<div class="sourceCode" id="cb99"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb99-1"><a href="#cb99-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb99-2"><a href="#cb99-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;schema_version&quot;</span><span class="fu">:</span> <span class="st">&quot;1&quot;</span><span class="fu">,</span></span>
+<span id="cb99-3"><a href="#cb99-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;status&quot;</span><span class="fu">:</span> <span class="st">&quot;ok&quot;</span><span class="fu">,</span></span>
+<span id="cb99-4"><a href="#cb99-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;phase&quot;</span><span class="fu">:</span> <span class="st">&quot;wire&quot;</span><span class="fu">,</span></span>
+<span id="cb99-5"><a href="#cb99-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;tier&quot;</span><span class="fu">:</span> <span class="dv">1</span><span class="fu">,</span></span>
+<span id="cb99-6"><a href="#cb99-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;diagnostics&quot;</span><span class="fu">:</span> <span class="ot">[]</span></span>
+<span id="cb99-7"><a href="#cb99-7" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
 <p>The <code>tier</code> field is derived from the deepest phase that
 produced diagnostics: parse/wire errors yield <code>tier: 1</code>,
 schema errors yield <code>tier: 2</code>, and env/build/exec errors
@@ -3292,12 +3373,12 @@ distance 3+</td>
 <code>nix_generation_error</code>, <code>nix_eval_error</code>,
 <code>na_warning</code>, <code>unknown_error</code>.</p>
 <p><strong>Examples:</strong></p>
-<div class="sourceCode" id="cb99"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb99-1"><a href="#cb99-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Check a pipeline script</span></span>
-<span id="cb99-2"><a href="#cb99-2" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> check analysis/pipeline.t</span>
-<span id="cb99-3"><a href="#cb99-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb99-4"><a href="#cb99-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Get JSON for editor integration</span></span>
-<span id="cb99-5"><a href="#cb99-5" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> check <span class="at">--json</span> analysis/pipeline.t <span class="kw">|</span> <span class="ex">jq</span> <span class="st">&#39;.diagnostics&#39;</span></span></code></pre></div>
+<div class="sourceCode" id="cb100"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb100-1"><a href="#cb100-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Check a pipeline script</span></span>
+<span id="cb100-2"><a href="#cb100-2" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> check analysis/pipeline.t</span>
+<span id="cb100-3"><a href="#cb100-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb100-4"><a href="#cb100-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Get JSON for editor integration</span></span>
+<span id="cb100-5"><a href="#cb100-5" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> check <span class="at">--json</span> analysis/pipeline.t <span class="kw">|</span> <span class="ex">jq</span> <span class="st">&#39;.diagnostics&#39;</span></span></code></pre></div>
 <p><strong>How it works:</strong></p>
 <p><code>t check</code> runs the full evaluator with
 <code>--failfast</code> but skips Nix builds entirely. Pipeline
@@ -3364,10 +3445,10 @@ it emits newline-delimited JSON (NDJSON) events to stdout — one JSON
 object per line — so agents can react to the first failing node without
 waiting for the entire DAG to finish.</p>
 <p><strong>Usage:</strong></p>
-<div class="sourceCode" id="cb100"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb100-1"><a href="#cb100-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> run <span class="op">&lt;</span>file.t<span class="op">&gt;</span>              <span class="co"># human-readable output (default)</span></span>
-<span id="cb100-2"><a href="#cb100-2" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> run <span class="at">--json</span> <span class="op">&lt;</span>file.t<span class="op">&gt;</span>       <span class="co"># streaming NDJSON events to stdout</span></span>
-<span id="cb100-3"><a href="#cb100-3" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> run <span class="op">&lt;</span>file.t<span class="op">&gt;</span> --json       <span class="co"># --json can also appear after the file</span></span></code></pre></div>
+<div class="sourceCode" id="cb101"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb101-1"><a href="#cb101-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> run <span class="op">&lt;</span>file.t<span class="op">&gt;</span>              <span class="co"># human-readable output (default)</span></span>
+<span id="cb101-2"><a href="#cb101-2" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> run <span class="at">--json</span> <span class="op">&lt;</span>file.t<span class="op">&gt;</span>       <span class="co"># streaming NDJSON events to stdout</span></span>
+<span id="cb101-3"><a href="#cb101-3" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> run <span class="op">&lt;</span>file.t<span class="op">&gt;</span> --json       <span class="co"># --json can also appear after the file</span></span></code></pre></div>
 <p><strong>Exit codes:</strong></p>
 <table>
 <thead>
@@ -3399,14 +3480,14 @@ class="sourceCode bash"><code class="sourceCode bash"><span id="cb100-1"><a href
 not.</p>
 <p><strong>NDJSON event schema (<code>--json</code>):</strong></p>
 <p>Each line is a self-contained JSON object with a common envelope:</p>
-<div class="sourceCode" id="cb101"><pre
-class="sourceCode json"><code class="sourceCode json"><span id="cb101-1"><a href="#cb101-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
-<span id="cb101-2"><a href="#cb101-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;schema_version&quot;</span><span class="fu">:</span> <span class="st">&quot;1.0&quot;</span><span class="fu">,</span></span>
-<span id="cb101-3"><a href="#cb101-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;seq&quot;</span><span class="fu">:</span> <span class="dv">1</span><span class="fu">,</span></span>
-<span id="cb101-4"><a href="#cb101-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;ts&quot;</span><span class="fu">:</span> <span class="st">&quot;2026-07-10T14:32:01.123Z&quot;</span><span class="fu">,</span></span>
-<span id="cb101-5"><a href="#cb101-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;event&quot;</span><span class="fu">:</span> <span class="st">&quot;run_started&quot;</span><span class="fu">,</span></span>
-<span id="cb101-6"><a href="#cb101-6" aria-hidden="true" tabindex="-1"></a>  <span class="er">...</span></span>
-<span id="cb101-7"><a href="#cb101-7" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<div class="sourceCode" id="cb102"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb102-1"><a href="#cb102-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb102-2"><a href="#cb102-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;schema_version&quot;</span><span class="fu">:</span> <span class="st">&quot;1.0&quot;</span><span class="fu">,</span></span>
+<span id="cb102-3"><a href="#cb102-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;seq&quot;</span><span class="fu">:</span> <span class="dv">1</span><span class="fu">,</span></span>
+<span id="cb102-4"><a href="#cb102-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;ts&quot;</span><span class="fu">:</span> <span class="st">&quot;2026-07-10T14:32:01.123Z&quot;</span><span class="fu">,</span></span>
+<span id="cb102-5"><a href="#cb102-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;event&quot;</span><span class="fu">:</span> <span class="st">&quot;run_started&quot;</span><span class="fu">,</span></span>
+<span id="cb102-6"><a href="#cb102-6" aria-hidden="true" tabindex="-1"></a>  <span class="er">...</span></span>
+<span id="cb102-7"><a href="#cb102-7" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
 <table>
 <colgroup>
 <col style="width: 26%" />
@@ -3451,33 +3532,33 @@ Starts at 1.</td>
 <p>Emitted before the first Nix build. Carries the full pipeline DAG so
 consumers can reason about root causes while the stream is still
 open.</p>
-<div class="sourceCode" id="cb102"><pre
-class="sourceCode json"><code class="sourceCode json"><span id="cb102-1"><a href="#cb102-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
-<span id="cb102-2"><a href="#cb102-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;schema_version&quot;</span><span class="fu">:</span> <span class="st">&quot;1.0&quot;</span><span class="fu">,</span></span>
-<span id="cb102-3"><a href="#cb102-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;seq&quot;</span><span class="fu">:</span> <span class="dv">1</span><span class="fu">,</span></span>
-<span id="cb102-4"><a href="#cb102-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;ts&quot;</span><span class="fu">:</span> <span class="st">&quot;2026-07-10T14:32:01.123Z&quot;</span><span class="fu">,</span></span>
-<span id="cb102-5"><a href="#cb102-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;event&quot;</span><span class="fu">:</span> <span class="st">&quot;run_started&quot;</span><span class="fu">,</span></span>
-<span id="cb102-6"><a href="#cb102-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;file&quot;</span><span class="fu">:</span> <span class="st">&quot;pipeline.t&quot;</span><span class="fu">,</span></span>
-<span id="cb102-7"><a href="#cb102-7" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;nodes&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
-<span id="cb102-8"><a href="#cb102-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span><span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="st">&quot;a&quot;</span><span class="fu">,</span> <span class="dt">&quot;lang&quot;</span><span class="fu">:</span> <span class="st">&quot;r&quot;</span><span class="fu">}</span><span class="ot">,</span></span>
-<span id="cb102-9"><a href="#cb102-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span><span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="st">&quot;b&quot;</span><span class="fu">,</span> <span class="dt">&quot;lang&quot;</span><span class="fu">:</span> <span class="st">&quot;python&quot;</span><span class="fu">,</span> <span class="dt">&quot;depends_on&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;a&quot;</span><span class="ot">]</span><span class="fu">}</span><span class="ot">,</span></span>
-<span id="cb102-10"><a href="#cb102-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span><span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="st">&quot;c&quot;</span><span class="fu">,</span> <span class="dt">&quot;lang&quot;</span><span class="fu">:</span> <span class="st">&quot;r&quot;</span><span class="fu">,</span> <span class="dt">&quot;depends_on&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;b&quot;</span><span class="ot">]</span><span class="fu">}</span></span>
-<span id="cb102-11"><a href="#cb102-11" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span></span>
-<span id="cb102-12"><a href="#cb102-12" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<div class="sourceCode" id="cb103"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb103-1"><a href="#cb103-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb103-2"><a href="#cb103-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;schema_version&quot;</span><span class="fu">:</span> <span class="st">&quot;1.0&quot;</span><span class="fu">,</span></span>
+<span id="cb103-3"><a href="#cb103-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;seq&quot;</span><span class="fu">:</span> <span class="dv">1</span><span class="fu">,</span></span>
+<span id="cb103-4"><a href="#cb103-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;ts&quot;</span><span class="fu">:</span> <span class="st">&quot;2026-07-10T14:32:01.123Z&quot;</span><span class="fu">,</span></span>
+<span id="cb103-5"><a href="#cb103-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;event&quot;</span><span class="fu">:</span> <span class="st">&quot;run_started&quot;</span><span class="fu">,</span></span>
+<span id="cb103-6"><a href="#cb103-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;file&quot;</span><span class="fu">:</span> <span class="st">&quot;pipeline.t&quot;</span><span class="fu">,</span></span>
+<span id="cb103-7"><a href="#cb103-7" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;nodes&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb103-8"><a href="#cb103-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span><span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="st">&quot;a&quot;</span><span class="fu">,</span> <span class="dt">&quot;lang&quot;</span><span class="fu">:</span> <span class="st">&quot;r&quot;</span><span class="fu">}</span><span class="ot">,</span></span>
+<span id="cb103-9"><a href="#cb103-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span><span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="st">&quot;b&quot;</span><span class="fu">,</span> <span class="dt">&quot;lang&quot;</span><span class="fu">:</span> <span class="st">&quot;python&quot;</span><span class="fu">,</span> <span class="dt">&quot;depends_on&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;a&quot;</span><span class="ot">]</span><span class="fu">}</span><span class="ot">,</span></span>
+<span id="cb103-10"><a href="#cb103-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span><span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="st">&quot;c&quot;</span><span class="fu">,</span> <span class="dt">&quot;lang&quot;</span><span class="fu">:</span> <span class="st">&quot;r&quot;</span><span class="fu">,</span> <span class="dt">&quot;depends_on&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;b&quot;</span><span class="ot">]</span><span class="fu">}</span></span>
+<span id="cb103-11"><a href="#cb103-11" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span></span>
+<span id="cb103-12"><a href="#cb103-12" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
 <h4 id="node_failed-emitted-per-failure"><code>node_failed</code>
 (emitted per failure)</h4>
 <p>Emitted when a node’s Nix build fails. Includes the error message and
 the last 200 lines of the build log inline.</p>
-<div class="sourceCode" id="cb103"><pre
-class="sourceCode json"><code class="sourceCode json"><span id="cb103-1"><a href="#cb103-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
-<span id="cb103-2"><a href="#cb103-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;schema_version&quot;</span><span class="fu">:</span> <span class="st">&quot;1.0&quot;</span><span class="fu">,</span></span>
-<span id="cb103-3"><a href="#cb103-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;seq&quot;</span><span class="fu">:</span> <span class="dv">2</span><span class="fu">,</span></span>
-<span id="cb103-4"><a href="#cb103-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;ts&quot;</span><span class="fu">:</span> <span class="st">&quot;2026-07-10T14:32:05.456Z&quot;</span><span class="fu">,</span></span>
-<span id="cb103-5"><a href="#cb103-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;event&quot;</span><span class="fu">:</span> <span class="st">&quot;node_failed&quot;</span><span class="fu">,</span></span>
-<span id="cb103-6"><a href="#cb103-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;node&quot;</span><span class="fu">:</span> <span class="fu">{</span><span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="st">&quot;b&quot;</span><span class="fu">,</span> <span class="dt">&quot;lang&quot;</span><span class="fu">:</span> <span class="st">&quot;python&quot;</span><span class="fu">},</span></span>
-<span id="cb103-7"><a href="#cb103-7" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;message&quot;</span><span class="fu">:</span> <span class="st">&quot;Nix build failed for node &#39;b&#39;&quot;</span><span class="fu">,</span></span>
-<span id="cb103-8"><a href="#cb103-8" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;log_tail&quot;</span><span class="fu">:</span> <span class="st">&quot;...last 200 lines of build log...&quot;</span></span>
-<span id="cb103-9"><a href="#cb103-9" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<div class="sourceCode" id="cb104"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb104-1"><a href="#cb104-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb104-2"><a href="#cb104-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;schema_version&quot;</span><span class="fu">:</span> <span class="st">&quot;1.0&quot;</span><span class="fu">,</span></span>
+<span id="cb104-3"><a href="#cb104-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;seq&quot;</span><span class="fu">:</span> <span class="dv">2</span><span class="fu">,</span></span>
+<span id="cb104-4"><a href="#cb104-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;ts&quot;</span><span class="fu">:</span> <span class="st">&quot;2026-07-10T14:32:05.456Z&quot;</span><span class="fu">,</span></span>
+<span id="cb104-5"><a href="#cb104-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;event&quot;</span><span class="fu">:</span> <span class="st">&quot;node_failed&quot;</span><span class="fu">,</span></span>
+<span id="cb104-6"><a href="#cb104-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;node&quot;</span><span class="fu">:</span> <span class="fu">{</span><span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="st">&quot;b&quot;</span><span class="fu">,</span> <span class="dt">&quot;lang&quot;</span><span class="fu">:</span> <span class="st">&quot;python&quot;</span><span class="fu">},</span></span>
+<span id="cb104-7"><a href="#cb104-7" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;message&quot;</span><span class="fu">:</span> <span class="st">&quot;Nix build failed for node &#39;b&#39;&quot;</span><span class="fu">,</span></span>
+<span id="cb104-8"><a href="#cb104-8" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;log_tail&quot;</span><span class="fu">:</span> <span class="st">&quot;...last 200 lines of build log...&quot;</span></span>
+<span id="cb104-9"><a href="#cb104-9" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
 <p>The <code>log_tail</code> field is a string containing the tail of
 <code>_pipeline/logs/&lt;node&gt;.log</code>. If the log is unavailable
 or empty, the field is an empty string.</p>
@@ -3486,15 +3567,15 @@ or empty, the field is an empty string.</p>
 <p>Emitted when a downstream node is skipped because an upstream
 dependency failed. The <code>because</code> field names the first failed
 ancestor.</p>
-<div class="sourceCode" id="cb104"><pre
-class="sourceCode json"><code class="sourceCode json"><span id="cb104-1"><a href="#cb104-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
-<span id="cb104-2"><a href="#cb104-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;schema_version&quot;</span><span class="fu">:</span> <span class="st">&quot;1.0&quot;</span><span class="fu">,</span></span>
-<span id="cb104-3"><a href="#cb104-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;seq&quot;</span><span class="fu">:</span> <span class="dv">3</span><span class="fu">,</span></span>
-<span id="cb104-4"><a href="#cb104-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;ts&quot;</span><span class="fu">:</span> <span class="st">&quot;2026-07-10T14:32:05.457Z&quot;</span><span class="fu">,</span></span>
-<span id="cb104-5"><a href="#cb104-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;event&quot;</span><span class="fu">:</span> <span class="st">&quot;node_skipped&quot;</span><span class="fu">,</span></span>
-<span id="cb104-6"><a href="#cb104-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;node&quot;</span><span class="fu">:</span> <span class="fu">{</span><span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="st">&quot;c&quot;</span><span class="fu">,</span> <span class="dt">&quot;lang&quot;</span><span class="fu">:</span> <span class="st">&quot;r&quot;</span><span class="fu">},</span></span>
-<span id="cb104-7"><a href="#cb104-7" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;because&quot;</span><span class="fu">:</span> <span class="st">&quot;b&quot;</span></span>
-<span id="cb104-8"><a href="#cb104-8" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<div class="sourceCode" id="cb105"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb105-1"><a href="#cb105-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb105-2"><a href="#cb105-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;schema_version&quot;</span><span class="fu">:</span> <span class="st">&quot;1.0&quot;</span><span class="fu">,</span></span>
+<span id="cb105-3"><a href="#cb105-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;seq&quot;</span><span class="fu">:</span> <span class="dv">3</span><span class="fu">,</span></span>
+<span id="cb105-4"><a href="#cb105-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;ts&quot;</span><span class="fu">:</span> <span class="st">&quot;2026-07-10T14:32:05.457Z&quot;</span><span class="fu">,</span></span>
+<span id="cb105-5"><a href="#cb105-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;event&quot;</span><span class="fu">:</span> <span class="st">&quot;node_skipped&quot;</span><span class="fu">,</span></span>
+<span id="cb105-6"><a href="#cb105-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;node&quot;</span><span class="fu">:</span> <span class="fu">{</span><span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="st">&quot;c&quot;</span><span class="fu">,</span> <span class="dt">&quot;lang&quot;</span><span class="fu">:</span> <span class="st">&quot;r&quot;</span><span class="fu">},</span></span>
+<span id="cb105-7"><a href="#cb105-7" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;because&quot;</span><span class="fu">:</span> <span class="st">&quot;b&quot;</span></span>
+<span id="cb105-8"><a href="#cb105-8" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
 <h4 id="run_finished-emitted-once-last-line"><code>run_finished</code>
 (emitted once, last line)</h4>
 <p>Emitted after all nodes have been attempted. The
@@ -3502,19 +3583,19 @@ class="sourceCode json"><code class="sourceCode json"><span id="cb104-1"><a href
 full graph, not emitted on <code>node_failed</code> events). The
 <code>status</code> field is one of <code>"ok"</code>,
 <code>"failed"</code>, or <code>"skipped"</code>.</p>
-<div class="sourceCode" id="cb105"><pre
-class="sourceCode json"><code class="sourceCode json"><span id="cb105-1"><a href="#cb105-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
-<span id="cb105-2"><a href="#cb105-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;schema_version&quot;</span><span class="fu">:</span> <span class="st">&quot;1.0&quot;</span><span class="fu">,</span></span>
-<span id="cb105-3"><a href="#cb105-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;seq&quot;</span><span class="fu">:</span> <span class="dv">4</span><span class="fu">,</span></span>
-<span id="cb105-4"><a href="#cb105-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;ts&quot;</span><span class="fu">:</span> <span class="st">&quot;2026-07-10T14:32:06.789Z&quot;</span><span class="fu">,</span></span>
-<span id="cb105-5"><a href="#cb105-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;event&quot;</span><span class="fu">:</span> <span class="st">&quot;run_finished&quot;</span><span class="fu">,</span></span>
-<span id="cb105-6"><a href="#cb105-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;file&quot;</span><span class="fu">:</span> <span class="st">&quot;pipeline.t&quot;</span><span class="fu">,</span></span>
-<span id="cb105-7"><a href="#cb105-7" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;status&quot;</span><span class="fu">:</span> <span class="st">&quot;failed&quot;</span><span class="fu">,</span></span>
-<span id="cb105-8"><a href="#cb105-8" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;total_nodes&quot;</span><span class="fu">:</span> <span class="dv">3</span><span class="fu">,</span></span>
-<span id="cb105-9"><a href="#cb105-9" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;failed&quot;</span><span class="fu">:</span> <span class="dv">1</span><span class="fu">,</span></span>
-<span id="cb105-10"><a href="#cb105-10" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;skipped&quot;</span><span class="fu">:</span> <span class="dv">1</span><span class="fu">,</span></span>
-<span id="cb105-11"><a href="#cb105-11" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;root_causes&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;b&quot;</span><span class="ot">]</span></span>
-<span id="cb105-12"><a href="#cb105-12" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<div class="sourceCode" id="cb106"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb106-1"><a href="#cb106-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb106-2"><a href="#cb106-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;schema_version&quot;</span><span class="fu">:</span> <span class="st">&quot;1.0&quot;</span><span class="fu">,</span></span>
+<span id="cb106-3"><a href="#cb106-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;seq&quot;</span><span class="fu">:</span> <span class="dv">4</span><span class="fu">,</span></span>
+<span id="cb106-4"><a href="#cb106-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;ts&quot;</span><span class="fu">:</span> <span class="st">&quot;2026-07-10T14:32:06.789Z&quot;</span><span class="fu">,</span></span>
+<span id="cb106-5"><a href="#cb106-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;event&quot;</span><span class="fu">:</span> <span class="st">&quot;run_finished&quot;</span><span class="fu">,</span></span>
+<span id="cb106-6"><a href="#cb106-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;file&quot;</span><span class="fu">:</span> <span class="st">&quot;pipeline.t&quot;</span><span class="fu">,</span></span>
+<span id="cb106-7"><a href="#cb106-7" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;status&quot;</span><span class="fu">:</span> <span class="st">&quot;failed&quot;</span><span class="fu">,</span></span>
+<span id="cb106-8"><a href="#cb106-8" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;total_nodes&quot;</span><span class="fu">:</span> <span class="dv">3</span><span class="fu">,</span></span>
+<span id="cb106-9"><a href="#cb106-9" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;failed&quot;</span><span class="fu">:</span> <span class="dv">1</span><span class="fu">,</span></span>
+<span id="cb106-10"><a href="#cb106-10" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;skipped&quot;</span><span class="fu">:</span> <span class="dv">1</span><span class="fu">,</span></span>
+<span id="cb106-11"><a href="#cb106-11" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;root_causes&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;b&quot;</span><span class="ot">]</span></span>
+<span id="cb106-12"><a href="#cb106-12" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
 <p><strong>Per-node build logs:</strong></p>
 <p>During execution, each node’s stderr is captured to
 <code>_pipeline/logs/&lt;node&gt;.log</code>. These logs persist after
@@ -3522,16 +3603,16 @@ the run and can be inspected with
 <code>read_past_node(node, "build")</code> or
 <code>read_past_node(node, "run")</code>.</p>
 <p><strong>Example: agent usage</strong></p>
-<div class="sourceCode" id="cb106"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb106-1"><a href="#cb106-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> run <span class="at">--json</span> pipeline.t <span class="dv">2</span><span class="op">&gt;</span>/dev/null <span class="kw">|</span> <span class="cf">while</span> <span class="va">IFS</span><span class="op">=</span> <span class="bu">read</span> <span class="at">-r</span> <span class="va">line</span><span class="kw">;</span> <span class="cf">do</span></span>
-<span id="cb106-2"><a href="#cb106-2" aria-hidden="true" tabindex="-1"></a>  <span class="va">event</span><span class="op">=</span><span class="va">$(</span><span class="bu">echo</span> <span class="st">&quot;</span><span class="va">$line</span><span class="st">&quot;</span> <span class="kw">|</span> <span class="ex">jq</span> <span class="at">-r</span> <span class="st">&#39;.event&#39;</span><span class="va">)</span></span>
-<span id="cb106-3"><a href="#cb106-3" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> <span class="bu">[</span> <span class="st">&quot;</span><span class="va">$event</span><span class="st">&quot;</span> <span class="ot">=</span> <span class="st">&quot;node_failed&quot;</span> <span class="bu">]</span><span class="kw">;</span> <span class="cf">then</span></span>
-<span id="cb106-4"><a href="#cb106-4" aria-hidden="true" tabindex="-1"></a>    <span class="va">node</span><span class="op">=</span><span class="va">$(</span><span class="bu">echo</span> <span class="st">&quot;</span><span class="va">$line</span><span class="st">&quot;</span> <span class="kw">|</span> <span class="ex">jq</span> <span class="at">-r</span> <span class="st">&#39;.node.id&#39;</span><span class="va">)</span></span>
-<span id="cb106-5"><a href="#cb106-5" aria-hidden="true" tabindex="-1"></a>    <span class="bu">echo</span> <span class="st">&quot;FAILED: </span><span class="va">$node</span><span class="st">&quot;</span></span>
-<span id="cb106-6"><a href="#cb106-6" aria-hidden="true" tabindex="-1"></a>    <span class="bu">echo</span> <span class="st">&quot;</span><span class="va">$line</span><span class="st">&quot;</span> <span class="kw">|</span> <span class="ex">jq</span> <span class="at">-r</span> <span class="st">&#39;.log_tail&#39;</span> <span class="kw">|</span> <span class="fu">tail</span> <span class="at">-5</span></span>
-<span id="cb106-7"><a href="#cb106-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">break</span></span>
-<span id="cb106-8"><a href="#cb106-8" aria-hidden="true" tabindex="-1"></a>  <span class="cf">fi</span></span>
-<span id="cb106-9"><a href="#cb106-9" aria-hidden="true" tabindex="-1"></a><span class="cf">done</span></span></code></pre></div>
+<div class="sourceCode" id="cb107"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb107-1"><a href="#cb107-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> run <span class="at">--json</span> pipeline.t <span class="dv">2</span><span class="op">&gt;</span>/dev/null <span class="kw">|</span> <span class="cf">while</span> <span class="va">IFS</span><span class="op">=</span> <span class="bu">read</span> <span class="at">-r</span> <span class="va">line</span><span class="kw">;</span> <span class="cf">do</span></span>
+<span id="cb107-2"><a href="#cb107-2" aria-hidden="true" tabindex="-1"></a>  <span class="va">event</span><span class="op">=</span><span class="va">$(</span><span class="bu">echo</span> <span class="st">&quot;</span><span class="va">$line</span><span class="st">&quot;</span> <span class="kw">|</span> <span class="ex">jq</span> <span class="at">-r</span> <span class="st">&#39;.event&#39;</span><span class="va">)</span></span>
+<span id="cb107-3"><a href="#cb107-3" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> <span class="bu">[</span> <span class="st">&quot;</span><span class="va">$event</span><span class="st">&quot;</span> <span class="ot">=</span> <span class="st">&quot;node_failed&quot;</span> <span class="bu">]</span><span class="kw">;</span> <span class="cf">then</span></span>
+<span id="cb107-4"><a href="#cb107-4" aria-hidden="true" tabindex="-1"></a>    <span class="va">node</span><span class="op">=</span><span class="va">$(</span><span class="bu">echo</span> <span class="st">&quot;</span><span class="va">$line</span><span class="st">&quot;</span> <span class="kw">|</span> <span class="ex">jq</span> <span class="at">-r</span> <span class="st">&#39;.node.id&#39;</span><span class="va">)</span></span>
+<span id="cb107-5"><a href="#cb107-5" aria-hidden="true" tabindex="-1"></a>    <span class="bu">echo</span> <span class="st">&quot;FAILED: </span><span class="va">$node</span><span class="st">&quot;</span></span>
+<span id="cb107-6"><a href="#cb107-6" aria-hidden="true" tabindex="-1"></a>    <span class="bu">echo</span> <span class="st">&quot;</span><span class="va">$line</span><span class="st">&quot;</span> <span class="kw">|</span> <span class="ex">jq</span> <span class="at">-r</span> <span class="st">&#39;.log_tail&#39;</span> <span class="kw">|</span> <span class="fu">tail</span> <span class="at">-5</span></span>
+<span id="cb107-7"><a href="#cb107-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">break</span></span>
+<span id="cb107-8"><a href="#cb107-8" aria-hidden="true" tabindex="-1"></a>  <span class="cf">fi</span></span>
+<span id="cb107-9"><a href="#cb107-9" aria-hidden="true" tabindex="-1"></a><span class="cf">done</span></span></code></pre></div>
 <hr />
 <h3 id="read_nodenode-1"><code>read_node(node)</code></h3>
 <p>Read a dynamically evaluated or materialized artifact from an
@@ -3775,10 +3856,10 @@ print(summary)</code></pre>
 <h3 id="cli-t-diff">CLI: <code>t diff</code></h3>
 <p>The <code>t diff</code> command provides the same functionality from
 the shell, without needing to write a T script:</p>
-<div class="sourceCode" id="cb115"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb115-1"><a href="#cb115-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> diff <span class="op">&lt;</span>file.t<span class="op">&gt;</span>                    <span class="co"># compare last two builds</span></span>
-<span id="cb115-2"><a href="#cb115-2" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> diff <span class="op">&lt;</span>file.t<span class="op">&gt;</span> --json             <span class="co"># structured JSON output</span></span>
-<span id="cb115-3"><a href="#cb115-3" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> diff <span class="op">&lt;</span>file.t<span class="op">&gt;</span> --log-a 2 <span class="at">--log-b</span> 4  <span class="co"># compare specific build ranks</span></span></code></pre></div>
+<div class="sourceCode" id="cb116"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb116-1"><a href="#cb116-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> diff <span class="op">&lt;</span>file.t<span class="op">&gt;</span>                    <span class="co"># compare last two builds</span></span>
+<span id="cb116-2"><a href="#cb116-2" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> diff <span class="op">&lt;</span>file.t<span class="op">&gt;</span> --json             <span class="co"># structured JSON output</span></span>
+<span id="cb116-3"><a href="#cb116-3" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> diff <span class="op">&lt;</span>file.t<span class="op">&gt;</span> --log-a 2 <span class="at">--log-b</span> 4  <span class="co"># compare specific build ranks</span></span></code></pre></div>
 <hr />
 <h3 id="cli-t-fix">CLI: <code>t fix</code></h3>
 <p>Mechanically applies <code>suggested_fix</code> values from
@@ -3786,9 +3867,9 @@ class="sourceCode bash"><code class="sourceCode bash"><span id="cb115-1"><a href
 <code>t check --json</code> internally, collects diagnostics with
 non-null <code>suggested_fix</code>, and applies them to the source
 file.</p>
-<div class="sourceCode" id="cb116"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb116-1"><a href="#cb116-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> fix <span class="op">&lt;</span>file.t<span class="op">&gt;</span>                     <span class="co"># apply all suggested fixes</span></span>
-<span id="cb116-2"><a href="#cb116-2" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> fix <span class="at">--dry-run</span> <span class="op">&lt;</span>file.t<span class="op">&gt;</span>           <span class="co"># preview fixes without applying</span></span></code></pre></div>
+<div class="sourceCode" id="cb117"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb117-1"><a href="#cb117-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> fix <span class="op">&lt;</span>file.t<span class="op">&gt;</span>                     <span class="co"># apply all suggested fixes</span></span>
+<span id="cb117-2"><a href="#cb117-2" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> fix <span class="at">--dry-run</span> <span class="op">&lt;</span>file.t<span class="op">&gt;</span>           <span class="co"># preview fixes without applying</span></span></code></pre></div>
 <p><strong>Supported fix types:</strong></p>
 <table>
 <colgroup>
@@ -3838,17 +3919,17 @@ name</td>
 </tbody>
 </table>
 <p><strong>Example:</strong></p>
-<div class="sourceCode" id="cb117"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb117-1"><a href="#cb117-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t check <span class="at">--json</span> pipeline.t <span class="kw">|</span> <span class="ex">jq</span> <span class="st">&#39;.diagnostics[].suggested_fix&#39;</span></span>
-<span id="cb117-2"><a href="#cb117-2" aria-hidden="true" tabindex="-1"></a><span class="kw">{</span></span>
-<span id="cb117-3"><a href="#cb117-3" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;kind&quot;</span><span class="ex">:</span> <span class="st">&quot;rename_column&quot;</span>,</span>
-<span id="cb117-4"><a href="#cb117-4" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;old_name&quot;</span><span class="ex">:</span> <span class="st">&quot;mpg&quot;</span>,</span>
-<span id="cb117-5"><a href="#cb117-5" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;new_name&quot;</span><span class="ex">:</span> <span class="st">&quot;MPG&quot;</span>,</span>
-<span id="cb117-6"><a href="#cb117-6" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;target_node&quot;</span><span class="ex">:</span> <span class="st">&quot;clean&quot;</span>,</span>
-<span id="cb117-7"><a href="#cb117-7" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;file&quot;</span><span class="ex">:</span> <span class="st">&quot;pipeline.t&quot;</span>,</span>
-<span id="cb117-8"><a href="#cb117-8" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;line&quot;</span><span class="ex">:</span> 5,</span>
-<span id="cb117-9"><a href="#cb117-9" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;confidence&quot;</span><span class="ex">:</span> <span class="st">&quot;high&quot;</span></span>
-<span id="cb117-10"><a href="#cb117-10" aria-hidden="true" tabindex="-1"></a><span class="kw">}</span></span></code></pre></div>
+<div class="sourceCode" id="cb118"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb118-1"><a href="#cb118-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t check <span class="at">--json</span> pipeline.t <span class="kw">|</span> <span class="ex">jq</span> <span class="st">&#39;.diagnostics[].suggested_fix&#39;</span></span>
+<span id="cb118-2"><a href="#cb118-2" aria-hidden="true" tabindex="-1"></a><span class="kw">{</span></span>
+<span id="cb118-3"><a href="#cb118-3" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;kind&quot;</span><span class="ex">:</span> <span class="st">&quot;rename_column&quot;</span>,</span>
+<span id="cb118-4"><a href="#cb118-4" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;old_name&quot;</span><span class="ex">:</span> <span class="st">&quot;mpg&quot;</span>,</span>
+<span id="cb118-5"><a href="#cb118-5" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;new_name&quot;</span><span class="ex">:</span> <span class="st">&quot;MPG&quot;</span>,</span>
+<span id="cb118-6"><a href="#cb118-6" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;target_node&quot;</span><span class="ex">:</span> <span class="st">&quot;clean&quot;</span>,</span>
+<span id="cb118-7"><a href="#cb118-7" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;file&quot;</span><span class="ex">:</span> <span class="st">&quot;pipeline.t&quot;</span>,</span>
+<span id="cb118-8"><a href="#cb118-8" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;line&quot;</span><span class="ex">:</span> 5,</span>
+<span id="cb118-9"><a href="#cb118-9" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;confidence&quot;</span><span class="ex">:</span> <span class="st">&quot;high&quot;</span></span>
+<span id="cb118-10"><a href="#cb118-10" aria-hidden="true" tabindex="-1"></a><span class="kw">}</span></span></code></pre></div>
 <hr />
 <h3 id="t_test"><code>t_test()</code></h3>
 <p>REPL-callable version of <code>t test</code>. Runs the test suite and
@@ -3881,18 +3962,18 @@ results = t_test(not = [&quot;slow&quot;])</code></pre>
 <p>Runs the test suite for the current project. Discovers test files
 (<code>test-*.t</code>, <code>test_*.t</code>, or <code>*_test.t</code>)
 recursively in the <code>tests/</code> directory.</p>
-<div class="sourceCode" id="cb119"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb119-1"><a href="#cb119-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test                        <span class="co"># human-readable output</span></span>
-<span id="cb119-2"><a href="#cb119-2" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--json</span>                 <span class="co"># structured JSON output (no preamble)</span></span>
-<span id="cb119-3"><a href="#cb119-3" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--format</span> junit         <span class="co"># JUnit XML output for CI</span></span>
-<span id="cb119-4"><a href="#cb119-4" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--json</span> tests/          <span class="co"># specify project directory</span></span>
-<span id="cb119-5"><a href="#cb119-5" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--only</span> <span class="st">&quot;stats&quot;</span>         <span class="co"># run only tests matching &quot;stats&quot;</span></span>
-<span id="cb119-6"><a href="#cb119-6" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--not</span> <span class="st">&quot;slow&quot;</span>           <span class="co"># skip tests matching &quot;slow&quot;</span></span>
-<span id="cb119-7"><a href="#cb119-7" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--only</span> <span class="st">&quot;stats&quot;</span> <span class="at">--not</span> <span class="st">&quot;anova&quot;</span>  <span class="co"># combine filters (OR semantics for --only)</span></span>
-<span id="cb119-8"><a href="#cb119-8" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--failfast</span>             <span class="co"># stop on first failure</span></span>
-<span id="cb119-9"><a href="#cb119-9" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--list</span>                 <span class="co"># list discovered tests without running</span></span>
-<span id="cb119-10"><a href="#cb119-10" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--timeout</span> 30           <span class="co"># mark tests exceeding 30s as failed</span></span>
-<span id="cb119-11"><a href="#cb119-11" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--coverage</span>             <span class="co"># generate Bisect_ppx coverage summary after tests</span></span></code></pre></div>
+<div class="sourceCode" id="cb120"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb120-1"><a href="#cb120-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test                        <span class="co"># human-readable output</span></span>
+<span id="cb120-2"><a href="#cb120-2" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--json</span>                 <span class="co"># structured JSON output (no preamble)</span></span>
+<span id="cb120-3"><a href="#cb120-3" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--format</span> junit         <span class="co"># JUnit XML output for CI</span></span>
+<span id="cb120-4"><a href="#cb120-4" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--json</span> tests/          <span class="co"># specify project directory</span></span>
+<span id="cb120-5"><a href="#cb120-5" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--only</span> <span class="st">&quot;stats&quot;</span>         <span class="co"># run only tests matching &quot;stats&quot;</span></span>
+<span id="cb120-6"><a href="#cb120-6" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--not</span> <span class="st">&quot;slow&quot;</span>           <span class="co"># skip tests matching &quot;slow&quot;</span></span>
+<span id="cb120-7"><a href="#cb120-7" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--only</span> <span class="st">&quot;stats&quot;</span> <span class="at">--not</span> <span class="st">&quot;anova&quot;</span>  <span class="co"># combine filters (OR semantics for --only)</span></span>
+<span id="cb120-8"><a href="#cb120-8" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--failfast</span>             <span class="co"># stop on first failure</span></span>
+<span id="cb120-9"><a href="#cb120-9" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--list</span>                 <span class="co"># list discovered tests without running</span></span>
+<span id="cb120-10"><a href="#cb120-10" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--timeout</span> 30           <span class="co"># mark tests exceeding 30s as failed</span></span>
+<span id="cb120-11"><a href="#cb120-11" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--coverage</span>             <span class="co"># generate Bisect_ppx coverage summary after tests</span></span></code></pre></div>
 <p><strong>Output formats:</strong></p>
 <table>
 <thead>
@@ -3995,18 +4076,18 @@ slow_integration.t      # exact filename
 legacy/                 # directory at any depth</code></pre>
 <p><strong>JUnit XML schema (when using
 <code>--format junit</code>):</strong></p>
-<div class="sourceCode" id="cb121"><pre
-class="sourceCode xml"><code class="sourceCode xml"><span id="cb121-1"><a href="#cb121-1" aria-hidden="true" tabindex="-1"></a><span class="fu">&lt;?xml</span> <span class="ot">version=</span><span class="st">&quot;1.0&quot;</span> <span class="ot">encoding=</span><span class="st">&quot;UTF-8&quot;</span><span class="fu">?&gt;</span></span>
-<span id="cb121-2"><a href="#cb121-2" aria-hidden="true" tabindex="-1"></a>&lt;<span class="kw">testsuites</span> <span class="ot">name=</span><span class="st">&quot;t test&quot;</span> <span class="ot">tests=</span><span class="st">&quot;2&quot;</span> <span class="ot">failures=</span><span class="st">&quot;1&quot;</span> <span class="ot">time=</span><span class="st">&quot;0.123&quot;</span>&gt;</span>
-<span id="cb121-3"><a href="#cb121-3" aria-hidden="true" tabindex="-1"></a>  &lt;<span class="kw">testsuite</span> <span class="ot">name=</span><span class="st">&quot;t test&quot;</span> <span class="ot">tests=</span><span class="st">&quot;2&quot;</span> <span class="ot">failures=</span><span class="st">&quot;1&quot;</span> <span class="ot">time=</span><span class="st">&quot;0.123&quot;</span>&gt;</span>
-<span id="cb121-4"><a href="#cb121-4" aria-hidden="true" tabindex="-1"></a>    &lt;<span class="kw">testcase</span> <span class="ot">name=</span><span class="st">&quot;tests/test_pass.t&quot;</span> <span class="ot">time=</span><span class="st">&quot;0.050&quot;</span> /&gt;</span>
-<span id="cb121-5"><a href="#cb121-5" aria-hidden="true" tabindex="-1"></a>    &lt;<span class="kw">testcase</span> <span class="ot">name=</span><span class="st">&quot;tests/test_fail.t&quot;</span> <span class="ot">time=</span><span class="st">&quot;0.073&quot;</span>&gt;</span>
-<span id="cb121-6"><a href="#cb121-6" aria-hidden="true" tabindex="-1"></a>      &lt;<span class="kw">failure</span> <span class="ot">message=</span><span class="st">&quot;Assertion failed&quot;</span> <span class="ot">type=</span><span class="st">&quot;TestFailure&quot;</span>&gt;</span>
-<span id="cb121-7"><a href="#cb121-7" aria-hidden="true" tabindex="-1"></a>        AssertionError: test failed</span>
-<span id="cb121-8"><a href="#cb121-8" aria-hidden="true" tabindex="-1"></a>      &lt;/<span class="kw">failure</span>&gt;</span>
-<span id="cb121-9"><a href="#cb121-9" aria-hidden="true" tabindex="-1"></a>    &lt;/<span class="kw">testcase</span>&gt;</span>
-<span id="cb121-10"><a href="#cb121-10" aria-hidden="true" tabindex="-1"></a>  &lt;/<span class="kw">testsuite</span>&gt;</span>
-<span id="cb121-11"><a href="#cb121-11" aria-hidden="true" tabindex="-1"></a>&lt;/<span class="kw">testsuites</span>&gt;</span></code></pre></div>
+<div class="sourceCode" id="cb122"><pre
+class="sourceCode xml"><code class="sourceCode xml"><span id="cb122-1"><a href="#cb122-1" aria-hidden="true" tabindex="-1"></a><span class="fu">&lt;?xml</span> <span class="ot">version=</span><span class="st">&quot;1.0&quot;</span> <span class="ot">encoding=</span><span class="st">&quot;UTF-8&quot;</span><span class="fu">?&gt;</span></span>
+<span id="cb122-2"><a href="#cb122-2" aria-hidden="true" tabindex="-1"></a>&lt;<span class="kw">testsuites</span> <span class="ot">name=</span><span class="st">&quot;t test&quot;</span> <span class="ot">tests=</span><span class="st">&quot;2&quot;</span> <span class="ot">failures=</span><span class="st">&quot;1&quot;</span> <span class="ot">time=</span><span class="st">&quot;0.123&quot;</span>&gt;</span>
+<span id="cb122-3"><a href="#cb122-3" aria-hidden="true" tabindex="-1"></a>  &lt;<span class="kw">testsuite</span> <span class="ot">name=</span><span class="st">&quot;t test&quot;</span> <span class="ot">tests=</span><span class="st">&quot;2&quot;</span> <span class="ot">failures=</span><span class="st">&quot;1&quot;</span> <span class="ot">time=</span><span class="st">&quot;0.123&quot;</span>&gt;</span>
+<span id="cb122-4"><a href="#cb122-4" aria-hidden="true" tabindex="-1"></a>    &lt;<span class="kw">testcase</span> <span class="ot">name=</span><span class="st">&quot;tests/test_pass.t&quot;</span> <span class="ot">time=</span><span class="st">&quot;0.050&quot;</span> /&gt;</span>
+<span id="cb122-5"><a href="#cb122-5" aria-hidden="true" tabindex="-1"></a>    &lt;<span class="kw">testcase</span> <span class="ot">name=</span><span class="st">&quot;tests/test_fail.t&quot;</span> <span class="ot">time=</span><span class="st">&quot;0.073&quot;</span>&gt;</span>
+<span id="cb122-6"><a href="#cb122-6" aria-hidden="true" tabindex="-1"></a>      &lt;<span class="kw">failure</span> <span class="ot">message=</span><span class="st">&quot;Assertion failed&quot;</span> <span class="ot">type=</span><span class="st">&quot;TestFailure&quot;</span>&gt;</span>
+<span id="cb122-7"><a href="#cb122-7" aria-hidden="true" tabindex="-1"></a>        AssertionError: test failed</span>
+<span id="cb122-8"><a href="#cb122-8" aria-hidden="true" tabindex="-1"></a>      &lt;/<span class="kw">failure</span>&gt;</span>
+<span id="cb122-9"><a href="#cb122-9" aria-hidden="true" tabindex="-1"></a>    &lt;/<span class="kw">testcase</span>&gt;</span>
+<span id="cb122-10"><a href="#cb122-10" aria-hidden="true" tabindex="-1"></a>  &lt;/<span class="kw">testsuite</span>&gt;</span>
+<span id="cb122-11"><a href="#cb122-11" aria-hidden="true" tabindex="-1"></a>&lt;/<span class="kw">testsuites</span>&gt;</span></code></pre></div>
 <h3 id="test-fixtures">Test Fixtures</h3>
 <p>T doesn’t have a dedicated
 <code>before_each</code>/<code>after_each</code> fixture mechanism
@@ -4538,7 +4619,7 @@ id="expect_serializerp-node_name-expected"><code>expect_serializer(p, node_name,
 serializer.</p>
 <p><strong>Parameters:</strong> - <code>p</code> — The pipeline to
 check. - <code>node_name</code> — The node name. - <code>expected</code>
-— Expected serializer (String or Symbol, e.g. <code>^arrow</code>,
+— Expected serializer (String or Symbol, e.g. <code>^ipc</code>,
 <code>^csv</code>).</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>assert(expect_serializer(p, &quot;data&quot;, ^csv))</code></pre>
@@ -4566,6 +4647,415 @@ check. - <code>node_name</code> — The node name. -
 <code>ComputedNode</code> or <code>NodeResult</code> to check.</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>assert(expect_computed(res.heavy_job))</code></pre>
+<hr />
+<h2 id="propcraft-package">Propcraft Package</h2>
+<p>Purpose: property-based testing primitives for hardening T’s standard
+library and user packages. Instead of hand-writing a few fixed test
+cases, you state a <em>property</em> that must hold for all generated
+inputs, and <code>prop_for_all</code> draws many inputs from a generator
+spec and checks the property on each.</p>
+<blockquote>
+<p><strong>Audience</strong>: lang/package-hardening tool. If you are
+testing a one-off data pipeline, prefer <code>assert</code>,
+<code>t check</code>, and <code>t diff</code> instead — they validate
+structure and outputs against your declared schema without the machinery
+of generators.</p>
+</blockquote>
+<h3 id="why-property-based-testing">Why property-based testing?</h3>
+<p>Fixed unit tests can only catch the cases you think of.
+Property-based tests check <em>invariants</em> — e.g. “mutating a
+DataFrame never changes its row count” — over hundreds of generated
+inputs, so they find edge cases (boundary values, missing values, empty
+inputs) you would never write by hand.</p>
+<h3 id="reproducibility">Reproducibility</h3>
+<p>All draws use a shared seeded RNG. Call <code>set_seed(n)</code>
+before a run to make the sequence of generated values — and therefore
+any counterexample — fully reproducible across runs and machines.</p>
+<pre class="t"><code>set_seed(42)
+assert(prop_for_all(prop_gen_int_range(0, 100), \(x) x &gt;= 0))</code></pre>
+<h3
+id="prop_for_allgen-property-n-100-max_counterexamples-1-shrink-true"><code>prop_for_all(gen, property, n = 100, max_counterexamples = 1, shrink = true)</code></h3>
+<p>Draw <code>n</code> values from the generator spec <code>gen</code>
+and evaluate <code>property</code> on each. The property may return:</p>
+<ul>
+<li><code>Bool</code> — <code>true</code> passes, <code>false</code>
+fails</li>
+<li>an <code>Expect</code> value from testcraft —
+<code>Expect_pass</code> passes,
+<code>Expect_stop</code>/<code>Expect_hold</code> fail</li>
+<li>an <code>Error</code> — treated as a failure (e.g. an unbound name
+or assertion inside the property)</li>
+</ul>
+<p><strong>Returns:</strong> an <code>Expect</code> value. On the first
+failure a <em>deterministic shrunk counterexample</em> is reported, so
+<code>assert(prop_for_all(...))</code> works directly inside
+<code>t test</code> files:</p>
+<pre class="t"><code>set_seed(42)
+assert(prop_for_all(prop_gen_int_range(0, 100), \(x) x &lt; 10, n = 20))
+-- Error(AssertionError: Property failed after 1 of 20 runs.
+--   counterexample: 72
+--   (shrunk): 18
+--   predicate: returned false.)</code></pre>
+<p>A property that returns <code>NA</code> fails with a message telling
+you to handle missingness explicitly. <code>shrink = false</code>
+disables shrinking (the counterexample is reported unshrunk).</p>
+<p><code>max_counterexamples</code> controls how many render-distinct
+failing inputs are collected and reported. The default (<code>1</code>)
+stops at the first failure with the classic single-counterexample
+message; a value greater than <code>1</code> keeps drawing (up to
+<code>n</code> runs) and reports each distinct counterexample as a
+numbered block, shrinking each:</p>
+<pre class="t"><code>set_seed(42)
+prop_for_all(prop_gen_int_range(0, 100), \(x) x &lt; 10, n = 20, max_counterexamples = 3)
+-- Expect_stop: Property failed after 3 of 20 runs (showing 3 counterexamples).
+--   counterexample #1: 54
+--   (shrunk): 13
+--   ...</code></pre>
+<p>Shrinking is deterministic and affects only the reported message:
+ints/floats/strings/lists/vectors/dicts shrink toward minimal values,
+and DataFrames shrink by halving the row count down to the empty frame
+and then minimizing individual cells to canonical values per column type
+(<code>Int</code> → <code>0</code>, <code>Float</code> →
+<code>0.0</code>, <code>Bool</code> → <code>false</code>,
+<code>String</code> → <code>""</code>, <code>Factor</code> → first
+level), leaving <code>NA</code> cells untouched.</p>
+<h3 id="generator-specs">Generator specs</h3>
+<p>Generators are ordinary structured <code>Dict</code> values, not
+closures. You can inspect them, store them in variables, and combine
+them:</p>
+<pre class="t"><code>g = prop_gen_int_range(1, 5)
+g         -- {`gen`: &quot;int_range&quot;, `min`: 1, `max`: 5}</code></pre>
+<table>
+<colgroup>
+<col style="width: 52%" />
+<col style="width: 47%" />
+</colgroup>
+<thead>
+<tr>
+<th>Generator</th>
+<th>Produces</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>prop_gen_int(min = -10, max = 10)</code></td>
+<td>Random Int in <code>[min, max]</code></td>
+</tr>
+<tr>
+<td><code>prop_gen_int_range(min, max)</code></td>
+<td>Random Int in <code>[min, max]</code></td>
+</tr>
+<tr>
+<td><code>prop_gen_float_range(min, max)</code></td>
+<td>Random Float in <code>[min, max)</code></td>
+</tr>
+<tr>
+<td><code>prop_gen_bool()</code></td>
+<td>Random Bool</td>
+</tr>
+<tr>
+<td><code>prop_gen_string_from(chars, min_len, max_len)</code></td>
+<td>Random String from <code>chars</code> with length in
+<code>[min_len, max_len]</code></td>
+</tr>
+<tr>
+<td><code>prop_gen_choice([g1, g2, ...])</code></td>
+<td>Uniformly pick one of the listed generators</td>
+</tr>
+<tr>
+<td><code>prop_gen_frequency([[w, g], ...])</code></td>
+<td>Pick a generator weighted by <code>w</code></td>
+</tr>
+<tr>
+<td><code>prop_gen_vector(elem_gen, n)</code></td>
+<td>Vector of <code>n</code> draws</td>
+</tr>
+<tr>
+<td><code>prop_gen_list(elem_gen, n)</code></td>
+<td>List of <code>n</code> draws</td>
+</tr>
+<tr>
+<td><code>prop_gen_factor(levels)</code></td>
+<td>Factor level String</td>
+</tr>
+<tr>
+<td><code>prop_gen_one_of(values)</code></td>
+<td>Uniformly pick one value from a non-empty List or Vector of
+values</td>
+</tr>
+<tr>
+<td><code>prop_gen_date_range(start, end)</code></td>
+<td>Date (or Datetime) drawn uniformly in an inclusive range; bounds
+must be both Dates or both Datetimes, and the timezone is preserved</td>
+</tr>
+<tr>
+<td><code>prop_gen_ymd(min_year, max_year)</code></td>
+<td>Date drawn uniformly across all calendar days in
+<code>[min_year, max_year]</code>; shrinks toward the lower year
+bound</td>
+</tr>
+<tr>
+<td><code>prop_gen_df(columns, nrows = 30, na_prob = 0.1)</code></td>
+<td>DataFrame with generated columns; <code>na_prob</code> injects typed
+<code>NA</code> values into columns</td>
+</tr>
+<tr>
+<td><code>prop_gen_dict(columns, na_prob = 0.1)</code></td>
+<td>Dict with one generated value per column; <code>na_prob</code>
+probability of NA per column value</td>
+</tr>
+<tr>
+<td><code>prop_gen_df_from(df, nrows = 30, na_prob = 0.1)</code></td>
+<td>DataFrame with the same columns as <code>df</code>, inferring each
+column’s generator from the sample values</td>
+</tr>
+<tr>
+<td><code>prop_gen_fn(fn)</code></td>
+<td>Draw a value by calling <code>fn(size)</code> with the current
+generation size</td>
+</tr>
+</tbody>
+</table>
+<h3 id="combinators">Combinators</h3>
+<table>
+<colgroup>
+<col style="width: 52%" />
+<col style="width: 47%" />
+</colgroup>
+<thead>
+<tr>
+<th>Function</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>prop_map_gen(source, fn)</code></td>
+<td>Transform each drawn value with <code>fn</code></td>
+</tr>
+<tr>
+<td><code>prop_such_that(source, pred, max_tries = 100)</code></td>
+<td>Keep drawing until <code>pred</code> holds (fails after
+<code>max_tries</code>)</td>
+</tr>
+<tr>
+<td><code>prop_resize(source, n)</code></td>
+<td>Override the size of nested
+<code>df</code>/<code>list</code>/<code>vector</code> generators to
+<code>n</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="prop_statsgen-n-100"><code>prop_stats(gen, n = 100)</code></h3>
+<p>Probes a generator without writing a property: draws <code>n</code>
+values (ramping the generation size from <code>1</code> to
+<code>n</code>) and returns a <code>Dict</code> with
+<code>n_runs</code>, <code>n_errors</code>, <code>value_types</code>
+(per-type counts), <code>nested_sizes</code> (observed
+Vector/List/DataFrame lengths), and <code>elapsed_ms</code>. Useful for
+sanity-checking custom and <code>prop_gen_df_from</code> generators:</p>
+<pre class="t"><code>prop_stats(prop_gen_df_from(mtcars, nrows = 50), n = 20)
+-- {`n_runs`: 20, `n_errors`: 0, `value_types`: {`DataFrame`: 20},
+--  `nested_sizes`: {`df`: [1, 2, ..., 20]}, `elapsed_ms`: ...}</code></pre>
+<h3
+id="prop_gen_betweenmin-max"><code>prop_gen_between(min, max)</code></h3>
+<p><strong>Bounded integer generator with in-domain shrinking.</strong>
+Like <code>prop_gen_int_range(min, max)</code>, but shrinks
+counterexamples toward the lower bound rather than toward 0. Use this
+when the property’s domain has a natural lower bound and you want
+minimal counterexamples that are still within the valid range.</p>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>min</code></td>
+<td>Int</td>
+<td>—</td>
+<td>Lower bound (inclusive).</td>
+</tr>
+<tr>
+<td><code>max</code></td>
+<td>Int</td>
+<td>—</td>
+<td>Upper bound (inclusive).</td>
+</tr>
+</tbody>
+</table>
+<pre class="t"><code>prop_gen_between(100, 200)
+-- {`gen`: &quot;between&quot;, `min`: 100, `max`: 200}</code></pre>
+<h3
+id="prop_gen_ymdmin_year-max_year"><code>prop_gen_ymd(min_year, max_year)</code></h3>
+<p><strong>Year-month-day date generator.</strong> Draws a
+<code>Date</code> uniformly across every calendar day in the inclusive
+year range <code>[min_year, max_year]</code> (so February 29th is drawn
+roughly 1/4 as often as other days, matching its real frequency).
+Counterexamples shrink toward <code>Date(min_year-01-01)</code>, keeping
+shrinks within the date domain.</p>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>min_year</code></td>
+<td>Int</td>
+<td>—</td>
+<td>Lower year bound (inclusive).</td>
+</tr>
+<tr>
+<td><code>max_year</code></td>
+<td>Int</td>
+<td>—</td>
+<td>Upper year bound (inclusive).</td>
+</tr>
+</tbody>
+</table>
+<pre class="t"><code>prop_gen_ymd(2000, 2024)
+-- {`gen`: &quot;ymd_range&quot;, `min_year`: 2000, `max_year`: 2024,
+--  `start_day`: 10957, `end_day`: 20088}</code></pre>
+<p>The inspectable spec stores the day indices (days since 1970-01-01)
+computed with the same civil-date math used by the <code>chrono</code>
+package. Combine with
+<code>prop_gen_df([d: prop_gen_ymd(...), ...])</code> to exercise date
+columns, and add <code>na_prob</code> to harden properties against
+missing dates.</p>
+<h3
+id="prop_gen_dictcolumns-na_prob-0.1"><code>prop_gen_dict(columns, na_prob = 0.1)</code></h3>
+<p><strong>Generate a Dict of values</strong>, one per column.</p>
+<table>
+<colgroup>
+<col style="width: 28%" />
+<col style="width: 15%" />
+<col style="width: 23%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>columns</code></td>
+<td>Dict</td>
+<td>—</td>
+<td>Mapping of <code>name: generator_spec</code> pairs.</td>
+</tr>
+<tr>
+<td><code>na_prob</code></td>
+<td>Float</td>
+<td><code>0.1</code></td>
+<td>Probability that any given column value is NA.</td>
+</tr>
+</tbody>
+</table>
+<pre class="t"><code>prop_gen_dict([x: prop_gen_int_range(0, 100), s: prop_gen_one_of([&quot;a&quot;, &quot;b&quot;])])
+-- {`gen`: &quot;dict&quot;, `columns`: ..., `na_prob`: 0.1}</code></pre>
+<h3 id="prop_show_specspec"><code>prop_show_spec(spec)</code></h3>
+<p><strong>Render a generator spec as T source text.</strong> Takes any
+generator Dict (from <code>prop_gen_int_range</code>,
+<code>prop_gen_df</code>, etc.) and returns a string of valid T code
+that rebuilds an equivalent generator — same draws under the same
+seed.</p>
+<pre class="t"><code>prop_show_spec(prop_gen_int_range(0, 100))  -- &quot;prop_gen_int_range(0, 100)&quot;
+prop_show_spec(prop_gen_df([x: prop_gen_between(1, 5)], nrows = 3, na_prob = 0.0))
+-- &quot;prop_gen_df([x: prop_gen_between(1, 5)], nrows = 3, na_prob = 0.)&quot;</code></pre>
+<p>Closure-based generators (<code>map</code>, <code>such_that</code>,
+<code>fn</code>) produce an explicit error since they cannot be
+rendered:</p>
+<pre class="t"><code>prop_show_spec(prop_map_gen(prop_gen_int_range(0, 5), \(v) v))
+-- Error: cannot render a `map` generator spec: it captures a closure.</code></pre>
+<h3
+id="prop_namedname-property"><code>prop_named(name, property)</code></h3>
+<p><strong>Create a named property.</strong> Named properties are plain
+immutable Dicts — no global registry. Pass the result to
+<code>prop_test</code>.</p>
+<table>
+<colgroup>
+<col style="width: 28%" />
+<col style="width: 15%" />
+<col style="width: 23%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>name</code></td>
+<td>String</td>
+<td>—</td>
+<td>Human-readable name used in failure reports.</td>
+</tr>
+<tr>
+<td><code>property</code></td>
+<td>Callable</td>
+<td>—</td>
+<td>Predicate receiving a generated value, returning Bool.</td>
+</tr>
+</tbody>
+</table>
+<pre class="t"><code>m = prop_named(&quot;positive&quot;, \(x) x &gt; 0)
+-- {`name`: &quot;positive&quot;, `property`: \(x) -&gt; &lt;function&gt;}</code></pre>
+<h3
+id="prop_testnamed-gen-n-100-max_counterexamples-1-shrink-true-shrink_verify-false"><code>prop_test(named, gen, n = 100, max_counterexamples = 1, shrink = true, shrink_verify = false)</code></h3>
+<p><strong>Run a named property against a generator.</strong> Behaves
+identically to <code>prop_for_all</code> but takes a prebuilt named
+property Dict instead of an anonymous predicate, and prefixes failure
+reports with the property’s name.</p>
+<pre class="t"><code>set_seed(42)
+m = prop_named(&quot;bounded&quot;, \(x) x &gt;= 0)
+prop_test(m, prop_gen_between(0, 200), n = 20)  -- PASS</code></pre>
+<h3
+id="shrink_verify-true-opt-in-on-prop_for_all-and-prop_test"><code>shrink_verify = true</code>
+(opt-in on <code>prop_for_all</code> and <code>prop_test</code>)</h3>
+<p><strong>Opt-in exhaustive shrink verification.</strong> By default,
+shrinking caps per-level candidate lists at 32 for performance. When
+<code>shrink_verify = true</code>, every candidate at the shrink
+fixpoint is re-verified (uncapped), ensuring the reported counterexample
+is truly minimal. Rarely needed; use when shrinking a deeply nested
+value (large dict or DataFrame) produces a suspiciously large
+counterexample.</p>
+<pre class="t"><code>set_seed(42)
+prop_for_all(prop_gen_df([x: prop_gen_int_range(0, 100)], nrows = 100, na_prob = 0.0),
+             \(df) nrow(df) &lt; 50, n = 20, shrink_verify = true)</code></pre>
+<h3 id="finding-na-handling-bugs">Finding NA-handling bugs</h3>
+<p>The killer feature for hardening data verbs: generate DataFrames with
+injected missingness and assert invariants still hold:</p>
+<pre class="t"><code>set_seed(7)
+assert(prop_for_all(
+  prop_gen_df(
+    [x: prop_gen_float_range(0.0, 100.0),
+     grp: prop_gen_factor([&quot;a&quot;, &quot;b&quot;])],
+    nrows = 40,
+    na_prob = 0.1),
+  \(df) nrow(mutate(df, $z = $x * 2)) == nrow(df)))</code></pre>
+<p>This catches verbs that drop rows when an NA flows through a
+<code>mutate</code> — a classic silent-corruption bug.</p>
+<h3 id="working-with-expect-values">Working with Expect values</h3>
+<p>Because <code>prop_for_all</code> returns an <code>Expect</code>
+value, you can combine it with testcraft:</p>
+<pre class="t"><code>expect_pass(prop_for_all(prop_gen_int_range(0, 100), \(x) x &gt;= 0))  -- true</code></pre>
 <hr />
 <h2 id="operators">Operators</h2>
 <h3 id="arithmetic">Arithmetic</h3>

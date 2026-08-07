@@ -3144,7 +3144,14 @@ and eval_call env_ref fn_val raw_args =
                && expr_uses_named_scope_fields node_record_scope_fields expr ->
           let desugared = desugar_named_scope_expr ~root:"node" ~fields:node_record_scope_fields expr in
           (name, make_node_lambda desugared)
-       | _ when uses_nse expr ->
+      | Call { fn = { node = Var vname; _ }; _ }
+        when uses_nse_builtin (Some vname) ->
+          (* Nested verb call (e.g. select(d, $x) inside mutate(...)) is a
+             self-contained value computation returning a DataFrame — keep it
+             raw so it evaluates normally instead of being wrapped in a
+             row-lambda. *)
+          (name, expr)
+      | _ when uses_nse expr ->
            (* Complex expression with NSE → wrap in a scoped lambda.
               The only positional Call expressions that stay raw are selector helpers
               passed to select/select_node, where the call itself interprets the NSE
@@ -3352,7 +3359,23 @@ and eval_call env_ref fn_val raw_args =
         | Some name -> Error.arity_error_named name b_arity arg_count
         | None -> Error.arity_error b_arity arg_count
       else
-        let res = b_func named_args env_ref in
+        let res =
+          try b_func named_args env_ref
+          with
+          | Sys.Break as e -> raise e
+          | Out_of_memory as e -> raise e
+          | e ->
+              (* Builtins must return VError. An escaping exception is a
+                 programmer error; surface it as a structured RuntimeError so
+                 the user sees a diagnostic instead of a process crash. *)
+              let name =
+                match b_name with
+                | Some n -> " in builtin `" ^ n ^ "`"
+                | None -> ""
+              in
+              Error.make_error RuntimeError
+                (Printf.sprintf "Internal error%s: %s" name (Printexc.to_string e))
+        in
         enrich_type_error res named_args_enriched
 
   | VLambda { params; autoquote_params; param_types; return_type; variadic; body; env = Some closure_env; _ } ->

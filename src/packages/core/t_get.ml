@@ -255,6 +255,13 @@ let register ~eval_call env =
       | [data; VLens l] ->
           apply_lens l data (ref env)
 
+      (* Dict Key Lookup (2 args: Dict, String/Symbol) *)
+      | [VDict items; VString key] | [VDict items; VSymbol key] ->
+           let key = if String.length key > 0 && key.[0] = '$' then String.sub key 1 (String.length key - 1) else key in
+           (match List.assoc_opt key items with
+            | Some v -> v
+            | None -> Error.make_error KeyError (Printf.sprintf "Key `%s` not found in Dict." key))
+
       (* Collection Indexing Case (2 args: Collection, Int) *)
       | [VList items; VInt i] ->
           let len = List.length items in
@@ -286,6 +293,11 @@ let register ~eval_call env =
             | [VPipeline p; VString node_name] | [VPipeline p; VSymbol node_name] ->
                 Eval.pipeline_get_node_value (ref env) p node_name
             | [data; VLens l] -> apply_lens l data (ref env)
+            | [VDict items; VString key] | [VDict items; VSymbol key] ->
+                let key = if String.length key > 0 && key.[0] = '$' then String.sub key 1 (String.length key - 1) else key in
+                (match List.assoc_opt key items with
+                 | Some v -> v
+                 | None -> (VNA NAGeneric))
             | [VList items; VInt i] ->
                 let len = List.length items in
                 if i < 0 || i >= len then (VNA NAGeneric)
@@ -309,11 +321,16 @@ let register ~eval_call env =
            | _ -> res)
 
        | [v] -> Error.type_error (Printf.sprintf "Function `get` (1 arg) expects a String or Symbol, got %s." (Utils.type_name v))
-       (* Catch-all 2-arg case: return first arg unchanged.
-          NA and Error 2-arg cases are handled by earlier match arms above,
-          so this arm is only reached for non-NA/non-Error first arguments
-          that did not match any specific retrieval pattern. *)
-       | [v; _] -> v
+       (* Catch-all 2-arg case: no silent fallthrough. Unsupported retrieval
+          shapes must fail loudly instead of returning the first argument
+          unchanged (which silently masked `get(dict, "key")` lookups before
+          the dedicated Dict arm above). NA and Error 2-arg cases are handled
+          by the dedicated arm above; every other pair is a user error. *)
+       | [data; selector] ->
+           Error.type_error
+             (Printf.sprintf
+                "Function `get` does not support (%s, %s) retrieval. Supported forms: (collection, Int), (Dict, String), (Pipeline, String), (data, Lens), (NA, default), (Error, default)."
+                (Utils.type_name data) (Utils.type_name selector))
        | _ -> Error.arity_error_named "get" 1 (List.length args)
      ))
      env

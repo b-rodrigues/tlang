@@ -2,7 +2,7 @@
 
 [![Chat on Matrix](https://img.shields.io/badge/Chat%20on-Matrix-000?logo=matrix&logoColor=white)](https://matrix.to/#/#tproject:matrix.org)
 [![License: EUPL v1.2](https://img.shields.io/badge/License-EUPL%20v1.2-blue.svg)](LICENSE)
-[![Status: Beta](https://img.shields.io/badge/Status-Beta%200.54.3%20%22Le%20Tournoi%22-blue.svg)](https://tstats-project.org/changelog.html)
+[![Status: Beta](https://img.shields.io/badge/Status-Beta%200.55.0%20%22L%27Ultime%20combat%22-blue.svg)](https://tstats-project.org/changelog.html)
 [![Documentation](https://img.shields.io/badge/docs-tstats--project.org-informational.svg)](https://tstats-project.org/api-reference.html)
 [![Built with Nix](https://img.shields.io/badge/built%20with-Nix-5277C3.svg?logo=nixos&logoColor=white)](https://nixos.org)
 [![CI](https://github.com/b-rodrigues/tlang/actions/workflows/unit-tests.yaml/badge.svg)](https://github.com/b-rodrigues/tlang/actions)
@@ -213,6 +213,16 @@ Pipeline nodes can be dynamically expanded into multiple branches using `map_pat
 ### Introspection with `explain()`
 T values and pipelines are highly introspectable. The **`explain`** package provides the `explain()` function, which can be called on any object to get a detailed summary of its structure, metadata, and status. It is the recommended way to "look inside" your data and nodes in the REPL.
 
+### Property-Based Testing with `propcraft`
+For hardening T's standard library and reusable packages, the **`propcraft`** package provides property-based testing: state an invariant and `prop_for_all(gen, property)` checks it over many generated inputs, reporting a deterministic shrunk counterexample on failure. Generators are structured Dicts (`prop_gen_int_range`, `prop_gen_df`, `prop_gen_string_from`, ...) and all draws use the seeded RNG, so `set_seed(n)` reproduces failures exactly; `with_seed(n, \(u) ...)` scopes reproducibility to a single expression without touching surrounding draws.
+
+```t
+set_seed(42)
+assert(prop_for_all(prop_gen_int_range(0, 100), \(x) x >= 0))
+```
+
+See the [Property-Based Testing guide](docs/property-testing.md) for details.
+
 ---
 
 ## Quick Start & Installation
@@ -293,7 +303,7 @@ See the [Development Guide](docs/development.md) for detailed setup instructions
 
 ## Status & Missing Features
 
-**Beta 0.54.3 "Le Tournoi"** — The core syntax and functional semantics are stable. T is not just a DSL for reproducible, polyglot data science, but it also provides extensive native support for standard data manipulation verbs:
+**Beta 0.55.0 "L'Ultime combat"** — The core syntax and functional semantics are stable. T is not just a DSL for reproducible, polyglot data science, but it also provides extensive native support for standard data manipulation verbs:
 
 - **colcraft**: Core data manipulation and categorical data management (`filter`, `select`, `mutate`, `summarize`, `pivot_*`, `fct_*`, and more — heavily inspired by `dplyr`, `tidyr`, and `forcats`).
 - **chrono**: Comprehensive date and time handling (`ymd`, `floor_date`, `interval`, etc. — inspired by `lubridate`).
@@ -391,4 +401,3 @@ We welcome contributions! Please see our [Contributing Guide](docs/contributing.
 T is licensed under the [European Union Public License v1.2](LICENSE).
 
 > **Version codenames** are taken from the French edition of *Dragon Ball* published by Glénat.
-

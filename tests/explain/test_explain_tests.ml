@@ -91,7 +91,7 @@ let run_tests _pass_count _fail_count _failures _eval_string eval_string_env tes
   close_out oc7;
 
   let env_p6 = Packages.init_env () in
-  let (_, env_p6) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_p6) env_p6 in
+  let env_p6 = Test_helpers.eval_setup eval_string_env env_p6 "test_explain_tests:94" (Printf.sprintf {|df = read_csv("%s")|} csv_p6) in
   test_env env_p6 "explain DataFrame kind"
     "e = explain(df); e.kind"
     {|"to_dataframe"|};
@@ -149,7 +149,7 @@ let run_tests _pass_count _fail_count _failures _eval_string eval_string_env tes
   print_newline ();
 
   Printf.printf "Phase 6 — Explain: Pipeline:\n";
-  let (_, env_p6_pipe) = eval_string_env "p = pipeline {\n  x = 10\n  y = x + 5\n  z = y * 2\n}" (Packages.init_env ()) in
+  let env_p6_pipe = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_explain_tests:152" "p = pipeline {\n  x = 10\n  y = x + 5\n  z = y * 2\n}" in
   test_env env_p6_pipe "explain Pipeline kind"
     "e = explain(p); e.kind"
     {|"pipeline"|};

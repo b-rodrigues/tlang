@@ -83,12 +83,33 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env _test 
    | _ ->
        incr fail_count; failures := "  ✗ ^csv resolution failed\n" :: !failures; Printf.printf "  ✗ ^csv resolution failed\n") ;
 
-  let (v, _) = eval_string_env {| ^arrow |} (Packages.init_env ()) in
+  let (v, _) = eval_string_env {| ^ipc |} (Packages.init_env ()) in
   (match v with
-   | VSerializer s when s.s_format = "arrow" ->
-       incr pass_count; Printf.printf "  ✓ ^arrow resolves to serializer record\n"
+   | VSerializer s when s.s_format = "ipc" ->
+       incr pass_count; Printf.printf "  ✓ ^ipc resolves to serializer record\n"
    | _ ->
-       incr fail_count; failures := "  ✗ ^arrow resolution failed\n" :: !failures; Printf.printf "  ✗ ^arrow resolution failed\n") ;
+       incr fail_count; failures := "  ✗ ^ipc resolution failed\n" :: !failures; Printf.printf "  ✗ ^ipc resolution failed\n") ;
+
+  (* Native ^ipc writer/reader round trip (^ipc.writer is T-native since 0.55) *)
+  let ipc_rt_path =
+    Printf.sprintf "%s/t_serializer_ipc_rt_%d.arrow"
+      (Filename.get_temp_dir_name ())
+      (Unix.getpid ())
+  in
+  (let (v, _) = eval_string_env
+     (Printf.sprintf {|
+       (^ipc).writer(to_dataframe([x: [1, 2, 3]]), "%s")
+       nrow((^ipc).reader("%s"))
+     |} ipc_rt_path ipc_rt_path)
+     (Packages.init_env ()) in
+   (match v with
+    | VInt 3 ->
+        incr pass_count; Printf.printf "  ✓ ^ipc native writer/reader round trip works\n"
+    | other ->
+        incr fail_count;
+        failures := Printf.sprintf "  ✗ ^ipc native writer/reader round trip failed. Got: %s\n" (Ast.Utils.value_to_string other) :: !failures;
+        Printf.printf "  ✗ ^ipc native writer/reader round trip failed. Got: %s\n" (Ast.Utils.value_to_string other));
+   try Sys.remove ipc_rt_path with _ -> ());
 
   (* ONNX serializer resolution *)
   let (v, _) = eval_string_env {| ^onnx |} (Packages.init_env ()) in
@@ -121,7 +142,7 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env _test 
 
   (* 2. Custom Serializers *)
   let env = Packages.init_env () in
-  let (_, env) = eval_string_env {|
+  let env = Test_helpers.eval_setup eval_string_env env "test_serializers:145" {|
     my_ser = [
       format: "custom",
       writer: \(path, val) { print("writing"); Ok(NA) },
@@ -129,7 +150,7 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env _test 
       r_writer: <{ function(obj, path) { saveRDS(obj, path) } }>,
       py_writer: <{ lambda obj, path: pickle.dump(obj, open(path, 'wb')) }>
     ]
-  |} env in
+  |} in
   let (v, _) = eval_string_env {| type(my_ser) |} env in
   if Ast.Utils.value_to_string v = {|"Dict"|} then begin
     incr pass_count; Printf.printf "  ✓ Custom serializer with foreign snippets (mock)\n"
@@ -142,7 +163,7 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env _test 
   let (v, _) = eval_string_env {|
     p = pipeline {
        a = node(command = <{ 1 }>, serializer = ^csv)
-       b = node(command = <{ a + 1 }>, deserializer = ^arrow)
+       b = node(command = <{ a + 1 }>, deserializer = ^ipc)
     }
     populate_pipeline(p)
   |} env_coh in
@@ -160,8 +181,8 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env _test 
   let env_match = Packages.init_env () in
   let (v, _) = eval_string_env {|
     p = pipeline {
-       a = node(command = <{ 1 }>, serializer = ^arrow)
-       b = node(command = <{ a + 1 }>, deserializer = ^arrow)
+       a = node(command = <{ 1 }>, serializer = ^ipc)
+       b = node(command = <{ a + 1 }>, deserializer = ^ipc)
     }
     populate_pipeline(p)
   |} env_match in
@@ -344,7 +365,7 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env _test 
     p = pipeline {
        json_r = node(command = <{ 1 }>, runtime = R, serializer = ^json)
        csv_py = node(command = <{ 1 }>, runtime = Python, serializer = ^csv)
-       arrow_py = node(command = <{ 1 }>, runtime = Python, serializer = ^arrow)
+       arrow_py = node(command = <{ 1 }>, runtime = Python, serializer = ^ipc)
        pmml_py = node(command = <{ 1 }>, runtime = Python, serializer = ^pmml)
        model = node(command = <{ 1 }>, runtime = Python, serializer = ^onnx)
        report = node(script = "report.qmd")

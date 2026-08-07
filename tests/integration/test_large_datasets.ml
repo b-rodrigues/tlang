@@ -16,7 +16,7 @@ let run_tests _pass_count _fail_count _failures _eval_string eval_string_env _te
 
   (* Initialize environment *)
   let env0 = Packages.init_env () in
-  let (_, env0) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_large) env0 in
+  let env0 = Test_helpers.eval_setup eval_string_env env0 "test_large_datasets:19" (Printf.sprintf {|df = read_csv("%s")|} csv_large) in
 
   test_env env0 "read 1000-row CSV correctly"
     {|nrow(df)|}
@@ -97,7 +97,7 @@ let run_tests _pass_count _fail_count _failures _eval_string eval_string_env _te
   close_out oc2;
 
   let env2 = Packages.init_env () in
-  let (_, env2) = eval_string_env (Printf.sprintf {|df2 = read_csv("%s")|} csv_many) env2 in
+  let env2 = Test_helpers.eval_setup eval_string_env env2 "test_large_datasets:100" (Printf.sprintf {|df2 = read_csv("%s")|} csv_many) in
 
   test_env env2 "200 unique groups produces 200-row summary"
     {|df2 |> group_by($id) |> summarize($count = nrow($id)) |> nrow|}
