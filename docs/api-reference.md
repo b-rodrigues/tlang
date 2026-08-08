@@ -3403,38 +3403,36 @@ pipeline_nodes(p)  -- ["x", "y", "z"]
 
 ---
 
-### `pipeline_deps(pipeline, node_name)`
+### `pipeline_deps(pipeline)`
 
-Get dependencies of a specific node.
+Return the full dependency graph as a dictionary mapping each node name to its dependencies.
 
 **Parameters:**
 
 
 - `pipeline` — Pipeline object
-- `node_name` — Name of the node (String)
 
 **Returns:**
 
-List of Strings (dependency names)
+Dict of node name → List of Strings (dependency names)
 
 **Examples:**
 ```t
 p = pipeline { x = 1; y = 2; z = x + y }
-pipeline_deps(p, "z")  -- ["x", "y"]
-pipeline_deps(p, "x")  -- []
+pipeline_deps(p)  -- {`x`: [], `y`: [], `z`: ["x", "y"]}
 ```
 
 ---
 
 ### `pipeline_node(pipeline, node_name)`
 
-Get the value of a specific node.
+Get the value of a specific node. A leading `$` in `node_name` is stripped, so bare-word selectors like `pipeline_node(p, $x)` are accepted, matching the behaviour of `get(p, $x)`.
 
 **Parameters:**
 
 
 - `pipeline` — Pipeline object
-- `node_name` — Name of the node (String)
+- `node_name` — Name of the node (String; a leading `$` is optional)
 
 **Returns:**
 
@@ -3444,7 +3442,8 @@ Node value
 ```t
 p = pipeline { x = 10; doubled = x * 2 }
 pipeline_node(p, "x")       -- 10
-pipeline_node(p, "doubled") -- 20
+pipeline_node(p, "$x")      -- 10
+pipeline_node(p, $doubled)  -- 20
 ```
 
 ---
@@ -3601,7 +3600,7 @@ result = t_diff("src/pipeline.t", json = true)
 
 ### `t_fix(file, dry_run = false)`
 
-REPL-callable version of `t fix`. Runs `t check --schema` on a file, extracts diagnostics with `suggested_fix`, and applies them mechanically. Supports `Rename_column` (replaces `$old` with `$new`) and `Add_node_arg` (inserts missing arguments into node definitions, e.g., adding a `deserializer` for cross-runtime dependencies).
+REPL-callable version of `t fix`. Runs `t check --schema` on a file, extracts diagnostics with `suggested_fix`, and applies them mechanically. Supports `Rename_column` (replaces `$old` with `$new`), `Add_node_arg` (inserts missing arguments into node definitions, e.g., adding a `deserializer` for cross-runtime dependencies), and `Rename_node` (renames a node that collides with a builtin function or runtime symbol, e.g., `count` → `count_node`; the rename is skipped when the node is referenced elsewhere in the file — `deps`, sibling expressions, or raw code blocks — since those references must be updated manually).
 
 **Arguments:**
 
@@ -4255,7 +4254,7 @@ fixture = pipeline {
 }
 
 test_filter = pipeline {
-  check = node(
+  check_result = node(
     command = {
       result = data |> filter($mpg > 20)
       assert(nrow(result) > 0)
@@ -4265,7 +4264,7 @@ test_filter = pipeline {
 }
 
 test_mutate = pipeline {
-  check = node(
+  check_result = node(
     command = {
       result = data |> mutate($kpg = $mpg * 1.609)
       assert("kpg" in colnames(result))

@@ -240,7 +240,7 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env _test 
     p = pipeline {
        a = node(command = <{ 1 }>, serializer = ^json)
        b = node(command = <{ 2 }>, serializer = ^csv)
-       sh = shn(command = <{ cat "$T_INPUT_a" "$T_INPUT_b" }>, deps = ["a", "b"])
+       sh_out = shn(command = <{ cat "$T_INPUT_a" "$T_INPUT_b" }>, deps = ["a", "b"])
     }
     populate_pipeline(p)
   |} env_text3 in

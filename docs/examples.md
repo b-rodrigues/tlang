@@ -691,7 +691,7 @@ dashboard_prep = pipeline {
     |> filter(not is_na($product_id))
   
   -- 3. Summary statistics
-  summary = {
+  summary_stats = {
     total_revenue: sum(clean_sales.revenue),
     total_orders: nrow(clean_sales),
     avg_order_value: mean(clean_sales.revenue),
@@ -717,7 +717,7 @@ write_csv(dashboard_prep.top_products, "top_products.csv")
 write_csv(dashboard_prep.by_region, "regional_breakdown.csv")
 
 print("Dashboard data prepared successfully")
-print("Total revenue: " + to_string(dashboard_prep.summary.total_revenue))
+print("Total revenue: " + to_string(dashboard_prep.summary_stats.total_revenue))
 ```
 
 ---

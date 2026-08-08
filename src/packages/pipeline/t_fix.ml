@@ -8,8 +8,9 @@ open Ast
 --# Mechanically Apply Suggested Fixes
 --#
 --# Runs `t check --schema` on a file, extracts diagnostics with suggested_fix,
---# and applies them (e.g., renaming columns, adding missing node arguments).
---# Uses bottom-up line order to avoid line-number drift.
+--# and applies them (e.g., renaming columns, renaming colliding node names,
+--# adding missing node arguments). Uses bottom-up line order to avoid
+--# line-number drift.
 --#
 --# @name t_fix
 --# @param file :: String The path to the .t file to fix.
@@ -32,6 +33,8 @@ let format_fix_result (result : Fix.fix_result) =
       let fix_desc = match d.diag_suggested_fix with
         | Diagnostics.Rename_column { old_name; new_name; _ } ->
             Printf.sprintf "  Rename column '%s' to '%s'" old_name new_name
+        | Diagnostics.Rename_node { old_name; new_name; _ } ->
+            Printf.sprintf "  Rename node '%s' to '%s'" old_name new_name
         | Diagnostics.Add_node_arg _ -> "  Add node argument"
         | Diagnostics.Suggest_identifier { name; suggestion; _ } ->
             Printf.sprintf "  Did you mean '%s' instead of '%s'?" suggestion name

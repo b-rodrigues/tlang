@@ -13,6 +13,22 @@ let is_word_char = function
   | 'a'..'z' | 'A'..'Z' | '0'..'9' | '_' -> true
   | _ -> false
 
+(* Does [word] appear in [content] as a standalone identifier, bounded on both
+   sides by non-word characters? Unlike replace_word_bound, the preceding
+   character is also checked so `count` is not matched inside `account`. *)
+let contains_word ~content ~word =
+  let word_len = String.length word in
+  let n = String.length content in
+  let rec loop i =
+    if i + word_len > n then false
+    else if String.sub content i word_len = word
+            && (i = 0 || not (is_word_char content.[i - 1]))
+            && (i + word_len >= n || not (is_word_char content.[i + word_len]))
+    then true
+    else loop (i + 1)
+  in
+  loop 0
+
 let replace_word_bound ~content ~old ~replacement =
   let buf = Buffer.create (String.length content) in
   let old_len = String.length old in
@@ -216,6 +232,119 @@ let apply_add_node_arg ~file ~node ~arg =
   end;
   result
 
+(* Renames a pipeline node definition line whose name collides with a builtin
+   or runtime symbol. Only lines matching `name = node(` / `pyn(` / `rn(` /
+   `jln(` / `qn(` / `shn(` are candidates — this confines the edit to actual
+   node definitions inside pipeline blocks.
+
+   Safety: downstream references to the node (`deps = [count]`, sibling
+   expressions like `model = count + 1`, or the node's name inside another
+   node's raw code block) cannot be rewritten safely at the text level — e.g. a
+   bare `count` inside `command = <{ df |> count(cyl) }>` is R's dplyr::count,
+   not a reference to the node. Rather than silently leaving such references
+   dangling (which would re-bind `count` to the builtin after the rename), we
+   REFUSE to apply the rename when the old name appears as a bare identifier
+   anywhere in the file outside the definition line and its own raw-code block.
+   The fix is then reported as skipped and the user renames references manually.
+
+   The definition node's OWN raw code block is exempt: occurrences there (e.g.
+   the node's own R code using `count` as dplyr::count) are not references to
+   the node. Literal-value nodes (`pipeline { count = 0 }`) have no constructor
+   to gate on, so they are not auto-renamed and return false.
+
+   Limitation: a raw block that closes mid-line may hide a reference on the
+   remainder of that line from this check. In practice such an occurrence can
+   only live inside the definition node's own argument block, where `old_name`
+   is the node itself — i.e. a self-reference (a dependency cycle), which is an
+   invalid pipeline regardless. *)
+let apply_rename_node ~file ~old_name ~new_name =
+  let ch = open_in file in
+  let all_lines = Fun.protect ~finally:(fun () -> close_in_noerr ch)
+    (fun () ->
+       let lines = ref [] in
+       (try
+          while true do lines := input_line ch :: !lines done
+        with End_of_file -> ());
+       List.rev !lines)
+  in
+  (* Phase A: locate the constructor-form definition line. *)
+  let def_index = ref None in
+  List.iteri (fun i l ->
+    if !def_index = None then begin
+      let trimmed = String.trim l in
+      let prefix = old_name ^ " = " in
+      if String.length trimmed >= String.length prefix
+         && String.sub trimmed 0 (String.length prefix) = prefix then begin
+        let rest = String.sub trimmed (String.length prefix) (String.length trimmed - String.length prefix) in
+        let rest_stripped = String.trim rest in
+        if List.exists (fun fn -> String.length rest_stripped >= String.length fn + 1
+            && String.sub rest_stripped 0 (String.length fn) = fn
+            && rest_stripped.[String.length fn] = '(')
+            ["node"; "pyn"; "rn"; "jln"; "qn"; "shn"] then
+          def_index := Some i
+      end
+    end
+  ) all_lines;
+  match !def_index with
+  | None -> false
+  | Some di ->
+      (* Phase B: refuse if the old name appears as a bare identifier anywhere
+         outside the definition node's own block (its definition line plus the
+         rest of its `node(...)` call, including its own raw code block).
+         Occurrences inside the def node's own block are its own configuration
+         or own code (e.g. R's dplyr::count) — never references to the node.
+         Anything outside — deps lists, sibling expressions, other nodes' raw
+         blocks, top-level bindings — refuses the rename. Paren depth is
+         tracked across lines (ignoring parens inside raw code) so a
+         multi-line `node(...)` call keeps its own block. *)
+      let in_raw = ref false in
+      let paren_depth = ref 0 in
+      let in_def_block = ref false in
+      let refuse = ref false in
+      let scan_state l =
+        if not !in_raw then
+          String.iter (function
+            | '(' -> incr paren_depth
+            | ')' -> decr paren_depth
+            | _ -> ()) l;
+        scan_raw_delimiters l in_raw
+      in
+      List.iteri (fun i l ->
+        if not !refuse then begin
+          if i = di then begin
+            in_def_block := true;
+            scan_state l;
+            if !paren_depth = 0 then in_def_block := false
+          end else if !in_def_block && !paren_depth > 0 then begin
+            scan_state l;
+            if !paren_depth = 0 then in_def_block := false
+          end else begin
+            (* Before the definition line or past the def node's block: this
+               line may reference the node. *)
+            if contains_word ~content:l ~word:old_name then refuse := true
+          end
+        end
+      ) all_lines;
+      if !refuse then false
+      else begin
+        (* Phase C: clean — rewrite the definition line in place. *)
+        let rewritten =
+          List.mapi (fun i l ->
+            if i = di then begin
+              let trimmed = String.trim l in
+              let indent_len = String.length l - String.length trimmed in
+              let indent = String.sub l 0 indent_len in
+              let rest = String.sub trimmed (String.length old_name) (String.length trimmed - String.length old_name) in
+              indent ^ new_name ^ rest
+            end else l
+          ) all_lines
+        in
+        let oc = open_out file in
+        Fun.protect ~finally:(fun () -> close_out_noerr oc)
+          (fun () -> List.iter (fun l -> output_string oc (l ^ "\n")) rewritten);
+        true
+      end
+
 let apply_fix ~file (fix : Diagnostics.suggested_fix) =
   (* NOTE: t fix applies ALL non-NoFix suggestions regardless of confidence.
      Confidence is informational for agents/tools to decide whether to auto-apply
@@ -226,6 +355,8 @@ let apply_fix ~file (fix : Diagnostics.suggested_fix) =
       apply_rename_column ~file ~old_name ~new_name; true
   | Add_node_arg { node; arg; _ } ->
       apply_add_node_arg ~file ~node ~arg
+  | Rename_node { old_name; new_name; _ } ->
+      apply_rename_node ~file ~old_name ~new_name
   | Suggest_identifier _ -> false
   | Run_command _ -> false
   | NoFix -> false
@@ -255,6 +386,10 @@ let apply_fixes ~dry_run ~default_file (fixes : Diagnostics.diagnostic list) =
       let would_work = match d.diag_suggested_fix with
         | Diagnostics.Rename_column _ -> true
         | Diagnostics.Add_node_arg _ -> true
+        (* Dry-run cannot inspect the file, so Rename_node always reports
+           would-apply even when the real apply would refuse due to a
+           downstream reference. *)
+        | Diagnostics.Rename_node _ -> true
         | _ -> false
       in
       if would_work then incr would_apply else incr skipped

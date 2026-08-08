@@ -106,6 +106,7 @@ let confidence_of_string = function
 
 type suggested_fix =
   | Rename_column of { old_name: string; new_name: string; target_node: string option; file: string option; line: int option; edit_distance: int; is_unique: bool; confidence: confidence }
+  | Rename_node of { old_name: string; new_name: string; target_node: string option; file: string option; line: int option; confidence: confidence }
   | Add_node_arg of { node: string; arg: string; target_node: string option; file: string option; line: int option; confidence: confidence }
   | Suggest_identifier of { name: string; suggestion: string; target_node: string option; file: string option; line: int option; edit_distance: int; is_unique: bool; confidence: confidence }
   | Run_command of { command: string; description: string; target_node: string option; file: string option; line: int option; confidence: confidence }
@@ -136,6 +137,19 @@ let make_suggest_identifier_fix ~name ~suggestion ~edit_distance ~is_unique ?tar
 
 let make_add_node_arg_fix ~node ~arg ?target_node ?file ?line () =
   Add_node_arg { node; arg; target_node; file; line; confidence = Medium }
+
+let make_rename_node_fix ~old_name ~new_name ?target_node ?file ?line () =
+  Rename_node { old_name; new_name; target_node; file; line; confidence = Medium }
+
+(** Canonical rename suggestion for a node that collides with a reserved name:
+    append the `_node` suffix, which never collides with a builtin or runtime
+    symbol. Confidence is [Medium], not [High]: the name choice is deterministic,
+    but the mechanical fix only renames the definition line and refuses to apply
+    when the node is referenced elsewhere in the file (see Fix.apply_rename_node),
+    so completeness depends on the file contents. *)
+let make_reserved_rename_fix ?file name =
+  make_rename_node_fix ~old_name:name ~new_name:(name ^ "_node")
+    ?target_node:(Some name) ?file ()
 
 let make_run_command_fix ~command ~description ?target_node ?file ?line () =
   Run_command { command; description; target_node; file; line; confidence = Low }
@@ -217,6 +231,16 @@ let suggested_fix_to_yojson = function
         ("line", opt_int_to_yojson line);
         ("confidence", `String (confidence_to_string confidence));
       ]
+  | Rename_node { old_name; new_name; target_node; file; line; confidence } ->
+      `Assoc [
+        ("kind", `String "rename_node");
+        ("old_name", `String old_name);
+        ("new_name", `String new_name);
+        ("target_node", opt_string_to_yojson target_node);
+        ("file", opt_string_to_yojson file);
+        ("line", opt_int_to_yojson line);
+        ("confidence", `String (confidence_to_string confidence));
+      ]
   | Suggest_identifier { name; suggestion; target_node; file; line; edit_distance = _; is_unique = _; confidence } ->
       `Assoc [
         ("kind", `String "suggest_identifier");
@@ -281,6 +305,14 @@ let suggested_fix_of_yojson json =
           Add_node_arg {
             node = json |> member "node" |> to_string;
             arg = json |> member "arg" |> to_string;
+            target_node;
+            file; line;
+            confidence;
+          }
+      | "rename_node" ->
+          Rename_node {
+            old_name = json |> member "old_name" |> to_string;
+            new_name = json |> member "new_name" |> to_string;
             target_node;
             file; line;
             confidence;
@@ -520,11 +552,22 @@ let of_verror ?file (err : Ast.error_info) : diagnostic =
              make_add_node_arg_fix ~node ~arg ?target_node:node_name ?file ()
          | None -> NoFix)
     | NameError ->
-        let (name, suggestion_info) = extract_name_and_suggestion err.message in
-        (match suggestion_info with
-         | Some (s, edit_distance, is_unique) ->
-             make_suggest_identifier_fix ~name ~suggestion:s ~edit_distance ~is_unique ?target_node:node_name ?file ()
-         | None -> NoFix)
+        (match node_name with
+         | Some n when Reserved_names.is_reserved_node_name n ->
+             (* Known asymmetry with of_pipeline_validation, which guards the
+                rename suggestion with `not (List.mem_assoc (n ^ "_node") p.p_exprs)`
+                to avoid suggesting a name that already exists as a node. That check
+                is impossible here: this branch has only the error, not the pipeline's
+                node list, in scope. It is safe anyway — rename_node's apply-time
+                ValueError guard rejects a colliding target — so this is a
+                suggestion-quality difference, not a correctness one. *)
+             make_reserved_rename_fix ?file n
+         | _ ->
+             let (name, suggestion_info) = extract_name_and_suggestion err.message in
+             (match suggestion_info with
+              | Some (s, edit_distance, is_unique) ->
+                  make_suggest_identifier_fix ~name ~suggestion:s ~edit_distance ~is_unique ?target_node:node_name ?file ()
+              | None -> NoFix))
     | _ -> NoFix
   in
   {
@@ -610,12 +653,17 @@ let of_pipeline_validation ?file (p : Ast.pipeline_result) : diagnostic list =
     let suggested_fix =
       match e.Pipeline_validation.ve_kind with
       | "StructuralError" ->
-          (match extract_cross_runtime_info e.Pipeline_validation.ve_message with
-           | Some (_dep_runtime, serializer) ->
-               let node = match e.Pipeline_validation.ve_node with Some n -> n | None -> "" in
-               make_add_node_arg_fix ~node ~arg:("deserializer = " ^ serializer)
-                 ?target_node:e.Pipeline_validation.ve_node ?file ()
-           | None -> NoFix)
+          (match e.Pipeline_validation.ve_node with
+           | Some n when Reserved_names.is_reserved_node_name n
+                        && not (List.mem_assoc (n ^ "_node") p.p_exprs) ->
+               make_reserved_rename_fix ?file n
+           | _ ->
+               (match extract_cross_runtime_info e.Pipeline_validation.ve_message with
+                | Some (_dep_runtime, serializer) ->
+                    let node = match e.Pipeline_validation.ve_node with Some n -> n | None -> "" in
+                    make_add_node_arg_fix ~node ~arg:("deserializer = " ^ serializer)
+                      ?target_node:e.Pipeline_validation.ve_node ?file ()
+                | None -> NoFix))
       | _ -> NoFix
     in
     {

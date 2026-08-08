@@ -208,7 +208,7 @@ Returns a new pipeline containing only the nodes where the predicate is true. No
 p = pipeline {
   load   = read_csv("data.csv")
   model  = rn(command = <{ lm(y ~ x, data = load) }>, serializer = ^pmml)
-  score  = node(command = predict(model, load), deserializer = ^pmml)
+  score_result  = node(command = predict(model, load), deserializer = ^pmml)
 }
 
 -- Keep only R nodes
@@ -442,7 +442,7 @@ p = pipeline {
     |> suppress_warnings
 
   -- Downstream node remains unaffected
-  count = nrow(filtered)
+  row_count = nrow(filtered)
 }
 ```
 
@@ -515,7 +515,7 @@ Replaces a node's implementation while preserving its existing dependency edges.
 p = pipeline {
   data  = read_csv("data.csv")
   model = rn(command = <{ lm(y ~ x, data = data) }>, serializer = ^pmml)
-  score = node(command = predict(model, data), deserializer = ^pmml)
+  score_result = node(command = predict(model, data), deserializer = ^pmml)
 }
 
 -- Replace the model node with a new implementation; edges to/from model are preserved
@@ -523,7 +523,7 @@ new_model = rn(command = <{ glm(y ~ x, data = data, family = binomial) }>, seria
 p2 = p |> swap("model", new_model)
 
 pipeline_deps(p2)
--- `model` still depends on `data`, and `score` still depends on `model`
+-- `model` still depends on `data`, and `score_result` still depends on `model`
 ```
 
 ### `rewire`
@@ -538,7 +538,7 @@ p = pipeline {
 }
 
 -- Re-point model to use data_v2 instead of data
-p2 = p |> rewire("model", replace = list(data = "data_v2"))
+p2 = p |> rewire("model", replace = [data: "data_v2"])
 pipeline_deps(p2)
 -- {`data`: [], `data_v2`: [], `model`: ["data_v2"]}
 ```
@@ -644,7 +644,7 @@ p_etl = pipeline {
 }
 
 p_stats = pipeline {
-  summary = etl.clean |> mean
+  summary_result = etl.clean |> mean
 }
 
 -- Compose them into a higher-order DAG
@@ -661,20 +661,20 @@ T-Lang automatically analyzes cross-pipeline references in node expressions (suc
 
 #### Native Execution & Namespacing
 
-When a meta-pipeline is populated, queried, or inspected, T-Lang automatically flattens it internally. Node names are automatically namespaced (e.g. `etl.raw`, `etl.clean`, `stats.summary`) to prevent namespace collisions, and all internal variable references are rewritten accordingly.
+When a meta-pipeline is populated, queried, or inspected, T-Lang automatically flattens it internally. Node names are automatically namespaced (e.g. `etl.raw`, `etl.clean`, `stats.summary_result`) to prevent namespace collisions, and all internal variable references are rewritten accordingly.
 
 ```t
 pipeline_nodes(meta)
--- ["etl.raw", "etl.clean", "stats.summary"]
+-- ["etl.raw", "etl.clean", "stats.summary_result"]
 
 pipeline_deps(meta)
--- {`etl.raw`: [], `etl.clean`: ["etl.raw"], `stats.summary`: ["etl.clean"]}
+-- {`etl.raw`: [], `etl.clean`: ["etl.raw"], `stats.summary_result`: ["etl.clean"]}
 
 -- You can build the entire meta-pipeline directly:
 populate_pipeline(meta, build = true)
 
 -- You can read individual nodes using nested dot notation:
-res = read_node(meta.stats.summary)
+res = read_node(meta.stats.summary_result)
 ```
 
 ### Cross-Pipeline Dependency Tracking: T vs. RawCode
@@ -1007,7 +1007,7 @@ p = pipeline {
 
   -- This shell node reads data.csv, which is created by raw_file.
   -- We use the `deps` argument to ensure raw_file executes first.
-  summary = shn(
+  summary_result = shn(
     command = <{ cat data.csv | wc -l }>, 
     deps = [raw_file],
     serializer = ^text

@@ -694,6 +694,13 @@ module Utils = struct
     | VString s -> Some s
     | _ -> None
 
+  (** Strip a leading `$` prefix from a string, if present. Used to make
+      `get(d, $col)` / `get(p, $node)` and `pipeline_node(p, $node)` accept
+      bare-word NSE-style selectors. *)
+  let strip_dollar s =
+    if String.length s > 0 && s.[0] = '$' then String.sub s 1 (String.length s - 1)
+    else s
+
   let rec list_take n = function
     | [] -> []
     | h :: t -> if n <= 0 then [] else h :: list_take (n - 1) t

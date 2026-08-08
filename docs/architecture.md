@@ -366,16 +366,16 @@ Pipelines are DAGs of named computations:
 p = pipeline {
   x = 10
   y = 20
-  sum = x + y
+  total = x + y
 }
 ```
 
 **Execution**:
-1. Parse nodes → `[("x", Int 10), ("y", Int 20), ("sum", BinOp(Add, Ident "x", Ident "y"))]`
-2. Topological sort (dependency order): `x`, `y`, `sum`
-3. Evaluate each node, binding results: `x → 10`, `y → 20`, `sum → 30`
+1. Parse nodes → `[("x", Int 10), ("y", Int 20), ("total", BinOp(Add, Ident "x", Ident "y"))]`
+2. Topological sort (dependency order): `x`, `y`, `total`
+3. Evaluate each node, binding results: `x → 10`, `y → 20`, `total → 30`
 4. Store in `VPipeline` with results table
-5. Access via `p.sum` → `30`
+5. Access via `p.total` → `30`
 
 **Cycle Detection**: Circular dependencies produce an error:
 ```t

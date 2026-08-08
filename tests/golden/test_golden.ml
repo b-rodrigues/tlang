@@ -17,12 +17,12 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
 
   (* Golden test 3: Pipeline with list operations *)
   test "golden: list pipeline"
-    "p = pipeline {\n  data = [1, 2, 3, 4, 5]\n  squares = map(data, \\(n) n * n)\n  total = sum(squares)\n  count = length(data)\n}; read_node(p.total)"
+    "p = pipeline {\n  data = [1, 2, 3, 4, 5]\n  squares = map(data, \\(n) n * n)\n  total = sum(squares)\n  row_count = length(data)\n}; read_node(p.total)"
     "not been built yet";
 
   (* Golden test 4: Pipeline node count *)
   test "golden: list pipeline count"
-    "p = pipeline {\n  data = [1, 2, 3, 4, 5]\n  squares = map(data, \\(n) n * n)\n  total = sum(squares)\n  count = length(data)\n}; read_node(p.count)"
+    "p = pipeline {\n  data = [1, 2, 3, 4, 5]\n  squares = map(data, \\(n) n * n)\n  total = sum(squares)\n  row_count = length(data)\n}; read_node(p.row_count)"
     "not been built yet";
 
   (* Golden test 5: Pipeline representation *)
@@ -32,7 +32,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
 
   (* Golden test 6: Out-of-order dependency resolution *)
   test "golden: out-of-order deps"
-    "p = pipeline {\n  sum = x + y + z\n  x = 10\n  y = 20\n  z = 30\n}; read_node(p.sum)"
+    "p = pipeline {\n  sum_result = x + y + z\n  x = 10\n  y = 20\n  z = 30\n}; read_node(p.sum_result)"
     "not been built yet";
 
   (* Golden test 7: Chained computation *)

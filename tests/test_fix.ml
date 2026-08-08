@@ -134,6 +134,7 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
     let fixes : Diagnostics.suggested_fix list = [
       Diagnostics.make_rename_column_fix ~old_name:"a" ~new_name:"b" ~edit_distance:1 ~is_unique:true ?target_node:(Some "step2") ?file:(Some "test.t") ();
       Diagnostics.make_add_node_arg_fix ~node:"filter" ~arg:"na_rm=true" ?file:(Some "test.t") ();
+      Diagnostics.make_rename_node_fix ~old_name:"count" ~new_name:"count_node" ?target_node:(Some "count") ?file:(Some "test.t") ();
       Diagnostics.make_suggest_identifier_fix ~name:"prnt" ~suggestion:"print" ~edit_distance:1 ~is_unique:true ?file:(Some "test.t") ();
       Diagnostics.make_run_command_fix ~command:"t init ." ~description:"Initialize tproject.toml" ?file:(Some "test.t") ();
       Diagnostics.no_fix;
@@ -144,6 +145,8 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
       match fix, roundtrip with
       | NoFix, NoFix -> true
       | Rename_column { old_name = o1; new_name = n1; target_node = tn1; _ }, Rename_column { old_name = o2; new_name = n2; target_node = tn2; _ } ->
+          o1 = o2 && n1 = n2 && tn1 = tn2
+      | Rename_node { old_name = o1; new_name = n1; target_node = tn1; _ }, Rename_node { old_name = o2; new_name = n2; target_node = tn2; _ } ->
           o1 = o2 && n1 = n2 && tn1 = tn2
       | Add_node_arg { node = n1; arg = a1; target_node = tn1; _ }, Add_node_arg { node = n2; arg = a2; target_node = tn2; _ } ->
           n1 = n2 && a1 = a2 && tn1 = tn2
@@ -221,6 +224,119 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
   in
   test_apply_add_node_arg_not_found ();
 
+  Printf.printf "\nrename_node confidence:\n";
+  let conf = match Diagnostics.make_rename_node_fix ~old_name:"count" ~new_name:"count_node" () with
+    | Diagnostics.Rename_node { confidence = c; _ } -> c
+    | _ -> Diagnostics.Low
+  in
+  check "rename_node confidence is Medium (completeness depends on file contents)" (conf = Diagnostics.Medium);
+
+  Printf.printf "\napply_rename_node:\n";
+  let read_file path =
+    let ch = open_in path in
+    let c = really_input_string ch (in_channel_length ch) in
+    close_in ch; c
+  in
+  let test_apply_rename_node () =
+    let tmp = Filename.temp_file "test_fix_rename_node" ".t" in
+    let oc = open_out tmp in
+    output_string oc {|p = pipeline {
+  count = node(runtime = T, command = <{ 1 }>)
+}
+|};
+    close_out oc;
+    let r = Fix.apply_rename_node ~file:tmp ~old_name:"count" ~new_name:"count_node" in
+    check "rename_node returns true when constructor-form node found" r;
+    let content = read_file tmp in
+    Sys.remove tmp;
+    let has_renamed = (try let _ = Str.search_forward (Str.regexp_string "count_node = node(runtime = T") content 0 in true with Not_found -> false) in
+    let has_old_node_gone = try ignore (Str.search_forward (Str.regexp_string "\ncount = node(") content 0); false with Not_found -> true in
+    check "rename_node renames the node definition line" has_renamed;
+    check "rename_node does not leave old definition" has_old_node_gone
+  in
+  test_apply_rename_node ();
+
+  Printf.printf "\napply_rename_node refuses on downstream reference:\n";
+  let test_rename_node_refuses () =
+    let tmp = Filename.temp_file "test_fix_rename_node_ref" ".t" in
+    let oc = open_out tmp in
+    output_string oc {|p = pipeline {
+  count = node(runtime = T, command = <{ 1 }>),
+  model = count + 1
+}
+|};
+    close_out oc;
+    let original = read_file tmp in
+    let r = Fix.apply_rename_node ~file:tmp ~old_name:"count" ~new_name:"count_node" in
+    check "rename_node refuses (returns false) when a sibling expression references it" (r = false);
+    check "rename_node leaves file untouched on refusal" (read_file tmp = original);
+    Sys.remove tmp
+  in
+  test_rename_node_refuses ();
+
+  let test_rename_node_refuses_deps () =
+    let tmp = Filename.temp_file "test_fix_rename_node_deps" ".t" in
+    let oc = open_out tmp in
+    output_string oc {|p = pipeline {
+  count = node(runtime = T, command = <{ 1 }>),
+  model = node(command = <{ count + 1 }>, deps = [count])
+}
+|};
+    close_out oc;
+    let original = read_file tmp in
+    let r = Fix.apply_rename_node ~file:tmp ~old_name:"count" ~new_name:"count_node" in
+    check "rename_node refuses when a deps entry references it" (r = false);
+    check "rename_node leaves file untouched on deps refusal" (read_file tmp = original);
+    Sys.remove tmp
+  in
+  test_rename_node_refuses_deps ();
+
+  Printf.printf "\napply_rename_node tolerates the node's own raw code block:\n";
+  let test_rename_node_own_raw () =
+    let tmp = Filename.temp_file "test_fix_rename_node_ownraw" ".t" in
+    let oc = open_out tmp in
+    output_string oc {|p = pipeline {
+  count = node(
+    runtime = R,
+    command = <{
+      df |> count(cyl)
+    }>
+  )
+}
+|};
+    close_out oc;
+    let r = Fix.apply_rename_node ~file:tmp ~old_name:"count" ~new_name:"count_node" in
+    check "rename_node succeeds when the name appears only in its own raw code block" r;
+    let content = read_file tmp in
+    Sys.remove tmp;
+    let has_renamed = (try let _ = Str.search_forward (Str.regexp_string "count_node = node(") content 0 in true with Not_found -> false) in
+    let has_own_code = (try let _ = Str.search_forward (Str.regexp_string "df |> count(cyl)") content 0 in true with Not_found -> false) in
+    check "rename_node renames the multi-line node definition" has_renamed;
+    check "rename_node preserves the node's own raw code" has_own_code
+  in
+  test_rename_node_own_raw ();
+
+  Printf.printf "\napply_rename_node not found / non-constructor:\n";
+  let test_apply_rename_node_skip () =
+    let tmp = Filename.temp_file "test_fix_rename_node_miss" ".t" in
+    let oc = open_out tmp in
+    output_string oc "count = 3\n";
+    close_out oc;
+    let original_content =
+      let ch = open_in tmp in
+      let c = really_input_string ch (in_channel_length ch) in
+      close_in ch; c
+    in
+    let r = Fix.apply_rename_node ~file:tmp ~old_name:"count" ~new_name:"count_node" in
+    check "rename_node returns false when no constructor-form definition found" (r = false);
+    let ch = open_in tmp in
+    let content = really_input_string ch (in_channel_length ch) in
+    close_in ch;
+    check "rename_node does not modify file when nothing to rename" (content = original_content);
+    Sys.remove tmp
+  in
+  test_apply_rename_node_skip ();
+
   Printf.printf "\napply_fix dispatch:\n";
   let test_apply_fix_noop () =
     let r = Fix.apply_fix ~file:"/dev/null" Diagnostics.no_fix in
@@ -256,6 +372,22 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
     check "apply_fix returns false for non-existent node" (r = false)
   in
   test_apply_fix_node_arg_not_found ();
+
+  let test_apply_fix_rename_node () =
+    let tmp = Filename.temp_file "test_fix_dispatch_ren_node" ".t" in
+    let oc = open_out tmp in
+    output_string oc "count = node(runtime = T, command = <{ 1 }>)\n";
+    close_out oc;
+    let r = Fix.apply_fix ~file:tmp (Diagnostics.make_rename_node_fix ~old_name:"count" ~new_name:"count_node" ?target_node:(Some "count") ?file:(Some tmp) ()) in
+    let ch = open_in tmp in
+    let content = really_input_string ch (in_channel_length ch) in
+    close_in ch;
+    Sys.remove tmp;
+    check "apply_fix returns true for Rename_node" r;
+    let has_renamed = (try let _ = Str.search_forward (Str.regexp_string "count_node = node(") content 0 in true with Not_found -> false) in
+    check "apply_fix patches file for Rename_node" has_renamed
+  in
+  test_apply_fix_rename_node ();
 
   Printf.printf "\nsort_fixes_by_descending_line:\n";
   let test_sort_fixes () =
@@ -321,10 +453,14 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
       diag_message = "Node `pyn` depends on `rn` but has no explicit deserializer";
       diag_suggested_fix = Diagnostics.make_add_node_arg_fix ~node:"pyn" ~arg:"deserializer = ^csv" ?file:(Some "test.t") ();
     } in
-    let fixes = [d1; d2; d3] in
+    let d4 = { d1 with diag_id = "T1004"; diag_line = Some 15;
+      diag_message = "Node `count` is reserved: `count` is a builtin function.";
+      diag_suggested_fix = Diagnostics.make_rename_node_fix ~old_name:"count" ~new_name:"count_node" ?target_node:(Some "count") ?file:(Some "test.t") ?line:(Some 15) ();
+    } in
+    let fixes = [d1; d2; d3; d4] in
     let result = Fix.apply_fixes ~dry_run:true ~default_file:"test.t" fixes in
     check "dry_run: applied = 0" (result.Fix.applied = 0);
-    check "dry_run: would_apply = 3" (result.Fix.would_apply = 3);
+    check "dry_run: would_apply = 4" (result.Fix.would_apply = 4);
     check "dry_run: skipped = 0" (result.Fix.skipped = 0)
   in
   test_dry_run_counting ();
