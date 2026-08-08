@@ -331,13 +331,13 @@ analysis = pipeline {
         else "low_value"
       )
   
-  summary = segmented
+  summary_result = segmented
     |> group_by($segment)
     |> summarize($count = nrow($segment), $avg_ltv = mean($ltv))
 }
 
 write_csv(analysis.segmented, "customer_segments.csv")
-write_csv(analysis.summary, "segment_summary.csv")
+write_csv(analysis.summary_result, "segment_summary.csv")
 ```
 
 **Benefits**:

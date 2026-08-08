@@ -26,6 +26,8 @@ let register env =
           if not (List.mem_assoc old_name p.p_exprs) then
             Error.make_error KeyError
               (Printf.sprintf "Node `%s` not found in Pipeline." old_name)
+          else if Reserved_names.is_reserved_node_name new_name then
+            Error.make_error ValueError (Reserved_names.reserved_error_message new_name)
           else if List.mem_assoc new_name p.p_exprs then
             Error.make_error ValueError
               (Printf.sprintf "A node named `%s` already exists in the Pipeline." new_name)

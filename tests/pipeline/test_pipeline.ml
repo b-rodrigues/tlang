@@ -188,6 +188,15 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   test "duplicate node name rejected"
     {|pipeline { a = 1; a = 2 }|}
     {|Error(NameError: "Duplicate node name `a` in pipeline.")|};
+  test "reserved builtin node name rejected"
+    {|pipeline { n = 0 }|}
+    {|Error(NameError: "Node `n` is reserved: `n` is a builtin function. Node names cannot collide with builtin functions or runtime symbols. Choose a different node name.")|};
+  test "reserved runtime symbol node name rejected"
+    {|pipeline { sh = 0 }|}
+    {|Error(NameError: "Node `sh` is reserved: `sh` is a runtime symbol. Node names cannot collide with builtin functions or runtime symbols. Choose a different node name.")|};
+  test "reserved node name rejected in cross-pipeline block"
+    {|pipeline { a = 1; b = a + n; n = 2 }|}
+    {|Error(NameError: "Node `n` is reserved: `n` is a builtin function. Node names cannot collide with builtin functions or runtime symbols. Choose a different node name.")|};
 
   Printf.printf "\nPhase — Lens set + read_node behavior:\n";
   let lens_env = Packages.init_env () in
@@ -747,10 +756,10 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
 
   Printf.printf "Phase 3 — Pipeline with Functions:\n";
   test "pipeline with function calls"
-    "p = pipeline {\n  data = [1, 2, 3]\n  total = sum(data)\n  count = length(data)\n}; read_node(p.total)"
+    "p = pipeline {\n  data = [1, 2, 3]\n  total = sum(data)\n  row_count = length(data)\n}; read_node(p.total)"
     "not been built yet";
   test "pipeline nodes available individually"
-    "p = pipeline {\n  data = [1, 2, 3]\n  total = sum(data)\n  count = length(data)\n}; read_node(p.count)"
+    "p = pipeline {\n  data = [1, 2, 3]\n  total = sum(data)\n  row_count = length(data)\n}; read_node(p.row_count)"
     "not been built yet";
   print_newline ();
 
@@ -1057,28 +1066,28 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     {|p_diag = pipeline {
   data = to_dataframe([[x: 1], [x: NA], [x: 3]])
   filtered = filter(data, $x > 1)
-  count = nrow(filtered)
+  row_count = nrow(filtered)
 }; length(inspect_node(p_diag.filtered).warnings)|}
     "0";
   test "downstream nodes inherit upstream warnings"
     {|p_diag = pipeline {
   data = to_dataframe([[x: 1], [x: NA], [x: 3]])
   filtered = filter(data, $x > 1)
-  count = nrow(filtered)
-}; inspect_node(p_diag.count).warnings |> map(\(w) w.source)|}
+  row_count = nrow(filtered)
+}; inspect_node(p_diag.row_count).warnings |> map(\(w) w.source)|}
     "[]";
   test "downstream warning source points at origin node"
     {|p_diag = pipeline {
   data = to_dataframe([[x: 1], [x: NA], [x: 3]])
   filtered = filter(data, $x > 1)
-  count = nrow(filtered)
-}; inspect_node(p_diag.count).warnings|}
+  row_count = nrow(filtered)
+}; inspect_node(p_diag.row_count).warnings|}
     "[]";
   test "read_pipeline summarizes warning origins only once"
     {|p_diag = pipeline {
   data = to_dataframe([[x: 1], [x: NA], [x: 3]])
   filtered = filter(data, $x > 1)
-  count = nrow(filtered)
+  row_count = nrow(filtered)
 }; read_pipeline(p_diag).diagnostics.summary|}
     "\"0 node(s) with warnings, 0 suppressed, 0 error(s), 0 recovered\"";
   test "read_pipeline tracks error nodes"
@@ -1092,14 +1101,14 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     {|p_diag = pipeline {
   data = to_dataframe([[x: 1], [x: NA], [x: 3]])
   filtered = filter(data, $x > 1)
-  count = nrow(filtered)
+  row_count = nrow(filtered)
 }; warning_msg(p_diag.filtered) != ""|}
     "false";
   test "warning_msg property on computed node returns warning message"
     {|p_diag = pipeline {
   data = to_dataframe([[x: 1], [x: NA], [x: 3]])
   filtered = filter(data, $x > 1)
-  count = nrow(filtered)
+  row_count = nrow(filtered)
 }; p_diag.filtered.warning_msg != ""|}
     "false";
 
@@ -1361,9 +1370,9 @@ p_cross = pipeline {
 
   let (v_serializer_pipeline, _) = eval_string_env
     {|pipeline {
-  source = [answer: 42]
-  report_r = rn(command = <{ source }>, serializer = ^json, deserializer = ^json)
-  report_py = pyn(command = <{ source }>, serializer = ^ipc, deserializer = ^ipc)
+  data_source = [answer: 42]
+  report_r = rn(command = <{ data_source }>, serializer = ^json, deserializer = ^json)
+  report_py = pyn(command = <{ data_source }>, serializer = ^ipc, deserializer = ^ipc)
 }|}
     (Packages.init_env ()) in
   (match v_serializer_pipeline with
@@ -1372,13 +1381,13 @@ p_cross = pipeline {
         let has_r_json_helpers =
          contains_substring nix "r_write_json <- function" &&
          contains_substring nix "r_read_json <- function" &&
-         contains_substring nix "dep_source <- r_read_json(" &&
+         contains_substring nix "dep_data_source <- r_read_json(" &&
          contains_substring nix "r_write_json(node_result,"
        in
         let has_py_arrow_helpers =
           contains_substring nix "def py_write_ipc(df, path):" &&
           contains_substring nix "def py_read_ipc(path):" &&
-          contains_substring nix "__dep_source = py_read_ipc(" &&
+          contains_substring nix "__dep_data_source = py_read_ipc(" &&
           contains_substring nix "py_write_ipc(__node_result,"
         in
         let omits_old_runtime_prefixed_helpers =
@@ -1398,8 +1407,8 @@ p_cross = pipeline {
 
   let (v_julia_parquet, _) = eval_string_env
     {|pipeline {
-  source = [answer: 42]
-  report = jln(command = <{ source }>, serializer = ^parquet, deserializer = ^parquet)
+  data_source = [answer: 42]
+  report = jln(command = <{ data_source }>, serializer = ^parquet, deserializer = ^parquet)
 }|}
     (Packages.init_env ()) in
   (match v_julia_parquet with
@@ -1427,8 +1436,8 @@ p_cross = pipeline {
 
   let (v_julia_ipc, _) = eval_string_env
     {|pipeline {
-  source = [answer: 42]
-  report = jln(command = <{ source }>, serializer = ^ipc, deserializer = ^ipc)
+  data_source = [answer: 42]
+  report = jln(command = <{ data_source }>, serializer = ^ipc, deserializer = ^ipc)
 }|}
     (Packages.init_env ()) in
   (match v_julia_ipc with

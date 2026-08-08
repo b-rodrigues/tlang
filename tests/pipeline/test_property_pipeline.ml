@@ -56,8 +56,9 @@ let name_pool = [| "a"; "b"; "c"; "d"; "e"; "f"; "g"; "h" |]
 (* Overlapping and disjoint pools for set-op / composition tests. pool_b
    overlaps pool_a in [e; f; g; h]; pool_c is fully disjoint from pool_a.
    `n` is deliberately excluded from pool_c: `n` is a reserved builtin
-   (the `n` package), so a pipeline block `{ z = n + 1 }` does not infer
-   `n` as a dependency reference. *)
+   name, and node names can no longer collide with builtin functions or
+   runtime symbols (see Reserved_names), so a pipeline block
+   `{ z = n + 1 }` cannot declare `n` as a node. *)
 let pool_b = [| "e"; "f"; "g"; "h"; "i"; "j"; "k"; "l" |]
 let pool_c = [| "i"; "j"; "k"; "l"; "m"; "o"; "p"; "q" |]
 

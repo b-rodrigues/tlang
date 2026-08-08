@@ -4254,7 +4254,7 @@ fixture = pipeline {
 }
 
 test_filter = pipeline {
-  check = node(
+  check_result = node(
     command = {
       result = data |> filter($mpg > 20)
       assert(nrow(result) > 0)
@@ -4264,7 +4264,7 @@ test_filter = pipeline {
 }
 
 test_mutate = pipeline {
-  check = node(
+  check_result = node(
     command = {
       result = data |> mutate($kpg = $mpg * 1.609)
       assert("kpg" in colnames(result))

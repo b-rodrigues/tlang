@@ -1739,6 +1739,12 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
     Error.make_error NameError
       (Printf.sprintf "Node name `%s` ends with `_branch_N` which is reserved for auto-generated branch nodes from pattern expansion. Choose a different name." bad_name)
   | None ->
+  (match List.find_opt (fun (name, _) ->
+    Reserved_names.is_reserved_node_name name
+  ) nodes with
+  | Some (res_name, _) ->
+    Error.make_error NameError (Reserved_names.reserved_error_message res_name)
+  | None ->
   (match List.find_opt (fun (n, _) ->
     List.length (List.filter (fun (n', _) -> n' = n) nodes) > 1
   ) nodes with
@@ -2078,7 +2084,7 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
     ) p_node_diagnostics;
     result
   end
-  ))
+  )))
 
 (** Deserialize dependencies for a node during eager evaluation.
     Resolves deserialization strategy from the node's deserializer expression,

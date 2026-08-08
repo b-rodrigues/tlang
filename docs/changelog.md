@@ -30,6 +30,7 @@
 - **`get(pipeline, $node)` strips the leading `$`**: dollar-symbol node lookup now retrieves the node, matching the dict form of `get`. Previously `get(p, $a)` failed with the misleading `Node \`$a\` not found in Pipeline.` and the 3-argument form `get(p, $a, default)` silently returned the default even when node `a` existed.
 - **`pipeline_node(p, $node)` accepts bare-word selectors**: a leading `$` in the node name is now stripped, so `pipeline_node(p, $a)` and `pipeline_node(p, "$a")` both retrieve node `a`, matching `get(p, $a)`. Previously the `$`-prefixed forms failed with `Node \`$a\` not found in Pipeline.`.
 - **Factor-grouped aggregation follows level order**: `count`, `group_by` + `summarize`, and related verbs on factor (dictionary) columns now group by level string with R-compatible ordering — unused levels are dropped and `NA` factor values form an `NA` group. Previously grouping fell back to raw dictionary indices, which produced wrong groups for non-default level orders.
+- **Pipeline node names cannot collide with builtin functions or runtime symbols**: declaring a node named after a builtin (e.g. `count`, `summary`, `source`, `n`) or a runtime symbol (e.g. `R`, `sh`, `default`) now fails immediately — structurally in `t check`, at pipeline construction, and in `rename_node` — with a clear `Node \`count\` is reserved: ...` message. Previously a node named `n` silently shadowed the builtin and broke dependency inference for cross-pipeline references.
 
 ### Propcraft — Property-Based Testing
 
