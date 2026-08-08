@@ -3426,13 +3426,13 @@ pipeline_deps(p)  -- {`x`: [], `y`: [], `z`: ["x", "y"]}
 
 ### `pipeline_node(pipeline, node_name)`
 
-Get the value of a specific node.
+Get the value of a specific node. A leading `$` in `node_name` is stripped, so bare-word selectors like `pipeline_node(p, $x)` are accepted, matching the behaviour of `get(p, $x)`.
 
 **Parameters:**
 
 
 - `pipeline` — Pipeline object
-- `node_name` — Name of the node (String)
+- `node_name` — Name of the node (String; a leading `$` is optional)
 
 **Returns:**
 
@@ -3442,7 +3442,8 @@ Node value
 ```t
 p = pipeline { x = 10; doubled = x * 2 }
 pipeline_node(p, "x")       -- 10
-pipeline_node(p, "doubled") -- 20
+pipeline_node(p, "$x")      -- 10
+pipeline_node(p, $doubled)  -- 20
 ```
 
 ---
