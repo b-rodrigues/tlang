@@ -253,7 +253,10 @@ let apply_add_node_arg ~file ~node ~arg =
    to gate on, so they are not auto-renamed and return false.
 
    Limitation: a raw block that closes mid-line may hide a reference on the
-   remainder of that line from this check. *)
+   remainder of that line from this check. In practice such an occurrence can
+   only live inside the definition node's own argument block, where `old_name`
+   is the node itself — i.e. a self-reference (a dependency cycle), which is an
+   invalid pipeline regardless. *)
 let apply_rename_node ~file ~old_name ~new_name =
   let ch = open_in file in
   let all_lines = Fun.protect ~finally:(fun () -> close_in_noerr ch)
