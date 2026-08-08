@@ -17,13 +17,27 @@
      - pipeline_to_frame has one row per node with matching depth and deps
        (comma-space separated, name-sorted) columns
      - explain(p).node_count matches
-     - pipeline_deps(p)[name] matches the name-sorted dependency list
-   Static topologies (chain, diamond, star, two chains, deep chain, single
-   node) pin down exact renderings. Regression tests cover the `get(p,
-   "missing")` KeyError fix: a missing node raises (instead of silently
-   returning NA) while a 3-arg default still applies, and an NA-valued node
-   does not trigger the error because existence is decided by the declared
-   node names, not the resolved value. *)
+      - pipeline_deps(p)[name] matches the name-sorted dependency list
+    DAG mutation ops on the same generative DAGs:
+      - upstream_of / downstream_of / subgraph keep exactly the reachable
+        node sets (declaration order), upstream results validate cleanly, and
+        subgraph results stay acyclic
+      - swap preserves nodes/edges/deps; rewire remaps a dependency (using the
+        [old: new] dict form, which works — the documented `list(...)` form is
+        broken, see report); prune removes exactly the leaves and validates
+      - pipeline_config_to_frame has one row per node and agrees with
+        pipeline_to_frame on name and depth, with an n_deps column
+    Set ops and composition on generated pipeline pairs:
+      - intersect / difference / patch preserve first-pipeline declaration
+        order; union merges disjoint pipelines (p then q); chain wires p2 onto
+        p1's outputs; parallel merges disjoint pipelines
+    Static topologies (chain, diamond, star, two chains, deep chain, single
+    node) pin down exact renderings. Regression tests cover the `get(p,
+    "missing")` KeyError fix: a missing node raises (instead of silently
+    returning NA) while a 3-arg default still applies, and an NA-valued node
+    does not trigger the error because existence is decided by the declared
+    node names, not the resolved value. The same `$`-prefix normalization as
+    `get` is pinned for `pipeline_node`. *)
 
 let quote s = Printf.sprintf "\"%s\"" s
 
@@ -38,6 +52,14 @@ let int_vec xs = "Vector[" ^ String.concat ", " (List.map string_of_int xs) ^ "]
 let str_vec xs = "Vector[" ^ String.concat ", " (List.map quote xs) ^ "]"
 
 let name_pool = [| "a"; "b"; "c"; "d"; "e"; "f"; "g"; "h" |]
+
+(* Overlapping and disjoint pools for set-op / composition tests. pool_b
+   overlaps pool_a in [e; f; g; h]; pool_c is fully disjoint from pool_a.
+   `n` is deliberately excluded from pool_c: `n` is a reserved builtin
+   (the `n` package), so a pipeline block `{ z = n + 1 }` does not infer
+   `n` as a dependency reference. *)
+let pool_b = [| "e"; "f"; "g"; "h"; "i"; "j"; "k"; "l" |]
+let pool_c = [| "i"; "j"; "k"; "l"; "m"; "o"; "p"; "q" |]
 
 let shuffle_array rng a =
   let n = Array.length a in
@@ -58,8 +80,8 @@ type dag = {
   deps_idx : int list array;
 }
 
-let gen_dag rng k =
-  let pool = Array.copy name_pool in
+let gen_dag_from rng pool k =
+  let pool = Array.copy pool in
   shuffle_array rng pool;
   let names = Array.sub pool 0 k in
   let deps_idx =
@@ -71,6 +93,8 @@ let gen_dag rng k =
         shuffle_list rng chosen)
   in
   { names; deps_idx }
+
+let gen_dag rng k = gen_dag_from rng name_pool k
 
 let dep_names dag i =
   List.map (fun j -> dag.names.(j)) dag.deps_idx.(i)
@@ -153,6 +177,130 @@ let assert_dag env label test_env dag k =
 
 let with_p src expr = "p = " ^ src ^ "; " ^ expr
 
+(* ── DAG reachability (mirrors pipeline_dag_ops.ancestors / descendants) ── *)
+
+let ancestors_idx dag i =
+  let seen = Hashtbl.create 8 in
+  let rec visit j =
+    if not (Hashtbl.mem seen j) then begin
+      Hashtbl.add seen j ();
+      List.iter visit dag.deps_idx.(j)
+    end
+  in
+  visit i;
+  Hashtbl.fold (fun j () acc -> j :: acc) seen []
+
+let descendants_idx dag k i =
+  let seen = Hashtbl.create 8 in
+  let all = List.init k (fun x -> x) in
+  let rec visit j =
+    if not (Hashtbl.mem seen j) then begin
+      Hashtbl.add seen j ();
+      List.iter (fun m -> if List.mem j dag.deps_idx.(m) then visit m) all
+    end
+  in
+  visit i;
+  Hashtbl.fold (fun j () acc -> j :: acc) seen []
+
+(* Node names of the given index set, in declaration order. *)
+let names_decl dag idxs =
+  let ns = List.map (fun j -> dag.names.(j)) idxs in
+  List.filter (fun n -> List.mem n ns) (Array.to_list dag.names)
+
+let leaves_idx dag k =
+  List.filter (fun i -> not (List.exists (fun j -> List.mem i dag.deps_idx.(j)) (List.init k (fun x -> x))))
+    (List.init k (fun x -> x))
+
+let union_nodes names_a names_b =
+  names_a @ List.filter (fun n -> not (List.mem n names_a)) names_b
+
+(* ── DAG mutation ops ──────────────────────────────────────────────── *)
+
+let assert_dag_ops env label test_env dag k =
+  List.iter (fun i ->
+    let n = dag.names.(i) in
+    let ups = names_decl dag (ancestors_idx dag i) in
+    let downs = names_decl dag (descendants_idx dag k i) in
+    let subg = names_decl dag (List.sort_uniq compare (ancestors_idx dag i @ descendants_idx dag k i)) in
+    test_env env (Printf.sprintf "%s: upstream_of(%s) node set" label n)
+      (Printf.sprintf {|pipeline_nodes(upstream_of(p, "%s"))|} n) (list_str ups);
+    test_env env (Printf.sprintf "%s: upstream_of(%s) validates cleanly" label n)
+      (Printf.sprintf {|length(pipeline_validate(upstream_of(p, "%s")))|} n) "0";
+    test_env env (Printf.sprintf "%s: downstream_of(%s) node set" label n)
+      (Printf.sprintf {|pipeline_nodes(downstream_of(p, "%s"))|} n) (list_str downs);
+    test_env env (Printf.sprintf "%s: subgraph(%s) node set" label n)
+      (Printf.sprintf {|pipeline_nodes(subgraph(p, "%s"))|} n) (list_str subg);
+    test_env env (Printf.sprintf "%s: subgraph(%s) acyclic" label n)
+      (Printf.sprintf {|length(pipeline_cycles(subgraph(p, "%s")))|} n) "0")
+    (List.init k (fun x -> x))
+
+let assert_swap_rewire_prune env label test_env dag k =
+  let names = Array.to_list dag.names in
+  List.iter (fun i ->
+    let n = dag.names.(i) in
+    let deps = dep_names dag i in
+    let swap_expr =
+      Printf.sprintf {|swap(p, "%s", node(command = <{ 99 }>, runtime = T))|} n in
+    test_env env (Printf.sprintf "%s: swap(%s) keeps nodes" label n)
+      (Printf.sprintf "pipeline_nodes(%s)" swap_expr) (list_str names);
+    test_env env (Printf.sprintf "%s: swap(%s) keeps edges" label n)
+      (Printf.sprintf {|identical(pipeline_edges(%s), pipeline_edges(p))|} swap_expr) "true";
+    test_env env (Printf.sprintf "%s: swap(%s) keeps deps of %s" label n n)
+      (Printf.sprintf {|identical(get(pipeline_deps(%s), "%s"), get(pipeline_deps(p), "%s"))|}
+         swap_expr n n)
+      "true";
+    if deps <> [] then begin
+      (* Rewire the first dependency to a safe target: a node that is neither
+         the node itself nor a descendant (would create a cycle), and not the
+         dependency being replaced. *)
+      let descendants_i = descendants_idx dag k i in
+      let cands =
+        List.filter (fun j ->
+          j <> i && not (List.mem j descendants_i)
+          && not (List.exists (fun d -> dag.names.(j) = d) deps))
+          (List.init k (fun x -> x))
+      in
+      match deps, cands with
+      | old :: _, cand :: _ ->
+          let target = dag.names.(cand) in
+          let expected = List.map (fun d -> if d = old then target else d) deps in
+          let rewire_expr =
+            Printf.sprintf {|rewire(p, "%s", replace = [%s: "%s"])|} n old target in
+          test_env env (Printf.sprintf "%s: rewire(%s) replaces %s with %s" label n old target)
+            (Printf.sprintf {|identical(get(pipeline_deps(%s), "%s"), [%s])|}
+               rewire_expr n (String.concat ", " (List.map quote expected)))
+            "true";
+          test_env env (Printf.sprintf "%s: rewire(%s) leaves result acyclic" label n)
+            (Printf.sprintf {|length(pipeline_cycles(%s))|} rewire_expr) "0"
+      | _ -> ()
+    end)
+    (List.init k (fun x -> x));
+  (* prune removes exactly the leaves; `p` is already bound in the env *)
+  let leaves = names_decl dag (leaves_idx dag k) in
+  let keep = List.filter (fun n -> not (List.mem n leaves)) names in
+  test_env env (Printf.sprintf "%s: prune keeps non-leaves" label)
+    "pipeline_nodes(prune(p))" (list_str keep);
+  test_env env (Printf.sprintf "%s: prune result validates cleanly" label)
+    "length(pipeline_validate(prune(p)))" "0"
+
+let assert_config_to_frame env label test_env dag k =
+  let ds = depths dag k in
+  let n_deps = List.map (fun i -> List.length (dep_names dag i)) (List.init k (fun x -> x)) in
+  test_env env (Printf.sprintf "%s: config_to_frame one row per node" label)
+    "nrow(pipeline_config_to_frame(p))" (string_of_int k);
+  test_env env (Printf.sprintf "%s: config_to_frame name column" label)
+    "pipeline_config_to_frame(p) |> pull($name)" (str_vec (Array.to_list dag.names));
+  test_env env (Printf.sprintf "%s: config_to_frame depth matches pipeline_to_frame" label)
+    {|identical(pipeline_config_to_frame(p) |> pull($depth), pipeline_to_frame(p) |> pull($depth))|}
+    "true";
+  test_env env (Printf.sprintf "%s: config_to_frame depth column" label)
+    "pipeline_config_to_frame(p) |> pull($depth)" (int_vec ds);
+  test_env env (Printf.sprintf "%s: config_to_frame n_deps column" label)
+    "pipeline_config_to_frame(p) |> pull($n_deps)" (int_vec n_deps);
+  test_env env (Printf.sprintf "%s: config_to_frame name equals pipeline_to_frame name" label)
+    {|identical(pipeline_config_to_frame(p) |> pull($name), pipeline_to_frame(p) |> pull($name))|}
+    "true"
+
 let run_tests _pass_count _fail_count _failures _eval_string eval_string_env _test test_env =
   Printf.printf "Propcraft dogfooding — pipeline:\n";
   let env = Packages.init_env () in
@@ -178,7 +326,10 @@ let run_tests _pass_count _fail_count _failures _eval_string eval_string_env _te
       let dag = gen_dag rng k in
       let label = Printf.sprintf "seed %d dag %d (k=%d)" seed d k in
       let (_, env) = eval_string_env ("p = " ^ render_source dag k) env in
-      assert_dag env label test_env dag k
+      assert_dag env label test_env dag k;
+      assert_dag_ops env label test_env dag k;
+      assert_swap_rewire_prune env label test_env dag k;
+      assert_config_to_frame env label test_env dag k
     done)
     [ 1; 7; 42 ];
 
@@ -217,6 +368,90 @@ let run_tests _pass_count _fail_count _failures _eval_string eval_string_env _te
   test_env env "single node: root is leaf" (with_p single "pipeline_roots(p)") {|["a"]|};
   test_env env "single node: leaves" (with_p single "pipeline_leaves(p)") {|["a"]|};
   test_env env "single node: depth" (with_p single "pipeline_depth(p)") "0";
+
+  Printf.printf "  Generative set ops (intersect/difference/patch, overlapping pools):\n";
+  List.iter (fun seed ->
+    let rng = Random.State.make [| seed |] in
+    for d = 1 to 10 do
+      let kA = 1 + Random.State.int rng 5 in
+      let kB = 1 + Random.State.int rng 5 in
+      let dagA = gen_dag_from rng name_pool kA in
+      let dagB = gen_dag_from rng pool_b kB in
+      let namesA = Array.to_list dagA.names in
+      let namesB = Array.to_list dagB.names in
+      let label = Printf.sprintf "seed %d set %d" seed d in
+      let (_, env) =
+        eval_string_env
+          ("p = " ^ render_source dagA kA ^ "; q = " ^ render_source dagB kB) env in
+      test_env env (Printf.sprintf "%s: intersect keeps shared names in p's order" label)
+        "pipeline_nodes(intersect(p, q))"
+        (list_str (List.filter (fun n -> List.mem n namesB) namesA));
+      test_env env (Printf.sprintf "%s: difference keeps p-only names in p's order" label)
+        "pipeline_nodes(difference(p, q))"
+        (list_str (List.filter (fun n -> not (List.mem n namesB)) namesA));
+      test_env env (Printf.sprintf "%s: patch overlays q onto p" label)
+        "pipeline_nodes(patch(p, q))"
+        (list_str (union_nodes (List.filter (fun n -> not (List.mem n namesB)) namesA)
+                     (List.filter (fun n -> List.mem n namesA) namesB)))
+    done)
+    [ 1; 7; 42 ];
+
+  Printf.printf "  Generative set ops (union, disjoint pools):\n";
+  List.iter (fun seed ->
+    let rng = Random.State.make [| seed |] in
+    for d = 1 to 10 do
+      let kA = 1 + Random.State.int rng 5 in
+      let kB = 1 + Random.State.int rng 5 in
+      let dagA = gen_dag_from rng name_pool kA in
+      let dagC = gen_dag_from rng pool_c kB in
+      let namesA = Array.to_list dagA.names in
+      let namesC = Array.to_list dagC.names in
+      let label = Printf.sprintf "seed %d union %d" seed d in
+      let (_, env) =
+        eval_string_env
+          ("p = " ^ render_source dagA kA ^ "; q = " ^ render_source dagC kB) env in
+      test_env env (Printf.sprintf "%s: union merges disjoint pipelines (p then q)" label)
+        "pipeline_nodes(p |> union(q))" (list_str (namesA @ namesC));
+      test_env env (Printf.sprintf "%s: union edge count is the sum" label)
+        "length(pipeline_edges(p |> union(q)))"
+        (string_of_int (List.length (edges dagA kA) + List.length (edges dagC kB)));
+      test_env env (Printf.sprintf "%s: union result is acyclic" label)
+        "length(pipeline_cycles(p |> union(q)))" "0"
+    done)
+    [ 1; 7; 42 ];
+
+  Printf.printf "  Generative composition (chain / parallel):\n";
+  List.iter (fun seed ->
+    let rng = Random.State.make [| seed |] in
+    for d = 1 to 10 do
+      let kA = 1 + Random.State.int rng 5 in
+      let dagA = gen_dag_from rng pool_c kA in
+      let dagB = gen_dag_from rng name_pool kA in
+      let namesA = Array.to_list dagA.names in
+      let namesB = Array.to_list dagB.names in
+      let last = dagA.names.(kA - 1) in
+      let label = Printf.sprintf "seed %d chain %d" seed d in
+      let (_, env) =
+        eval_string_env
+          ("pa = " ^ render_source dagA kA ^ "; pb = pipeline { z = " ^ last ^ " + 1 }") env in
+      test_env env (Printf.sprintf "%s: chain merges p2 wired to p1" label)
+        "pipeline_nodes(pa |> chain(pb))"
+        (list_str (namesA @ [ "z" ]));
+      test_env env (Printf.sprintf "%s: chain edge count" label)
+        "length(pipeline_edges(pa |> chain(pb)))"
+        (string_of_int (List.length (edges dagA kA) + 1));
+      test_env env (Printf.sprintf "%s: chain result is acyclic" label)
+        "length(pipeline_cycles(pa |> chain(pb)))" "0";
+      let (_, env) =
+        eval_string_env
+          ("p = " ^ render_source dagA kA ^ "; q = " ^ render_source dagB kA) env in
+      test_env env (Printf.sprintf "%s: parallel merges disjoint pipelines" label)
+        "pipeline_nodes(p |> parallel(q))" (list_str (namesA @ namesB));
+      test_env env (Printf.sprintf "%s: parallel edge count is the sum" label)
+        "length(pipeline_edges(p |> parallel(q)))"
+        (string_of_int (List.length (edges dagA kA) + List.length (edges dagB kA)))
+    done)
+    [ 1; 7; 42 ];
 
   Printf.printf "  get(p, ...) missing-node regression:\n";
   test_env env "get(p, missing) raises KeyError instead of silent NA"
@@ -278,6 +513,24 @@ let run_tests _pass_count _fail_count _failures _eval_string eval_string_env _te
   test_env env "get(p, \"$missing\") string form raises clean KeyError"
     {|p = pipeline { a = 0; b = a + 1 }; get(p, "$missing")|}
     {|Error(KeyError: "Node `missing` not found in Pipeline.")|};
+  test_env env "pipeline_node(p, $a) retrieves node a (parity with get)"
+    {|p = pipeline { a = 0; b = a + 1 }; pipeline_node(p, $a)|}
+    "computed_node";
+  test_env env "pipeline_node(p, \"$a\") string form strips the dollar prefix"
+    {|p = pipeline { a = 0; b = a + 1 }; pipeline_node(p, "$a")|}
+    "computed_node";
+  test_env env "pipeline_node(p, $a) agrees with pipeline_node(p, \"a\")"
+    {|p = pipeline { a = 0; b = a + 1 }; identical(pipeline_node(p, $a), pipeline_node(p, "a"))|}
+    "true";
+  test_env env "pipeline_node(p, $missing) raises clean KeyError"
+    {|p = pipeline { a = 0; b = a + 1 }; pipeline_node(p, $missing)|}
+    {|Error(KeyError: "Node `missing` not found in Pipeline.")|};
+  test_env env "pipeline_node(p, \"$missing\") string form raises clean KeyError"
+    {|p = pipeline { a = 0; b = a + 1 }; pipeline_node(p, "$missing")|}
+    {|Error(KeyError: "Node `missing` not found in Pipeline.")|};
+  test_env env "pipeline_node(p, NA-valued node) does not raise (wrapper, not bare VNA)"
+    {|p = pipeline { x = NA }; pipeline_node(p, "x")|}
+    "computed_node";
   (* The 3-arg form has no existence guard (missing -> NA -> default is its
      documented safe-retrieval semantics). This passes only because declared
      nodes are returned wrapped in a computed_node, never a bare VNA at the
