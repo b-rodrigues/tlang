@@ -139,11 +139,14 @@ let make_add_node_arg_fix ~node ~arg ?target_node ?file ?line () =
   Add_node_arg { node; arg; target_node; file; line; confidence = Medium }
 
 let make_rename_node_fix ~old_name ~new_name ?target_node ?file ?line () =
-  Rename_node { old_name; new_name; target_node; file; line; confidence = High }
+  Rename_node { old_name; new_name; target_node; file; line; confidence = Medium }
 
 (** Canonical rename suggestion for a node that collides with a reserved name:
     append the `_node` suffix, which never collides with a builtin or runtime
-    symbol. *)
+    symbol. Confidence is [Medium], not [High]: the name choice is deterministic,
+    but the mechanical fix only renames the definition line and refuses to apply
+    when the node is referenced elsewhere in the file (see Fix.apply_rename_node),
+    so completeness depends on the file contents. *)
 let make_reserved_rename_fix ?file name =
   make_rename_node_fix ~old_name:name ~new_name:(name ^ "_node")
     ?target_node:(Some name) ?file ()
@@ -551,6 +554,13 @@ let of_verror ?file (err : Ast.error_info) : diagnostic =
     | NameError ->
         (match node_name with
          | Some n when Reserved_names.is_reserved_node_name n ->
+             (* Known asymmetry with of_pipeline_validation, which guards the
+                rename suggestion with `not (List.mem_assoc (n ^ "_node") p.p_exprs)`
+                to avoid suggesting a name that already exists as a node. That check
+                is impossible here: this branch has only the error, not the pipeline's
+                node list, in scope. It is safe anyway — rename_node's apply-time
+                ValueError guard rejects a colliding target — so this is a
+                suggestion-quality difference, not a correctness one. *)
              make_reserved_rename_fix ?file n
          | _ ->
              let (name, suggestion_info) = extract_name_and_suggestion err.message in

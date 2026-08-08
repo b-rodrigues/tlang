@@ -224,31 +224,97 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
   in
   test_apply_add_node_arg_not_found ();
 
+  Printf.printf "\nrename_node confidence:\n";
+  let conf = match Diagnostics.make_rename_node_fix ~old_name:"count" ~new_name:"count_node" () with
+    | Diagnostics.Rename_node { confidence = c; _ } -> c
+    | _ -> Diagnostics.Low
+  in
+  check "rename_node confidence is Medium (completeness depends on file contents)" (conf = Diagnostics.Medium);
+
   Printf.printf "\napply_rename_node:\n";
+  let read_file path =
+    let ch = open_in path in
+    let c = really_input_string ch (in_channel_length ch) in
+    close_in ch; c
+  in
   let test_apply_rename_node () =
     let tmp = Filename.temp_file "test_fix_rename_node" ".t" in
+    let oc = open_out tmp in
+    output_string oc {|p = pipeline {
+  count = node(runtime = T, command = <{ 1 }>)
+}
+|};
+    close_out oc;
+    let r = Fix.apply_rename_node ~file:tmp ~old_name:"count" ~new_name:"count_node" in
+    check "rename_node returns true when constructor-form node found" r;
+    let content = read_file tmp in
+    Sys.remove tmp;
+    let has_renamed = (try let _ = Str.search_forward (Str.regexp_string "count_node = node(runtime = T") content 0 in true with Not_found -> false) in
+    let has_old_node_gone = try ignore (Str.search_forward (Str.regexp_string "\ncount = node(") content 0); false with Not_found -> true in
+    check "rename_node renames the node definition line" has_renamed;
+    check "rename_node does not leave old definition" has_old_node_gone
+  in
+  test_apply_rename_node ();
+
+  Printf.printf "\napply_rename_node refuses on downstream reference:\n";
+  let test_rename_node_refuses () =
+    let tmp = Filename.temp_file "test_fix_rename_node_ref" ".t" in
     let oc = open_out tmp in
     output_string oc {|p = pipeline {
   count = node(runtime = T, command = <{ 1 }>),
   model = count + 1
 }
-count = 3
+|};
+    close_out oc;
+    let original = read_file tmp in
+    let r = Fix.apply_rename_node ~file:tmp ~old_name:"count" ~new_name:"count_node" in
+    check "rename_node refuses (returns false) when a sibling expression references it" (r = false);
+    check "rename_node leaves file untouched on refusal" (read_file tmp = original);
+    Sys.remove tmp
+  in
+  test_rename_node_refuses ();
+
+  let test_rename_node_refuses_deps () =
+    let tmp = Filename.temp_file "test_fix_rename_node_deps" ".t" in
+    let oc = open_out tmp in
+    output_string oc {|p = pipeline {
+  count = node(runtime = T, command = <{ 1 }>),
+  model = node(command = <{ count + 1 }>, deps = [count])
+}
+|};
+    close_out oc;
+    let original = read_file tmp in
+    let r = Fix.apply_rename_node ~file:tmp ~old_name:"count" ~new_name:"count_node" in
+    check "rename_node refuses when a deps entry references it" (r = false);
+    check "rename_node leaves file untouched on deps refusal" (read_file tmp = original);
+    Sys.remove tmp
+  in
+  test_rename_node_refuses_deps ();
+
+  Printf.printf "\napply_rename_node tolerates the node's own raw code block:\n";
+  let test_rename_node_own_raw () =
+    let tmp = Filename.temp_file "test_fix_rename_node_ownraw" ".t" in
+    let oc = open_out tmp in
+    output_string oc {|p = pipeline {
+  count = node(
+    runtime = R,
+    command = <{
+      df |> count(cyl)
+    }>
+  )
+}
 |};
     close_out oc;
     let r = Fix.apply_rename_node ~file:tmp ~old_name:"count" ~new_name:"count_node" in
-    check "rename_node returns true when constructor-form node found" r;
-    let ch = open_in tmp in
-    let content = really_input_string ch (in_channel_length ch) in
-    close_in ch;
+    check "rename_node succeeds when the name appears only in its own raw code block" r;
+    let content = read_file tmp in
     Sys.remove tmp;
-    let has_renamed = (try let _ = Str.search_forward (Str.regexp "count_node = node(runtime = T") content 0 in true with Not_found -> false) in
-    let has_top_level_untouched = (try let _ = Str.search_forward (Str.regexp_string "\ncount = 3") content 0 in true with Not_found -> false) in
-    let has_old_node_gone = try ignore (Str.search_forward (Str.regexp_string "\ncount = node(") content 0); false with Not_found -> true in
-    check "rename_node renames the node definition line" has_renamed;
-    check "rename_node preserves top-level assignment count = 3" has_top_level_untouched;
-    check "rename_node does not leave old definition" has_old_node_gone
+    let has_renamed = (try let _ = Str.search_forward (Str.regexp_string "count_node = node(") content 0 in true with Not_found -> false) in
+    let has_own_code = (try let _ = Str.search_forward (Str.regexp_string "df |> count(cyl)") content 0 in true with Not_found -> false) in
+    check "rename_node renames the multi-line node definition" has_renamed;
+    check "rename_node preserves the node's own raw code" has_own_code
   in
-  test_apply_rename_node ();
+  test_rename_node_own_raw ();
 
   Printf.printf "\napply_rename_node not found / non-constructor:\n";
   let test_apply_rename_node_skip () =

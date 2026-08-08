@@ -73,8 +73,11 @@ val make_suggest_identifier_fix : name:string -> suggestion:string -> edit_dista
 val make_add_node_arg_fix : node:string -> arg:string -> ?target_node:string -> ?file:string -> ?line:int -> unit -> suggested_fix
 
 (** Rename_node: renames a pipeline node that collides with a builtin function
-    or runtime symbol (e.g., `count` -> `count_node`). Deterministic — the
-    `_node` suffix never collides with a reserved name — so always [High]. *)
+    or runtime symbol (e.g., `count` -> `count_node`). The `_node` suffix is
+    deterministic and never collides with a reserved name, but the mechanical
+    fix only rewrites the definition line and refuses to apply when the node is
+    referenced elsewhere in the file (`deps`, sibling expressions, raw-code
+    blocks), so confidence is [Medium]. *)
 val make_rename_node_fix : old_name:string -> new_name:string -> ?target_node:string -> ?file:string -> ?line:int -> unit -> suggested_fix
 
 (** Run_command: suggests a shell command. Always [Low]. *)

@@ -54,9 +54,6 @@ open Ast
 --# @export
 *)
 
-(* Normalize an optional leading `$` so `get(p, $a)` and `get(p, "$a")` behave
-   like `get(p, "a")`, matching the Dict lookup convention. Pipeline node names
-   are identifiers, so a genuine node can never start with `$`. *)
 let register ~eval_call env =
   (* Returns the retrieved artifact value or a structured VError if
      sandbox-backed lookup fails. *)
