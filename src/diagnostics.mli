@@ -122,7 +122,7 @@ val extract_cycle_nodes : string -> string list
 val extract_cross_runtime_info : string -> (string * string) option
 val no_fix : suggested_fix
 val extract_caused_by_from_context : (string * Ast.value) list -> string list
-val of_verror : ?file:string -> Ast.error_info -> diagnostic
+val of_verror : ?file:string -> ?existing_node_names:string list -> Ast.error_info -> diagnostic
 val of_pipeline_result : ?file:string -> Ast.pipeline_result -> diagnostic list
 val of_pipeline_validation : ?file:string -> Ast.pipeline_result -> diagnostic list
 val exit_code_of_diagnostics : diagnostic list -> int

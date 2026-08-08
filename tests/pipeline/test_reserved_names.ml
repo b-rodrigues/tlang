@@ -136,4 +136,64 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
     let msg = "  ✗ reserved-node list diverged from Packages.init_env:\n" ^ String.concat "\n" lines ^ "\n" in
     failures := msg :: !failures;
     Printf.printf "%s" msg
+  end;
+
+  (* --- known_symbols audit: the runtime/serializer bare-word vocabulary must
+         actually be registered. This enforces the AGENTS.md rule that a new
+         runtime or standard serializer is added to Packages.known_symbols. *)
+  let ks = Packages.known_symbols in
+  let ks_bindings = Env.bindings (Packages.init_env ()) in
+  let ks_unbound = List.filter (fun n -> not (List.mem_assoc n ks_bindings)) ks in
+  let ks_duplicates =
+    List.sort_uniq String.compare ks
+    |> fun uniq -> List.filter (fun n -> List.length (List.filter (fun n' -> n' = n) ks) > 1) uniq
+  in
+  (* Any identifier-safe known_symbol that is not a builtin must also be
+     reserved as a runtime symbol, so it cannot be shadowed as a node name.
+     (^-prefixed deserializer shorthands like ^ipc cannot be node names, and
+     write_parquet/read_parquet are builtins, so neither appears here.) *)
+  let ks_unreserved =
+    List.filter (fun n ->
+      is_identifier_name n
+      && not (List.mem n Reserved_names.builtin_functions)
+      && not (List.mem n Reserved_names.runtime_symbols)
+    ) ks
+  in
+  (* The documented runtime + serializer vocabulary (see pipeline_node_options,
+     jln_docs, set_pipeline_global_options, builder_populate) must all resolve
+     as bare words — e.g. `runtime = R`, `serializer = ^ipc`. *)
+  let documented_vocabulary =
+    [ "R"; "Python"; "T"; "Julia"; "Quarto"; "sh";
+      "default";
+      "write_rds"; "read_rds"; "write_pkl"; "read_pkl";
+      "^ipc"; "write_parquet"; "read_parquet"; "^parquet";
+      "write_json"; "read_json"; "pmml"; "^pmml"; "^csv"; "^json"; "^onnx";
+      "bin"; "^bin" ]
+  in
+  let ks_missing_vocab =
+    List.filter (fun n -> not (List.mem n ks)) documented_vocabulary
+  in
+  if ks_unbound = [] && ks_duplicates = [] && ks_unreserved = [] && ks_missing_vocab = [] then begin
+    incr pass_count;
+    Printf.printf "  ✓ known_symbols are bound and cover the runtime/serializer vocabulary (%d symbols)\n"
+      (List.length ks)
+  end else begin
+    incr fail_count;
+    let lines =
+      (if ks_unbound <> [] then
+         [ Printf.sprintf "    in known_symbols but not bound in env: %s" (String.concat ", " ks_unbound) ]
+       else [])
+      @ (if ks_duplicates <> [] then
+           [ Printf.sprintf "    duplicated in known_symbols: %s" (String.concat ", " ks_duplicates) ]
+         else [])
+      @ (if ks_unreserved <> [] then
+           [ Printf.sprintf "    in known_symbols but not reserved as runtime symbol: %s" (String.concat ", " ks_unreserved) ]
+         else [])
+      @ (if ks_missing_vocab <> [] then
+           [ Printf.sprintf "    documented runtime/serializer not in known_symbols: %s" (String.concat ", " ks_missing_vocab) ]
+         else [])
+    in
+    let msg = "  ✗ known_symbols audit failed:\n" ^ String.concat "\n" lines ^ "\n" in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
   end

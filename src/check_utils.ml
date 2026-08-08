@@ -118,9 +118,14 @@ let run_check ?(schema=false) ?(env_check=false) ?(offline=false) mode filename 
             | _ -> None
           ) bindings
     in
+    let existing_node_names =
+      List.concat_map (fun (_name, p) ->
+        List.map fst p.Ast.p_exprs
+      ) pipelines
+    in
     let diag_list : Diagnostics.diagnostic list =
       let error_diags = match result with
-        | VError err -> [Diagnostics.of_verror ~file:filename err]
+        | VError err -> [Diagnostics.of_verror ~file:filename ~existing_node_names err]
         | _ -> []
       in
       let pipeline_diags = List.concat_map (fun (_name, p) ->

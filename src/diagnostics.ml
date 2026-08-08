@@ -536,7 +536,7 @@ let extract_name_and_suggestion msg =
     | [] -> (name, None)
   with Not_found -> ("", None)
 
-let of_verror ?file (err : Ast.error_info) : diagnostic =
+let of_verror ?file ?existing_node_names (err : Ast.error_info) : diagnostic =
   let diag_phase = error_code_to_phase err.code in
   let node_name = extract_node_name_from_message err.message in
   let caused_by = match extract_caused_by_from_context err.context with
@@ -554,14 +554,16 @@ let of_verror ?file (err : Ast.error_info) : diagnostic =
     | NameError ->
         (match node_name with
          | Some n when Reserved_names.is_reserved_node_name n ->
-             (* Known asymmetry with of_pipeline_validation, which guards the
-                rename suggestion with `not (List.mem_assoc (n ^ "_node") p.p_exprs)`
-                to avoid suggesting a name that already exists as a node. That check
-                is impossible here: this branch has only the error, not the pipeline's
-                node list, in scope. It is safe anyway — rename_node's apply-time
-                ValueError guard rejects a colliding target — so this is a
-                suggestion-quality difference, not a correctness one. *)
-             make_reserved_rename_fix ?file n
+             (* Mirrors the guard in of_pipeline_validation (which rejects the
+                suggestion when a node named `n ^ "_node"` already exists). This
+                branch normally has only the error in scope, so the check is
+                omitted and the apply-time ValueError guard in rename_node is the
+                backstop. When the caller can supply the pipeline's existing node
+                names (see Check_utils.run_check), the guard is applied and a
+                colliding target is not suggested. *)
+             (match existing_node_names with
+              | Some existing when List.mem (n ^ "_node") existing -> NoFix
+              | _ -> make_reserved_rename_fix ?file n)
          | _ ->
              let (name, suggestion_info) = extract_name_and_suggestion err.message in
              (match suggestion_info with

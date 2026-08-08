@@ -385,6 +385,34 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
   Sys.remove reserved_fixture;
   flush stdout;
 
+  Printf.printf "\nof_verror existing-node-name guard:\n";
+
+  (* When the caller can supply the pipeline's existing node names, a reserved
+     node whose `_node` rename would collide with an existing node must not get
+     a Rename_node suggestion (mirrors of_pipeline_validation's guard). *)
+  let reserved_err = { Ast.
+    code = NameError;
+    message = "Node `count` is reserved: `count` is a builtin function.";
+    context = [];
+    location = None;
+    na_count = 0;
+  } in
+  (match Diagnostics.of_verror reserved_err with
+   | { Diagnostics.diag_suggested_fix = Diagnostics.Rename_node { old_name; new_name; _ }; _ } ->
+       check_eq "of_verror: reserved name gets rename_node" old_name "count";
+       check_eq "of_verror: rename target is _node" new_name "count_node"
+   | _ -> check "of_verror: reserved name gets rename_node" false);
+  (match Diagnostics.of_verror ~existing_node_names:["count_node"] reserved_err with
+   | { Diagnostics.diag_suggested_fix = Diagnostics.NoFix; _ } ->
+       check "of_verror: rename suppressed when `count_node` already exists" true
+   | _ ->
+       check "of_verror: rename suppressed when `count_node` already exists" false);
+  (match Diagnostics.of_verror ~existing_node_names:["other_node"] reserved_err with
+   | { Diagnostics.diag_suggested_fix = Diagnostics.Rename_node { new_name; _ }; _ } ->
+       check_eq "of_verror: rename kept when no collision" new_name "count_node"
+   | _ -> check "of_verror: rename kept when no collision" false);
+  flush stdout;
+
   Printf.printf "\nmissing package detection:\n";
 
   (* Missing package: undeclared R package should get Missing_package *)
