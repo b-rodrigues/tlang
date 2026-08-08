@@ -11,8 +11,8 @@ p = pipeline {
   data = [10, 20, 30, 40, 50]
   doubled = map(data, \(x) x * 2)
   total = sum(doubled)
-  row_count = length(data)
-  average = total / row_count
+  count = length(data)
+  average = total / count
 }
 
 print("Pipeline created:")
@@ -28,7 +28,7 @@ print(p.doubled)
 print("Total:")
 print(p.total)
 print("Count:")
-print(p.row_count)
+print(p.count)
 print("Average:")
 print(p.average)
 print("")

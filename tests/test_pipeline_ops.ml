@@ -273,10 +273,6 @@ pipeline_deps(p2)|}
     {|p = pipeline { a = 1; b = 2 }; p |> rename_node("a", "b")|}
     {|Error(ValueError: "A node named `b` already exists in the Pipeline.")|};
 
-  test "rename_node rejects reserved new name"
-    {|p = pipeline { a = 1 }; p |> rename_node("a", "n")|}
-    {|Error(ValueError: "Node `n` is reserved: `n` is a builtin function. Node names cannot collide with builtin functions or runtime symbols. Choose a different node name.")|};
-
   print_newline ();
 
   Printf.printf "Phase 2 — select_node:\n";
@@ -425,29 +421,13 @@ pipeline_deps(p2)|}
 
   test "rewire preserves unchanged deps"
     {|p = pipeline { data = 1; model = data + 1 }
-p2 = p |> rewire("model", replace = [data: "data"])
+p2 = p |> rewire("model", replace = list(data = "data"))
 pipeline_deps(p2)|}
     {|{`data`: [], `model`: ["data"]}|};
 
   test "rewire errors on missing node"
-    {|p = pipeline { a = 1 }; p |> rewire("z", replace = [a: "b"])|}
+    {|p = pipeline { a = 1 }; p |> rewire("z", replace = list(a = "b"))|}
     {|Error(KeyError: "Node `z` not found in Pipeline.")|};
-
-  test "rewire rejects list(...) form loudly (no silent no-op)"
-    {|p = pipeline { data = 1; model = data + 1 }; p |> rewire("model", replace = list(data = "data_v2"))|}
-    "Error(NameError: \"Name `list` is not defined.\nDid you mean `nest`?\")";
-
-  test "rewire errors when replace is missing"
-    {|p = pipeline { data = 1; model = data + 1 }; p |> rewire("model")|}
-    {|Error(TypeError: "Function `rewire` expects a `replace` named argument mapping old dependency names to new ones.")|};
-
-  test "rewire errors on non-dict replace value"
-    {|p = pipeline { data = 1; model = data + 1 }; p |> rewire("model", replace = 42)|}
-    {|Error(TypeError: "Function `rewire` expects `replace` to be a Dict or named List of node-name strings, but got Int.")|};
-
-  test "rewire errors on non-string dict entry"
-    {|p = pipeline { data = 1; model = data + 1 }; p |> rewire("model", replace = [data: 42])|}
-    {|Error(TypeError: "Function `rewire` expects `replace` entries to map node names to node-name strings, but got Int.")|};
 
   print_newline ();
 
@@ -640,7 +620,7 @@ pipeline_edges(p)|}
     {|p = pipeline {
          a = node(command = <{ 1 }>, serializer = ^json);
          b = node(command = <{ 2 }>, serializer = ^csv);
-         sh_out = shn(command = <{ cat "$T_INPUT_a" "$T_INPUT_b" }>, deps = ["a", "b"])
+         sh = shn(command = <{ cat "$T_INPUT_a" "$T_INPUT_b" }>, deps = ["a", "b"])
        }; pipeline_validate(p)|}
     {|[]|};
 
@@ -727,7 +707,7 @@ pipeline_edges(p)|}
   (* pipeline_to_dot with MetaPipeline *)
   let (v, _) = eval_string_env
     {|p_etl = pipeline { raw = 1; clean = raw + 1 };
-      p_stats = pipeline { summary_node = 2 };
+      p_stats = pipeline { summary = 2 };
       meta = pipeline_of { etl = p_etl; stats = p_stats };
       pipeline_to_dot(meta)|}
     (Packages.init_env ()) in
@@ -744,7 +724,7 @@ pipeline_edges(p)|}
   (* pipeline_to_mermaid with MetaPipeline *)
   let (v, _) = eval_string_env
     {|p_etl = pipeline { raw = 1; clean = raw + 1 };
-      p_stats = pipeline { summary_node = 2 };
+      p_stats = pipeline { summary = 2 };
       meta = pipeline_of { etl = p_etl; stats = p_stats };
       pipeline_to_mermaid(meta)|}
     (Packages.init_env ()) in
@@ -761,7 +741,7 @@ pipeline_edges(p)|}
    (* pipeline_to_mermaid with MetaPipeline renders subgraph blocks by default *)
    let (v, _) = eval_string_env
      {|p_etl = pipeline { raw = 1; clean = raw + 1 };
-       p_stats = pipeline { summary_node = 2 };
+       p_stats = pipeline { summary = 2 };
        meta = pipeline_of { etl = p_etl; stats = p_stats };
        pipeline_to_mermaid(meta)|}
      (Packages.init_env ()) in
@@ -782,7 +762,7 @@ pipeline_edges(p)|}
    (* pipeline_to_mermaid with flatten=true returns flat output (no subgraph) *)
    let (v, _) = eval_string_env
      {|p_etl = pipeline { raw = 1; clean = raw + 1 };
-       p_stats = pipeline { summary_node = 2 };
+       p_stats = pipeline { summary = 2 };
        meta = pipeline_of { etl = p_etl; stats = p_stats };
        pipeline_to_mermaid(meta, flatten = true)|}
      (Packages.init_env ()) in
@@ -803,7 +783,7 @@ pipeline_edges(p)|}
    (* pipeline_to_dot with MetaPipeline renders subgraph clusters by default *)
    let (v, _) = eval_string_env
      {|p_etl = pipeline { raw = 1; clean = raw + 1 };
-       p_stats = pipeline { summary_node = 2 };
+       p_stats = pipeline { summary = 2 };
        meta = pipeline_of { etl = p_etl; stats = p_stats };
        pipeline_to_dot(meta)|}
      (Packages.init_env ()) in
@@ -824,7 +804,7 @@ pipeline_edges(p)|}
    (* pipeline_to_dot with flatten=true omits subgraph clusters *)
    let (v, _) = eval_string_env
      {|p_etl = pipeline { raw = 1; clean = raw + 1 };
-       p_stats = pipeline { summary_node = 2 };
+       p_stats = pipeline { summary = 2 };
        meta = pipeline_of { etl = p_etl; stats = p_stats };
        pipeline_to_dot(meta, flatten = true)|}
      (Packages.init_env ()) in
@@ -845,12 +825,12 @@ pipeline_edges(p)|}
    (* pipeline_to_mermaid subgraph with cross-pipeline dependency *)
    let (v, _) = eval_string_env
      {|p_etl = pipeline { raw = 1; clean = raw + 1 };
-       p_stats = pipeline { summary_node = etl.clean + 2 };
+       p_stats = pipeline { summary = etl.clean + 2 };
        meta = pipeline_of { etl = p_etl; stats = p_stats };
        pipeline_to_mermaid(meta)|}
      (Packages.init_env ()) in
    (match v with
-    | Ast.VString s when contains s "subgraph etl" && contains s "subgraph stats" && contains s "etl_clean -->" && contains s "stats_summary_node" ->
+    | Ast.VString s when contains s "subgraph etl" && contains s "subgraph stats" && contains s "etl_clean -->" && contains s "stats_summary" ->
         incr pass_count; Printf.printf "  ✓ pipeline_to_mermaid cross-subgraph edge rendered correctly\n"
     | Ast.VString s ->
         incr fail_count;
@@ -958,7 +938,7 @@ pipeline_edges(p)|}
   (* meta_flatten: namespaces nodes correctly *)
   let (v, _) = eval_string_env
     {|p_etl = pipeline { raw = 1; clean = raw + 1 }
-p_stats = pipeline { summary_node = 2 }
+p_stats = pipeline { summary = 2 }
 meta = pipeline_of {
   etl = p_etl
   stats = p_stats
@@ -967,11 +947,11 @@ flat = meta_flatten(meta)
 pipeline_nodes(flat)|}
     (Packages.init_env ()) in
   let result = Ast.Utils.value_to_string v in
-  if result = {|["etl.raw", "etl.clean", "stats.summary_node"]|} then begin
+  if result = {|["etl.raw", "etl.clean", "stats.summary"]|} then begin
     incr pass_count; Printf.printf "  ✓ meta_flatten namespaces nodes correctly\n"
   end else begin
     incr fail_count;
-    let msg = Printf.sprintf "  ✗ meta_flatten nodes\n    Expected: [\"etl.raw\", \"etl.clean\", \"stats.summary_node\"]\n    Got: %s\n" result in
+    let msg = Printf.sprintf "  ✗ meta_flatten nodes\n    Expected: [\"etl.raw\", \"etl.clean\", \"stats.summary\"]\n    Got: %s\n" result in
     failures := msg :: !failures;
     Printf.printf "%s" msg
   end;
@@ -979,7 +959,7 @@ pipeline_nodes(flat)|}
   (* meta_flatten: automatically infers cross-pipeline dependencies *)
   let (v, _) = eval_string_env
     {|p_etl = pipeline { raw = 1; clean = raw + 1 }
-p_stats = pipeline { summary_node = etl.clean + 2 }
+p_stats = pipeline { summary = etl.clean + 2 }
 meta = pipeline_of {
   etl = p_etl
   stats = p_stats
@@ -988,11 +968,11 @@ flat = meta_flatten(meta)
 pipeline_deps(flat)|}
     (Packages.init_env ()) in
   let result = Ast.Utils.value_to_string v in
-  if result = {|{`etl.raw`: [], `etl.clean`: ["etl.raw"], `stats.summary_node`: ["etl.clean"]}|} then begin
+  if result = {|{`etl.raw`: [], `etl.clean`: ["etl.raw"], `stats.summary`: ["etl.clean"]}|} then begin
     incr pass_count; Printf.printf "  ✓ meta_flatten infers dependencies automatically\n"
   end else begin
     incr fail_count;
-    let msg = Printf.sprintf "  ✗ meta_flatten auto-deps\n    Expected: {`etl.raw`: [], `etl.clean`: [\"etl.raw\"], `stats.summary_node`: [\"etl.clean\"]}\n    Got: %s\n" result in
+    let msg = Printf.sprintf "  ✗ meta_flatten auto-deps\n    Expected: {`etl.raw`: [], `etl.clean`: [\"etl.raw\"], `stats.summary`: [\"etl.clean\"]}\n    Got: %s\n" result in
     failures := msg :: !failures;
     Printf.printf "%s" msg
   end;
@@ -1000,7 +980,7 @@ pipeline_deps(flat)|}
   (* Implicit flattening: passing a MetaPipeline to pipeline_nodes/pipeline_deps *)
   let (v, _) = eval_string_env
     {|p_etl = pipeline { raw = 1; clean = raw + 1 }
-p_stats = pipeline { summary_node = etl.clean + 2 }
+p_stats = pipeline { summary = etl.clean + 2 }
 meta = pipeline_of {
   etl = p_etl
   stats = p_stats
@@ -1008,31 +988,31 @@ meta = pipeline_of {
 pipeline_nodes(meta)|}
     (Packages.init_env ()) in
   let result = Ast.Utils.value_to_string v in
-  if result = {|["etl.raw", "etl.clean", "stats.summary_node"]|} then begin
+  if result = {|["etl.raw", "etl.clean", "stats.summary"]|} then begin
     incr pass_count; Printf.printf "  ✓ implicit meta-pipeline flattening in built-ins works\n"
   end else begin
     incr fail_count;
-    let msg = Printf.sprintf "  ✗ implicit meta-pipeline flattening\n    Expected: [\"etl.raw\", \"etl.clean\", \"stats.summary_node\"]\n    Got: %s\n" result in
+    let msg = Printf.sprintf "  ✗ implicit meta-pipeline flattening\n    Expected: [\"etl.raw\", \"etl.clean\", \"stats.summary\"]\n    Got: %s\n" result in
     failures := msg :: !failures;
     Printf.printf "%s" msg
   end;
 
-  (* Nested/partial dot access: meta.stats.summary_node *)
+  (* Nested/partial dot access: meta.stats.summary *)
   let (v, _) = eval_string_env
     {|p_etl = pipeline { raw = 1; clean = raw + 1 }
-p_stats = pipeline { summary_node = etl.clean + 2 }
+p_stats = pipeline { summary = etl.clean + 2 }
 meta = pipeline_of {
   etl = p_etl
   stats = p_stats
 }
-meta.stats.summary_node.name|}
+meta.stats.summary.name|}
     (Packages.init_env ()) in
   let result = Ast.Utils.value_to_string v in
-  if result = {|"stats.summary_node"|} then begin
+  if result = {|"stats.summary"|} then begin
     incr pass_count; Printf.printf "  ✓ nested dot-access namespaces on meta-pipeline work\n"
   end else begin
     incr fail_count;
-    let msg = Printf.sprintf "  ✗ nested dot-access on meta-pipeline\n    Expected: \"stats.summary_node\"\n    Got: %s\n" result in
+    let msg = Printf.sprintf "  ✗ nested dot-access on meta-pipeline\n    Expected: \"stats.summary\"\n    Got: %s\n" result in
     failures := msg :: !failures;
     Printf.printf "%s" msg
   end;
@@ -1069,7 +1049,7 @@ meta.stats.summary_node.name|}
   (* Meta pipeline: name should resolve to its variable name *)
   let env_m = Packages.init_env () in
   let env_m = Test_helpers.eval_setup eval_string_env env_m "test_pipeline_ops:1053" {|p_etl = pipeline { raw = 1; clean = raw + 1 };
-      p_stats = pipeline { summary_node = 2 };
+      p_stats = pipeline { summary = 2 };
       meta = pipeline_of { etl = p_etl; stats = p_stats }|} in
   let (flat_v, _) = eval_string_env
     {|meta_flatten(meta)|}

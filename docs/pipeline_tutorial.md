@@ -218,7 +218,7 @@ p = pipeline {
   )
 
   -- Running a Julia node that reads and summarizes the data
-  summary_node = jln(
+  summary = jln(
     command = <{
       using DataFrames
       df = CSV.read(data_path, DataFrame)
@@ -249,7 +249,7 @@ p = pipeline {
   report = shn(script = "postprocess.sh")
 
   -- node() auto-detects the runtime from the file extension
-  summary_node = node(script = "summarise.R", serializer = ^json)
+  summary = node(script = "summarise.R", serializer = ^json)
 }
 ```
 
@@ -559,10 +559,10 @@ Nodes can use any T function, including standard library functions:
 p = pipeline {
   data = [1, 2, 3, 4, 5]
   total = sum(data)
-  row_count = length(data)
+  count = length(data)
 }
 p.total  -- 15
-p.row_count  -- 5
+p.count  -- 5
 ```
 
 ---
@@ -627,10 +627,10 @@ p = pipeline {
   raw = read_csv("sales.csv")
   filtered = filter(raw, $amount > 100)
   by_region = filtered |> group_by($region)
-  summary_node = by_region |> summarize($total = sum($amount))
+  summary = by_region |> summarize($total = sum($amount))
 }
 
-p.summary_node  -- DataFrame with regional totals
+p.summary  -- DataFrame with regional totals
 ```
 
 ---

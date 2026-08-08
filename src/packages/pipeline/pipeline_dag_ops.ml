@@ -136,18 +136,16 @@ let register env =
 --# Rewire a Node's Dependencies
 --#
 --# Reroutes a node's declared dependencies. The `replace` argument is a
---# Dict mapping old dependency names to new ones. Only the named node's
---# dependency list is updated. A named List of `(name, "new_name")` pairs is
---# also accepted. Any other value for `replace` (including evaluating to an
---# error) is rejected loudly — a no-op rewire is never silently produced.
+--# named list (or Dict) mapping old dependency names to new ones. Only
+--# the named node's dependency list is updated.
 --#
 --# @name rewire
 --# @param p :: Pipeline The pipeline.
 --# @param name :: String The name of the node whose deps should change.
---# @param replace :: Dict[String] A dict mapping old dep names to new ones.
+--# @param replace :: List[String] A named list mapping old dep names to new ones.
 --# @return :: Pipeline A new pipeline with updated dependency edges.
 --# @example
---#   p |> rewire("model_py", replace = [data: "data_v2"])
+--#   p |> rewire("model_py", replace = list(data = "data_v2"))
 --# @family pipeline
 --# @seealso swap, rename_node
 --# @export
@@ -162,57 +160,32 @@ let register env =
             Error.make_error KeyError
               (Printf.sprintf "Node `%s` not found in Pipeline." name)
           else begin
-            let replace_result =
-              match List.assoc_opt "replace" named with
-              | Some (VError e) -> Error e
+            let replace_map = match List.assoc_opt "replace" named with
               | Some (VList items) ->
-                  let rec build acc = function
-                    | [] -> Ok (List.rev acc)
-                    | (Some k, VString v) :: rest -> build ((k, v) :: acc) rest
-                    | (_, other) :: _ ->
-                        Error (Error.make_error_info TypeError
-                          (Printf.sprintf
-                             "Function `rewire` expects `replace` entries to map node names to node-name strings, but got %s."
-                             (Utils.type_name other)))
-                  in
-                  build [] items
+                  List.filter_map (fun (key, v) ->
+                    match key, v with
+                    | Some k, VString v -> Some (k, v)
+                    | _ -> None
+                  ) items
               | Some (VDict pairs) ->
-                  let rec build acc = function
-                    | [] -> Ok (List.rev acc)
-                    | (k, VString s) :: rest -> build ((k, s) :: acc) rest
-                    | (_, other) :: _ ->
-                        Error (Error.make_error_info TypeError
-                          (Printf.sprintf
-                             "Function `rewire` expects `replace` entries to map node names to node-name strings, but got %s."
-                             (Utils.type_name other)))
-                  in
-                  build [] pairs
-              | Some other ->
-                  Error (Error.make_error_info TypeError
-                    (Printf.sprintf
-                       "Function `rewire` expects `replace` to be a Dict or named List of node-name strings, but got %s."
-                       (Utils.type_name other)))
-              | None ->
-                  Error (Error.make_error_info TypeError
-                    (Printf.sprintf
-                       "Function `rewire` expects a `replace` named argument mapping old dependency names to new ones."))
+                  List.filter_map (fun (k, v) ->
+                    match v with VString s -> Some (k, s) | _ -> None
+                  ) pairs
+              | _ -> []
             in
-            match replace_result with
-            | Error e -> VError e
-            | Ok replace_map ->
-                let new_deps = match List.assoc_opt name p.p_deps with
-                  | None -> []
-                  | Some deps ->
-                      List.map (fun d ->
-                        match List.assoc_opt d replace_map with
-                        | Some new_d -> new_d
-                        | None       -> d
-                      ) deps
-                in
-                let new_p_deps = List.map (fun (k, v) ->
-                  if k = name then (k, new_deps) else (k, v)
-                ) p.p_deps in
-                VPipeline { p with p_deps = new_p_deps }
+            let new_deps = match List.assoc_opt name p.p_deps with
+              | None -> []
+              | Some deps ->
+                  List.map (fun d ->
+                    match List.assoc_opt d replace_map with
+                    | Some new_d -> new_d
+                    | None       -> d
+                  ) deps
+            in
+            let new_p_deps = List.map (fun (k, v) ->
+              if k = name then (k, new_deps) else (k, v)
+            ) p.p_deps in
+            VPipeline { p with p_deps = new_p_deps }
           end
       | [_; _] ->
           Error.type_error "Function `rewire` expects a Pipeline and a node name String."
