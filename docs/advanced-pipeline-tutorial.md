@@ -538,7 +538,7 @@ p = pipeline {
 }
 
 -- Re-point model to use data_v2 instead of data
-p2 = p |> rewire("model", replace = list(data = "data_v2"))
+p2 = p |> rewire("model", replace = [data: "data_v2"])
 pipeline_deps(p2)
 -- {`data`: [], `data_v2`: [], `model`: ["data_v2"]}
 ```

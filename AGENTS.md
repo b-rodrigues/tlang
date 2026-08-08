@@ -101,6 +101,7 @@ This runs immediately, then re-runs on every file save. Press Ctrl+C to stop. Ex
 - **Suggested Fix Confidence Levels:** Every suggested fix contains a `"confidence"` string field in JSON (`"high"`, `"medium"`, or `"low"`) indicating whether the fix is deterministic or heuristic. Confidence is computed dynamically from diagnostic context, not static per fix kind:
   - `Cast`: `"high"` when schema chain is intact, `"medium"` when broken (missing upstream column)
   - `Rename_column`: `"high"` at edit distance 1 and unique, `"medium"` at distance 2, `"low"` at 3+
+  - `Rename_node`: always `"high"` (deterministic — appending `_node` to a reserved node name never collides with a builtin or runtime symbol)
   - `Add_node_arg`: always `"medium"` (heuristic, verify before applying)
   - `Suggest_identifier`: `"high"` at distance 1 and unique, scales down with distance/uniqueness
   - `Run_command`: always `"low"` (actionable commands, check manual commands before execution)

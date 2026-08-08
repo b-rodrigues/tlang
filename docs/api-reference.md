@@ -3600,7 +3600,7 @@ result = t_diff("src/pipeline.t", json = true)
 
 ### `t_fix(file, dry_run = false)`
 
-REPL-callable version of `t fix`. Runs `t check --schema` on a file, extracts diagnostics with `suggested_fix`, and applies them mechanically. Supports `Rename_column` (replaces `$old` with `$new`) and `Add_node_arg` (inserts missing arguments into node definitions, e.g., adding a `deserializer` for cross-runtime dependencies).
+REPL-callable version of `t fix`. Runs `t check --schema` on a file, extracts diagnostics with `suggested_fix`, and applies them mechanically. Supports `Rename_column` (replaces `$old` with `$new`), `Add_node_arg` (inserts missing arguments into node definitions, e.g., adding a `deserializer` for cross-runtime dependencies), and `Rename_node` (renames a node that collides with a builtin function or runtime symbol, e.g., `count` → `count_node`).
 
 **Arguments:**
 

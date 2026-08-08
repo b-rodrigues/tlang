@@ -20,10 +20,10 @@ let register env =
       match args with
       | [VPipeline p; (VString name | VSymbol name)] ->
           let name = Utils.strip_dollar name in
-          let v = Eval.pipeline_get_node_value (ref _env) p name in
-          (match v with
-           | VNA _ -> Error.make_error KeyError (Printf.sprintf "Node `%s` not found in Pipeline." name)
-           | _ -> v)
+          if not (List.mem_assoc name p.p_exprs) then
+            Error.make_error KeyError (Printf.sprintf "Node `%s` not found in Pipeline." name)
+          else
+            Eval.pipeline_get_node_value (ref _env) p name
       | [VPipeline _; other] ->
           Error.type_error
             (Printf.sprintf "Function `pipeline_node` expects a String node name as second argument, but got %s."

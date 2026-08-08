@@ -367,6 +367,24 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
   check "schema rename stale: suggested_fix is rename_column" has_rename_fix;
   flush stdout;
 
+  Printf.printf "\nreserved node name fix suggestion:\n";
+
+  (* Reserved node name: the wire-phase NameError carries a Rename_node fix *)
+  let reserved_fixture = "/tmp/reserved_node_fix_test.t" in
+  let oc = open_out reserved_fixture in
+  output_string oc "p = pipeline {\n  count = node(runtime = T, command = <{ 1 }>)\n}\n";
+  close_out oc;
+  let result = eval_string (Printf.sprintf "t_check(\"%s\", schema=true, json=true)" reserved_fixture) in
+  let result_str = match result with Ast.VString s -> s | _ -> "" in
+  let has_rename_node_fix =
+    String.length result_str > 0
+    && (try ignore (Str.search_forward (Str.regexp "\"rename_node\"") result_str 0); true
+        with Not_found -> false)
+  in
+  check "reserved node name: suggested_fix is rename_node" has_rename_node_fix;
+  Sys.remove reserved_fixture;
+  flush stdout;
+
   Printf.printf "\nmissing package detection:\n";
 
   (* Missing package: undeclared R package should get Missing_package *)

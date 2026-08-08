@@ -50,6 +50,7 @@ val confidence_of_string : string -> confidence
 
 type suggested_fix = private
   | Rename_column of { old_name: string; new_name: string; target_node: string option; file: string option; line: int option; edit_distance: int; is_unique: bool; confidence: confidence }
+  | Rename_node of { old_name: string; new_name: string; target_node: string option; file: string option; line: int option; confidence: confidence }
   | Add_node_arg of { node: string; arg: string; target_node: string option; file: string option; line: int option; confidence: confidence }
   | Suggest_identifier of { name: string; suggestion: string; target_node: string option; file: string option; line: int option; edit_distance: int; is_unique: bool; confidence: confidence }
   | Run_command of { command: string; description: string; target_node: string option; file: string option; line: int option; confidence: confidence }
@@ -70,6 +71,11 @@ val make_suggest_identifier_fix : name:string -> suggestion:string -> edit_dista
 
 (** Add_node_arg: adds a missing argument to a node. Always [Medium]. *)
 val make_add_node_arg_fix : node:string -> arg:string -> ?target_node:string -> ?file:string -> ?line:int -> unit -> suggested_fix
+
+(** Rename_node: renames a pipeline node that collides with a builtin function
+    or runtime symbol (e.g., `count` -> `count_node`). Deterministic — the
+    `_node` suffix never collides with a reserved name — so always [High]. *)
+val make_rename_node_fix : old_name:string -> new_name:string -> ?target_node:string -> ?file:string -> ?line:int -> unit -> suggested_fix
 
 (** Run_command: suggests a shell command. Always [Low]. *)
 val make_run_command_fix : command:string -> description:string -> ?target_node:string -> ?file:string -> ?line:int -> unit -> suggested_fix

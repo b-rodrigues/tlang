@@ -425,13 +425,29 @@ pipeline_deps(p2)|}
 
   test "rewire preserves unchanged deps"
     {|p = pipeline { data = 1; model = data + 1 }
-p2 = p |> rewire("model", replace = list(data = "data"))
+p2 = p |> rewire("model", replace = [data: "data"])
 pipeline_deps(p2)|}
     {|{`data`: [], `model`: ["data"]}|};
 
   test "rewire errors on missing node"
-    {|p = pipeline { a = 1 }; p |> rewire("z", replace = list(a = "b"))|}
+    {|p = pipeline { a = 1 }; p |> rewire("z", replace = [a: "b"])|}
     {|Error(KeyError: "Node `z` not found in Pipeline.")|};
+
+  test "rewire rejects list(...) form loudly (no silent no-op)"
+    {|p = pipeline { data = 1; model = data + 1 }; p |> rewire("model", replace = list(data = "data_v2"))|}
+    "Error(NameError: \"Name `list` is not defined.\nDid you mean `nest`?\")";
+
+  test "rewire errors when replace is missing"
+    {|p = pipeline { data = 1; model = data + 1 }; p |> rewire("model")|}
+    {|Error(TypeError: "Function `rewire` expects a `replace` named argument mapping old dependency names to new ones.")|};
+
+  test "rewire errors on non-dict replace value"
+    {|p = pipeline { data = 1; model = data + 1 }; p |> rewire("model", replace = 42)|}
+    {|Error(TypeError: "Function `rewire` expects `replace` to be a Dict or named List of node-name strings, but got Int.")|};
+
+  test "rewire errors on non-string dict entry"
+    {|p = pipeline { data = 1; model = data + 1 }; p |> rewire("model", replace = [data: 42])|}
+    {|Error(TypeError: "Function `rewire` expects `replace` entries to map node names to node-name strings, but got Int.")|};
 
   print_newline ();
 

@@ -23,8 +23,9 @@
         node sets (declaration order), upstream results validate cleanly, and
         subgraph results stay acyclic
       - swap preserves nodes/edges/deps; rewire remaps a dependency (using the
-        [old: new] dict form, which works — the documented `list(...)` form is
-        broken, see report); prune removes exactly the leaves and validates
+        [old: new] dict form; the `list(...)` form is not a function and now
+        errors loudly rather than silently no-oping); prune removes exactly the
+        leaves and validates
       - pipeline_config_to_frame has one row per node and agrees with
         pipeline_to_frame on name and depth, with an n_deps column
     Set ops and composition on generated pipeline pairs:
@@ -529,7 +530,7 @@ let run_tests _pass_count _fail_count _failures _eval_string eval_string_env _te
   test_env env "pipeline_node(p, \"$missing\") string form raises clean KeyError"
     {|p = pipeline { a = 0; b = a + 1 }; pipeline_node(p, "$missing")|}
     {|Error(KeyError: "Node `missing` not found in Pipeline.")|};
-  test_env env "pipeline_node(p, NA-valued node) does not raise (wrapper, not bare VNA)"
+  test_env env "pipeline_node(p, NA-valued node) does not raise (existence-based guard)"
     {|p = pipeline { x = NA }; pipeline_node(p, "x")|}
     "computed_node";
   (* The 3-arg form has no existence guard (missing -> NA -> default is its

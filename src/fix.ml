@@ -216,6 +216,48 @@ let apply_add_node_arg ~file ~node ~arg =
   end;
   result
 
+(* Renames a pipeline node definition line whose name collides with a builtin
+   or runtime symbol. Only lines matching `name = node(` / `pyn(` / `rn(` /
+   `jln(` / `qn(` / `shn(` are renamed — this confines the edit to actual node
+   definitions inside pipeline blocks and never touches top-level assignments
+   (e.g. a bare `count = 3`). Literal-value nodes (`pipeline { count = 0 }`)
+   have no constructor to gate on, so they are not auto-renamed and return
+   false (the fix is reported as skipped). *)
+let apply_rename_node ~file ~old_name ~new_name =
+  let ch = open_in file in
+  let lines = ref [] in
+  let found = ref false in
+  (try
+     while true do
+       let l = input_line ch in
+       let trimmed = String.trim l in
+       let prefix = old_name ^ " = " in
+       if String.length trimmed >= String.length prefix
+          && String.sub trimmed 0 (String.length prefix) = prefix then begin
+         let rest = String.sub trimmed (String.length prefix) (String.length trimmed - String.length prefix) in
+         let rest_stripped = String.trim rest in
+         if List.exists (fun fn -> String.length rest_stripped >= String.length fn + 1
+             && String.sub rest_stripped 0 (String.length fn) = fn
+             && rest_stripped.[String.length fn] = '(')
+             ["node"; "pyn"; "rn"; "jln"; "qn"; "shn"] then begin
+           found := true;
+           let indent_len = String.length l - String.length trimmed in
+           let indent = String.sub l 0 indent_len in
+           let rest = String.sub trimmed (String.length old_name) (String.length trimmed - String.length old_name) in
+           lines := (indent ^ new_name ^ rest) :: !lines
+         end else
+           lines := l :: !lines
+       end else
+         lines := l :: !lines
+     done
+   with End_of_file -> ());
+  if !found then begin
+    let oc = open_out file in
+    Fun.protect ~finally:(fun () -> close_out_noerr oc)
+      (fun () -> List.iter (fun l -> output_string oc (l ^ "\n")) (List.rev !lines))
+  end;
+  !found
+
 let apply_fix ~file (fix : Diagnostics.suggested_fix) =
   (* NOTE: t fix applies ALL non-NoFix suggestions regardless of confidence.
      Confidence is informational for agents/tools to decide whether to auto-apply
@@ -226,6 +268,8 @@ let apply_fix ~file (fix : Diagnostics.suggested_fix) =
       apply_rename_column ~file ~old_name ~new_name; true
   | Add_node_arg { node; arg; _ } ->
       apply_add_node_arg ~file ~node ~arg
+  | Rename_node { old_name; new_name; _ } ->
+      apply_rename_node ~file ~old_name ~new_name
   | Suggest_identifier _ -> false
   | Run_command _ -> false
   | NoFix -> false
@@ -255,6 +299,7 @@ let apply_fixes ~dry_run ~default_file (fixes : Diagnostics.diagnostic list) =
       let would_work = match d.diag_suggested_fix with
         | Diagnostics.Rename_column _ -> true
         | Diagnostics.Add_node_arg _ -> true
+        | Diagnostics.Rename_node _ -> true
         | _ -> false
       in
       if would_work then incr would_apply else incr skipped
