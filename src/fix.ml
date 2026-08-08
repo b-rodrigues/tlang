@@ -6,7 +6,12 @@ type fix_result = {
   applied : int;
   skipped : int;
   would_apply : int;
+  dry_run : bool;
   diagnostics : Diagnostics.diagnostic list;
+  skip_notes : string list;
+      (* Human-readable reasons for skipped fixes, e.g. which lines still
+         reference a node that `t fix` refuses to rename. Empty when nothing
+         was skipped with an explanation. *)
 }
 
 let is_word_char = function
@@ -257,60 +262,75 @@ let apply_add_node_arg ~file ~node ~arg =
    only live inside the definition node's own argument block, where `old_name`
    is the node itself — i.e. a self-reference (a dependency cycle), which is an
    invalid pipeline regardless. *)
-let apply_rename_node ~file ~old_name ~new_name =
-  let ch = open_in file in
-  let all_lines = Fun.protect ~finally:(fun () -> close_in_noerr ch)
-    (fun () ->
-       let lines = ref [] in
-       (try
-          while true do lines := input_line ch :: !lines done
-        with End_of_file -> ());
-       List.rev !lines)
-  in
-  (* Phase A: locate the constructor-form definition line. *)
-  let def_index = ref None in
-  List.iteri (fun i l ->
-    if !def_index = None then begin
-      let trimmed = String.trim l in
-      let prefix = old_name ^ " = " in
-      if String.length trimmed >= String.length prefix
-         && String.sub trimmed 0 (String.length prefix) = prefix then begin
-        let rest = String.sub trimmed (String.length prefix) (String.length trimmed - String.length prefix) in
-        let rest_stripped = String.trim rest in
-        if List.exists (fun fn -> String.length rest_stripped >= String.length fn + 1
-            && String.sub rest_stripped 0 (String.length fn) = fn
-            && rest_stripped.[String.length fn] = '(')
-            ["node"; "pyn"; "rn"; "jln"; "qn"; "shn"] then
-          def_index := Some i
+(* Outcome of scanning a file for a node rename, shared by the real apply and
+   the dry-run probe so both agree on whether a rename would go through. *)
+type rename_node_outcome =
+  | Renamed of string list * int
+      (* all_lines, 0-based index of the definition line — the rename is clean *)
+  | Refused of int list
+      (* 1-based line numbers of blocking references outside the node's block *)
+  | NotFound
+
+(* Scans [file] for a constructor-form definition of [old_name] and checks
+   whether the rename can be applied safely, without modifying the file.
+
+   Refuses (Refused lines) if the old name appears as a bare identifier
+   anywhere outside the definition node's own block (its definition line plus
+   the rest of its `node(...)` call, including its own raw code block).
+   Occurrences inside the def node's own block are its own configuration or own
+   code (e.g. R's dplyr::count) — never references to the node. Anything
+   outside — deps lists, sibling expressions, other nodes' raw blocks,
+   top-level bindings — refuses the rename. Paren depth is tracked across
+   lines (ignoring parens inside raw code) so a multi-line `node(...)` call
+   keeps its own block. Returns NotFound when there is no constructor-form
+   definition or the file cannot be opened. *)
+let scan_rename_node ~file ~old_name : rename_node_outcome =
+  try
+    let ch = open_in file in
+    let all_lines = Fun.protect ~finally:(fun () -> close_in_noerr ch)
+      (fun () ->
+         let lines = ref [] in
+         (try
+            while true do lines := input_line ch :: !lines done
+          with End_of_file -> ());
+         List.rev !lines)
+    in
+    (* Phase A: locate the constructor-form definition line. *)
+    let def_index = ref None in
+    List.iteri (fun i l ->
+      if !def_index = None then begin
+        let trimmed = String.trim l in
+        let prefix = old_name ^ " = " in
+        if String.length trimmed >= String.length prefix
+           && String.sub trimmed 0 (String.length prefix) = prefix then begin
+          let rest = String.sub trimmed (String.length prefix) (String.length trimmed - String.length prefix) in
+          let rest_stripped = String.trim rest in
+          if List.exists (fun fn -> String.length rest_stripped >= String.length fn + 1
+              && String.sub rest_stripped 0 (String.length fn) = fn
+              && rest_stripped.[String.length fn] = '(')
+              ["node"; "pyn"; "rn"; "jln"; "qn"; "shn"] then
+            def_index := Some i
+        end
       end
-    end
-  ) all_lines;
-  match !def_index with
-  | None -> false
-  | Some di ->
-      (* Phase B: refuse if the old name appears as a bare identifier anywhere
-         outside the definition node's own block (its definition line plus the
-         rest of its `node(...)` call, including its own raw code block).
-         Occurrences inside the def node's own block are its own configuration
-         or own code (e.g. R's dplyr::count) — never references to the node.
-         Anything outside — deps lists, sibling expressions, other nodes' raw
-         blocks, top-level bindings — refuses the rename. Paren depth is
-         tracked across lines (ignoring parens inside raw code) so a
-         multi-line `node(...)` call keeps its own block. *)
-      let in_raw = ref false in
-      let paren_depth = ref 0 in
-      let in_def_block = ref false in
-      let refuse = ref false in
-      let scan_state l =
-        if not !in_raw then
-          String.iter (function
-            | '(' -> incr paren_depth
-            | ')' -> decr paren_depth
-            | _ -> ()) l;
-        scan_raw_delimiters l in_raw
-      in
-      List.iteri (fun i l ->
-        if not !refuse then begin
+    ) all_lines;
+    match !def_index with
+    | None -> NotFound
+    | Some di ->
+        (* Phase B: collect blocking references outside the def node's own
+           block. *)
+        let in_raw = ref false in
+        let paren_depth = ref 0 in
+        let in_def_block = ref false in
+        let blocking = ref [] in
+        let scan_state l =
+          if not !in_raw then
+            String.iter (function
+              | '(' -> incr paren_depth
+              | ')' -> decr paren_depth
+              | _ -> ()) l;
+          scan_raw_delimiters l in_raw
+        in
+        List.iteri (fun i l ->
           if i = di then begin
             in_def_block := true;
             scan_state l;
@@ -321,29 +341,55 @@ let apply_rename_node ~file ~old_name ~new_name =
           end else begin
             (* Before the definition line or past the def node's block: this
                line may reference the node. *)
-            if contains_word ~content:l ~word:old_name then refuse := true
+            if contains_word ~content:l ~word:old_name then
+              blocking := (i + 1) :: !blocking
           end
-        end
-      ) all_lines;
-      if !refuse then false
-      else begin
-        (* Phase C: clean — rewrite the definition line in place. *)
-        let rewritten =
-          List.mapi (fun i l ->
-            if i = di then begin
-              let trimmed = String.trim l in
-              let indent_len = String.length l - String.length trimmed in
-              let indent = String.sub l 0 indent_len in
-              let rest = String.sub trimmed (String.length old_name) (String.length trimmed - String.length old_name) in
-              indent ^ new_name ^ rest
-            end else l
-          ) all_lines
-        in
-        let oc = open_out file in
-        Fun.protect ~finally:(fun () -> close_out_noerr oc)
-          (fun () -> List.iter (fun l -> output_string oc (l ^ "\n")) rewritten);
-        true
-      end
+        ) all_lines;
+        if !blocking = [] then Renamed (all_lines, di)
+        else Refused (List.rev !blocking)
+  with Sys_error _ -> NotFound
+
+(* Renames a pipeline node definition line whose name collides with a builtin
+   or runtime symbol. See scan_rename_node for the refusal semantics: when the
+   old name is referenced elsewhere in the file the file is left untouched and
+   false is returned (the fix is reported as skipped), so no reference is ever
+   silently re-bound to the builtin. Literal-value nodes
+   (`pipeline { count = 0 }`) have no constructor to gate on, so they are not
+   auto-renamed and return false. *)
+let apply_rename_node ~file ~old_name ~new_name =
+  match scan_rename_node ~file ~old_name with
+  | Refused _ | NotFound -> false
+  | Renamed (all_lines, di) ->
+      (* Phase C: rewrite the definition line in place. *)
+      let rewritten =
+        List.mapi (fun i l ->
+          if i = di then begin
+            let trimmed = String.trim l in
+            let indent_len = String.length l - String.length trimmed in
+            let indent = String.sub l 0 indent_len in
+            let rest = String.sub trimmed (String.length old_name) (String.length trimmed - String.length old_name) in
+            indent ^ new_name ^ rest
+          end else l
+        ) all_lines
+      in
+      let oc = open_out file in
+      Fun.protect ~finally:(fun () -> close_out_noerr oc)
+        (fun () -> List.iter (fun l -> output_string oc (l ^ "\n")) rewritten);
+      true
+
+(* Human-readable reason for a refused rename, or None when the rename is clean
+   or there is nothing to rename. Used to tell the user which lines still
+   reference the node so they can rename them manually. *)
+let rename_node_refusal_note ~file ~old_name : string option =
+  match scan_rename_node ~file ~old_name with
+  | Refused lines ->
+      Some (Printf.sprintf
+        "Node `%s` is still referenced on %s %s of %s — rename the node and its references manually."
+        old_name
+        (if List.length lines = 1 then "line" else "lines")
+        (String.concat ", " (List.map string_of_int lines))
+        file)
+  | Renamed _ | NotFound -> None
 
 let apply_fix ~file (fix : Diagnostics.suggested_fix) =
   (* NOTE: t fix applies ALL non-NoFix suggestions regardless of confidence.
@@ -379,6 +425,19 @@ let apply_fixes ~dry_run ~default_file (fixes : Diagnostics.diagnostic list) =
   let applied = ref 0 in
   let skipped = ref 0 in
   let would_apply = ref 0 in
+  let skip_notes = ref [] in
+  let add_note (d : Diagnostics.diagnostic) =
+    match d.diag_suggested_fix with
+    | Diagnostics.Rename_node { old_name; _ } ->
+        let file_to_fix = match d.diag_file with
+          | Some f -> f
+          | None -> default_file
+        in
+        (match rename_node_refusal_note ~file:file_to_fix ~old_name with
+         | Some note -> skip_notes := note :: !skip_notes
+         | None -> ())
+    | _ -> ()
+  in
   List.iter (fun (d : Diagnostics.diagnostic) ->
     if dry_run then begin
       Printf.printf "Would apply: %s on %s\n" d.diag_message
@@ -386,13 +445,24 @@ let apply_fixes ~dry_run ~default_file (fixes : Diagnostics.diagnostic list) =
       let would_work = match d.diag_suggested_fix with
         | Diagnostics.Rename_column _ -> true
         | Diagnostics.Add_node_arg _ -> true
-        (* Dry-run cannot inspect the file, so Rename_node always reports
-           would-apply even when the real apply would refuse due to a
-           downstream reference. *)
-        | Diagnostics.Rename_node _ -> true
+        (* Dry-run probes the file through scan_rename_node so it agrees with
+           the real apply: a Rename_node whose target is referenced elsewhere
+           in the file is reported as skipped, not would-apply. *)
+        | Diagnostics.Rename_node { old_name; _ } ->
+            let file_to_fix = match d.diag_file with
+              | Some f -> f
+              | None -> default_file
+            in
+            (match scan_rename_node ~file:file_to_fix ~old_name with
+             | Renamed _ -> true
+             | _ -> false)
         | _ -> false
       in
-      if would_work then incr would_apply else incr skipped
+      if would_work then incr would_apply
+      else begin
+        incr skipped;
+        add_note d
+      end
     end else begin
       let file_to_fix = match d.diag_file with
         | Some f -> f
@@ -400,12 +470,15 @@ let apply_fixes ~dry_run ~default_file (fixes : Diagnostics.diagnostic list) =
       in
       if apply_fix ~file:file_to_fix d.diag_suggested_fix then
         incr applied
-      else
-        incr skipped
+      else begin
+        incr skipped;
+        add_note d
+      end
     end
   ) fixes;
   { file = default_file; applied = !applied; skipped = !skipped;
-    would_apply = !would_apply; diagnostics = fixes }
+    would_apply = !would_apply; dry_run; diagnostics = fixes;
+    skip_notes = List.rev !skip_notes }
 
 (* cmd_fix accepts a check function to avoid circular dependency with Repl.
    The caller (repl.ml) passes run_check ~schema:true. *)

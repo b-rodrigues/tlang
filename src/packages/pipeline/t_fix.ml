@@ -25,7 +25,7 @@ let format_fix_result (result : Fix.fix_result) =
     "No fixes to apply.\n"
   else
     let buf = Buffer.create 256 in
-    if result.Fix.would_apply > 0 then
+    if result.Fix.would_apply > 0 || result.Fix.dry_run then
       Buffer.add_string buf (Printf.sprintf "Would apply %d fix(es), skipped %d.\n" result.Fix.would_apply result.Fix.skipped)
     else
       Buffer.add_string buf (Printf.sprintf "Applied %d fix(es), skipped %d.\n" result.Fix.applied result.Fix.skipped);
@@ -47,6 +47,9 @@ let format_fix_result (result : Fix.fix_result) =
         (Option.value ~default:0 d.diag_line)
         fix_desc)
     ) result.Fix.diagnostics;
+    List.iter (fun note ->
+      Buffer.add_string buf (Printf.sprintf "  - %s\n" note)
+    ) result.Fix.skip_notes;
     Buffer.contents buf
 
 let register env =

@@ -3600,7 +3600,7 @@ result = t_diff("src/pipeline.t", json = true)
 
 ### `t_fix(file, dry_run = false)`
 
-REPL-callable version of `t fix`. Runs `t check --schema` on a file, extracts diagnostics with `suggested_fix`, and applies them mechanically. Supports `Rename_column` (replaces `$old` with `$new`), `Add_node_arg` (inserts missing arguments into node definitions, e.g., adding a `deserializer` for cross-runtime dependencies), and `Rename_node` (renames a node that collides with a builtin function or runtime symbol, e.g., `count` → `count_node`; the rename is skipped when the node is referenced elsewhere in the file — `deps`, sibling expressions, or raw code blocks — since those references must be updated manually).
+REPL-callable version of `t fix`. Runs `t check --schema` on a file, extracts diagnostics with `suggested_fix`, and applies them mechanically. Supports `Rename_column` (replaces `$old` with `$new`), `Add_node_arg` (inserts missing arguments into node definitions, e.g., adding a `deserializer` for cross-runtime dependencies), and `Rename_node` (renames a node that collides with a builtin function or runtime symbol, e.g., `count` → `count_node`; the rename is skipped when the node is referenced elsewhere in the file — `deps`, sibling expressions, or raw code blocks — since those references must be updated manually). `dry_run = true` probes the file and reports refused `Rename_node` fixes as skipped (not would-apply), and skipped renames print a note naming the blocking line(s) so they can be updated manually.
 
 **Arguments:**
 
@@ -4111,8 +4111,8 @@ t fix --dry-run <file.t>           # preview fixes without applying
 | Fix Kind | Action |
 |----------|--------|
 | `rename_column` | Replaces all occurrences of the old column name with the new name |
-| `add_node_arg` | (planned) Adds an argument to a pipeline node |
-| `pin_package_version` | (planned) Adds or updates a package version in `tproject.toml` |
+| `add_node_arg` | Adds a missing argument to a pipeline node definition (e.g. a `deserializer` for cross-runtime dependencies) |
+| `rename_node` | Renames a node definition that collides with a builtin/runtime symbol (`count` → `count_node`). Refused — reported as skipped, file left untouched — when the old name is referenced elsewhere in the file; a note names the blocking line(s). `--dry-run` probes the file and reports the same skipped outcome, matching the real apply |
 
 **Exit codes:**
 

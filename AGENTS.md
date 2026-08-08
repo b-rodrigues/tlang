@@ -98,6 +98,7 @@ This runs immediately, then re-runs on every file save. Press Ctrl+C to stop. Ex
 ### Agent Check-Fix Loop Rules (Critical for LLMs)
 
 - **`t fix` is Not Idempotent:** `t fix` does not check if a suggestion was already applied. If you run `t check` -> `t fix` in a loop, you must count the number of diagnostics/errors returned. If the count does not decrease after a fix, **stop immediately** and do not run `t fix` again; otherwise, you will insert duplicate code blocks (e.g. repeated cast mutations).
+- **Accurate `--dry-run`:** `t fix --dry-run` probes the file (via `Fix.scan_rename_node`) and reports a `Rename_node` whose target is referenced elsewhere in the file as **skipped**, matching what the real apply will do. Skipped renames print a note naming the blocking line(s) (e.g. `Node \`count\` is still referenced on line 3 of … — rename the node and its references manually.`).
 - **Suggested Fix Confidence Levels:** Every suggested fix contains a `"confidence"` string field in JSON (`"high"`, `"medium"`, or `"low"`) indicating whether the fix is deterministic or heuristic. Confidence is computed dynamically from diagnostic context, not static per fix kind:
   - `Cast`: `"high"` when schema chain is intact, `"medium"` when broken (missing upstream column)
   - `Rename_column`: `"high"` at edit distance 1 and unique, `"medium"` at distance 2, `"low"` at 3+

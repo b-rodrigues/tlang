@@ -457,13 +457,69 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
       diag_message = "Node `count` is reserved: `count` is a builtin function.";
       diag_suggested_fix = Diagnostics.make_rename_node_fix ~old_name:"count" ~new_name:"count_node" ?target_node:(Some "count") ?file:(Some "test.t") ?line:(Some 15) ();
     } in
+    (* d4 targets a file that does not exist, so the dry-run probe cannot find
+       a definition and reports it as skipped — accurate Rename_node dry-run. *)
     let fixes = [d1; d2; d3; d4] in
     let result = Fix.apply_fixes ~dry_run:true ~default_file:"test.t" fixes in
     check "dry_run: applied = 0" (result.Fix.applied = 0);
-    check "dry_run: would_apply = 4" (result.Fix.would_apply = 4);
-    check "dry_run: skipped = 0" (result.Fix.skipped = 0)
+    check "dry_run: would_apply = 3" (result.Fix.would_apply = 3);
+    check "dry_run: skipped = 1" (result.Fix.skipped = 1)
   in
   test_dry_run_counting ();
+
+  Printf.printf "\ndry-run Rename_node accuracy and skip notes:\n";
+  let write_tmp_file path content =
+    let oc = open_out path in
+    output_string oc content;
+    close_out oc
+  in
+  let read_tmp_file path =
+    let ch = open_in path in
+    let content = really_input_string ch (in_channel_length ch) in
+    close_in ch;
+    content
+  in
+  let test_dry_run_rename_node () =
+    (* Referenced fixture: dry-run must report skipped (not would-apply) and
+       the skip note must name the blocking line. *)
+    let tmp_ref = Filename.temp_file "test_fix_dr_ref" ".t" in
+    write_tmp_file tmp_ref "count = node(\"R\", code = \"x\")\nmodel = count + 1\n";
+    let d_ref = { Diagnostics.
+      diag_id = "T1004"; diag_error_class = Diagnostics.Name_error; diag_severity = Error;
+      diag_phase = Schema; diag_node_id = Some "count"; diag_node_lang = None;
+      diag_file = Some tmp_ref; diag_line = Some 1; diag_column = None;
+      diag_end_line = None; diag_end_column = None;
+      diag_message = "Node `count` is reserved: `count` is a builtin function.";
+      diag_expected = None; diag_actual = None; diag_caused_by = [];
+      diag_suggested_fix = Diagnostics.make_rename_node_fix ~old_name:"count" ~new_name:"count_node" ?target_node:(Some "count") ?file:(Some tmp_ref) ?line:(Some 1) ();
+    } in
+    let dry = Fix.apply_fixes ~dry_run:true ~default_file:tmp_ref [d_ref] in
+    check "ref dry-run: would_apply = 0" (dry.Fix.would_apply = 0);
+    check "ref dry-run: skipped = 1" (dry.Fix.skipped = 1);
+    check "ref dry-run: skip note mentions blocking line 2"
+      (List.exists (fun n -> Test_helpers.contains n "line 2") dry.Fix.skip_notes);
+    let real = Fix.apply_fixes ~dry_run:false ~default_file:tmp_ref [d_ref] in
+    check "ref real: applied = 0" (real.Fix.applied = 0);
+    check "ref real: skipped = 1" (real.Fix.skipped = 1);
+    check "ref real: skip note mentions blocking line 2"
+      (List.exists (fun n -> Test_helpers.contains n "line 2") real.Fix.skip_notes);
+    check "ref real: file untouched" (read_tmp_file tmp_ref = "count = node(\"R\", code = \"x\")\nmodel = count + 1\n");
+    Sys.remove tmp_ref;
+    (* Clean fixture: dry-run agrees with the real apply (both would apply). *)
+    let tmp_clean = Filename.temp_file "test_fix_dr_clean" ".t" in
+    write_tmp_file tmp_clean "count = node(\"R\", code = \"x\")\n";
+    let d_clean = { d_ref with diag_file = Some tmp_clean } in
+    let dry_clean = Fix.apply_fixes ~dry_run:true ~default_file:tmp_clean [d_clean] in
+    check "clean dry-run: would_apply = 1" (dry_clean.Fix.would_apply = 1);
+    check "clean dry-run: skipped = 0" (dry_clean.Fix.skipped = 0);
+    check "clean dry-run: no skip notes" (dry_clean.Fix.skip_notes = []);
+    let real_clean = Fix.apply_fixes ~dry_run:false ~default_file:tmp_clean [d_clean] in
+    check "clean real: applied = 1" (real_clean.Fix.applied = 1);
+    check "clean real: skip notes empty" (real_clean.Fix.skip_notes = []);
+    check "clean real: renamed" (read_tmp_file tmp_clean = "count_node = node(\"R\", code = \"x\")\n");
+    Sys.remove tmp_clean
+  in
+  test_dry_run_rename_node ();
 
   Printf.printf "\napply_fixes non-dry-run:\n";
   let test_apply_fixes_real () =

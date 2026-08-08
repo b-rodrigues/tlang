@@ -1950,7 +1950,8 @@ let () =
               else begin
                 Printf.printf "Applied %d fix(es), skipped %d.\n" result.Fix.applied result.Fix.skipped;
                 Printf.printf "Run 't check %s' to verify.\n" f
-              end
+              end;
+              List.iter (fun note -> Printf.printf "  - %s\n" note) result.Fix.skip_notes
             end;
             exit 0)
   | _ :: "repl" :: _ -> cmd_repl ~failfast mode_parse.mode env
