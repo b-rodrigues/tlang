@@ -547,3 +547,92 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
     check "non-dry-run: file patched with rename_column()" has_rename
   in
   test_apply_fixes_real ();
+
+  Printf.printf "\ndry_run_outcome per-fix labels and notes:\n";
+  let test_dry_run_outcome () =
+    (* Base diagnostic to clone for each fix kind. *)
+    let base = { Diagnostics.
+      diag_id = "T1000"; diag_error_class = Diagnostics.Name_error; diag_severity = Error;
+      diag_phase = Schema; diag_node_id = None; diag_node_lang = None;
+      diag_file = Some "test.t"; diag_line = Some 1; diag_column = None;
+      diag_end_line = None; diag_end_column = None;
+      diag_message = "msg"; diag_expected = None; diag_actual = None;
+      diag_caused_by = [];
+      diag_suggested_fix = Diagnostics.no_fix;
+    } in
+    (* rename_column is always would-apply *)
+    let d_col = { base with
+      diag_suggested_fix = Diagnostics.make_rename_column_fix ~old_name:"x" ~new_name:"y" ~edit_distance:1 ~is_unique:true ?file:(Some "test.t") ?line:(Some 1) ();
+    } in
+    (match Fix.dry_run_outcome ~default_file:"test.t" d_col with
+     | Fix.Would_apply -> check "rename_column -> Would_apply" true
+     | _ -> check "rename_column -> Would_apply" false);
+    (* add_node_arg is always would-apply *)
+    let d_arg = { base with
+      diag_suggested_fix = Diagnostics.make_add_node_arg_fix ~node:"raw" ~arg:"deserializer = ^csv" ?file:(Some "test.t") ();
+    } in
+    (match Fix.dry_run_outcome ~default_file:"test.t" d_arg with
+     | Fix.Would_apply -> check "add_node_arg -> Would_apply" true
+     | _ -> check "add_node_arg -> Would_apply" false);
+    (* suggest_identifier is never auto-applied and carries an actionable note *)
+    let d_ident = { base with
+      diag_suggested_fix = Diagnostics.make_suggest_identifier_fix ~name:"mpg" ~suggestion:"mpg2" ~edit_distance:1 ~is_unique:true ?file:(Some "test.t") ?line:(Some 1) ();
+    } in
+    (match Fix.dry_run_outcome ~default_file:"test.t" d_ident with
+     | Fix.Skipped (Some note) ->
+         check "suggest_identifier -> Skipped with note"
+           (Test_helpers.contains note "`mpg`" && Test_helpers.contains note "`mpg2`")
+     | _ -> check "suggest_identifier -> Skipped with note" false);
+    (* run_command is never auto-applied and shows the command *)
+    let d_cmd = { base with
+      diag_suggested_fix = Diagnostics.make_run_command_fix ~command:"t add R jsonlite" ~description:"Install missing R package" ?file:(Some "test.t") ?line:(Some 1) ();
+    } in
+    (match Fix.dry_run_outcome ~default_file:"test.t" d_cmd with
+     | Fix.Skipped (Some note) ->
+         check "run_command -> Skipped with note"
+           (Test_helpers.contains note "t add R jsonlite")
+     | _ -> check "run_command -> Skipped with note" false);
+    (* NoFix is skipped without a note *)
+    (match Fix.dry_run_outcome ~default_file:"test.t" base with
+     | Fix.Skipped None -> check "NoFix -> Skipped without note" true
+     | _ -> check "NoFix -> Skipped without note" false)
+  in
+  test_dry_run_outcome ();
+
+  Printf.printf "\napply_fixes skip notes for non-applied fix kinds:\n";
+  let test_apply_fixes_skip_notes () =
+    let tmp = Filename.temp_file "test_fix_notes" ".t" in
+    let oc = open_out tmp in
+    output_string oc "x = 1\n";
+    close_out oc;
+    let d_ident = { Diagnostics.
+      diag_id = "T1000"; diag_error_class = Diagnostics.Name_error; diag_severity = Error;
+      diag_phase = Schema; diag_node_id = None; diag_node_lang = None;
+      diag_file = Some tmp; diag_line = Some 1; diag_column = None;
+      diag_end_line = None; diag_end_column = None;
+      diag_message = "did you mean 'mpg2' instead of 'mpg'?"; diag_expected = None; diag_actual = None;
+      diag_caused_by = [];
+      diag_suggested_fix = Diagnostics.make_suggest_identifier_fix ~name:"mpg" ~suggestion:"mpg2" ~edit_distance:1 ~is_unique:true ?file:(Some tmp) ?line:(Some 1) ();
+    } in
+    let d_cmd = { d_ident with
+      diag_id = "T1001";
+      diag_message = "Missing R package 'jsonlite'";
+      diag_suggested_fix = Diagnostics.make_run_command_fix ~command:"t add R jsonlite" ~description:"Install missing R package" ?file:(Some tmp) ?line:(Some 1) ();
+    } in
+    let dry = Fix.apply_fixes ~dry_run:true ~default_file:tmp [d_ident; d_cmd] in
+    check "skip notes: dry-run would_apply = 0" (dry.Fix.would_apply = 0);
+    check "skip notes: dry-run skipped = 2" (dry.Fix.skipped = 2);
+    check "skip notes: dry-run note for identifier"
+      (List.exists (fun n -> Test_helpers.contains n "mpg2") dry.Fix.skip_notes);
+    check "skip notes: dry-run note for command"
+      (List.exists (fun n -> Test_helpers.contains n "t add R jsonlite") dry.Fix.skip_notes);
+    let real = Fix.apply_fixes ~dry_run:false ~default_file:tmp [d_ident; d_cmd] in
+    check "skip notes: real applied = 0" (real.Fix.applied = 0);
+    check "skip notes: real skipped = 2" (real.Fix.skipped = 2);
+    check "skip notes: real note for identifier"
+      (List.exists (fun n -> Test_helpers.contains n "mpg2") real.Fix.skip_notes);
+    check "skip notes: real note for command"
+      (List.exists (fun n -> Test_helpers.contains n "t add R jsonlite") real.Fix.skip_notes);
+    Sys.remove tmp
+  in
+  test_apply_fixes_skip_notes ();

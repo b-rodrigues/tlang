@@ -377,19 +377,40 @@ let apply_rename_node ~file ~old_name ~new_name =
         (fun () -> List.iter (fun l -> output_string oc (l ^ "\n")) rewritten);
       true
 
-(* Human-readable reason for a refused rename, or None when the rename is clean
-   or there is nothing to rename. Used to tell the user which lines still
-   reference the node so they can rename them manually. *)
-let rename_node_refusal_note ~file ~old_name : string option =
-  match scan_rename_node ~file ~old_name with
-  | Refused lines ->
-      Some (Printf.sprintf
-        "Node `%s` is still referenced on %s %s of %s — rename the node and its references manually."
-        old_name
-        (if List.length lines = 1 then "line" else "lines")
-        (String.concat ", " (List.map string_of_int lines))
-        file)
-  | Renamed _ | NotFound -> None
+type dry_run_outcome =
+  | Would_apply
+  | Skipped of string option
+      (* Some note = human-readable reason the fix was (or would be) skipped;
+         None = skipped without an explanation (e.g. nothing to rename). *)
+
+(* Decide, without modifying the file, whether applying [d]'s suggested fix
+   would succeed, and if not, produce a human-readable skip note. Rename_node
+   probes the file through scan_rename_node so the dry-run agrees with the real
+   apply: a target still referenced elsewhere in the file is reported as
+   skipped, not would-apply. Fix kinds that are never auto-applied
+   (Suggest_identifier, Run_command, NoFix) always report Skipped with an
+   explanatory note so the user knows what to do manually. *)
+let dry_run_outcome ~default_file (d : Diagnostics.diagnostic) =
+  let file_to_fix = match d.diag_file with Some f -> f | None -> default_file in
+  match d.diag_suggested_fix with
+  | Diagnostics.Rename_column _ | Diagnostics.Add_node_arg _ -> Would_apply
+  | Diagnostics.Rename_node { old_name; _ } ->
+      (match scan_rename_node ~file:file_to_fix ~old_name with
+       | Renamed _ -> Would_apply
+       | Refused lines ->
+           Skipped (Some (Printf.sprintf
+             "Node `%s` is still referenced on %s %s of %s — rename the node and its references manually."
+             old_name
+             (if List.length lines = 1 then "line" else "lines")
+             (String.concat ", " (List.map string_of_int lines))
+             file_to_fix))
+       | NotFound -> Skipped None)
+  | Diagnostics.Suggest_identifier { name; suggestion; _ } ->
+      Skipped (Some (Printf.sprintf
+        "Identifier `%s` is misspelled — did you mean `%s`? Apply the rename manually." name suggestion))
+  | Diagnostics.Run_command { command; description; _ } ->
+      Skipped (Some (Printf.sprintf "Manual step required: %s — run: %s." description command))
+  | Diagnostics.NoFix -> Skipped None
 
 let apply_fix ~file (fix : Diagnostics.suggested_fix) =
   (* NOTE: t fix applies ALL non-NoFix suggestions regardless of confidence.
@@ -426,53 +447,36 @@ let apply_fixes ~dry_run ~default_file (fixes : Diagnostics.diagnostic list) =
   let skipped = ref 0 in
   let would_apply = ref 0 in
   let skip_notes = ref [] in
-  let add_note (d : Diagnostics.diagnostic) =
-    match d.diag_suggested_fix with
-    | Diagnostics.Rename_node { old_name; _ } ->
-        let file_to_fix = match d.diag_file with
-          | Some f -> f
-          | None -> default_file
-        in
-        (match rename_node_refusal_note ~file:file_to_fix ~old_name with
-         | Some note -> skip_notes := note :: !skip_notes
-         | None -> ())
-    | _ -> ()
+  let file_label (d : Diagnostics.diagnostic) =
+    match d.diag_file with Some f -> f | None -> "<unknown>"
+  in
+  let record_skip_note (d : Diagnostics.diagnostic) =
+    match dry_run_outcome ~default_file d with
+    | Would_apply -> ()
+    | Skipped (Some note) -> skip_notes := note :: !skip_notes
+    | Skipped None -> ()
   in
   List.iter (fun (d : Diagnostics.diagnostic) ->
     if dry_run then begin
-      Printf.printf "Would apply: %s on %s\n" d.diag_message
-        (match d.diag_file with Some f -> f | None -> "<unknown>");
-      let would_work = match d.diag_suggested_fix with
-        | Diagnostics.Rename_column _ -> true
-        | Diagnostics.Add_node_arg _ -> true
-        (* Dry-run probes the file through scan_rename_node so it agrees with
-           the real apply: a Rename_node whose target is referenced elsewhere
-           in the file is reported as skipped, not would-apply. *)
-        | Diagnostics.Rename_node { old_name; _ } ->
-            let file_to_fix = match d.diag_file with
-              | Some f -> f
-              | None -> default_file
-            in
-            (match scan_rename_node ~file:file_to_fix ~old_name with
-             | Renamed _ -> true
-             | _ -> false)
-        | _ -> false
-      in
-      if would_work then incr would_apply
-      else begin
-        incr skipped;
-        add_note d
-      end
+      (* One probe per fix: the outcome drives both the per-fix label and the
+         summary counts, so the preview agrees with what the real apply would do. *)
+      match dry_run_outcome ~default_file d with
+      | Would_apply ->
+          Printf.printf "Would apply: %s on %s\n" d.diag_message (file_label d);
+          incr would_apply
+      | Skipped note ->
+          Printf.printf "Skipped: %s on %s\n" d.diag_message (file_label d);
+          incr skipped;
+          (match note with
+           | Some n -> skip_notes := n :: !skip_notes
+           | None -> ())
     end else begin
-      let file_to_fix = match d.diag_file with
-        | Some f -> f
-        | None -> default_file
-      in
+      let file_to_fix = match d.diag_file with Some f -> f | None -> default_file in
       if apply_fix ~file:file_to_fix d.diag_suggested_fix then
         incr applied
       else begin
         incr skipped;
-        add_note d
+        record_skip_note d
       end
     end
   ) fixes;
