@@ -338,20 +338,9 @@ let scan_rename_node ~file ~old_name : rename_node_outcome =
     (* Phase A: locate the constructor-form definition line. *)
     let def_index = ref None in
     List.iteri (fun i l ->
-      if !def_index = None then begin
-        let trimmed = String.trim l in
-        let prefix = old_name ^ " = " in
-        if String.length trimmed >= String.length prefix
-           && String.sub trimmed 0 (String.length prefix) = prefix then begin
-          let rest = String.sub trimmed (String.length prefix) (String.length trimmed - String.length prefix) in
-          let rest_stripped = String.trim rest in
-          if List.exists (fun fn -> String.length rest_stripped >= String.length fn + 1
-              && String.sub rest_stripped 0 (String.length fn) = fn
-              && rest_stripped.[String.length fn] = '(')
-              ["node"; "pyn"; "rn"; "jln"; "qn"; "shn"] then
-            def_index := Some i
-        end
-      end
+      if !def_index = None
+         && is_node_definition ~node:old_name ~trimmed_line:(String.trim l) then
+        def_index := Some i
     ) all_lines;
     match !def_index with
     | None -> NotFound
