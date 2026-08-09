@@ -1946,9 +1946,16 @@ let () =
             if result.Fix.applied = 0 && result.Fix.would_apply = 0 && result.Fix.skipped = 0 then
               Printf.printf "No fixes to apply.\n"
             else begin
-              if dry_run then
+              if dry_run then begin
+                List.iter (fun (e : Fix.dry_run_entry) ->
+                  let label = match e.Fix.entry_outcome with
+                    | Fix.Would_apply -> "Would apply"
+                    | Fix.Skipped _ -> "Skipped"
+                  in
+                  Printf.printf "%s: %s on %s\n" label e.Fix.entry_message e.Fix.entry_file
+                ) result.Fix.dry_run_entries;
                 Printf.printf "Would apply %d fix(es), skipped %d.\n" result.Fix.would_apply result.Fix.skipped
-              else begin
+              end else begin
                 Printf.printf "Applied %d fix(es), skipped %d.\n" result.Fix.applied result.Fix.skipped;
                 Printf.printf "Run 't check %s' to verify.\n" f
               end;

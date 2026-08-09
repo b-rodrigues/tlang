@@ -1,6 +1,18 @@
 (* src/fix.ml *)
 (* Mechanical application of suggested_fix from diagnostics *)
 
+type dry_run_outcome =
+  | Would_apply
+  | Skipped of string option
+      (* Some note = human-readable reason the fix was (or would be) skipped;
+         None = skipped without an explanation (e.g. nothing to rename). *)
+
+type dry_run_entry = {
+  entry_message : string;
+  entry_file : string;
+  entry_outcome : dry_run_outcome;
+}
+
 type fix_result = {
   file : string;
   applied : int;
@@ -12,6 +24,11 @@ type fix_result = {
       (* Human-readable reasons for skipped fixes, e.g. which lines still
          reference a node that `t fix` refuses to rename. Empty when nothing
          was skipped with an explanation. *)
+  dry_run_entries : dry_run_entry list;
+      (* Per-fix dry-run preview: message, file, and outcome for every fix when
+         dry_run is true. Empty in real mode. The CLI renders these lines; the
+         T function t_fix() renders its own summary, so apply_fixes itself does
+         not print. *)
 }
 
 let is_word_char = function
@@ -155,6 +172,40 @@ let scan_raw_delimiters l in_raw_code =
       if l.[k] = '}' && l.[k+1] = '>' then in_raw_code := false
     done
 
+(* Does [trimmed_line] define [node] as a pipeline node, i.e. `node = node(` /
+   `pyn(` / `rn(` / `jln(` / `qn(` / `shn(`? Shared by the dry-run probe and
+   the real apply so both agree on which lines count as node definitions. *)
+let is_node_definition ~node ~trimmed_line =
+  let prefix = node ^ " = " in
+  if String.length trimmed_line >= String.length prefix
+     && String.sub trimmed_line 0 (String.length prefix) = prefix then begin
+    let rest = String.sub trimmed_line (String.length prefix) (String.length trimmed_line - String.length prefix) in
+    let rest_stripped = String.trim rest in
+    List.exists (fun fn -> String.length rest_stripped >= String.length fn + 1
+        && String.sub rest_stripped 0 (String.length fn) = fn
+        && rest_stripped.[String.length fn] = '(')
+      ["node"; "pyn"; "rn"; "jln"; "qn"; "shn"]
+  end else false
+
+(* Lightweight probe for the Add_node_arg dry-run: does [file] define [node]?
+   Some true = defined, Some false = file readable but no node definition found,
+   None = file unreadable (matches Rename_node's NotFound outcome). *)
+let scan_add_node_arg ~file ~node : bool option =
+  try
+    let found = ref false in
+    let ch = open_in file in
+    Fun.protect ~finally:(fun () -> close_in_noerr ch)
+      (fun () ->
+         (try
+            while not !found do
+              let l = input_line ch in
+              if is_node_definition ~node ~trimmed_line:(String.trim l) then
+                found := true
+            done
+          with End_of_file -> ());
+         Some !found)
+  with Sys_error _ -> None
+
 let apply_add_node_arg ~file ~node ~arg =
   let lines = ref [] in
   let ch = open_in file in
@@ -169,16 +220,7 @@ let apply_add_node_arg ~file ~node ~arg =
           while true do
             let l = input_line ch in
             if not !found then begin
-              let trimmed = String.trim l in
-              let prefix = node ^ " = " in
-              if String.length trimmed >= String.length prefix
-                 && String.sub trimmed 0 (String.length prefix) = prefix then begin
-                let rest = String.sub trimmed (String.length prefix) (String.length trimmed - String.length prefix) in
-                let rest_stripped = String.trim rest in
-                if List.exists (fun fn -> String.length rest_stripped >= String.length fn + 1
-                    && String.sub rest_stripped 0 (String.length fn) = fn
-                    && rest_stripped.[String.length fn] = '(')
-                    ["node"; "pyn"; "rn"; "jln"; "qn"; "shn"] then begin
+              if is_node_definition ~node ~trimmed_line:(String.trim l) then begin
                   found := true;
                   String.iter (function
                     | '(' when not !in_raw_code -> incr paren_depth
@@ -189,8 +231,6 @@ let apply_add_node_arg ~file ~node ~arg =
                   lines := l :: !lines
                 end else
                   lines := l :: !lines
-              end else
-                lines := l :: !lines
             end else begin
               if not !in_raw_code then
                 String.iter (function
@@ -377,12 +417,6 @@ let apply_rename_node ~file ~old_name ~new_name =
         (fun () -> List.iter (fun l -> output_string oc (l ^ "\n")) rewritten);
       true
 
-type dry_run_outcome =
-  | Would_apply
-  | Skipped of string option
-      (* Some note = human-readable reason the fix was (or would be) skipped;
-         None = skipped without an explanation (e.g. nothing to rename). *)
-
 (* Decide, without modifying the file, whether applying [d]'s suggested fix
    would succeed, and if not, produce a human-readable skip note. Rename_node
    probes the file through scan_rename_node so the dry-run agrees with the real
@@ -393,7 +427,16 @@ type dry_run_outcome =
 let dry_run_outcome ~default_file (d : Diagnostics.diagnostic) =
   let file_to_fix = match d.diag_file with Some f -> f | None -> default_file in
   match d.diag_suggested_fix with
-  | Diagnostics.Rename_column _ | Diagnostics.Add_node_arg _ -> Would_apply
+  | Diagnostics.Rename_column _ -> Would_apply
+  | Diagnostics.Add_node_arg { node; _ } ->
+      (* Probe the file so the dry-run agrees with the real apply: a fix whose
+         node is no longer defined in the file is skipped, not would-apply. *)
+      (match scan_add_node_arg ~file:file_to_fix ~node with
+       | Some true -> Would_apply
+       | Some false ->
+           Skipped (Some (Printf.sprintf
+             "Node `%s` is not defined in %s — add the argument manually." node file_to_fix))
+       | None -> Skipped None)
   | Diagnostics.Rename_node { old_name; _ } ->
       (match scan_rename_node ~file:file_to_fix ~old_name with
        | Renamed _ -> Would_apply
@@ -447,6 +490,7 @@ let apply_fixes ~dry_run ~default_file (fixes : Diagnostics.diagnostic list) =
   let skipped = ref 0 in
   let would_apply = ref 0 in
   let skip_notes = ref [] in
+  let dry_run_entries = ref [] in
   let file_label (d : Diagnostics.diagnostic) =
     match d.diag_file with Some f -> f | None -> "<unknown>"
   in
@@ -458,18 +502,21 @@ let apply_fixes ~dry_run ~default_file (fixes : Diagnostics.diagnostic list) =
   in
   List.iter (fun (d : Diagnostics.diagnostic) ->
     if dry_run then begin
-      (* One probe per fix: the outcome drives both the per-fix label and the
-         summary counts, so the preview agrees with what the real apply would do. *)
+      (* One probe per fix: the outcome drives both the per-fix entry and the
+         summary counts, so the preview agrees with what the real apply would do.
+         Rendering of the entries is left to the caller (the CLI prints them;
+         t_fix() renders its own summary) so apply_fixes itself stays side-effect
+         free and t_fix() does not leak raw lines to stdout. *)
       match dry_run_outcome ~default_file d with
       | Would_apply ->
-          Printf.printf "Would apply: %s on %s\n" d.diag_message (file_label d);
-          incr would_apply
+          incr would_apply;
+          dry_run_entries := { entry_message = d.diag_message; entry_file = file_label d; entry_outcome = Would_apply } :: !dry_run_entries
       | Skipped note ->
-          Printf.printf "Skipped: %s on %s\n" d.diag_message (file_label d);
           incr skipped;
           (match note with
            | Some n -> skip_notes := n :: !skip_notes
-           | None -> ())
+           | None -> ());
+          dry_run_entries := { entry_message = d.diag_message; entry_file = file_label d; entry_outcome = Skipped note } :: !dry_run_entries
     end else begin
       let file_to_fix = match d.diag_file with Some f -> f | None -> default_file in
       if apply_fix ~file:file_to_fix d.diag_suggested_fix then
@@ -482,7 +529,8 @@ let apply_fixes ~dry_run ~default_file (fixes : Diagnostics.diagnostic list) =
   ) fixes;
   { file = default_file; applied = !applied; skipped = !skipped;
     would_apply = !would_apply; dry_run; diagnostics = fixes;
-    skip_notes = List.rev !skip_notes }
+    skip_notes = List.rev !skip_notes;
+    dry_run_entries = List.rev !dry_run_entries }
 
 (* cmd_fix accepts a check function to avoid circular dependency with Repl.
    The caller (repl.ml) passes run_check ~schema:true. *)
