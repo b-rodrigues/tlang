@@ -450,6 +450,7 @@ let print_help () =
   Printf.printf "  run [--json] --expr <expr> Execute a T expression directly\n";
   Printf.printf "  check [--json] [--schema] [--env] <file.t>  Validate pipeline structure (no Nix builds)\n";
   Printf.printf "  diff [--json] [--log-a <n>] [--log-b <n>] <file.t>  Compare two builds (output diff)\n";
+  Printf.printf "  fix [--dry-run] <file.t>  Apply suggested fixes from check diagnostics\n";
   Printf.printf "  debug <node>      Start a subshell to debug a pipeline node\n";
   Printf.printf "  --mode <m>        Type-check mode: repl or strict\n";
   Printf.printf "  --failfast        Stop execution on first error\n";
