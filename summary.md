@@ -539,9 +539,9 @@ Purpose: node construction, pipeline execution, graph inspection, graph rewritin
 
 ### Mechanical Fix Application (`t fix`)
 
-- **CLI (`t fix <file.t>`)**: Runs `t check --json` internally, collects diagnostics with `suggested_fix` values, and applies them to the source file. Currently supports `cast` (inserts `mutate()` for type conversion) and `rename_column` (replaces column name). Use `--dry-run` to preview without modifying.
+- **CLI (`t fix <file.t>`)**: Runs `t check --schema` internally, collects diagnostics with `suggested_fix` values, and applies them to the source file bottom-up (so line numbers don't drift). Use `--dry-run` to preview without modifying; the preview probes the file so it agrees with the real apply — a `rename_node` whose target is still referenced elsewhere is reported as skipped, with a note naming the blocking lines. Every skipped fix prints an actionable note (e.g. a misspelled identifier shows the suggested replacement; a `run_command` shows the command to run).
 - **T function (`t_fix(file, dry_run = false)`)**: REPL-callable version of `t fix`. Returns the fix summary as a string. Same options as CLI.
-- **Supported fix types**: `cast`, `rename_column`. `add_node_arg` and `pin_package_version` are planned.
+- **Supported fix types**: `rename_column` (replaces column references), `rename_node` (renames a node definition colliding with a reserved name — refused, not auto-applied, when the node is still referenced elsewhere in the file), `add_node_arg` (adds a missing node argument such as `deserializer`). `suggest_identifier` and `run_command` are reported but never auto-applied (manual steps). `pin_package_version` is planned.
 
 Important LLM rule: when the goal is reproducible execution, prefer generating or editing pipeline nodes rather than a monolithic script.
 
