@@ -161,6 +161,16 @@ apply_mutation() {
       backup_file "$REPO_ROOT/src/packages/pipeline/set_pipeline_global_options.ml"
       perl -i -pe 's/\| None -> p\.p_explicit_deps/| None -> List.map (fun (name, deps) -> (name, Some (match deps with Some d -> d | None -> []))) p.p_explicit_deps/' "$REPO_ROOT/src/packages/pipeline/set_pipeline_global_options.ml"
       ;;
+
+    # ── fix.ml mutations ───────────────────────────────────────────────
+    fix_node_def_prefix)
+      backup_file "$REPO_ROOT/src/fix.ml"
+      perl -i -pe 's/trimmed_line 0 \(String\.length prefix\) = prefix then begin/trimmed_line 0 (String.length prefix) <> prefix then begin/' "$REPO_ROOT/src/fix.ml"
+      ;;
+    fix_scan_always_found)
+      backup_file "$REPO_ROOT/src/fix.ml"
+      perl -i -pe 's/Some !found\)/Some true)/' "$REPO_ROOT/src/fix.ml"
+      ;;
   esac
 
   # Verify at least one file was changed
@@ -232,6 +242,8 @@ declare -a MUTATION_NAMES=(
   "clean_collision"
   "csv_type_fallback"
   "global_deps_guard"
+  "fix_node_def_prefix"
+  "fix_scan_always_found"
 )
 
 KILLED=0
