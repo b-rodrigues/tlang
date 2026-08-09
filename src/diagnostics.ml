@@ -414,6 +414,12 @@ let extract_node_name_from_message msg =
     (Str.regexp "Node `\\([^`]+\\)`", 1);
     (Str.regexp "node `\\([^`]+\\)`", 1);
     (Str.regexp "node '\"'\\([^\"']+\\)\"'", 1);
+    (* Top-level reserved-name overwrites surface as
+       "Cannot overwrite count: it's a reserved keyword!" — no backticks, so
+       they need their own pattern. The quoted variants ("Cannot overwrite
+       'x': variable not defined", "Cannot reassign …") capture the name with
+       quotes, fail the reserved-name gate, and fall back to NoFix. *)
+    (Str.regexp "Cannot overwrite \\([^:]+\\):", 1);
   ] in
   let rec try_patterns = function
     | [] -> None

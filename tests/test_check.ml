@@ -385,6 +385,24 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
   Sys.remove reserved_fixture;
   flush stdout;
 
+  (* Top-level reserved-name overwrite (no pipeline block): the wire-phase
+     NameError "Cannot overwrite count: it's a reserved keyword!" must also
+     carry a Rename_node fix. *)
+  let top_reserved_fixture = "/tmp/top_reserved_node_fix_test.t" in
+  let oc = open_out top_reserved_fixture in
+  output_string oc "count = node(runtime = T, command = <{ 1 }>)\n";
+  close_out oc;
+  let top_result = eval_string (Printf.sprintf "t_check(\"%s\", schema=true, json=true)" top_reserved_fixture) in
+  let top_result_str = match top_result with Ast.VString s -> s | _ -> "" in
+  let has_top_rename_node_fix =
+    String.length top_result_str > 0
+    && (try ignore (Str.search_forward (Str.regexp "\"rename_node\"") top_result_str 0); true
+        with Not_found -> false)
+  in
+  check "top-level reserved name: suggested_fix is rename_node" has_top_rename_node_fix;
+  Sys.remove top_reserved_fixture;
+  flush stdout;
+
   Printf.printf "\nof_verror existing-node-name guard:\n";
 
   (* When the caller can supply the pipeline's existing node names, a reserved
