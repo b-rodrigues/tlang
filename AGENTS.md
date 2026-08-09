@@ -98,7 +98,7 @@ This runs immediately, then re-runs on every file save. Press Ctrl+C to stop. Ex
 ### Agent Check-Fix Loop Rules (Critical for LLMs)
 
 - **`t fix` is Not Idempotent:** `t fix` does not check if a suggestion was already applied. If you run `t check` -> `t fix` in a loop, you must count the number of diagnostics/errors returned. If the count does not decrease after a fix, **stop immediately** and do not run `t fix` again; otherwise, you will insert duplicate code blocks (e.g. repeated `deserializer = ...` argument insertions).
-- **Accurate `--dry-run`:** `t fix --dry-run` probes the file (via `Fix.scan_rename_node`) and reports a `Rename_node` whose target is referenced elsewhere in the file as **skipped**, matching what the real apply will do. Skipped renames print a note naming the blocking line(s) (e.g. `Node \`count\` is still referenced on line 3 of … — rename the node and its references manually.`).
+- **Accurate `--dry-run`:** `t fix --dry-run` probes the file and reports a fix as **skipped** whenever the real apply would refuse it, so the preview agrees with what the real apply will do: a `Rename_node` whose target is referenced elsewhere in the file (`Fix.scan_rename_node`), and an `Add_node_arg` whose node is no longer defined in the file (`Fix.scan_add_node_arg`). Skipped fixes print a note naming the reason (e.g. `Node \`count\` is still referenced on line 3 of … — rename the node and its references manually.` or `Node \`raw\` is not defined in … — add the argument manually.`). `apply_fixes` itself never prints — per-fix dry-run previews are returned in `fix_result.dry_run_entries` and rendered by the CLI; the T function `t_fix()` renders its own summary, so its returned string has no stray `Would apply:` lines from a side effect.
 - **Suggested Fix Confidence Levels:** Every suggested fix contains a `"confidence"` string field in JSON (`"high"`, `"medium"`, or `"low"`) indicating whether the fix is deterministic or heuristic. Confidence is computed dynamically from diagnostic context, not static per fix kind:
   - `Rename_column`: `"high"` at edit distance 1 and unique, `"medium"` at distance 2, `"low"` at 3+
   - `Rename_node`: always `"medium"` (the `_node` name choice is deterministic, but `t fix` refuses to apply when the node is referenced elsewhere in the file — `deps` entries, sibling expressions, or other nodes' raw code blocks — since those cannot be rewritten safely at the text level; rename references manually)
@@ -432,7 +432,7 @@ TLANG_TEST_STRICT=1 dune exec tests/test_runner.exe
 `scripts/mutation_test.sh` verifies the test suite catches real regressions by temporarily breaking known code paths and confirming tests fail.
 
 ```bash
-./scripts/mutation_test.sh              # run all 9 mutations
+./scripts/mutation_test.sh              # run all mutations
 ./scripts/mutation_test.sh integer_add  # run a single mutation
 ```
 
@@ -444,12 +444,25 @@ Current mutation targets:
 | `if_else_swap` | `src/eval.ml` | Swaps `then_`/`else_` branches | Conditional logic tests |
 | `unary_not` | `src/eval.ml` | `not b` → `b` (identity) | Boolean negation tests |
 | `na_silent_pass` | `src/eval.ml` | NA error → silent `VNA` return | NA propagation tests |
+| `div_zero_mixed` | `src/eval.ml` | Int÷Float division-by-zero guard dropped | Division tests |
+| `div_zero_mixed_reverse` | `src/eval.ml` | Float÷Int division-by-zero guard dropped | Division tests |
+| `mod_zero_mixed` | `src/eval.ml` | Int mod Float division-by-zero guard dropped | Modulo tests |
+| `mod_zero_mixed_reverse` | `src/eval.ml` | Float mod Int division-by-zero guard dropped | Modulo tests |
+| `negate_float` | `src/eval.ml` | `Neg` on Float → identity | Negation tests |
+| `negate_type_guard` | `src/eval.ml` | `Neg` type error → `VInt 0` | Type guard tests |
+| `date_lt_swap` | `src/eval.ml` | `Lt` on dates → `Gt` | Date comparison tests |
+| `factor_eq_invert` | `src/eval.ml` | Factor equality inverted | Factor comparison tests |
 | `arrow_add_scalar` | `src/arrow/arrow_compute.ml` | Float add → subtract in `add_scalar` | Scalar operation tests |
 | `arrow_compare_gt` | `src/arrow/arrow_compute.ml` | `Gt` comparison → `Lt` | Comparison/filter tests |
+| `arrow_multiply_scalar` | `src/arrow/arrow_compute.ml` | Float multiply → divide in `multiply_scalar` | Scalar operation tests |
+| `arrow_subtract_scalar` | `src/arrow/arrow_compute.ml` | Float subtract → add in `subtract_scalar` | Scalar operation tests |
+| `arrow_le_compare` | `src/arrow/arrow_compute.ml` | Swaps `Le`/`Ge` comparisons | Comparison/filter tests |
 | `clean_safe_char` | `src/packages/dataframe/clean_colnames.ml` | `c >= 'a'` → `c > 'a'` (excludes `'a'`) | Column name cleaning tests |
 | `clean_collision` | `src/packages/dataframe/clean_colnames.ml` | Collision counter `count + 1` → `count - 1` | Duplicate column name tests |
 | `csv_type_fallback` | `src/packages/dataframe/t_read_csv.ml` | String fallback → `VInt 0` | CSV type inference tests |
 | `global_deps_guard` | `src/packages/pipeline/set_pipeline_global_options.ml` | `p_explicit_deps` rewritten unconditionally (flips `None` → `Some []`) when `dependencies` omitted | `set_pipeline_global_options` deps-omitted regression test |
+| `fix_node_def_prefix` | `src/fix.ml` | `is_node_definition` prefix check inverted (`= prefix` → `<> prefix`), so no line ever counts as a node definition | `apply_add_node_arg` / `test_dry_run_outcome` add_node_arg tests |
+| `fix_scan_always_found` | `src/fix.ml` | `scan_add_node_arg` always returns `Some true`, so the Add_node_arg dry-run never reports a missing node as skipped | `test_dry_run_outcome` add_node_arg (node absent) test |
 
 The script verifies each mutation was actually applied (via `diff -q`) before building/testing. If a mutation pattern doesn't match the current source, it reports "pattern did not match" instead of a false SURVIVED. The backup/restore mechanism uses an associative array to support mutations across multiple source files.
 
