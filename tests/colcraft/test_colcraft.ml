@@ -569,6 +569,24 @@ df |> filter($age > 25)
   test "factor equals missing level returns false"
     {|f = to_factor(["a", "b", "c"]); f .== "missing"|}
     "[false, false, false]";
+  test "scalar factor equals matching string"
+    {|to_factor("a") == "a"|}
+    "true";
+  test "scalar factor equals non-matching string"
+    {|to_factor("a") == "b"|}
+    "false";
+  test "scalar factor not-equals matching string"
+    {|to_factor("a") != "a"|}
+    "false";
+  test "scalar factor not-equals non-matching string"
+    {|to_factor("a") != "b"|}
+    "true";
+  test "scalar factor with explicit levels equals matching"
+    {|to_factor("b", levels = ["a", "b"]) == "b"|}
+    "true";
+  test "scalar factor with explicit levels non-matching"
+    {|to_factor("b", levels = ["a", "b"]) == "a"|}
+    "false";
 
   print_newline ();
 

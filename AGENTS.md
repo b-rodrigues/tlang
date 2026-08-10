@@ -436,6 +436,14 @@ TLANG_TEST_STRICT=1 dune exec tests/test_runner.exe
 ./scripts/mutation_test.sh integer_add  # run a single mutation
 ```
 
+**Targeted/fast runs (two optional env knobs):**
+
+- `MUTATION_FILTER="m1,m2,..."` restricts the post-mutation test run to the listed `test_runner` module names (exact match, trailing `*` for prefix globs). Use this to run only the modules that exercise the mutated code path — a full-suite run per mutation takes ~20 min, a targeted one takes seconds.
+- `TLANG_NO_NIX=1` assumes you are already inside a `nix develop` shell and runs `dune build` / `dune exec tests/test_runner.exe` directly instead of re-spawning `nix develop`. Combine with a single outer `nix develop --command bash -c 'TLANG_NO_NIX=1 MUTATION_FILTER=... bash scripts/mutation_test.sh <name>'` for fast single-mutation runs.
+
+The `test_runner` module filter is available directly too:
+`dune exec tests/test_runner.exe -- --only Test_arithmetic,Test_na*` (default with no flag: run everything).
+
 Current mutation targets:
 
 | Name | File | What it breaks | What catches it |

@@ -20,6 +20,35 @@ let run_module name fn =
     empty_modules := name :: !empty_modules
   end
 
+(* Optional module filter: `--only m1,m2,...` runs only test modules whose
+   name equals one of the given entries. A trailing `*` makes that entry a
+   prefix glob (e.g. `Test_na*`). Default (no flag): run all. *)
+let module_filter =
+  let args = Array.to_list Sys.argv in
+  let rec pick = function
+    | "--only" :: (m :: _) -> Some (String.split_on_char ',' m)
+    | "--only" :: [] -> None
+    | _ :: rest -> pick rest
+    | [] -> None
+  in
+  pick args
+
+let matches_filter name =
+  match module_filter with
+  | None -> true
+  | Some subs ->
+      List.exists
+        (fun s ->
+          if s = "" then false
+          else
+            let len = String.length s in
+            if s.[len - 1] = '*' then
+              let prefix = String.sub s 0 (len - 1) in
+              let plen = String.length prefix in
+              String.length name >= plen && String.sub name 0 plen = prefix
+            else s = name)
+        subs
+
 let () =
   Eval.show_warnings := false
 
@@ -102,11 +131,13 @@ let () =
   Printf.printf "\n";
 
   let run name fn =
-    run_module name (fun () -> fn pass_count fail_count failures eval_string eval_string_env test)
+    if matches_filter name then
+      run_module name (fun () -> fn pass_count fail_count failures eval_string eval_string_env test)
   in
 
   let run_with_env name fn =
-    run_module name (fun () -> fn pass_count fail_count failures eval_string eval_string_env test test_env)
+    if matches_filter name then
+      run_module name (fun () -> fn pass_count fail_count failures eval_string eval_string_env test test_env)
   in
 
   (* Core tests *)
