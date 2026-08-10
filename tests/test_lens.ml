@@ -65,6 +65,18 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
     {|items = [[a: 1], [a: 2]]; l = col_lens("a"); updated = set(items, l, [10, 20]); get(updated, l)|}
     "[10, 20]";
 
+  test "col_lens set spreads a length-matching List element-wise over DataFrame rows"
+    {|df = to_dataframe([[a: 1, b: 2], [a: 3, b: 4]]); l = col_lens("c"); df2 = set(df, l, [10, 20]); [get(df2.c, 0), get(df2.c, 1)]|}
+    "[10, 20]";
+
+  test "col_lens set recycles a shorter List element-wise over DataFrame rows"
+    {|df = to_dataframe([[a: 1], [a: 2], [a: 3]]); l = col_lens("c"); df2 = set(df, l, [10, 20]); df2.c|}
+    "Vector[10, 20, 10]";
+
+  test "col_lens set with a single-element List broadcasts to all rows"
+    {|df = to_dataframe([[a: 1], [a: 2]]); l = col_lens("c"); df2 = set(df, l, [7]); [get(df2.c, 0), get(df2.c, 1)]|}
+    "[7, 7]";
+
   (* 3. Composition *)
   test "composed lens on nested Dict"
     {|d = [outer: [inner: 42]]; l = compose(col_lens("outer"), col_lens("inner")); over(d, l, \(x) x + 1)|}
