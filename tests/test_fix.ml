@@ -457,13 +457,92 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
       diag_message = "Node `count` is reserved: `count` is a builtin function.";
       diag_suggested_fix = Diagnostics.make_rename_node_fix ~old_name:"count" ~new_name:"count_node" ?target_node:(Some "count") ?file:(Some "test.t") ?line:(Some 15) ();
     } in
+    (* d3 and d4 target a file that does not exist: the Add_node_arg probe and
+       the Rename_node probe each report their fix as skipped — accurate
+       dry-run for both fix kinds. *)
     let fixes = [d1; d2; d3; d4] in
     let result = Fix.apply_fixes ~dry_run:true ~default_file:"test.t" fixes in
     check "dry_run: applied = 0" (result.Fix.applied = 0);
-    check "dry_run: would_apply = 4" (result.Fix.would_apply = 4);
-    check "dry_run: skipped = 0" (result.Fix.skipped = 0)
+    check "dry_run: would_apply = 2" (result.Fix.would_apply = 2);
+    check "dry_run: skipped = 2" (result.Fix.skipped = 2);
+    check "dry_run: entry count matches fixes"
+      (List.length result.Fix.dry_run_entries = 4);
+    check "dry_run: entries are in fix order"
+      (List.map (fun e -> e.Fix.entry_message) result.Fix.dry_run_entries
+       = ["Column 'x' not found, did you mean 'x_new'?";
+          "Column 'y' not found, did you mean 'y_new'?";
+          "Node `pyn` depends on `rn` but has no explicit deserializer";
+          "Node `count` is reserved: `count` is a builtin function."]);
+    check "dry_run: first two entries would-apply"
+      (match result.Fix.dry_run_entries with
+       | [a; b; _; _] ->
+           (match a.Fix.entry_outcome, b.Fix.entry_outcome with
+            | Fix.Would_apply, Fix.Would_apply -> true
+            | _ -> false)
+       | _ -> false);
+    check "dry_run: last two entries skipped"
+      (match result.Fix.dry_run_entries with
+       | [_; _; c; d] ->
+           (match c.Fix.entry_outcome, d.Fix.entry_outcome with
+            | Fix.Skipped _, Fix.Skipped _ -> true
+            | _ -> false)
+       | _ -> false)
   in
   test_dry_run_counting ();
+
+  Printf.printf "\ndry-run Rename_node accuracy and skip notes:\n";
+  let write_tmp_file path content =
+    let oc = open_out path in
+    output_string oc content;
+    close_out oc
+  in
+  let read_tmp_file path =
+    let ch = open_in path in
+    let content = really_input_string ch (in_channel_length ch) in
+    close_in ch;
+    content
+  in
+  let test_dry_run_rename_node () =
+    (* Referenced fixture: dry-run must report skipped (not would-apply) and
+       the skip note must name the blocking line. *)
+    let tmp_ref = Filename.temp_file "test_fix_dr_ref" ".t" in
+    write_tmp_file tmp_ref "count = node(\"R\", code = \"x\")\nmodel = count + 1\n";
+    let d_ref = { Diagnostics.
+      diag_id = "T1004"; diag_error_class = Diagnostics.Name_error; diag_severity = Error;
+      diag_phase = Schema; diag_node_id = Some "count"; diag_node_lang = None;
+      diag_file = Some tmp_ref; diag_line = Some 1; diag_column = None;
+      diag_end_line = None; diag_end_column = None;
+      diag_message = "Node `count` is reserved: `count` is a builtin function.";
+      diag_expected = None; diag_actual = None; diag_caused_by = [];
+      diag_suggested_fix = Diagnostics.make_rename_node_fix ~old_name:"count" ~new_name:"count_node" ?target_node:(Some "count") ?file:(Some tmp_ref) ?line:(Some 1) ();
+    } in
+    let dry = Fix.apply_fixes ~dry_run:true ~default_file:tmp_ref [d_ref] in
+    check "ref dry-run: would_apply = 0" (dry.Fix.would_apply = 0);
+    check "ref dry-run: skipped = 1" (dry.Fix.skipped = 1);
+    check "ref dry-run: skip note mentions blocking line 2"
+      (List.exists (fun n -> Test_helpers.contains n "line 2") dry.Fix.skip_notes);
+    let real = Fix.apply_fixes ~dry_run:false ~default_file:tmp_ref [d_ref] in
+    check "ref real: applied = 0" (real.Fix.applied = 0);
+    check "ref real: skipped = 1" (real.Fix.skipped = 1);
+    check "ref real: skip note mentions blocking line 2"
+      (List.exists (fun n -> Test_helpers.contains n "line 2") real.Fix.skip_notes);
+    check "ref real: file untouched" (read_tmp_file tmp_ref = "count = node(\"R\", code = \"x\")\nmodel = count + 1\n");
+    Sys.remove tmp_ref;
+    (* Clean fixture: dry-run agrees with the real apply (both would apply). *)
+    let tmp_clean = Filename.temp_file "test_fix_dr_clean" ".t" in
+    write_tmp_file tmp_clean "count = node(\"R\", code = \"x\")\n";
+    let d_clean = { d_ref with diag_file = Some tmp_clean } in
+    let dry_clean = Fix.apply_fixes ~dry_run:true ~default_file:tmp_clean [d_clean] in
+    check "clean dry-run: would_apply = 1" (dry_clean.Fix.would_apply = 1);
+    check "clean dry-run: skipped = 0" (dry_clean.Fix.skipped = 0);
+    check "clean dry-run: no skip notes" (dry_clean.Fix.skip_notes = []);
+    let real_clean = Fix.apply_fixes ~dry_run:false ~default_file:tmp_clean [d_clean] in
+    check "clean real: applied = 1" (real_clean.Fix.applied = 1);
+    check "clean real: skip notes empty" (real_clean.Fix.skip_notes = []);
+    check "clean real: renamed" (read_tmp_file tmp_clean = "count_node = node(\"R\", code = \"x\")\n");
+    Sys.remove tmp_clean
+  in
+  test_dry_run_rename_node ();
 
   Printf.printf "\napply_fixes non-dry-run:\n";
   let test_apply_fixes_real () =
@@ -491,3 +570,132 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
     check "non-dry-run: file patched with rename_column()" has_rename
   in
   test_apply_fixes_real ();
+
+  Printf.printf "\ndry_run_outcome per-fix labels and notes:\n";
+  let test_dry_run_outcome () =
+    (* Base diagnostic to clone for each fix kind. *)
+    let base = { Diagnostics.
+      diag_id = "T1000"; diag_error_class = Diagnostics.Name_error; diag_severity = Error;
+      diag_phase = Schema; diag_node_id = None; diag_node_lang = None;
+      diag_file = Some "test.t"; diag_line = Some 1; diag_column = None;
+      diag_end_line = None; diag_end_column = None;
+      diag_message = "msg"; diag_expected = None; diag_actual = None;
+      diag_caused_by = [];
+      diag_suggested_fix = Diagnostics.no_fix;
+    } in
+    (* rename_column is always would-apply *)
+    let d_col = { base with
+      diag_suggested_fix = Diagnostics.make_rename_column_fix ~old_name:"x" ~new_name:"y" ~edit_distance:1 ~is_unique:true ?file:(Some "test.t") ?line:(Some 1) ();
+    } in
+    (match Fix.dry_run_outcome ~default_file:"test.t" d_col with
+     | Fix.Would_apply -> check "rename_column -> Would_apply" true
+     | _ -> check "rename_column -> Would_apply" false);
+    (* add_node_arg probes the file: would-apply when the node is defined,
+       skipped with a note when it is not, skipped without a note when the
+       file is unreadable *)
+    let tmp_with_node = Filename.temp_file "test_fix_dr_arg_ok" ".t" in
+    write_tmp_file tmp_with_node "raw = node(\"R\", code = \"x\")\n";
+    let d_arg_ok = { base with
+      diag_file = Some tmp_with_node;
+      diag_suggested_fix = Diagnostics.make_add_node_arg_fix ~node:"raw" ~arg:"deserializer = ^csv" ?file:(Some tmp_with_node) ();
+    } in
+    (match Fix.dry_run_outcome ~default_file:tmp_with_node d_arg_ok with
+     | Fix.Would_apply -> check "add_node_arg (node defined) -> Would_apply" true
+     | _ -> check "add_node_arg (node defined) -> Would_apply" false);
+    let tmp_no_node = Filename.temp_file "test_fix_dr_arg_missing" ".t" in
+    write_tmp_file tmp_no_node "other = node(\"R\", code = \"x\")\n";
+    let d_arg_missing = { base with
+      diag_file = Some tmp_no_node;
+      diag_suggested_fix = Diagnostics.make_add_node_arg_fix ~node:"raw" ~arg:"deserializer = ^csv" ?file:(Some tmp_no_node) ();
+    } in
+    (match Fix.dry_run_outcome ~default_file:tmp_no_node d_arg_missing with
+     | Fix.Skipped (Some note) ->
+         check "add_node_arg (node absent) -> Skipped with note"
+           (Test_helpers.contains note "`raw`")
+     | _ -> check "add_node_arg (node absent) -> Skipped with note" false);
+    let d_arg_unreadable = { base with
+      diag_suggested_fix = Diagnostics.make_add_node_arg_fix ~node:"raw" ~arg:"deserializer = ^csv" ?file:(Some "test.t") ();
+    } in
+    (match Fix.dry_run_outcome ~default_file:"test.t" d_arg_unreadable with
+     | Fix.Skipped None -> check "add_node_arg (file unreadable) -> Skipped without note" true
+     | _ -> check "add_node_arg (file unreadable) -> Skipped without note" false);
+    Sys.remove tmp_with_node;
+    Sys.remove tmp_no_node;
+    (* suggest_identifier is never auto-applied and carries an actionable note *)
+    let d_ident = { base with
+      diag_suggested_fix = Diagnostics.make_suggest_identifier_fix ~name:"mpg" ~suggestion:"mpg2" ~edit_distance:1 ~is_unique:true ?file:(Some "test.t") ?line:(Some 1) ();
+    } in
+    (match Fix.dry_run_outcome ~default_file:"test.t" d_ident with
+     | Fix.Skipped (Some note) ->
+         check "suggest_identifier -> Skipped with note"
+           (Test_helpers.contains note "`mpg`" && Test_helpers.contains note "`mpg2`")
+     | _ -> check "suggest_identifier -> Skipped with note" false);
+    (* run_command is never auto-applied and shows the command *)
+    let d_cmd = { base with
+      diag_suggested_fix = Diagnostics.make_run_command_fix ~command:"t add R jsonlite" ~description:"Install missing R package" ?file:(Some "test.t") ?line:(Some 1) ();
+    } in
+    (match Fix.dry_run_outcome ~default_file:"test.t" d_cmd with
+     | Fix.Skipped (Some note) ->
+         check "run_command -> Skipped with note"
+           (Test_helpers.contains note "t add R jsonlite")
+     | _ -> check "run_command -> Skipped with note" false);
+    (* NoFix is skipped without a note *)
+    (match Fix.dry_run_outcome ~default_file:"test.t" base with
+     | Fix.Skipped None -> check "NoFix -> Skipped without note" true
+     | _ -> check "NoFix -> Skipped without note" false)
+  in
+  test_dry_run_outcome ();
+
+  Printf.printf "\napply_fixes skip notes for non-applied fix kinds:\n";
+  let test_apply_fixes_skip_notes () =
+    let tmp = Filename.temp_file "test_fix_notes" ".t" in
+    let oc = open_out tmp in
+    output_string oc "x = 1\n";
+    close_out oc;
+    let d_ident = { Diagnostics.
+      diag_id = "T1000"; diag_error_class = Diagnostics.Name_error; diag_severity = Error;
+      diag_phase = Schema; diag_node_id = None; diag_node_lang = None;
+      diag_file = Some tmp; diag_line = Some 1; diag_column = None;
+      diag_end_line = None; diag_end_column = None;
+      diag_message = "did you mean 'mpg2' instead of 'mpg'?"; diag_expected = None; diag_actual = None;
+      diag_caused_by = [];
+      diag_suggested_fix = Diagnostics.make_suggest_identifier_fix ~name:"mpg" ~suggestion:"mpg2" ~edit_distance:1 ~is_unique:true ?file:(Some tmp) ?line:(Some 1) ();
+    } in
+    let d_cmd = { d_ident with
+      diag_id = "T1001";
+      diag_message = "Missing R package 'jsonlite'";
+      diag_suggested_fix = Diagnostics.make_run_command_fix ~command:"t add R jsonlite" ~description:"Install missing R package" ?file:(Some tmp) ?line:(Some 1) ();
+    } in
+    let dry = Fix.apply_fixes ~dry_run:true ~default_file:tmp [d_ident; d_cmd] in
+    check "skip notes: dry-run would_apply = 0" (dry.Fix.would_apply = 0);
+    check "skip notes: dry-run skipped = 2" (dry.Fix.skipped = 2);
+    check "skip notes: dry-run note for identifier"
+      (List.exists (fun n -> Test_helpers.contains n "mpg2") dry.Fix.skip_notes);
+    check "skip notes: dry-run note for command"
+      (List.exists (fun n -> Test_helpers.contains n "t add R jsonlite") dry.Fix.skip_notes);
+    check "skip notes: dry-run entries both Skipped"
+      (match dry.Fix.dry_run_entries with
+       | [a; b] ->
+           (match a.Fix.entry_outcome, b.Fix.entry_outcome with
+            | Fix.Skipped _, Fix.Skipped _ -> true
+            | _ -> false)
+       | _ -> false);
+    check "skip notes: dry-run entry messages preserved"
+      (match dry.Fix.dry_run_entries with
+       | [a; b] ->
+           a.Fix.entry_message = "did you mean 'mpg2' instead of 'mpg'?"
+           && b.Fix.entry_message = "Missing R package 'jsonlite'"
+       | _ -> false);
+    check "skip notes: real mode has no dry-run entries"
+      (let real0 = Fix.apply_fixes ~dry_run:false ~default_file:tmp [d_ident; d_cmd] in
+       real0.Fix.dry_run_entries = []);
+    let real = Fix.apply_fixes ~dry_run:false ~default_file:tmp [d_ident; d_cmd] in
+    check "skip notes: real applied = 0" (real.Fix.applied = 0);
+    check "skip notes: real skipped = 2" (real.Fix.skipped = 2);
+    check "skip notes: real note for identifier"
+      (List.exists (fun n -> Test_helpers.contains n "mpg2") real.Fix.skip_notes);
+    check "skip notes: real note for command"
+      (List.exists (fun n -> Test_helpers.contains n "t add R jsonlite") real.Fix.skip_notes);
+    Sys.remove tmp
+  in
+  test_apply_fixes_skip_notes ();

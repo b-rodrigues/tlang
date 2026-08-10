@@ -48,7 +48,19 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 run_tests() {
-  nix develop --command dune exec tests/test_runner.exe 2>&1 | grep -E "^=== Results:" | head -1
+  # TLANG_NO_NIX=1: assume already inside a nix develop shell, run dune directly.
+  # MUTATION_FILTER="m1,m2,...": run only the matching test_runner modules (fast).
+  local base
+  if [ -n "${TLANG_NO_NIX:-}" ]; then
+    base=(dune exec tests/test_runner.exe)
+  else
+    base=(nix develop --command dune exec tests/test_runner.exe)
+  fi
+  if [ -n "${MUTATION_FILTER:-}" ]; then
+    "${base[@]}" -- --only "$MUTATION_FILTER" 2>&1 | grep -E "^=== Results:" | head -1
+  else
+    "${base[@]}" 2>&1 | grep -E "^=== Results:" | head -1
+  fi
 }
 
 all_passed() {
@@ -161,6 +173,16 @@ apply_mutation() {
       backup_file "$REPO_ROOT/src/packages/pipeline/set_pipeline_global_options.ml"
       perl -i -pe 's/\| None -> p\.p_explicit_deps/| None -> List.map (fun (name, deps) -> (name, Some (match deps with Some d -> d | None -> []))) p.p_explicit_deps/' "$REPO_ROOT/src/packages/pipeline/set_pipeline_global_options.ml"
       ;;
+
+    # ── fix.ml mutations ───────────────────────────────────────────────
+    fix_node_def_prefix)
+      backup_file "$REPO_ROOT/src/fix.ml"
+      perl -i -pe 's/trimmed_line 0 \(String\.length prefix\) = prefix then begin/trimmed_line 0 (String.length prefix) <> prefix then begin/' "$REPO_ROOT/src/fix.ml"
+      ;;
+    fix_scan_always_found)
+      backup_file "$REPO_ROOT/src/fix.ml"
+      perl -i -pe 's/Some !found\)/Some true)/' "$REPO_ROOT/src/fix.ml"
+      ;;
   esac
 
   # Verify at least one file was changed
@@ -178,7 +200,11 @@ apply_mutation() {
     return 1
   fi
 
-  nix develop --command dune build 2>/dev/null
+  if [ -n "${TLANG_NO_NIX:-}" ]; then
+    dune build 2>/dev/null
+  else
+    nix develop --command dune build 2>/dev/null
+  fi
   local result
   result=$(run_tests)
   if all_passed "$result"; then
@@ -232,6 +258,8 @@ declare -a MUTATION_NAMES=(
   "clean_collision"
   "csv_type_fallback"
   "global_deps_guard"
+  "fix_node_def_prefix"
+  "fix_scan_always_found"
 )
 
 KILLED=0
@@ -255,7 +283,11 @@ done
 
 # Step 5: Verify tests pass after all mutations restored
 echo -e "${YELLOW}Verifying tests pass after all mutations restored...${NC}"
-nix develop --command dune build 2>/dev/null
+if [ -n "${TLANG_NO_NIX:-}" ]; then
+  dune build 2>/dev/null
+else
+  nix develop --command dune build 2>/dev/null
+fi
 RESULT=$(run_tests)
 if all_passed "$RESULT"; then
   echo -e "${GREEN}  ✓ All tests pass after restoration${NC}"

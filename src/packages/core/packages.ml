@@ -751,6 +751,31 @@ let register env =
 
   env
 
+(** Known symbols: bare words that should resolve to VSymbol rather than
+    NameError.  These are used as keyword-style arguments in node() and
+    related calls (e.g. `runtime = R`, `serializer = write_rds`).
+    Add new runtimes or serializer names here as they are introduced. *)
+let known_symbols = [
+  (* Runtimes *)
+  "R"; "Python"; "T"; "Julia"; "Quarto"; "sh";
+  (* Serialization defaults *)
+  "default";
+  (* R serializers *)
+  "write_rds"; "read_rds";
+  (* Python serializers *)
+  "write_pkl"; "read_pkl";
+  (* Arrow IPC serializers *)
+  "^ipc";
+  (* Parquet serializers *)
+  "write_parquet"; "read_parquet"; "^parquet";
+  (* JSON serializers *)
+  "write_json"; "read_json";
+  (* PMML *)
+  "pmml"; "^pmml"; "^csv"; "^json"; "^onnx";
+  (* Binary/passthrough (fetchurl) *)
+  "bin"; "^bin";
+]
+
 (** Initialize the environment with all standard packages *)
 let init_env () =
   Serialization_registry.init_builtins ();
@@ -1025,30 +1050,6 @@ let init_env () =
   let env = Show_plot.register env in
   let env = T_pattern.register env in
   let env = register env in
-  (* Known symbols: bare words that should resolve to VSymbol rather than
-     NameError.  These are used as keyword-style arguments in node() and
-     related calls (e.g. `runtime = R`, `serializer = write_rds`).
-     Add new runtimes or serializer names here as they are introduced. *)
-  let known_symbols = [
-    (* Runtimes *)
-    "R"; "Python"; "T"; "Julia"; "Quarto"; "sh";
-    (* Serialization defaults *)
-    "default";
-    (* R serializers *)
-    "write_rds"; "read_rds";
-    (* Python serializers *)
-    "write_pkl"; "read_pkl";
-    (* Arrow IPC serializers *)
-    "^ipc";
-    (* Parquet serializers *)
-    "write_parquet"; "read_parquet"; "^parquet";
-    (* JSON serializers *)
-    "write_json"; "read_json";
-    (* PMML *)
-    "pmml"; "^pmml"; "^csv"; "^json"; "^onnx";
-    (* Binary/passthrough (fetchurl) *)
-    "bin"; "^bin";
-  ] in
   let env = List.fold_left (fun acc name ->
     if Env.mem name acc then acc
     else Env.add name (VSymbol name) acc

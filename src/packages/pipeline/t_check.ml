@@ -23,7 +23,7 @@ open Ast
 
 let register env =
   Env.add "t_check"
-    (make_builtin_named ~name:"t_check" ~variadic:true 1 (fun named_args _env ->
+    (make_builtin_named ~name:"t_check" ~variadic:true 1 (fun named_args env ->
       let named_keys = List.filter_map (fun (k, _) -> k) named_args in
       let positional_count = List.length (List.filter (fun (k, _) -> k = None) named_args) in
       match List.find_opt (fun k -> not (List.mem k ["file"; "json"; "schema"; "env"; "offline"])) named_keys with
@@ -67,7 +67,11 @@ let register env =
             let* do_env = env_result in
             let* do_offline = offline_result in
 
-            let check_result = Check_utils.run_check ~schema:do_schema ~env_check:do_env ~offline:do_offline Typecheck.Strict filename Env.empty in
+            (* Pass the current env (with builtins) rather than Env.empty so the
+               wire-phase check matches the CLI `t check` — e.g. a top-level
+               reserved-name overwrite like `count = node(...)` is detected and
+               gets its rename_node suggestion. *)
+            let check_result = Check_utils.run_check ~schema:do_schema ~env_check:do_env ~offline:do_offline Typecheck.Strict filename env in
             VString (Check_utils.format_check_result ~json:do_json check_result)
         | (_, other) ->
             Error.type_error
