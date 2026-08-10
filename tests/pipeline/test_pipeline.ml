@@ -3846,10 +3846,13 @@ p.t_step|}
    test "block-local reassignment does not create a dependency"
      {|p = pipeline { a = { x = 1; x = x + 1; [out: x] } }; length(pipeline_validate(p))|}
      "0";
-   test "genuinely unbound name is still a missing dependency"
-     {|p = pipeline { a = { [out: y] } }; length(pipeline_validate(p))|}
-     "1";
-   (let env = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_pipeline:blocklocal-deps" {|
+    test "genuinely unbound name is still a missing dependency"
+      {|p = pipeline { a = { [out: y] } }; length(pipeline_validate(p))|}
+      "1";
+    test "block-local binding shadowing a sibling node detects the dependency"
+      {|p = pipeline { src = 42; shadow = { src = src + 1; [out: src] } }; length(pipeline_validate(p))|}
+      "0";
+    (let env = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_pipeline:blocklocal-deps" {|
       p = pipeline {
         raw = rn(command = <{ 1 }>)
         clean = { tmp = raw; [out: tmp] }

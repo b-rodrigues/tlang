@@ -1672,7 +1672,8 @@ and free_vars (expr : Ast.expr) : string list =
   and collect_stmt is_call_target bound = function
     | { node = Expression e; _ } -> (collect is_call_target bound e, bound)
     | { node = Assignment { name; expr; _ }; _ } ->
-        (collect false (name :: bound) expr, name :: bound)
+        let fv = collect false bound expr in
+        (fv, name :: bound)
     | { node = Reassignment { expr; _ }; _ } -> (collect false bound expr, bound)
     | { node = Import _ | ImportPackage _ | ImportFrom _ | ImportFileFrom _; _ } -> ([], bound)
   in
