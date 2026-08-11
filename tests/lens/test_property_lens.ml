@@ -23,6 +23,8 @@ let run_tests _pass_count _fail_count _failures _eval_string eval_string_env _te
       m_df_set_nrow      = prop_named("df_set_nrow",     \(df) nrow(set(df, col_lens("x"), 0)) == nrow(df))
       m_df_set_len       = prop_named("df_set_len",      \(df) length(pull(set(df, col_lens("x"), 0), "x")) == nrow(df))
       m_df_over_nrow     = prop_named("df_over_nrow",    \(df) nrow(over(df, col_lens("x"), \(v) v .* 2)) == nrow(df))
+      m_df_list_set_nrow = prop_named("df_list_set_nrow", \(df) nrow(set(df, col_lens("z"), [10, 20, 30])) == nrow(df))
+      m_df_list_set_ncol = prop_named("df_list_set_ncol", \(df) ncol(set(df, col_lens("z"), [10, 20])) == ncol(df) + 1)
     |} env
   in
 
@@ -47,5 +49,7 @@ let run_tests _pass_count _fail_count _failures _eval_string eval_string_env _te
   Test_helpers.prop_test_seeded test_env env "col lens scalar set preserves nrow on a DataFrame" "m_df_set_nrow" df_gen 20 df_seeds;
   Test_helpers.prop_test_seeded test_env env "col lens scalar set keeps the column length" "m_df_set_len" df_gen 20 df_seeds;
   Test_helpers.prop_test_seeded test_env env "col lens over preserves nrow on a DataFrame" "m_df_over_nrow" df_gen 20 df_seeds;
+  Test_helpers.prop_test_seeded test_env env "col lens VList set preserves nrow on a DataFrame" "m_df_list_set_nrow" df_gen 20 df_seeds;
+  Test_helpers.prop_test_seeded test_env env "col lens VList set adds exactly one new column" "m_df_list_set_ncol" df_gen 20 df_seeds;
 
   Printf.printf "\n"
