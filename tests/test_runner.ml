@@ -175,8 +175,10 @@ let () =
   run "Test_expect_pipeline" Test_expect_pipeline.run_tests;
   run "Test_expect_pass_fail_msg" Test_expect_pass_fail_msg.run_tests;
   run "Test_expect_ds_coverage" Test_expect_ds_coverage.run_tests;
-  run_with_env "Test_property" Test_property.run_tests;
-  run_with_env "Test_property_verbs" Test_property_verbs.run_tests;
+ run_with_env "Test_property" Test_property.run_tests;
+ run_with_env "Test_property_base" Test_property_base.run_tests;
+ run_with_env "Test_property_testcraft" Test_property_testcraft.run_tests;
+ run_with_env "Test_property_verbs" Test_property_verbs.run_tests;
   run_with_env "Test_property_math" Test_property_math.run_tests;
   run_with_env "Test_property_strcraft" Test_property_strcraft.run_tests;
   run_with_env "Test_property_core" Test_property_core.run_tests;
@@ -226,6 +228,7 @@ let () =
 
   (* Package manager tests *)
   run "Test_package_manager" Test_package_manager.run_tests;
+  run "Test_toml_parser" Test_toml_parser.run_tests;
 
   (* Lens tests *)
   run "Test_lens" Test_lens.run_tests;

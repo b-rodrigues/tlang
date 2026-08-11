@@ -860,15 +860,27 @@ get(lst, 1)                  -- 20
 ```t
 p = pipeline { a = 1, b = 2 }
 get(p, "a")                  -- 1
+get(p, "missing")            -- KeyError: "Node `missing` not found in Pipeline."
+get(p, "missing", 99)        -- 99 (default when node is absent)
 ```
+Looking up an absent node without a default raises `KeyError: "Node \`missing\` not found in Pipeline."` rather than silently returning `NA`, matching `pipeline_node`. A node whose value happens to be `NA` is not treated as missing.
 
-#### 4. Lens Focus
+#### 4. Dict Key Lookup
+```t
+d = [a: 1, b: 2]
+get(d, "a")                  -- 1
+get(d, $b)                   -- 2 (bare symbol syntax)
+get(d, "missing", 99)        -- 99 (default when key is absent)
+```
+Looking up an absent key without a default raises `KeyError: "Key \`missing\` not found in Dict."` rather than silently returning the dict.
+
+#### 5. Lens Focus
 ```t
 l = col_lens("mpg")
 get(mtcars, l)               -- Vector of 'mpg' column
 ```
 
-#### 5. Data-Mask Aware Lookup (inside NSE verbs)
+#### 6. Data-Mask Aware Lookup (inside NSE verbs)
 When called with a single string or symbol inside an NSE data verb (`mutate`, `filter`, `summarize`, …), `get()` checks the **data mask** first. The name is looked up in the current row's columns (if the lambda is evaluated per-row) or the whole DataFrame; if not found there, it falls back to the global environment.
 ```t
 df = dataframe(a = [1, 2, 3])
@@ -5009,38 +5021,36 @@ pipeline_nodes(p)  -- ["x", "y", "z"]
 
 ---
 
-### `pipeline_deps(pipeline, node_name)`
+### `pipeline_deps(pipeline)`
 
-Get dependencies of a specific node.
+Return the full dependency graph as a dictionary mapping each node name to its dependencies.
 
 **Parameters:**
 
 
 - `pipeline` — Pipeline object
-- `node_name` — Name of the node (String)
 
 **Returns:**
 
-List of Strings (dependency names)
+Dict of node name → List of Strings (dependency names)
 
 **Examples:**
 ```t
 p = pipeline { x = 1; y = 2; z = x + y }
-pipeline_deps(p, "z")  -- ["x", "y"]
-pipeline_deps(p, "x")  -- []
+pipeline_deps(p)  -- {`x`: [], `y`: [], `z`: ["x", "y"]}
 ```
 
 ---
 
 ### `pipeline_node(pipeline, node_name)`
 
-Get the value of a specific node.
+Get the value of a specific node. A leading `$` in `node_name` is stripped, so bare-word selectors like `pipeline_node(p, $x)` are accepted, matching the behaviour of `get(p, $x)`.
 
 **Parameters:**
 
 
 - `pipeline` — Pipeline object
-- `node_name` — Name of the node (String)
+- `node_name` — Name of the node (String; a leading `$` is optional)
 
 **Returns:**
 
@@ -5050,7 +5060,8 @@ Node value
 ```t
 p = pipeline { x = 10; doubled = x * 2 }
 pipeline_node(p, "x")       -- 10
-pipeline_node(p, "doubled") -- 20
+pipeline_node(p, "$x")      -- 10
+pipeline_node(p, $doubled)  -- 20
 ```
 
 ---
@@ -5207,7 +5218,7 @@ result = t_diff("src/pipeline.t", json = true)
 
 ### `t_fix(file, dry_run = false)`
 
-REPL-callable version of `t fix`. Runs `t check --schema` on a file, extracts diagnostics with `suggested_fix`, and applies them mechanically. Supports `Rename_column` (replaces `$old` with `$new`) and `Add_node_arg` (inserts missing arguments into node definitions, e.g., adding a `deserializer` for cross-runtime dependencies).
+REPL-callable version of `t fix`. Runs `t check --schema` on a file, extracts diagnostics with `suggested_fix`, and applies them mechanically. Supports `Rename_column` (replaces `$old` with `$new`), `Add_node_arg` (inserts missing arguments into node definitions, e.g., adding a `deserializer` for cross-runtime dependencies), and `Rename_node` (renames a node that collides with a builtin function or runtime symbol, e.g., `count` → `count_node`; the rename is skipped when the node is referenced elsewhere in the file — `deps`, sibling expressions, or raw code blocks — since those references must be updated manually). `dry_run = true` probes the file so the preview agrees with the real apply: a refused `Rename_node` fix (target still referenced elsewhere) and an `Add_node_arg` fix whose node is no longer defined in the file are both reported as skipped, and skipped fixes print a note naming the blocking line(s) or the missing node. `apply_fixes` itself does not print — the per-fix previews are returned in `fix_result.dry_run_entries` — so the returned summary string is clean.
 
 **Arguments:**
 
@@ -5718,8 +5729,8 @@ t fix --dry-run <file.t>           # preview fixes without applying
 | Fix Kind | Action |
 |----------|--------|
 | `rename_column` | Replaces all occurrences of the old column name with the new name |
-| `add_node_arg` | (planned) Adds an argument to a pipeline node |
-| `pin_package_version` | (planned) Adds or updates a package version in `tproject.toml` |
+| `add_node_arg` | Adds a missing argument to a pipeline node definition (e.g. a `deserializer` for cross-runtime dependencies). `--dry-run` probes the file and reports the fix as skipped (with a note naming the missing node) when the node is no longer defined in the file, matching the real apply |
+| `rename_node` | Renames a node definition that collides with a builtin/runtime symbol (`count` → `count_node`). Refused — reported as skipped, file left untouched — when the old name is referenced elsewhere in the file; a note names the blocking line(s). `--dry-run` probes the file and reports the same skipped outcome, matching the real apply |
 
 **Exit codes:**
 
@@ -5861,7 +5872,7 @@ fixture = pipeline {
 }
 
 test_filter = pipeline {
-  check = node(
+  check_result = node(
     command = {
       result = data |> filter($mpg > 20)
       assert(nrow(result) > 0)
@@ -5871,7 +5882,7 @@ test_filter = pipeline {
 }
 
 test_mutate = pipeline {
-  check = node(
+  check_result = node(
     command = {
       result = data |> mutate($kpg = $mpg * 1.609)
       assert("kpg" in colnames(result))
@@ -7122,7 +7133,7 @@ Returns a new pipeline containing only the nodes where the predicate is true. No
 p = pipeline {
   load   = read_csv("data.csv")
   model  = rn(command = <{ lm(y ~ x, data = load) }>, serializer = ^pmml)
-  score  = node(command = predict(model, load), deserializer = ^pmml)
+  score_result  = node(command = predict(model, load), deserializer = ^pmml)
 }
 
 -- Keep only R nodes
@@ -7356,7 +7367,7 @@ p = pipeline {
     |> suppress_warnings
 
   -- Downstream node remains unaffected
-  count = nrow(filtered)
+  row_count = nrow(filtered)
 }
 ```
 
@@ -7429,7 +7440,7 @@ Replaces a node's implementation while preserving its existing dependency edges.
 p = pipeline {
   data  = read_csv("data.csv")
   model = rn(command = <{ lm(y ~ x, data = data) }>, serializer = ^pmml)
-  score = node(command = predict(model, data), deserializer = ^pmml)
+  score_result = node(command = predict(model, data), deserializer = ^pmml)
 }
 
 -- Replace the model node with a new implementation; edges to/from model are preserved
@@ -7437,7 +7448,7 @@ new_model = rn(command = <{ glm(y ~ x, data = data, family = binomial) }>, seria
 p2 = p |> swap("model", new_model)
 
 pipeline_deps(p2)
--- `model` still depends on `data`, and `score` still depends on `model`
+-- `model` still depends on `data`, and `score_result` still depends on `model`
 ```
 
 ### `rewire`
@@ -7452,7 +7463,7 @@ p = pipeline {
 }
 
 -- Re-point model to use data_v2 instead of data
-p2 = p |> rewire("model", replace = list(data = "data_v2"))
+p2 = p |> rewire("model", replace = [data: "data_v2"])
 pipeline_deps(p2)
 -- {`data`: [], `data_v2`: [], `model`: ["data_v2"]}
 ```
@@ -7558,7 +7569,7 @@ p_etl = pipeline {
 }
 
 p_stats = pipeline {
-  summary = etl.clean |> mean
+  summary_result = etl.clean |> mean
 }
 
 -- Compose them into a higher-order DAG
@@ -7575,20 +7586,20 @@ T-Lang automatically analyzes cross-pipeline references in node expressions (suc
 
 #### Native Execution & Namespacing
 
-When a meta-pipeline is populated, queried, or inspected, T-Lang automatically flattens it internally. Node names are automatically namespaced (e.g. `etl.raw`, `etl.clean`, `stats.summary`) to prevent namespace collisions, and all internal variable references are rewritten accordingly.
+When a meta-pipeline is populated, queried, or inspected, T-Lang automatically flattens it internally. Node names are automatically namespaced (e.g. `etl.raw`, `etl.clean`, `stats.summary_result`) to prevent namespace collisions, and all internal variable references are rewritten accordingly.
 
 ```t
 pipeline_nodes(meta)
--- ["etl.raw", "etl.clean", "stats.summary"]
+-- ["etl.raw", "etl.clean", "stats.summary_result"]
 
 pipeline_deps(meta)
--- {`etl.raw`: [], `etl.clean`: ["etl.raw"], `stats.summary`: ["etl.clean"]}
+-- {`etl.raw`: [], `etl.clean`: ["etl.raw"], `stats.summary_result`: ["etl.clean"]}
 
 -- You can build the entire meta-pipeline directly:
 populate_pipeline(meta, build = true)
 
 -- You can read individual nodes using nested dot notation:
-res = read_node(meta.stats.summary)
+res = read_node(meta.stats.summary_result)
 ```
 
 ### Cross-Pipeline Dependency Tracking: T vs. RawCode
@@ -7921,7 +7932,7 @@ p = pipeline {
 
   -- This shell node reads data.csv, which is created by raw_file.
   -- We use the `deps` argument to ensure raw_file executes first.
-  summary = shn(
+  summary_result = shn(
     command = <{ cat data.csv | wc -l }>, 
     deps = [raw_file],
     serializer = ^text
@@ -8059,7 +8070,7 @@ df
     serializer = ^csv
   )
 
-  summary = pyn(
+  summary_node = pyn(
     command = <{
 import pandas as pd
 result = clean.groupby("region")["amunt"].sum().reset_index()
@@ -8078,7 +8089,7 @@ Notice the pipeline structure:
 
 - **`raw`** is a T node that reads the CSV (T handles file I/O natively)
 - **`clean`** is a Python node (`pyn`) that filters and transforms the data
-- **`summary`** is a Python node that groups and aggregates
+- **`summary_node`** is a Python node that groups and aggregates
 - Each Python node receives upstream data as a pandas DataFrame via `deserializer = ^csv`
 - The bare variable names (`raw`, `clean`) inside `<{ ... }>` blocks are auto-detected
   as dependencies — T deserializes the upstream artifact and injects it as a variable
@@ -8164,7 +8175,7 @@ Now a different error surfaces:
       "severity": "error",
       "phase": "schema",
       "node": {
-        "id": "summary",
+        "id": "summary_node",
         "lang": "python",
         "file": "pipeline.t",
         "span": { "start": [22, 35], "end": [22, 41] }
@@ -8179,7 +8190,7 @@ Now a different error surfaces:
         "new_name": "amount",
         "edit_distance": 1,
         "is_unique": true,
-        "target_node": "summary"
+        "target_node": "summary_node"
       }
     }
   ]
@@ -8189,8 +8200,8 @@ Now a different error surfaces:
 The agent sees:
 
 - **`error_class: "schema_mismatch"`** — column name doesn't match upstream schema
-- **`caused_by: ["clean"]`** — the `summary` node reads from `clean`'s output
-- **`suggested_fix`** — rename `amunt` to `amount` in the summary node
+- **`caused_by: ["clean"]`** — the `summary_node` node reads from `clean`'s output
+- **`suggested_fix`** — rename `amunt` to `amount` in the summary_node node
 
 The agent fixes the column reference:
 
@@ -8232,7 +8243,7 @@ If `t fix` had been applicable, the agent would preview first:
 ```bash
 $ t fix --dry-run pipeline.t
 dry-run: would apply 1 fix to pipeline.t:
-  [Rename_column] line 22: rename column 'amunt' to 'amount' in node 'summary'
+  [Rename_column] line 22: rename column 'amunt' to 'amount' in node 'summary_node'
 ```
 
 Then apply:
@@ -8267,8 +8278,8 @@ Node 'raw' building...
 Node 'raw' completed (0.3s)
 Node 'clean' building... (Python environment)
 Node 'clean' completed (4.2s)
-Node 'summary' building... (Python environment)
-Node 'summary' completed (2.1s)
+Node 'summary_node' building... (Python environment)
+Node 'summary_node' completed (2.1s)
 Pipeline complete. 3/3 nodes succeeded.
 ```
 
@@ -8294,7 +8305,7 @@ $ t diff pipeline.t
 Name          Status    Class_a  Class_b
 raw           Unchanged T        T
 clean         Unchanged T        T
-summary       Unchanged T        T
+summary_node  Unchanged T        T
 ```
 
 All nodes unchanged — this is the first build, so there's nothing to compare against.
@@ -8304,10 +8315,10 @@ After an edit, you'd see:
 Name          Status    Class_a  Class_b
 raw           Unchanged T        T
 clean         Changed   T        T
-summary       Changed   T        T
+summary_node  Changed   T        T
 ```
 
-This tells you the blast radius: your edit to `clean` cascaded to `summary`.
+This tells you the blast radius: your edit to `clean` cascaded to `summary_node`.
 
 For programmatic access, use `diff_summary()` in the REPL:
 
@@ -8318,7 +8329,7 @@ d = diff_summary(p)
 ```
 
 > **What the human reviews:** The diff tells you whether the agent's edit had the
-> intended effect. If `summary` changed but you only edited `clean`, that's expected
+> intended effect. If `summary_node` changed but you only edited `clean`, that's expected
 > (downstream dependency). If something you didn't touch changed, investigate.
 
 ---
@@ -8352,7 +8363,7 @@ $ t diff pipeline.t
 Name          Status    Class_a  Class_b
 raw           Unchanged T        T
 clean         Unchanged T        T
-summary       Unchanged T        T
+summary_node  Unchanged T        T
 by_product    Added     -        T
 ```
 
@@ -8393,7 +8404,7 @@ $ t run --json pipeline.t 2>/dev/null
 Each line is a JSON object. First, the run starts:
 
 ```json
-{"schema_version":"1.0","seq":1,"ts":"2026-07-14T12:00:00.000Z","event":"run_started","file":"pipeline.t","nodes":[{"id":"raw","lang":"t"},{"id":"clean","lang":"python","depends_on":["raw"]},{"id":"summary","lang":"python","depends_on":["clean"]}]}
+{"schema_version":"1.0","seq":1,"ts":"2026-07-14T12:00:00.000Z","event":"run_started","file":"pipeline.t","nodes":[{"id":"raw","lang":"t"},{"id":"clean","lang":"python","depends_on":["raw"]},{"id":"summary_node","lang":"python","depends_on":["clean"]}]}
 ```
 
 If a node fails:
@@ -8970,16 +8981,16 @@ Pipelines are DAGs of named computations:
 p = pipeline {
   x = 10
   y = 20
-  sum = x + y
+  total = x + y
 }
 ```
 
 **Execution**:
-1. Parse nodes → `[("x", Int 10), ("y", Int 20), ("sum", BinOp(Add, Ident "x", Ident "y"))]`
-2. Topological sort (dependency order): `x`, `y`, `sum`
-3. Evaluate each node, binding results: `x → 10`, `y → 20`, `sum → 30`
+1. Parse nodes → `[("x", Int 10), ("y", Int 20), ("total", BinOp(Add, Ident "x", Ident "y"))]`
+2. Topological sort (dependency order): `x`, `y`, `total`
+3. Evaluate each node, binding results: `x → 10`, `y → 20`, `total → 30`
 4. Store in `VPipeline` with results table
-5. Access via `p.sum` → `30`
+5. Access via `p.total` → `30`
 
 **Cycle Detection**: Circular dependencies produce an error:
 ```t
@@ -9465,7 +9476,7 @@ Now that you can work with numerical arrays, explore statistical modeling and re
 
 # Changelog
 
-## [Unreleased]
+## [0.55.0] - 2026-08-11
 
 ### Breaking Changes
 
@@ -9490,6 +9501,19 @@ Now that you can work with numerical arrays, explore statistical modeling and re
 - **Nested verb calls inside NSE verbs evaluate correctly**: `mutate(select(df, $x), $z = $x * 2)`, `arrange(arrange(df, $x), $x)`, and `mutate(df, $y = select(other, $col))` now evaluate the nested call to a DataFrame instead of being wrapped into a row-lambda and rejected with a spurious `TypeError`. Previously these valid expressions failed with "Function `mutate` expects a DataFrame as first argument."
 - **colcraft regex is UTF-8 aware**: the `matches` and `contains` selection helpers, `separate`, and `separate_rows` now use PCRE2 in UTF-8 mode instead of byte-oriented `Str` regex. `matches` supports `\p{...}` Unicode property classes (e.g. `select(df, matches("^\\p{L}+$"))`), and multibyte values flow through `separate` / `separate_rows` without being torn. `contains` now uses a literal substring test. Existing `Str.split` semantics (trailing empty tokens dropped, empty subject yields no rows) are preserved.
 - **`str_extract_all` / `str_count` handle trailing zero-width matches**: patterns that can match the empty string at end-of-input (`a*`, `a?`, lookaheads, `$`-anchored assertions) no longer hang with unbounded memory growth. The trailing empty match is reported once and the scan terminates, matching R's `stringr` behavior.
+- **`get()` raises KeyError for missing dict keys**: `get(dict, "key")` now performs a real lookup — returning the value for an existing key, the `default` (if given) for a missing one, and raising `KeyError: "Key \`missing\` not found in Dict."` when no default is supplied. Previously it silently returned the whole dict unchanged, masking typos. Unsupported `get(a, b)` pairs now raise an explicit `TypeError` instead of echoing back the first argument.
+- **`get()` raises KeyError for missing pipeline nodes**: `get(pipeline, "node")` now raises `KeyError: "Node \`missing\` not found in Pipeline."` when the node does not exist instead of silently returning `NA`, matching `pipeline_node`. The 2-argument form decides existence by the declared node names, so a node whose value happens to be `NA` is not mistaken for a missing node. The 3-argument form (`get(pipeline, "missing", default)`) keeps its documented safe-retrieval semantics and returns the default on a missing node.
+- **`get(pipeline, $node)` strips the leading `$`**: dollar-symbol node lookup now retrieves the node, matching the dict form of `get`. Previously `get(p, $a)` failed with the misleading `Node \`$a\` not found in Pipeline.` and the 3-argument form `get(p, $a, default)` silently returned the default even when node `a` existed.
+- **`pipeline_node(p, $node)` accepts bare-word selectors**: a leading `$` in the node name is now stripped, so `pipeline_node(p, $a)` and `pipeline_node(p, "$a")` both retrieve node `a`, matching `get(p, $a)`. Previously the `$`-prefixed forms failed with `Node \`$a\` not found in Pipeline.`.
+- **Factor-grouped aggregation follows level order**: `count`, `group_by` + `summarize`, and related verbs on factor (dictionary) columns now group by level string with R-compatible ordering — unused levels are dropped and `NA` factor values form an `NA` group. Previously grouping fell back to raw dictionary indices, which produced wrong groups for non-default level orders.
+- **Pipeline node names cannot collide with builtin functions or runtime symbols**: declaring a node named after a builtin (e.g. `count`, `summary`, `source`, `n`) or a runtime symbol (e.g. `R`, `sh`, `default`) now fails immediately — structurally in `t check`, at pipeline construction, and in `rename_node` — with a clear `Node \`count\` is reserved: ...` message. Previously a node named `n` silently shadowed the builtin and broke dependency inference for cross-pipeline references.
+- **`t fix` suggests renaming colliding node names**: the reserved-name error now carries a `Rename_node` suggested fix that appends `_node` to the colliding name (`count` → `count_node`). `t fix` / `t_fix()` applies it mechanically to the node's definition line. Downstream references to the node (`deps` entries, sibling expressions, or other nodes' raw code) cannot be rewritten safely at the text level, so the fix is refused — reported as skipped, file left untouched — whenever the old name appears elsewhere in the file; references must then be renamed manually. `t fix --dry-run` probes the file and reports a refused rename as skipped too (not would-apply), and a skipped rename prints a note naming the blocking line(s) (e.g. `Node \`count\` is still referenced on line 3 of …`). Confidence is `"medium"` for this reason.
+- **`t fix` dry-run is accurate for `add_node_arg` too**: `t fix --dry-run` / `t_fix(dry_run = true)` now probes the file for `Add_node_arg` fixes the same way it already did for `Rename_node`: an argument-insertion fix whose node is no longer defined in the file is reported as skipped (with a note naming the missing node) instead of would-apply, matching what the real apply would do. Internally, `apply_fixes` no longer prints per-fix preview lines to stdout — previews are returned in `fix_result.dry_run_entries` and rendered by the caller — so `t_fix()`'s returned summary string is clean (no stray `Would apply:` lines leaking from a side effect).
+- **`rewire` no longer silently ignores a bad `replace`**: `rewire(p, "node", replace = ...)` now raises an explicit error when `replace` is missing, is not a Dict or named List of node-name strings, or evaluates to an error. Previously a `list(...)` value (which is not a function in T) was swallowed into an empty replace map, making the call a silent no-op. Use the dict literal form: `rewire(p, "node", replace = [old: "new"])`.
+- **`col_lens` List values spread elementwise over DataFrame rows**: `set(df, col_lens("c"), [10, 20])` now spreads the list elementwise across the new column, matching the existing `VVector` behavior. A list whose length equals `nrow(df)` assigns position-for-position; a shorter list recycles modulo; a single-element list broadcasts to all rows; and an empty list yields an `NA` column. Previously the raw List was written as a scalar string per row (e.g. `Vector["[10,20]", "[10,20]"]`).
+- **Pipeline dependency inference no longer masked by shadowing block-local bindings**: a block-local assignment inside a T node command that happens to share a name with a sibling node (e.g. `{ src = src + 1; [out: src] }` where `src` is also a preceding node) now correctly records the sibling node as a dependency. Previously the locally-bound name was pre-registered before scanning the right-hand side's free variables, silently dropping the reference.
+- **Dogfooding expanded to cover the `base` package and deepens propcraft self-tests**: `serialize`/`deserialize` round-trips are property-tested over generated Int/Float/Bool/String scalars (30 draws each), all five NA variants survive the round-trip, `t_write_json`/`t_read_json` round-trips cover the same scalar types, `is_na` identity holds for every generated non-NA scalar, and error-code/message/context/chain round-trips verify all 13 error codes. Additional propcraft self-tests exercise `prop_map_gen` chains, `prop_resize` nesting, `prop_gen_df` zero-row and single-cell edges, `prop_gen_one_of` with NA-inclusive value sets, triple-nested `prop_gen_choice`, all-NA column type correctness across Int/Float/Bool/String, `prop_for_all` n=1, block-evaluated error propagation, `prop_gen_df_from` factor-only and single-row schemas, and multi-seed `prop_gen_dict` invariants.
+- **Dogfooding now covers the `testcraft` package**: `expect_equal` identity is verified over generated Int/Float/Bool/String scalars, DataFrames with injected NAs, Lists, and Vectors; `tolerance`-based Float comparisons correctly pass and fail; `expect_nrow`/`expect_ncol`/`expect_length` dimension identity holds over generated DataFrames and Vectors; `expect_true`/`expect_false` are correct with NA-hold semantics; `expect_between` catches out-of-range values; `expect_set_equal` is order-independent; `expect_unique` passes on all-unique generated vectors; `expect_no_na` detects NA-bearing DataFrames; `expect_str_contains` holds identity; `expect_fields` correctly matches generated Dict keys; `expect_in`/`expect_match`/`expect_summary` are exercised.
 
 ### Propcraft — Property-Based Testing
 
@@ -9516,6 +9540,12 @@ Now that you can work with numerical arrays, explore statistical modeling and re
 - **In-domain date shrinking**: `Date`/`Datetime` values now shrink within their domain — `ymd_range` toward the year-span floor, `date_range` toward the start bound (micros 0 + preserved timezone for datetimes), and bare date cells inside `prop_gen_df` toward the epoch (1970-01-01 / micros 0).
 - **Chrono dogfooding**: Property tests now cover the `chrono` package — date-bound invariants (`day`, `month`, `quarter`, `semester`, `yday`, `isoweek`, `wday`, leap-year consistency), round-trips (`format_date`/`parse_date`, `ymd`, period arithmetic), `%within%` intervals, datetime components, and NA-hardening of `mutate`/`arrange` over date columns.
 - **Dogfooding expanded further**: Property tests now also cover the `stats` package (mode membership over typed/mixed vectors, `sd`/`var` consistency, constant-vector degeneracy, mean/quantile/min-max bounds, `range`/`fivenum` endpoints, `cor`/`cov` symmetry and range, `iqr` non-negativity), multibyte UTF-8 invariants for `strcraft` (`split`/`pad`/`trunc`/`repeat` round-trips and case-mapping idempotence over accented generators), `colcraft`/`stats` DataFrame verbs (`arrange` idempotence, `mutate`-then-`select`, `drop_na` subsets on date/NaN columns, `distinct` bounds), plus integer-domain `math` and list-domain `core` invariants. These properties are tight enough to have surfaced the UTF-8 case-mapping, byte-based regex, and nested-NSE-call bugs fixed above.
+- **Wide integer ranges no longer crash**: `prop_gen_int_range` / `prop_gen_between` now work for spans of 2^30 and wider (e.g. the full 32-bit integer range) instead of raising an internal RNG error.
+- **Internal errors no longer crash a run**: an unexpected exception from a builtin now surfaces as a `RuntimeError` diagnostic instead of terminating the process.
+- **Shrinking no longer crashes on function values**: counterexamples containing closures (e.g. `[v, \(x) x]`) shrink cleanly instead of aborting the shrinker.
+- **`prop_gen_one_of` shrinks inside its declared values**: counterexamples stay within the generator's domain, shrinking toward earlier values with the first value treated as minimal.
+- **Mapping errors are surfaced**: an `Error` returned by a `prop_map_gen` / `prop_gen_fn` mapping now fails the run instead of being silently treated as a drawn value.
+- **Datetime shrinking no longer overflows**: wide or very negative `Datetime` counterexamples shrink correctly instead of overflowing a 32-bit intermediate.
 
 ## [0.54.3] - 2026-08-01
 
@@ -9672,7 +9702,7 @@ Now that you can work with numerical arrays, explore statistical modeling and re
 
 ### `t fix` — Mechanical Suggested-Fix Application
 
-- **`t fix <file>`**: Runs `t check --schema`, extracts diagnostics with `suggested_fix`, and applies them mechanically. Supports `Rename_column` (replaces `$old` with `$new` in column references) and `Add_node_arg` (inserts missing arguments into node definitions).
+- **`t fix <file>`**: Runs `t check --schema`, extracts diagnostics with `suggested_fix`, and applies them mechanically. Supports `Rename_column` (replaces `$old` with `$new` in column references), `Add_node_arg` (inserts missing arguments into node definitions), and `Rename_node` (renames a colliding node name; skipped when the node is referenced elsewhere in the file).
 - **`t_fix(file, dry_run)` REPL function**: Invoke `t fix` from within a T session.
 - **Word-boundary-safe rename**: Column renames only affect `$col` and `` $`col` `` forms, avoiding corruption of identifiers like `valid` when renaming `id`.
 - **`target_node` on `suggested_fix`**: `Rename_column` and `Add_node_arg` fixes now include a `target_node` field indicating which pipeline node the fix applies to.
@@ -15698,7 +15728,7 @@ dashboard_prep = pipeline {
     |> filter(not is_na($product_id))
   
   -- 3. Summary statistics
-  summary = {
+  summary_stats = {
     total_revenue: sum(clean_sales.revenue),
     total_orders: nrow(clean_sales),
     avg_order_value: mean(clean_sales.revenue),
@@ -15724,7 +15754,7 @@ write_csv(dashboard_prep.top_products, "top_products.csv")
 write_csv(dashboard_prep.by_region, "regional_breakdown.csv")
 
 print("Dashboard data prepared successfully")
-print("Total revenue: " + to_string(dashboard_prep.summary.total_revenue))
+print("Total revenue: " + to_string(dashboard_prep.summary_stats.total_revenue))
 ```
 
 ---
@@ -17521,13 +17551,13 @@ analysis = pipeline {
         else "low_value"
       )
   
-  summary = segmented
+  summary_result = segmented
     |> group_by($segment)
     |> summarize($count = nrow($segment), $avg_ltv = mean($ltv))
 }
 
 write_csv(analysis.segmented, "customer_segments.csv")
-write_csv(analysis.summary, "segment_summary.csv")
+write_csv(analysis.summary_result, "segment_summary.csv")
 ```
 
 **Benefits**:
@@ -20589,7 +20619,7 @@ p = pipeline {
   )
 
   -- Running a Julia node that reads and summarizes the data
-  summary = jln(
+  summary_node = jln(
     command = <{
       using DataFrames
       df = CSV.read(data_path, DataFrame)
@@ -20620,7 +20650,7 @@ p = pipeline {
   report = shn(script = "postprocess.sh")
 
   -- node() auto-detects the runtime from the file extension
-  summary = node(script = "summarise.R", serializer = ^json)
+  summary_node = node(script = "summarise.R", serializer = ^json)
 }
 ```
 
@@ -20930,10 +20960,10 @@ Nodes can use any T function, including standard library functions:
 p = pipeline {
   data = [1, 2, 3, 4, 5]
   total = sum(data)
-  count = length(data)
+  row_count = length(data)
 }
 p.total  -- 15
-p.count  -- 5
+p.row_count  -- 5
 ```
 
 ---
@@ -20998,10 +21028,10 @@ p = pipeline {
   raw = read_csv("sales.csv")
   filtered = filter(raw, $amount > 100)
   by_region = filtered |> group_by($region)
-  summary = by_region |> summarize($total = sum($amount))
+  summary_node = by_region |> summarize($total = sum($amount))
 }
 
-p.summary  -- DataFrame with regional totals
+p.summary_node  -- DataFrame with regional totals
 ```
 
 ---
@@ -21971,6 +22001,12 @@ data_utils = { git = "https://github.com/user/data-utils", tag = "v0.2.0" }
 [t]
 min_version = "0.55.0"
 ```
+
+> **Important**: `[dependencies]` entries **must** be `{ git, tag }` inline tables pointing to T packages. Version-constraint strings (e.g. `tlang = ">=0.52.0"`) and array values (e.g. `python = ["polars"]`) are **not valid** and will produce a hard error from `t update`. To declare runtime-language packages, use the dedicated sections:
+> - `[r-dependencies].packages` for R packages
+> - `[py-dependencies].packages` for Python packages
+> - `[jl-dependencies].packages` for Julia packages
+> For the minimum T version, use `[t].min_version`.
 
 ### 3.1 System Dependencies and LaTeX
 

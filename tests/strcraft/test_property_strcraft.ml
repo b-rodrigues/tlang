@@ -28,6 +28,10 @@ let run_tests _pass_count _fail_count _failures _eval_string eval_string_env _te
       m_lower_case     = prop_named("lower_case",     \(s) str_nchar(s) == 0 || to_lower(s) != s)
       m_contains_idx   = prop_named("contains_idx",   \(s) contains(s, "a") == (index_of(s, "a") >= 0))
       m_detect_dot     = prop_named("detect_dot",     \(s) s == "" || str_detect(s, str_join(["^", str_repeat(".", str_nchar(s)), "$"], "")))
+      m_replace_idem    = prop_named("replace_idem",   \(s) str_replace(str_replace(s, "a", "b"), "a", "b") == str_replace(s, "a", "b"))
+      m_replace_nonlen  = prop_named("replace_nonlen", \(s) str_nchar(str_replace(s, "a", "xy")) >= str_nchar(s) - str_count(s, "a"))
+      m_extract_noop    = prop_named("extract_noop",   \(s) s == "" || str_extract(s, "(.+)") == s)
+      m_detect_sans     = prop_named("detect_sans",    \(s) str_detect(str_replace(s, "a", ""), "a") == false)
     |} env
   in
 
@@ -62,5 +66,10 @@ let run_tests _pass_count _fail_count _failures _eval_string eval_string_env _te
   Test_helpers.prop_test_seeded test_env env "to_lower changes accented input" "m_lower_case" upper_acc_gen 30 seeds;
   Test_helpers.prop_test_seeded test_env env "contains(s, \"a\") agrees with index_of(s, \"a\")" "m_contains_idx" multi_gen 30 seeds;
   Test_helpers.prop_test_seeded test_env env "str_detect(s, \"^.$\") holds for single non-empty strings" "m_detect_dot" multi_gen 30 seeds;
+
+  Test_helpers.prop_test_seeded test_env env "str_replace is idempotent" "m_replace_idem" alpha_gen 30 seeds;
+  Test_helpers.prop_test_seeded test_env env "str_replace with longer replacement never shrinks past minimum" "m_replace_nonlen" alpha_gen 30 seeds;
+  Test_helpers.prop_test_seeded test_env env "str_extract with (.+) returns the whole string" "m_extract_noop" alpha_gen 30 seeds;
+  Test_helpers.prop_test_seeded test_env env "str_detect is false after removing the needle" "m_detect_sans" alpha_gen 30 seeds;
 
   Printf.printf "\n"

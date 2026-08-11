@@ -36,6 +36,11 @@ let run_tests _pass_count _fail_count _failures _eval_string eval_string_env _te
       m_fivenum_bounds  = prop_named("fivenum_bounds",    \(v) min(fivenum(v)) >= min(v) - 0.0001 && max(fivenum(v)) <= max(v) + 0.0001)
       m_cov_sym         = prop_named("cov_sym",           \(df) abs(cov(df |> pull("x"), df |> pull("y")) - cov(df |> pull("y"), df |> pull("x"))) < 0.0001)
       m_cor_range       = prop_named("cor_range",         \(df) abs(cor(df |> pull("x"), df |> pull("y"))) <= 1.0)
+      m_cov_diag         = prop_named("cov_diag",          \(v) abs(cov(v, v) - var(v)) < 0.0001)
+      m_mean_scale       = prop_named("mean_scale",        \(v) abs(mean(v .* 2.0) - 2.0 * mean(v)) < 0.0001)
+      m_sd_nonneg        = prop_named("sd_nonneg",         \(v) sd(v) >= 0.0)
+      m_fivenum_len      = prop_named("fivenum_len",       \(v) length(fivenum(v)) == 5)
+      m_quantile_mono    = prop_named("quantile_mono",     \(v) quantile(v, 0.25) <= quantile(v, 0.75))
     |} env
   in
 
@@ -86,5 +91,11 @@ let run_tests _pass_count _fail_count _failures _eval_string eval_string_env _te
   Test_helpers.prop_test_seeded test_env env "cor stays within [-1, 1]" "m_cor_range" xy_df 20 df_seeds;
   Test_helpers.prop_test_seeded test_env env "iqr is non-negative" "m_iqr_nonneg" int_vec 30 seeds;
   Test_helpers.prop_test_seeded test_env env "fivenum endpoints match min and max" "m_fivenum_bounds" pos_vec 30 seeds;
+
+  Test_helpers.prop_test_seeded test_env env "cov(v, v) == var(v)" "m_cov_diag" float_vec 30 seeds;
+  Test_helpers.prop_test_seeded test_env env "mean(k*v) == k * mean(v)" "m_mean_scale" float_vec 30 seeds;
+  Test_helpers.prop_test_seeded test_env env "sd(v) >= 0" "m_sd_nonneg" float_vec 30 seeds;
+  Test_helpers.prop_test_seeded test_env env "fivenum returns exactly 5 elements" "m_fivenum_len" pos_vec 30 seeds;
+  Test_helpers.prop_test_seeded test_env env "quantile(0.25) <= quantile(0.75)" "m_quantile_mono" float_vec 30 seeds;
 
   Printf.printf "\n"

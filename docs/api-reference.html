@@ -2942,35 +2942,38 @@ id="pipeline_nodespipeline"><code>pipeline_nodes(pipeline)</code></h3>
 <pre class="t"><code>p = pipeline { x = 1; y = 2; z = x + y }
 pipeline_nodes(p)  -- [&quot;x&quot;, &quot;y&quot;, &quot;z&quot;]</code></pre>
 <hr />
-<h3
-id="pipeline_depspipeline-node_name"><code>pipeline_deps(pipeline, node_name)</code></h3>
-<p>Get dependencies of a specific node.</p>
+<h3 id="pipeline_depspipeline"><code>pipeline_deps(pipeline)</code></h3>
+<p>Return the full dependency graph as a dictionary mapping each node
+name to its dependencies.</p>
 <p><strong>Parameters:</strong></p>
 <ul>
 <li><code>pipeline</code> — Pipeline object</li>
-<li><code>node_name</code> — Name of the node (String)</li>
 </ul>
 <p><strong>Returns:</strong></p>
-<p>List of Strings (dependency names)</p>
+<p>Dict of node name → List of Strings (dependency names)</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>p = pipeline { x = 1; y = 2; z = x + y }
-pipeline_deps(p, &quot;z&quot;)  -- [&quot;x&quot;, &quot;y&quot;]
-pipeline_deps(p, &quot;x&quot;)  -- []</code></pre>
+pipeline_deps(p)  -- {`x`: [], `y`: [], `z`: [&quot;x&quot;, &quot;y&quot;]}</code></pre>
 <hr />
 <h3
 id="pipeline_nodepipeline-node_name"><code>pipeline_node(pipeline, node_name)</code></h3>
-<p>Get the value of a specific node.</p>
+<p>Get the value of a specific node. A leading <code>$</code> in
+<code>node_name</code> is stripped, so bare-word selectors like
+<code>pipeline_node(p, $x)</code> are accepted, matching the behaviour
+of <code>get(p, $x)</code>.</p>
 <p><strong>Parameters:</strong></p>
 <ul>
 <li><code>pipeline</code> — Pipeline object</li>
-<li><code>node_name</code> — Name of the node (String)</li>
+<li><code>node_name</code> — Name of the node (String; a leading
+<code>$</code> is optional)</li>
 </ul>
 <p><strong>Returns:</strong></p>
 <p>Node value</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>p = pipeline { x = 10; doubled = x * 2 }
 pipeline_node(p, &quot;x&quot;)       -- 10
-pipeline_node(p, &quot;doubled&quot;) -- 20</code></pre>
+pipeline_node(p, &quot;$x&quot;)      -- 10
+pipeline_node(p, $doubled)  -- 20</code></pre>
 <hr />
 <h3
 id="pipeline_runpipeline-nix_options-na"><code>pipeline_run(pipeline, nix_options = NA)</code></h3>
@@ -3202,9 +3205,21 @@ id="t_fixfile-dry_run-false"><code>t_fix(file, dry_run = false)</code></h3>
 <code>t check --schema</code> on a file, extracts diagnostics with
 <code>suggested_fix</code>, and applies them mechanically. Supports
 <code>Rename_column</code> (replaces <code>$old</code> with
-<code>$new</code>) and <code>Add_node_arg</code> (inserts missing
-arguments into node definitions, e.g., adding a
-<code>deserializer</code> for cross-runtime dependencies).</p>
+<code>$new</code>), <code>Add_node_arg</code> (inserts missing arguments
+into node definitions, e.g., adding a <code>deserializer</code> for
+cross-runtime dependencies), and <code>Rename_node</code> (renames a
+node that collides with a builtin function or runtime symbol, e.g.,
+<code>count</code> → <code>count_node</code>; the rename is skipped when
+the node is referenced elsewhere in the file — <code>deps</code>,
+sibling expressions, or raw code blocks — since those references must be
+updated manually). <code>dry_run = true</code> probes the file so the
+preview agrees with the real apply: a refused <code>Rename_node</code>
+fix (target still referenced elsewhere) and an <code>Add_node_arg</code>
+fix whose node is no longer defined in the file are both reported as
+skipped, and skipped fixes print a note naming the blocking line(s) or
+the missing node. <code>apply_fixes</code> itself does not print — the
+per-fix previews are returned in <code>fix_result.dry_run_entries</code>
+— so the returned summary string is clean.</p>
 <p><strong>Arguments:</strong></p>
 <table>
 <colgroup>
@@ -3890,12 +3905,20 @@ name</td>
 </tr>
 <tr>
 <td><code>add_node_arg</code></td>
-<td>(planned) Adds an argument to a pipeline node</td>
+<td>Adds a missing argument to a pipeline node definition (e.g. a
+<code>deserializer</code> for cross-runtime dependencies).
+<code>--dry-run</code> probes the file and reports the fix as skipped
+(with a note naming the missing node) when the node is no longer defined
+in the file, matching the real apply</td>
 </tr>
 <tr>
-<td><code>pin_package_version</code></td>
-<td>(planned) Adds or updates a package version in
-<code>tproject.toml</code></td>
+<td><code>rename_node</code></td>
+<td>Renames a node definition that collides with a builtin/runtime
+symbol (<code>count</code> → <code>count_node</code>). Refused —
+reported as skipped, file left untouched — when the old name is
+referenced elsewhere in the file; a note names the blocking line(s).
+<code>--dry-run</code> probes the file and reports the same skipped
+outcome, matching the real apply</td>
 </tr>
 </tbody>
 </table>
@@ -4103,7 +4126,7 @@ fixture = pipeline {
 }
 
 test_filter = pipeline {
-  check = node(
+  check_result = node(
     command = {
       result = data |&gt; filter($mpg &gt; 20)
       assert(nrow(result) &gt; 0)
@@ -4113,7 +4136,7 @@ test_filter = pipeline {
 }
 
 test_mutate = pipeline {
-  check = node(
+  check_result = node(
     command = {
       result = data |&gt; mutate($kpg = $mpg * 1.609)
       assert(&quot;kpg&quot; in colnames(result))

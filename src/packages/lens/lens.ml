@@ -46,6 +46,13 @@ let rec col_lens_set_impl col_name ~eval_call args env =
         | VVector vals -> 
             if Array.length vals = 0 then Ok (Arrow_table.NAColumn nrows)
             else Arrow_bridge.values_to_column (Array.init nrows (fun i -> vals.(i mod Array.length vals)))
+        | VList items when List.length items = nrows ->
+            Arrow_bridge.values_to_column (Array.of_list (List.map snd items))
+        | VList items ->
+            if List.length items = 0 then Ok (Arrow_table.NAColumn nrows)
+            else
+              let vals = Array.of_list (List.map snd items) in
+              Arrow_bridge.values_to_column (Array.init nrows (fun i -> vals.(i mod Array.length vals)))
         | v -> 
             let vals = Array.make nrows v in
             Arrow_bridge.values_to_column vals

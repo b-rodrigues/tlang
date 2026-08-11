@@ -1618,17 +1618,17 @@ and eval_intent env_ref pairs =
 
 (** Extract free variable names from an expression *)
 and free_vars (expr : Ast.expr) : string list =
-  let rec collect is_call_target = function
+  let rec collect is_call_target bound = function
     | { node = Value _; _ } -> []
-    | { node = Var s; _ } -> if is_call_target then [] else [s]
+    | { node = Var s; _ } -> if is_call_target || List.mem s bound then [] else [s]
     | { node = ColumnRef _; _ } -> []
     | { node = Call { fn; args }; _ } ->
-        collect true fn @ List.concat_map (fun (_, e) -> collect false e) args
+        collect true bound fn @ List.concat_map (fun (_, e) -> collect false bound e) args
     | { node = Lambda { body; params; _ }; _ } ->
-        let bound = params in
-        List.filter (fun v -> not (List.mem v bound)) (collect false body)
+        let bound = params @ bound in
+        collect false bound body
     | { node = IfElse { cond; then_; else_ }; _ } ->
-        collect false cond @ collect false then_ @ collect false else_
+        collect false bound cond @ collect false bound then_ @ collect false bound else_
     | { node = Match { scrutinee; cases }; _ } ->
         let collect_case (pattern, body) =
           let rec bound_vars = function
@@ -1642,31 +1642,42 @@ and free_vars (expr : Ast.expr) : string list =
                 | Some name -> name :: names
                 | None -> names
           in
-          let bound = bound_vars pattern in
-          List.filter (fun v -> not (List.mem v bound)) (collect false body)
+          let bound = bound_vars pattern @ bound in
+          collect false bound body
         in
-        collect false scrutinee @ List.concat_map collect_case cases
-    | { node = ListLit items; _ } -> List.concat_map (fun (_, e) -> collect false e) items
-    | { node = DictLit pairs; _ } -> List.concat_map (fun (_, e) -> collect false e) pairs
-    | { node = BinOp { left; right; _ }; _ } -> collect false left @ collect false right
-    | { node = UnOp { operand; _ }; _ } -> collect false operand
-    | { node = BroadcastOp { left; right; _ }; _ } -> collect false left @ collect false right
-    | { node = DotAccess { target; _ }; _ } -> collect false target
+        collect false bound scrutinee @ List.concat_map collect_case cases
+    | { node = ListLit items; _ } -> List.concat_map (fun (_, e) -> collect false bound e) items
+    | { node = DictLit pairs; _ } -> List.concat_map (fun (_, e) -> collect false bound e) pairs
+    | { node = BinOp { left; right; _ }; _ } -> collect false bound left @ collect false bound right
+    | { node = UnOp { operand; _ }; _ } -> collect false bound operand
+    | { node = BroadcastOp { left; right; _ }; _ } -> collect false bound left @ collect false bound right
+    | { node = DotAccess { target; _ }; _ } -> collect false bound target
     | { node = RawCode { raw_identifiers; _ }; _ } -> raw_identifiers  (* Lexically extracted identifiers for dependency detection *)
-    | { node = Block stmts; _ } -> List.concat_map (collect_stmt false) stmts
+    | { node = Block stmts; _ } ->
+        (* Names bound by assignments earlier in the block are not free variables
+           of the block: a later statement may reference them (e.g. `x = 1` then
+           `[out: x]`) without creating a pipeline node dependency. *)
+        let _, free =
+          List.fold_left (fun (bound, acc) stmt ->
+            let fv, bound = collect_stmt false bound stmt in
+            (bound, acc @ fv)) (bound, []) stmts
+        in
+        free
     | { node = PipelineDef _; _ } -> []
-    | { node = PipelineOfDef nodes; _ } -> List.concat_map (fun (_, e) -> collect false e) nodes
-    | { node = IntentDef pairs; _ } -> List.concat_map (fun (_, e) -> collect false e) pairs
-    | { node = Unquote e; _ } | { node = UnquoteSplice e; _ } -> collect false e
+    | { node = PipelineOfDef nodes; _ } -> List.concat_map (fun (_, e) -> collect false bound e) nodes
+    | { node = IntentDef pairs; _ } -> List.concat_map (fun (_, e) -> collect false bound e) pairs
+    | { node = Unquote e; _ } | { node = UnquoteSplice e; _ } -> collect false bound e
     | { node = ShellExpr _; _ } -> []
 
-  and collect_stmt is_call_target = function
-    | { node = Expression e; _ } -> collect is_call_target e
-    | { node = Assignment { expr; _ }; _ } -> collect false expr
-    | { node = Reassignment { expr; _ }; _ } -> collect false expr
-    | { node = Import _ | ImportPackage _ | ImportFrom _ | ImportFileFrom _; _ } -> []
+  and collect_stmt is_call_target bound = function
+    | { node = Expression e; _ } -> (collect is_call_target bound e, bound)
+    | { node = Assignment { name; expr; _ }; _ } ->
+        let fv = collect false bound expr in
+        (fv, name :: bound)
+    | { node = Reassignment { expr; _ }; _ } -> (collect false bound expr, bound)
+    | { node = Import _ | ImportPackage _ | ImportFrom _ | ImportFileFrom _; _ } -> ([], bound)
   in
-  let vars = collect false expr in
+  let vars = collect false [] expr in
   List.sort_uniq String.compare vars
 
 (** Topological sort of pipeline nodes based on dependencies *)

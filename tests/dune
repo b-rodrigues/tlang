@@ -29,7 +29,8 @@
     test_formula_edge_cases
    test_large_datasets
    test_error_recovery
-   test_package_manager
+    test_package_manager
+    test_toml_parser
    test_scalar_strictness
    test_typing_mode
    test_quotation
@@ -51,8 +52,10 @@
      test_check test_fix test_ndjson
      test_expect_equal test_expect_more test_expect_condition test_expect_pipeline
        test_expect_pass_fail_msg test_expect_ds_coverage
-        test_property
-        test_property_verbs
+         test_property
+         test_property_base
+         test_property_testcraft
+         test_property_verbs
          test_property_math test_property_strcraft test_property_core
          test_property_chrono test_property_stats
          test_property_dataframe test_property_lens test_property_explain test_property_pipeline

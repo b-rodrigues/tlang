@@ -3831,6 +3831,45 @@ p.t_step|}
         else
           (incr fail_count; Printf.printf "  ✗ mutate_node provenance failed: funcs global=[%s] node=[%s] shell_src=%s\n"
              (String.concat ", " f_globals) (String.concat ", " f_nodes) shell_src)
-    | _ -> incr fail_count; Printf.printf "  ✗ mutate_node provenance test: expected VDict\n");
+     | _ -> incr fail_count; Printf.printf "  ✗ mutate_node provenance test: expected VDict\n");
+
+   (* Test 38 (block-local bindings in T node commands): names bound by
+      assignments inside a node's `{ }` block are NOT pipeline dependencies,
+      so pipelines using them validate cleanly. Regression for the
+      package_manager_functions_t structural errors. *)
+   test "block-local binding is not a missing dependency"
+     {|p = pipeline { a = { x = 1; [out: x] } }; length(pipeline_validate(p))|}
+     "0";
+   test "block-local binding with sibling node reference validates"
+     {|p = pipeline { a = { x = 1; [out: x] }; b = { y = a; [out: y] } }; length(pipeline_validate(p))|}
+     "0";
+   test "block-local reassignment does not create a dependency"
+     {|p = pipeline { a = { x = 1; x = x + 1; [out: x] } }; length(pipeline_validate(p))|}
+     "0";
+    test "genuinely unbound name is still a missing dependency"
+      {|p = pipeline { a = { [out: y] } }; length(pipeline_validate(p))|}
+      "1";
+    test "block-local binding shadowing a sibling node detects the dependency"
+      {|p = pipeline { src = 42; shadow = { src = src + 1; [out: src] } }; length(pipeline_validate(p))|}
+      "0";
+    (let env = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_pipeline:blocklocal-deps" {|
+      p = pipeline {
+        raw = rn(command = <{ 1 }>)
+        clean = { tmp = raw; [out: tmp] }
+      }
+    |} in
+    let get_p_deps p name =
+      match List.assoc_opt name p.p_deps with Some d -> d | None -> []
+    in
+    let (vp, _) = eval_string_env "p" env in
+    match vp with
+    | VPipeline p ->
+        let deps_clean = get_p_deps p "clean" in
+        let ok = deps_clean = ["raw"] in
+        if ok then
+          (incr pass_count; Printf.printf "  ✓ block-local binding leaves only the sibling node as a dependency\n")
+        else
+          (incr fail_count; Printf.printf "  ✗ block-local deps inference: clean deps=[%s]\n" (String.concat ", " deps_clean))
+    | _ -> incr fail_count; Printf.printf "  ✗ block-local deps inference: expected VPipeline\n");
 
    print_newline ()

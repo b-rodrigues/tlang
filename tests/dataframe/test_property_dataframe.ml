@@ -29,6 +29,14 @@ let run_tests _pass_count _fail_count _failures _eval_string eval_string_env _te
       m_parquet_roundtrip    = prop_named("parquet_roundtrip",    \(df) { write_parquet(df, "/tmp/propcraft_roundtrip.parquet"); r = read_parquet("/tmp/propcraft_roundtrip.parquet"); identical(df, r) })
       m_parquet_factor_flatten = prop_named("parquet_factor_flatten", \(df) { df2 = mutate(df, go = to_factor(pull(df, "s"), ordered = true)); write_parquet(df2, "/tmp/propcraft_roundtrip_f.parquet"); r = read_parquet("/tmp/propcraft_roundtrip_f.parquet"); nrow(r) == nrow(df2) && ncol(r) == ncol(df2) && identical(colnames(r), colnames(df2)) && identical(pull(r, "go"), pull(df, "s")) && identical(pull(r, "s"), pull(df, "s")) })
       m_parquet_empty     = prop_named("parquet_empty",       \(df) { write_parquet(df, "/tmp/propcraft_roundtrip_empty.parquet"); r = read_parquet("/tmp/propcraft_roundtrip_empty.parquet"); identical(df, r) })
+      m_bind_nrow        = prop_named("bind_nrow",         \(df) nrow(bind_rows(df, df)) == 2 * nrow(df))
+      m_bind_colnames    = prop_named("bind_colnames",     \(df) identical(colnames(bind_rows(df, df)), colnames(df)))
+      m_arrange_nrow     = prop_named("arrange_nrow",      \(df) nrow(arrange(df, $x)) == nrow(df))
+      m_distinct_nrow    = prop_named("distinct_nrow",      \(df) nrow(distinct(df, $x)) <= nrow(df))
+      m_select_ncol      = prop_named("select_ncol",       \(df) ncol(select(df, $x, $y)) == 2)
+      m_select_idem      = prop_named("select_idem",       \(df) identical(select(select(df, $x, $y), $x, $y), select(df, $x, $y)))
+      m_grp_summarize_nrow = prop_named("grp_summarize_nrow", \(df) nrow(df |> group_by($s) |> summarize($cnt = n())) <= nrow(df))
+      m_distinct_idem      = prop_named("distinct_idem",    \(df) identical(distinct(df, $x), distinct(distinct(df, $x), $x)))
     |} env
   in
 
@@ -42,6 +50,7 @@ let run_tests _pass_count _fail_count _failures _eval_string eval_string_env _te
   let parquet_df_gen = "prop_gen_df([i: prop_gen_int_range(-1000, 1000), f: prop_gen_float_range(-10.0, 10.0), b: prop_gen_bool(), s: prop_gen_string_from(\"ab \", 0, 5), d: prop_gen_ymd(2000, 2024), t: prop_gen_date_range(ymd_hms(\"2020-01-01 00:00:00\"), ymd_hms(\"2024-12-31 23:59:59\"))], nrows = 25, na_prob = 0.15)" in
   let parquet_fact_gen = "prop_gen_df([g: prop_gen_factor([\"a\", \"b\", \"c\"]), s: prop_gen_one_of([\"x\", \"y\", \"z\"])], nrows = 25, na_prob = 0.15)" in
   let parquet_empty_gen = "prop_gen_df([i: prop_gen_int_range(0, 10), g: prop_gen_factor([\"a\", \"b\"])], nrows = 0, na_prob = 0.0)" in
+  let verb_df_gen = "prop_gen_df([x: prop_gen_int_range(0, 100), y: prop_gen_int_range(0, 100), s: prop_gen_one_of([\"a\", \"b\", \"c\"])], nrows = 20, na_prob = 0.1)" in
 
   Test_helpers.prop_test_seeded test_env env "clean_colnames preserves length" "m_clean_len" names_gen 30 seeds;
   Test_helpers.prop_test_seeded test_env env "clean_colnames produces unique names" "m_clean_unique" names_gen 30 seeds;
@@ -54,6 +63,16 @@ let run_tests _pass_count _fail_count _failures _eval_string eval_string_env _te
   Test_helpers.prop_test_seeded test_env env "write_parquet/read_parquet round-trips mixed columns and NA" "m_parquet_roundtrip" parquet_df_gen 20 seeds;
   Test_helpers.prop_test_seeded test_env env "write_parquet/read_parquet preserves factor values through string flattening" "m_parquet_factor_flatten" parquet_fact_gen 20 seeds;
   Test_helpers.prop_test_seeded test_env env "write_parquet/read_parquet round-trips an empty frame" "m_parquet_empty" parquet_empty_gen 5 df_seeds;
+
+  (* Verb invariants — bind_rows, arrange, distinct, select, filter, group_by+summarize *)
+  Test_helpers.prop_test_seeded test_env env "bind_rows of two copies reconstructs the double nrow" "m_bind_nrow" verb_df_gen 10 df_seeds;
+  Test_helpers.prop_test_seeded test_env env "bind_rows preserves column names" "m_bind_colnames" verb_df_gen 10 df_seeds;
+  Test_helpers.prop_test_seeded test_env env "arrange preserves nrow" "m_arrange_nrow" verb_df_gen 20 df_seeds;
+  Test_helpers.prop_test_seeded test_env env "distinct never increases nrow" "m_distinct_nrow" verb_df_gen 20 df_seeds;
+  Test_helpers.prop_test_seeded test_env env "select(x, y) returns exactly 2 columns" "m_select_ncol" verb_df_gen 20 df_seeds;
+  Test_helpers.prop_test_seeded test_env env "select is idempotent" "m_select_idem" verb_df_gen 20 df_seeds;
+  Test_helpers.prop_test_seeded test_env env "group_by+summarize n() never exceeds nrow" "m_grp_summarize_nrow" verb_df_gen 20 df_seeds;
+  Test_helpers.prop_test_seeded test_env env "distinct is idempotent" "m_distinct_idem" verb_df_gen 20 df_seeds;
 
   if Sys.file_exists "/tmp/propcraft_roundtrip.csv" then Sys.remove "/tmp/propcraft_roundtrip.csv";
   List.iter (fun f -> if Sys.file_exists f then Sys.remove f)

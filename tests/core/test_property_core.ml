@@ -25,6 +25,9 @@ let run_tests _pass_count _fail_count _failures _eval_string eval_string_env _te
       m_seq_sum       = prop_named("seq_sum",       \(ab) abs(to_float(sum(seq(get(ab, 0), get(ab, 1)))) - (to_float(get(ab, 0) + get(ab, 1)) * to_float(max([get(ab, 0), get(ab, 1)]) - min([get(ab, 0), get(ab, 1)]) + 1) / 2.0)) < 0.0001)
       m_seq_commute   = prop_named("seq_sum_commute", \(ab) sum(seq(get(ab, 0), get(ab, 1))) == sum(seq(get(ab, 1), get(ab, 0))))
       m_seq_endpoints = prop_named("seq_endpoints", \(ab) get(seq(get(ab, 0), get(ab, 1)), 0) == get(ab, 0) && get(seq(get(ab, 0), get(ab, 1)), length(seq(get(ab, 0), get(ab, 1))) - 1) == get(ab, 1))
+      m_is_na_id        = prop_named("is_na_id",       \(x) is_na(x) == false)
+      m_neg_involutive  = prop_named("neg_inv",        \(x) -(-x) == x)
+      m_head_self       = prop_named("head_self",      \(xs) identical(head(xs, length(xs)), xs))
     |} env
   in
 
@@ -54,5 +57,9 @@ let run_tests _pass_count _fail_count _failures _eval_string eval_string_env _te
   Test_helpers.prop_test_seeded test_env env "seq(a, b) sums to the arithmetic series" "m_seq_sum" pair_gen 30 seeds;
   Test_helpers.prop_test_seeded test_env env "sum(seq(a, b)) == sum(seq(b, a))" "m_seq_commute" pair_gen 30 seeds;
   Test_helpers.prop_test_seeded test_env env "seq(a, b) starts at a and ends at b" "m_seq_endpoints" pair_gen 30 seeds;
+
+  Test_helpers.prop_test_seeded test_env env "is_na is false on generated non-NA ints" "m_is_na_id" int_gen 30 seeds;
+  Test_helpers.prop_test_seeded test_env env "-(-x) == x on ints" "m_neg_involutive" int_gen 30 seeds;
+  Test_helpers.prop_test_seeded test_env env "head(xs, len(xs)) is identical to xs" "m_head_self" list3_gen 30 seeds;
 
   Printf.printf "\n"

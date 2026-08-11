@@ -677,4 +677,83 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env _test 
   Test_helpers.prop_test_seeded test_env env "such_that filters the inner domain" "prop_named(\"such_that_even\", \\(x) x % 2 == 0)" "prop_such_that(prop_gen_int_range(0, 40), \\(x) x % 2 == 0)" 30 seeds;
   Test_helpers.prop_test_seeded ~preamble:"mt = to_dataframe([x: [1, 2, 3], s: [\"a\", \"b\", \"c\"]])" test_env env "df_from round-trips nrows across seeds" "prop_named(\"df_from_nrows\", \\(df) nrow(df) == 40 && ncol(df) == 2)" "prop_gen_df_from(mt, nrows = 40, na_prob = 0.2)" 10 seeds;
 
+  (* ---- deeper propcraft self-tests: combinator chains, boundary generators, edge cases ---- *)
+
+  (* prop_map_gen chain: map(map(gen, f), g) *)
+  test_env env "prop_map_gen chain — double transform"
+    "set_seed(42)\nprop_for_all(prop_map_gen(prop_map_gen(prop_gen_int_range(0, 50), \\(x) x + 50), \\(y) y * 2), \\(z) z >= 100 && z % 2 == 0, n = 30)"
+    "PASS";
+  test_env env "prop_map_gen preserves size param"
+    "prop_for_all(prop_map_gen(prop_gen_fn(\\(n) n), \\(v) v + 0), \\(v) v == 30, n = 5)"
+    "PASS";
+
+  (* prop_resize chain — multiple resize layers stack: outermost wins *)
+  test_env env "prop_resize chain override — single resize"
+    "prop_for_all(prop_resize(prop_gen_vector(prop_gen_int_range(0, 0), 10), 5), \\(v) length(v) == 5, n = 10)"
+    "PASS";
+
+  (* prop_gen_df boundary: 0 rows *)
+  test_env env "prop_gen_df 0 rows produces empty frame"
+    "prop_for_all(prop_gen_df([x: prop_gen_int_range(0, 5)], nrows = 0, na_prob = 0.0), \\(df) nrow(df) == 0 && ncol(df) == 1, n = 5)"
+    "PASS";
+
+  (* prop_gen_df boundary: 1 row, 1 column *)
+  test_env env "prop_gen_df single row single column"
+    "prop_for_all(prop_gen_df([x: prop_gen_int_range(0, 100)], nrows = 1, na_prob = 0.0), \\(df) nrow(df) == 1 && ncol(df) == 1, n = 10)"
+    "PASS";
+
+  (* prop_gen_one_of with NA values — verify NA draws work *)
+  test_env env "prop_gen_one_of all-NA shrinks to first element"
+    "set_seed(1)\nprop_for_all(prop_gen_one_of([na_int(), na_float(), na_string()]), \\(x) false, n = 3)"
+    "NA(Int)";
+
+  (* prop_gen_choice nested 3 levels deep: no crash, values non-NA *)
+  test_env env "prop_gen_choice nested 3 levels draws in domain"
+    "prop_for_all(prop_gen_choice([prop_gen_int_range(0, 5), prop_gen_choice([prop_gen_bool(), prop_gen_one_of([true, false])])]), \\(x) !is_na(x), n = 30)"
+    "PASS";
+
+  (* prop_gen_df all-NA columns with various types *)
+  test_env env "prop_gen_df all-NA int column renders NA(Int)"
+    "set_seed(7)\nprop_for_all(prop_gen_df([a: prop_gen_int_range(0, 10)], nrows = 5, na_prob = 1.0), \\(df) false, n = 1)"
+    "NA(Int)";
+  test_env env "prop_gen_df all-NA float column renders NA(Float)"
+    "set_seed(7)\nprop_for_all(prop_gen_df([b: prop_gen_float_range(0.0, 10.0)], nrows = 5, na_prob = 1.0), \\(df) false, n = 1)"
+    "NA(Float)";
+  test_env env "prop_gen_df all-NA bool column renders NA(Bool)"
+    "set_seed(7)\nprop_for_all(prop_gen_df([c: prop_gen_bool()], nrows = 5, na_prob = 1.0), \\(df) false, n = 1)"
+    "NA(Bool)";
+  test_env env "prop_gen_df all-NA string column renders NA(String)"
+    "set_seed(7)\nprop_for_all(prop_gen_df([d: prop_gen_string_from(\"xyz\", 1, 3)], nrows = 5, na_prob = 1.0), \\(df) false, n = 1)"
+    "NA(String)";
+
+  (* prop_for_all n=1 edge case *)
+  test_env env "prop_for_all n=1 single draw passes"
+    "set_seed(42)\nprop_for_all(prop_gen_int_range(0, 100), \\(x) x >= 0, n = 1)"
+    "PASS";
+
+  (* prop_for_all block raising error from block evaluation *)
+  test_env env "prop_for_all block raising error fails with raised text"
+    "set_seed(1)\nprop_for_all(prop_gen_int_range(0, 5), \\(x) { error(\"inner-boom\"); 1 }, n = 3)"
+    "raised: inner-boom";
+
+  (* prop_gen_df_from with factor-only frame *)
+  test_env env "prop_gen_df_from factor-only frame round-trip"
+    "ff = to_dataframe([g: to_factor([\"x\", \"y\", \"z\", \"x\", \"y\", \"z\"])])\n\
+     prop_for_all(prop_gen_df_from(ff, nrows = 15, na_prob = 0.2), \\(df) nrow(df) == 15 && ncol(df) == 1, n = 10)"
+    "PASS";
+
+  (* prop_gen_df_from single-row frame *)
+  test_env env "prop_gen_df_from single row infers correctly"
+    "single = to_dataframe([v: [42]])\n\
+     prop_for_all(prop_gen_df_from(single, nrows = 10), \\(df) nrow(df) == 10, n = 5)"
+    "PASS";
+
+  (* prop_gen_dict multi-seed dogfooding *)
+  Test_helpers.prop_test_seeded test_env env "dict multi-column domain across seeds"
+    "prop_named(\"dict_domain\", \\(d) (d.x >= 0 && d.x <= 5) && (d.s == \"a\" || d.s == \"b\"))"
+    "prop_gen_dict([x: prop_gen_int_range(0, 5), s: prop_gen_one_of([\"a\", \"b\"])], na_prob = 0.0)" 20 seeds;
+  Test_helpers.prop_test_seeded test_env env "dict between shrinks across seeds"
+    "prop_named(\"dict_between\", \\(d) d.x <= 200)"
+    "prop_gen_dict([x: prop_gen_between(100, 200)], na_prob = 0.0)" 10 seeds;
+
   Printf.printf "\n"
