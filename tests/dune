@@ -54,6 +54,7 @@
        test_expect_pass_fail_msg test_expect_ds_coverage
          test_property
          test_property_base
+         test_property_testcraft
          test_property_verbs
          test_property_math test_property_strcraft test_property_core
          test_property_chrono test_property_stats

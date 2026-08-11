@@ -269,6 +269,22 @@ Int/Float/Bool/String, <code>prop_for_all</code> n=1, block-evaluated
 error propagation, <code>prop_gen_df_from</code> factor-only and
 single-row schemas, and multi-seed <code>prop_gen_dict</code>
 invariants.</li>
+<li><strong>Dogfooding now covers the <code>testcraft</code>
+package</strong>: <code>expect_equal</code> identity is verified over
+generated Int/Float/Bool/String scalars, DataFrames with injected NAs,
+Lists, and Vectors; <code>tolerance</code>-based Float comparisons
+correctly pass and fail;
+<code>expect_nrow</code>/<code>expect_ncol</code>/<code>expect_length</code>
+dimension identity holds over generated DataFrames and Vectors;
+<code>expect_true</code>/<code>expect_false</code> are correct with
+NA-hold semantics; <code>expect_between</code> catches out-of-range
+values; <code>expect_set_equal</code> is order-independent;
+<code>expect_unique</code> passes on all-unique generated vectors;
+<code>expect_no_na</code> detects NA-bearing DataFrames;
+<code>expect_str_contains</code> holds identity;
+<code>expect_fields</code> correctly matches generated Dict keys;
+<code>expect_in</code>/<code>expect_match</code>/<code>expect_summary</code>
+are exercised.</li>
 </ul>
 <h3 id="propcraft-property-based-testing">Propcraft — Property-Based
 Testing</h3>
