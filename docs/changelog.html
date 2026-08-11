@@ -252,19 +252,23 @@ is also a preceding node) now correctly records the sibling node as a
 dependency. Previously the locally-bound name was pre-registered before
 scanning the right-hand side’s free variables, silently dropping the
 reference.</li>
-<li><strong>Hard error on invalid <code>[dependencies]</code> entry
-types in tproject.toml / DESCRIPTION.toml</strong>: only
-<code>name = { git = "&lt;url&gt;", tag = "&lt;tag&gt;" }</code> inline
-tables are valid in <code>[dependencies]</code>. String
-version-constraints (e.g. <code>base = "*"</code>,
-<code>tlang = "&gt;=0.52.0"</code>), array values
-(<code>python = ["polars", "pyarrow"]</code>), and tables missing
-<code>git</code>/<code>tag</code> now produce a hard error with an
-actionable message naming the invalid entry and pointing to the correct
-section (<code>[py-dependencies]</code>, <code>[r-dependencies]</code>,
-<code>[jl-dependencies]</code>, or <code>[t].min_version</code>).
-Previously all non-git-table entries were silently ignored, leading to
-missing dependencies without any warning.</li>
+<li><strong>Dogfooding expanded to cover the <code>base</code> package
+and deepens propcraft self-tests</strong>:
+<code>serialize</code>/<code>deserialize</code> round-trips are
+property-tested over generated Int/Float/Bool/String scalars (30 draws
+each), all five NA variants survive the round-trip,
+<code>t_write_json</code>/<code>t_read_json</code> round-trips cover the
+same scalar types, <code>is_na</code> identity holds for every generated
+non-NA scalar, and error-code/message/context/chain round-trips verify
+all 13 error codes. Additional propcraft self-tests exercise
+<code>prop_map_gen</code> chains, <code>prop_resize</code> nesting,
+<code>prop_gen_df</code> zero-row and single-cell edges,
+<code>prop_gen_one_of</code> with NA-inclusive value sets, triple-nested
+<code>prop_gen_choice</code>, all-NA column type correctness across
+Int/Float/Bool/String, <code>prop_for_all</code> n=1, block-evaluated
+error propagation, <code>prop_gen_df_from</code> factor-only and
+single-row schemas, and multi-seed <code>prop_gen_dict</code>
+invariants.</li>
 </ul>
 <h3 id="propcraft-property-based-testing">Propcraft — Property-Based
 Testing</h3>
