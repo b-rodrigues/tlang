@@ -18,6 +18,19 @@ let matcher_of name pred =
     )
   }
 
+(* Literal substring test: matches when `needle` occurs as a byte sequence in
+   `hay` (UTF-8-safe since both originate from T strings). *)
+let contains_substring needle hay =
+  let n = String.length needle in
+  if n = 0 then true
+  else
+    let h = String.length hay in
+    let rec go i =
+      i + n <= h
+      && (String.equal (String.sub hay i n) needle || go (i + 1))
+    in
+    go 0
+
 let starts_with_impl args env =
   match args with
   | [VString prefix] -> matcher_of "starts_with" (fun n -> String.starts_with ~prefix n)
@@ -32,10 +45,7 @@ let ends_with_impl args env =
 
 let contains_impl args env =
   match args with
-  | [VString pattern] -> matcher_of "contains" (fun n -> 
-      match Str.search_forward (Str.regexp_string pattern) n 0 with
-      | _ -> true
-      | exception Not_found -> false)
+  | [VString pattern] -> matcher_of "contains" (fun n -> contains_substring pattern n)
   | _ when List.length args >= 2 -> String_ops.contains_impl args env
   | _ -> Error.arity_error_named "contains" 1 (List.length args)
 
@@ -110,26 +120,15 @@ let matcher_builtin ?(compute_names=(fun names -> names)) name compute =
 let matches_impl args _env =
   match args with
   | [VString pattern] ->
-      let regex =
-        try Ok (Str.regexp pattern)
-        with Failure msg ->
-          Error (Error.value_error (Printf.sprintf "Function `matches` received an invalid regex: %s" msg))
-      in
-      (match regex with
+      (match String_ops.compile_regexp "matches" pattern with
        | Error err -> err
        | Ok re ->
            matcher_builtin
              ~compute_names:(fun names ->
-               List.filter (fun name ->
-                 match Str.search_forward re name 0 with
-                 | _ -> true
-                 | exception Not_found -> false) names)
+               List.filter (fun name -> Pcre2.pmatch ~rex:re name) names)
              "matches" (fun df ->
              Arrow_table.column_names df.arrow_table
-             |> List.filter (fun name ->
-                  match Str.search_forward re name 0 with
-                  | _ -> true
-                  | exception Not_found -> false)))
+             |> List.filter (fun name -> Pcre2.pmatch ~rex:re name)))
   | _ -> Error.arity_error_named "matches" 1 (List.length args)
 
 let string_names_of_value function_name = function
@@ -251,6 +250,8 @@ let where_impl args _env =
 --# Match columns by regex
 --#
 --# Selection helper that returns columns whose names match a regular expression.
+--# Patterns are compiled with PCRE2 in UTF-8 mode, so `.` matches a code point
+--# and classes like `\\p{L}` are supported.
 --#
 --# @name matches
 --# @family colcraft

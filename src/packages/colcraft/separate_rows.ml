@@ -15,21 +15,19 @@ let separate_rows_impl (named_args : (string option * value) list) _env =
        | Some col_name ->
            match Arrow_table.get_column df.arrow_table col_name with
            | Some (StringColumn data) ->
-               let re_res =
-                 try Ok (Str.regexp sep)
-                 with Failure msg -> Error (Error.value_error (Printf.sprintf "Function `separate_rows` received an invalid regex: %s" msg))
-               in
+               let re_res = String_ops.compile_regexp "separate_rows" sep in
                (match re_res with
                 | Error err -> err
                 | Ok re ->
                     let tokens_res =
                       try
                         Ok (Array.map (function 
-                          | Some s -> Str.split re s
+                          | Some s -> String_ops.split_str_semantics re s
                           | None -> [""]
                         ) data)
-                      with Failure msg ->
-                        Error (Error.value_error (Printf.sprintf "Function `separate_rows` failed while splitting values: %s" msg))
+                      with
+                      | Pcre2.Error _ | Invalid_argument _ ->
+                          Error (Error.value_error "Function `separate_rows` failed while splitting values.")
                     in
                     (match tokens_res with
                      | Error err -> err
@@ -76,7 +74,8 @@ let separate_rows_impl (named_args : (string option * value) list) _env =
 --# @name separate_rows
 --# @param df :: DataFrame The input data frame.
 --# @param col :: Column The column to split (bare name or $col reference).
---# @param sep :: String = "[^A-Za-z0-9]+" Regular expression separator pattern.
+--# @param sep :: String = "[^A-Za-z0-9]+" Regular expression separator pattern
+--#   (compiled with PCRE2 in UTF-8 mode).
 --# @return :: DataFrame A DataFrame with the column values split across rows.
 --# @example
 --#   separate_rows(df, $items)

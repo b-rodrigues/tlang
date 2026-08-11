@@ -2,9 +2,9 @@ let run_tests _pass_count _fail_count _failures _eval_string eval_string_env _te
   Printf.printf "Phase 1 — Stats Model Accessors:\n";
 
   let env = Packages.init_env () in
-  let (_, env) = eval_string_env {|df = to_dataframe([x: [1, 2, 3, 4, 5], z: [3, 1, 4, 2, 5], y: [2, 4, 5, 4, 5]])|} env in
-  let (_, env) = eval_string_env {|m1 = lm(data = df, formula = y ~ x)|} env in
-  let (_, env) = eval_string_env {|m2 = lm(data = df, formula = y ~ x + z)|} env in
+  let env = Test_helpers.eval_setup eval_string_env env "test_model_accessors:5" {|df = to_dataframe([x: [1, 2, 3, 4, 5], z: [3, 1, 4, 2, 5], y: [2, 4, 5, 4, 5]])|} in
+  let env = Test_helpers.eval_setup eval_string_env env "test_model_accessors:6" {|m1 = lm(data = df, formula = y ~ x)|} in
+  let env = Test_helpers.eval_setup eval_string_env env "test_model_accessors:7" {|m2 = lm(data = df, formula = y ~ x + z)|} in
   test_env env "coef returns DataFrame with term and estimate columns"
     "colnames(coef(m1))"
     {|["term", "estimate"]|};

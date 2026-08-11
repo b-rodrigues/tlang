@@ -218,7 +218,7 @@ p = pipeline {
   )
 
   -- Running a Julia node that reads and summarizes the data
-  summary = jln(
+  summary_node = jln(
     command = <{
       using DataFrames
       df = CSV.read(data_path, DataFrame)
@@ -249,7 +249,7 @@ p = pipeline {
   report = shn(script = "postprocess.sh")
 
   -- node() auto-detects the runtime from the file extension
-  summary = node(script = "summarise.R", serializer = ^json)
+  summary_node = node(script = "summarise.R", serializer = ^json)
 }
 ```
 
@@ -326,7 +326,7 @@ p = pipeline {
 }
 ```
 
-Julia nodes default to `serializer = default`, which uses Julia's standard `Serialization` module to write `.jls` artifacts. Use `^csv`, `^arrow`, or `^json` for cross-runtime interchange with T, R, or Python nodes.
+Julia nodes default to `serializer = default`, which uses Julia's standard `Serialization` module to write `.jls` artifacts. Use `^csv`, `^ipc`, or `^json` for cross-runtime interchange with T, R, or Python nodes.
 
 ### Quarto nodes with `qn()`
 
@@ -414,8 +414,8 @@ By default the settings are merged into every node. Pass `runtimes` and/or `node
 to restrict the merge to a subset; when both are given the target is their union:
 
 ```t
-# Only R nodes get the arrow serializer
-q1 = set_pipeline_global_options(p, runtimes = ["rn"], serializer = ^arrow)
+# Only R nodes get the IPC serializer
+q1 = set_pipeline_global_options(p, runtimes = ["rn"], serializer = ^ipc)
 
 # Only the named nodes become no-ops
 q2 = set_pipeline_global_options(p, nodes = ["data"], noop = true)
@@ -559,10 +559,10 @@ Nodes can use any T function, including standard library functions:
 p = pipeline {
   data = [1, 2, 3, 4, 5]
   total = sum(data)
-  count = length(data)
+  row_count = length(data)
 }
 p.total  -- 15
-p.count  -- 5
+p.row_count  -- 5
 ```
 
 ---
@@ -627,10 +627,10 @@ p = pipeline {
   raw = read_csv("sales.csv")
   filtered = filter(raw, $amount > 100)
   by_region = filtered |> group_by($region)
-  summary = by_region |> summarize($total = sum($amount))
+  summary_node = by_region |> summarize($total = sum($amount))
 }
 
-p.summary  -- DataFrame with regional totals
+p.summary_node  -- DataFrame with regional totals
 ```
 
 ---

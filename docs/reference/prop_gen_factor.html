@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>T Function Reference - unknown</title>
+  <title>T Function Reference - prop_gen_factor</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -33,17 +33,22 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
-<h1 id="unknown">unknown</h1>
-<p>Print Failed Node Logs</p>
-<p>Prints stderr log sections for each failed node by resolving its
-derivation path through <code>nix log</code>.</p>
+<h1 id="prop_gen_factor">prop_gen_factor</h1>
+<p>Generate a random Factor</p>
+<p>Returns a generator spec producing a Factor value whose level is
+chosen uniformly from <code>levels</code>. When used as a column in
+prop_gen_df, one level is drawn per row.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><p><strong>drv_paths</strong> (<code>Hashtbl</code>): Captured
-derivation paths keyed by node name.</p></li>
-<li><p><strong>errored</strong> (<code>List[String]</code>): Node names
-that failed during the build.</p></li>
+<li><strong>levels</strong> (<code>List[String]|String</code>): The
+factor levels.</li>
 </ul>
+<h2 id="returns">Returns</h2>
+<p>A generator spec.</p>
+<h2 id="examples">Examples</h2>
+<pre class="t"><code>g = prop_gen_factor([&quot;low&quot;, &quot;medium&quot;, &quot;high&quot;])</code></pre>
+<h2 id="see-also">See Also</h2>
+<p><a href="prop_gen_df.html">prop_gen_df</a></p>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

@@ -12,6 +12,7 @@ open Arrow_table
 --# @param col :: Symbol The column to separate (use $col syntax).
 --# @param into :: List[String] Names of the new columns to create.
 --# @param sep :: String (Optional) Regular expression or position to separate at.
+--#   Pattern is compiled with PCRE2 in UTF-8 mode.
 --#   Defaults to "[^[:alnum:]]+".
 --# @param remove :: Bool (Optional) If true, remove the input column from the result. 
 --#   Defaults to true.
@@ -79,10 +80,7 @@ let register env =
             | None -> Error.make_error KeyError (Printf.sprintf "Function `separate`: column `%s` not found." col_name)
             | Some data ->
                 let values = Arrow_bridge.column_to_values data in
-                let sep_re_res =
-                  try Ok (Str.regexp sep)
-                  with Failure msg -> Error (Error.value_error (Printf.sprintf "Function `separate` received an invalid regex: %s" msg))
-                in
+                let sep_re_res = String_ops.compile_regexp "separate" sep in
                 (match sep_re_res with
                  | Error err -> err
                  | Ok sep_re ->
@@ -92,7 +90,7 @@ let register env =
                          Ok (Array.init orig_nrows (fun i ->
                            match val_to_str values.(i) with
                            | Some s ->
-                               let parts = Str.split sep_re s in
+                               let parts = String_ops.split_str_semantics sep_re s in
                                let n_parts = List.length parts in
                                if n_parts >= n_into then
                                  List.filteri (fun i _ -> i < n_into) parts
@@ -100,8 +98,9 @@ let register env =
                                  parts @ (List.init (n_into - n_parts) (fun _ -> ""))
                            | None -> List.init n_into (fun _ -> "NA")
                          ))
-                       with Failure msg ->
-                         Error (Error.value_error (Printf.sprintf "Function `separate` failed while splitting values: %s" msg))
+                       with
+                       | Pcre2.Error _ | Invalid_argument _ ->
+                           Error (Error.value_error "Function `separate` failed while splitting values.")
                      in
                      (match split_vals_res with
                       | Error err -> err

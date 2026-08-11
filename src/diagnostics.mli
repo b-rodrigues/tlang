@@ -50,6 +50,7 @@ val confidence_of_string : string -> confidence
 
 type suggested_fix = private
   | Rename_column of { old_name: string; new_name: string; target_node: string option; file: string option; line: int option; edit_distance: int; is_unique: bool; confidence: confidence }
+  | Rename_node of { old_name: string; new_name: string; target_node: string option; file: string option; line: int option; confidence: confidence }
   | Add_node_arg of { node: string; arg: string; target_node: string option; file: string option; line: int option; confidence: confidence }
   | Suggest_identifier of { name: string; suggestion: string; target_node: string option; file: string option; line: int option; edit_distance: int; is_unique: bool; confidence: confidence }
   | Run_command of { command: string; description: string; target_node: string option; file: string option; line: int option; confidence: confidence }
@@ -70,6 +71,14 @@ val make_suggest_identifier_fix : name:string -> suggestion:string -> edit_dista
 
 (** Add_node_arg: adds a missing argument to a node. Always [Medium]. *)
 val make_add_node_arg_fix : node:string -> arg:string -> ?target_node:string -> ?file:string -> ?line:int -> unit -> suggested_fix
+
+(** Rename_node: renames a pipeline node that collides with a builtin function
+    or runtime symbol (e.g., `count` -> `count_node`). The `_node` suffix is
+    deterministic and never collides with a reserved name, but the mechanical
+    fix only rewrites the definition line and refuses to apply when the node is
+    referenced elsewhere in the file (`deps`, sibling expressions, raw-code
+    blocks), so confidence is [Medium]. *)
+val make_rename_node_fix : old_name:string -> new_name:string -> ?target_node:string -> ?file:string -> ?line:int -> unit -> suggested_fix
 
 (** Run_command: suggests a shell command. Always [Low]. *)
 val make_run_command_fix : command:string -> description:string -> ?target_node:string -> ?file:string -> ?line:int -> unit -> suggested_fix
@@ -113,7 +122,7 @@ val extract_cycle_nodes : string -> string list
 val extract_cross_runtime_info : string -> (string * string) option
 val no_fix : suggested_fix
 val extract_caused_by_from_context : (string * Ast.value) list -> string list
-val of_verror : ?file:string -> Ast.error_info -> diagnostic
+val of_verror : ?file:string -> ?existing_node_names:string list -> Ast.error_info -> diagnostic
 val of_pipeline_result : ?file:string -> Ast.pipeline_result -> diagnostic list
 val of_pipeline_validation : ?file:string -> Ast.pipeline_result -> diagnostic list
 val exit_code_of_diagnostics : diagnostic list -> int

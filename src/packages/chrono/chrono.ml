@@ -720,7 +720,13 @@ let leap_year_impl args _env =
 
 let rec days_in_month_impl args _env =
   match args with
-  | [VInt year; VInt month] -> VInt (days_in_month year month)
+  | [VInt year; VInt month] ->
+      if month < 1 || month > 12 then
+        Error.value_error
+          (Printf.sprintf
+             "Function `days_in_month` requires `month` in [1, 12], got %d." month)
+      else
+        VInt (days_in_month year month)
   | [VDate days] ->
       let year, month, _ = civil_from_days days in
       VInt (days_in_month year month)

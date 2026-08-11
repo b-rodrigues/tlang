@@ -5,25 +5,31 @@ open Ast
 --#
 --# Reads a DataFrame from a Parquet file using the native parquet-glib reader.
 --#
+--# Prefer Parquet for compressed, long-term storage of large datasets or when
+--# sharing data with external analytics tooling. For the fastest possible
+--# round trip (no compression), use read_ipc instead.
+--#
 --# @name read_parquet
 --# @param path :: String Path or URL to the Parquet file.
 --# @return :: DataFrame The loaded data.
 --# @example
 --#   df = read_parquet("data.parquet")
 --# @family to_dataframe
---# @seealso read_csv, read_arrow
+--# @seealso read_csv, read_ipc
 --# @export
 *)
+let read_parquet_builtin =
+  make_builtin ~name:"read_parquet" 1 (fun args _env ->
+    match args with
+    | [VString path] ->
+        (match Arrow_io.read_parquet path with
+        | Ok table -> VDataFrame { arrow_table = table; group_keys = [] }
+        | Error msg -> Error.make_error FileError msg)
+    | [VNA _] -> Error.type_error "Function `read_parquet` expects a String path, got NA."
+    | [_] -> Error.type_error "Function `read_parquet` expects a String path."
+    | _ -> Error.arity_error_named "read_parquet" 1 (List.length args)
+  )
+
 let register env =
-  Env.add "read_parquet"
-    (make_builtin ~name:"read_parquet" 1 (fun args _env ->
-      match args with
-      | [VString path] ->
-          (match Arrow_io.read_parquet path with
-          | Ok table -> VDataFrame { arrow_table = table; group_keys = [] }
-          | Error msg -> Error.make_error FileError msg)
-      | [VNA _] -> Error.type_error "Function `read_parquet` expects a String path, got NA."
-      | [_] -> Error.type_error "Function `read_parquet` expects a String path."
-      | _ -> Error.arity_error_named "read_parquet" 1 (List.length args)
-    ))
-    env
+  Serialization_registry.update_native "parquet" ~reader:read_parquet_builtin ();
+  Env.add "read_parquet" read_parquet_builtin env

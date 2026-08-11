@@ -154,6 +154,7 @@ module.exports = grammar({
         ['*', PREC.multiply],
         ['/', PREC.multiply],
         ['%', PREC.multiply],
+        [/%[A-Za-z_][A-Za-z0-9_]*%/, PREC.compare],
       ].map(([operator, precedence]) => prec.left(precedence, seq(
         field('left', $._expression),
         field('operator', operator),

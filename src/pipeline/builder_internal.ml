@@ -27,9 +27,11 @@ let nix_verbosity_args verbose =
 --# Prints stderr log sections for each failed node by resolving its
 --# derivation path through `nix log`.
 --#
+--# @name print_failed_node_logs
 --# @param drv_paths :: Hashtbl Captured derivation paths keyed by node name.
 --# @param errored :: List[String] Node names that failed during the build.
 --# @family pipeline
+--# @private
 *)
 let print_failed_node_logs drv_paths errored =
   List.iter

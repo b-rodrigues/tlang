@@ -179,7 +179,17 @@ select(wide, everything()) |> ncol|}
     "true";
   test "matches rejects invalid regexes"
     {|matches("[")|}
-    {|Error(ValueError: "[L1:C1] Function `matches` received an invalid regex: [ class not closed by ]")|};
+    {|Error(ValueError: "[L1:C1] Function `matches` received an invalid regex: missing terminating ] for character class")|};
+  test "matches supports Unicode letter classes on ASCII names"
+    {|wide = to_dataframe([[name: "Alice", age: 30, is_remote: true]]);
+select(wide, matches("^\\p{L}+$")) |> ncol|}
+    "2";
+  test "separate splits multibyte values without tearing"
+    {|df = to_dataframe([[x: "é-ü-ç"]]); separate(df, $x, into = ["v1", "v2", "v3"], sep = "-") |> pull("v2")|}
+    {|Vector["ü"]|};
+  test "separate_rows preserves multibyte tokens"
+    {|df = to_dataframe([[id: 1, tags: "é;ü"]]); separate_rows(df, $tags, sep = ";") |> pull("tags")|}
+    {|Vector["é", "ü"]|};
   test "where selects logical columns"
     {|wide = to_dataframe([[name: "Alice", age: 30, score: 95.5, dept: "eng", is_remote: true]]);
 select(wide, where(is_logical)) |> ncol|}

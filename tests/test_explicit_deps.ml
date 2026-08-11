@@ -8,26 +8,26 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
   test "explicit deps with bare identifiers"
     {|p = pipeline {
   raw_data = 1
-  summary = node(command = <{ 2 }>, deps = [raw_data])
+  summary_node = node(command = <{ 2 }>, deps = [raw_data])
 }
 pipeline_deps(p)|}
-    {|{`raw_data`: [], `summary`: ["raw_data"]}|};
+    {|{`raw_data`: [], `summary_node`: ["raw_data"]}|};
 
   test "explicit deps with strings"
     {|p = pipeline {
   raw_data = 1
-  summary = node(command = <{ 2 }>, deps = ["raw_data"])
+  summary_node = node(command = <{ 2 }>, deps = ["raw_data"])
 }
 pipeline_deps(p)|}
-    {|{`raw_data`: [], `summary`: ["raw_data"]}|};
+    {|{`raw_data`: [], `summary_node`: ["raw_data"]}|};
 
   test "explicit deps with symbols (^raw_data)"
     {|p = pipeline {
   raw_data = 1
-  summary = node(command = <{ 2 }>, deps = [^raw_data])
+  summary_node = node(command = <{ 2 }>, deps = [^raw_data])
 }
 pipeline_deps(p)|}
-    {|{`raw_data`: [], `summary`: ["raw_data"]}|};
+    {|{`raw_data`: [], `summary_node`: ["raw_data"]}|};
 
   test "explicit deps with mixed list"
     {|p = pipeline {
@@ -40,10 +40,10 @@ pipeline_deps(p)|}
   test "explicit deps with single identifier"
     {|p = pipeline {
   raw_data = 1
-  summary = node(command = <{ 2 }>, deps = raw_data)
+  summary_node = node(command = <{ 2 }>, deps = raw_data)
 }
 pipeline_deps(p)|}
-    {|{`raw_data`: [], `summary`: ["raw_data"]}|};
+    {|{`raw_data`: [], `summary_node`: ["raw_data"]}|};
 
   test "explicit deps override automatic detection"
     {|p = pipeline {

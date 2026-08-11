@@ -11,7 +11,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   close_out oc;
 
   let env = Packages.init_env () in
-  let (_, env) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_bridge) env in
+  let env = Test_helpers.eval_setup eval_string_env env "test_owl_bridge:14" (Printf.sprintf {|df = read_csv("%s")|} csv_bridge) in
 
   (* Test: bridge extracts int column as float array *)
   let (v, _) = eval_string_env "nrow(df)" env in
@@ -32,8 +32,8 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   close_out oc_lm;
 
   let env_lm = Packages.init_env () in
-  let (_, env_lm) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_lm) env_lm in
-  let (_, env_lm) = eval_string_env {|model = lm(data = df, formula = y ~ x)|} env_lm in
+  let env_lm = Test_helpers.eval_setup eval_string_env env_lm "test_owl_bridge:35" (Printf.sprintf {|df = read_csv("%s")|} csv_lm) in
+  let env_lm = Test_helpers.eval_setup eval_string_env env_lm "test_owl_bridge:36" {|model = lm(data = df, formula = y ~ x)|} in
 
   (* New lm() returns tidy model: check via _model_data *)
   (* slope should be 2.0 (y = 2x + 1), accessed via tidy_df estimate[1] *)
@@ -74,7 +74,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   close_out oc_cor;
 
   let env_cor = Packages.init_env () in
-  let (_, env_cor) = eval_string_env (Printf.sprintf {|df = read_csv("%s")|} csv_cor) env_cor in
+  let env_cor = Test_helpers.eval_setup eval_string_env env_cor "test_owl_bridge:77" (Printf.sprintf {|df = read_csv("%s")|} csv_cor) in
 
   (* Perfect positive correlation *)
   let (v, _) = eval_string_env "cor(df.a, df.b)" env_cor in

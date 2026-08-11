@@ -334,7 +334,7 @@ time.</p>
 <pre class="t"><code>p = pipeline {
   load   = read_csv(&quot;data.csv&quot;)
   model  = rn(command = &lt;{ lm(y ~ x, data = load) }&gt;, serializer = ^pmml)
-  score  = node(command = predict(model, load), deserializer = ^pmml)
+  score_result  = node(command = predict(model, load), deserializer = ^pmml)
 }
 
 -- Keep only R nodes
@@ -548,7 +548,7 @@ records for auditability.</p>
     |&gt; suppress_warnings
 
   -- Downstream node remains unaffected
-  count = nrow(filtered)
+  row_count = nrow(filtered)
 }</code></pre>
 <p>When building or running a pipeline with suppressed nodes, the
 summary reflects this state:</p>
@@ -602,7 +602,7 @@ dependency edges. The new node is specified as the third argument.</p>
 <pre class="t"><code>p = pipeline {
   data  = read_csv(&quot;data.csv&quot;)
   model = rn(command = &lt;{ lm(y ~ x, data = data) }&gt;, serializer = ^pmml)
-  score = node(command = predict(model, data), deserializer = ^pmml)
+  score_result = node(command = predict(model, data), deserializer = ^pmml)
 }
 
 -- Replace the model node with a new implementation; edges to/from model are preserved
@@ -610,7 +610,7 @@ new_model = rn(command = &lt;{ glm(y ~ x, data = data, family = binomial) }&gt;,
 p2 = p |&gt; swap(&quot;model&quot;, new_model)
 
 pipeline_deps(p2)
--- `model` still depends on `data`, and `score` still depends on `model`</code></pre>
+-- `model` still depends on `data`, and `score_result` still depends on `model`</code></pre>
 <h3 id="rewire"><code>rewire</code></h3>
 <p>Reroutes a node’s declared dependencies. The <code>replace</code>
 argument maps old dependency names to new ones. Only the named node’s
@@ -622,7 +622,7 @@ dependency list is updated.</p>
 }
 
 -- Re-point model to use data_v2 instead of data
-p2 = p |&gt; rewire(&quot;model&quot;, replace = list(data = &quot;data_v2&quot;))
+p2 = p |&gt; rewire(&quot;model&quot;, replace = [data: &quot;data_v2&quot;])
 pipeline_deps(p2)
 -- {`data`: [], `data_v2`: [], `model`: [&quot;data_v2&quot;]}</code></pre>
 <h3 id="prune"><code>prune</code></h3>
@@ -710,7 +710,7 @@ identifiers to pipeline values.</p>
 }
 
 p_stats = pipeline {
-  summary = etl.clean |&gt; mean
+  summary_result = etl.clean |&gt; mean
 }
 
 -- Compose them into a higher-order DAG
@@ -731,19 +731,19 @@ Namespacing</h4>
 <p>When a meta-pipeline is populated, queried, or inspected, T-Lang
 automatically flattens it internally. Node names are automatically
 namespaced (e.g. <code>etl.raw</code>, <code>etl.clean</code>,
-<code>stats.summary</code>) to prevent namespace collisions, and all
-internal variable references are rewritten accordingly.</p>
+<code>stats.summary_result</code>) to prevent namespace collisions, and
+all internal variable references are rewritten accordingly.</p>
 <pre class="t"><code>pipeline_nodes(meta)
--- [&quot;etl.raw&quot;, &quot;etl.clean&quot;, &quot;stats.summary&quot;]
+-- [&quot;etl.raw&quot;, &quot;etl.clean&quot;, &quot;stats.summary_result&quot;]
 
 pipeline_deps(meta)
--- {`etl.raw`: [], `etl.clean`: [&quot;etl.raw&quot;], `stats.summary`: [&quot;etl.clean&quot;]}
+-- {`etl.raw`: [], `etl.clean`: [&quot;etl.raw&quot;], `stats.summary_result`: [&quot;etl.clean&quot;]}
 
 -- You can build the entire meta-pipeline directly:
 populate_pipeline(meta, build = true)
 
 -- You can read individual nodes using nested dot notation:
-res = read_node(meta.stats.summary)</code></pre>
+res = read_node(meta.stats.summary_result)</code></pre>
 <h3 id="cross-pipeline-dependency-tracking-t-vs.-rawcode">Cross-Pipeline
 Dependency Tracking: T vs. RawCode</h3>
 <p>T’s dependency tracking works differently depending on the node’s
@@ -802,7 +802,7 @@ p_model = pipeline {
   model = rn(&lt;{ 
     lm(mpg ~ hp, data = data_input)  -- use the alias name in R
   }&gt;,
-  deserializer = ^arrow)
+  deserializer = ^ipc)
 }
 
 -- Success! T sees `raw_data` as a dependency of `data_input`, wiring the pipelines.
@@ -1079,7 +1079,7 @@ definitions to manually declare one or more dependencies:</p>
 
   -- This shell node reads data.csv, which is created by raw_file.
   -- We use the `deps` argument to ensure raw_file executes first.
-  summary = shn(
+  summary_result = shn(
     command = &lt;{ cat data.csv | wc -l }&gt;, 
     deps = [raw_file],
     serializer = ^text

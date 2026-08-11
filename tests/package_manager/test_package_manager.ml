@@ -464,7 +464,7 @@ packages = []
       p = pipeline {
         a = node(command = <{ 1 }>, runtime = R, serializer = ^json)
         b = node(command = <{ 1 }>, runtime = Python, serializer = ^csv)
-        c = node(command = <{ 1 }>, runtime = R, serializer = ^arrow)
+        c = node(command = <{ 1 }>, runtime = R, serializer = ^ipc)
         d = node(command = <{ 1 }>, runtime = Python, serializer = ^pmml)
         e = node(script = "report.qmd")
       }
@@ -1708,7 +1708,7 @@ p = pipeline {
   }>, serializer = ^csv)
   r_arrow = rn(command = <{
     library(arrow)
-  }>, serializer = ^arrow)
+  }>, serializer = ^ipc)
 }
 |};
       let issues = Package_doctor.project_dependency_issues dir in
@@ -1807,7 +1807,7 @@ first = pipeline {
 second = pipeline {
   r_arrow = rn(command = <{
     library(arrow)
-  }>, serializer = ^arrow)
+  }>, serializer = ^ipc)
 }
 |};
       let issues = Package_doctor.project_dependency_issues dir in

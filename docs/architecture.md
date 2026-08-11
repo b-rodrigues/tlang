@@ -366,16 +366,16 @@ Pipelines are DAGs of named computations:
 p = pipeline {
   x = 10
   y = 20
-  sum = x + y
+  total = x + y
 }
 ```
 
 **Execution**:
-1. Parse nodes → `[("x", Int 10), ("y", Int 20), ("sum", BinOp(Add, Ident "x", Ident "y"))]`
-2. Topological sort (dependency order): `x`, `y`, `sum`
-3. Evaluate each node, binding results: `x → 10`, `y → 20`, `sum → 30`
+1. Parse nodes → `[("x", Int 10), ("y", Int 20), ("total", BinOp(Add, Ident "x", Ident "y"))]`
+2. Topological sort (dependency order): `x`, `y`, `total`
+3. Evaluate each node, binding results: `x → 10`, `y → 20`, `total → 30`
 4. Store in `VPipeline` with results table
-5. Access via `p.sum` → `30`
+5. Access via `p.total` → `30`
 
 **Cycle Detection**: Circular dependencies produce an error:
 ```t
@@ -396,8 +396,8 @@ T leverages Nix to orchestrate computation across multiple runtimes. When a node
 
 For direct user-facing Arrow file workflows outside pipelines, T also exposes:
 
-- `read_arrow(path)` for Arrow IPC input
-- `write_arrow(to_dataframe, path)` for Arrow IPC output
+- `read_ipc(path)` for Arrow IPC input
+- `write_ipc(to_dataframe, path)` for Arrow IPC output
 
 That means Arrow is used both as an internal storage backend and as an interchange format at the language boundary.
 
@@ -461,7 +461,7 @@ external read_csv_native : string -> arrow_table = "caml_arrow_read_csv"
 external read_ipc_native : string -> arrow_table = "caml_arrow_read_ipc"
 ```
 
-The repository currently exposes both a backend-native CSV reader and Arrow IPC read/write support. The public `read_csv()` builtin still layers OCaml CSV parsing on top of Arrow-backed table construction, while `read_arrow` / `write_arrow` expose Arrow IPC directly.
+The repository currently exposes both a backend-native CSV reader and Arrow IPC read/write support. The public `read_csv()` builtin still layers OCaml CSV parsing on top of Arrow-backed table construction, while `read_ipc` / `write_ipc` expose Arrow IPC directly.
 
 ### Dual-Path Operations
 

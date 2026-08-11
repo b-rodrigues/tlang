@@ -60,7 +60,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
 
   (* Test: dot access for sh node *)
   let env_sh = Packages.init_env () in
-  let (_, env_sh) = eval_string_env {|sh_n = node(runtime = sh, shell = "bash")|} env_sh in
+  let env_sh = Test_helpers.eval_setup eval_string_env env_sh "test_sh_node:63" {|sh_n = node(runtime = sh, shell = "bash")|} in
   
   let (v_rt, _) = eval_string_env "sh_n.runtime" env_sh in
   if Ast.Utils.value_to_string v_rt = "\"sh\"" then
@@ -74,7 +74,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   else
     (incr fail_count; Printf.printf "  ✗ sh_n.shell returns shell value\n    Expected: \"bash\"\n    Got:      %s\n" (Ast.Utils.value_to_string v_shell));
 
-  let (_, env_sh2) = eval_string_env {|sh_n2 = node(runtime = sh)|} (Packages.init_env ()) in
+  let env_sh2 = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_sh_node:77" {|sh_n2 = node(runtime = sh)|} in
   let (v_shell2, _) = eval_string_env "sh_n2.shell" env_sh2 in
   if Ast.Utils.value_to_string v_shell2 = "NA" then
     (incr pass_count; Printf.printf "  ✓ sh node .shell returns NA when unset\n")

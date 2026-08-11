@@ -36,7 +36,8 @@
 <h1 id="str_substring">str_substring</h1>
 <p>Extract substring</p>
 <p>Returns the part of the string between <code>start</code> and
-<code>end</code> indices.</p>
+<code>end</code> indices. Indices are character-based (Unicode code
+points), so multi-byte UTF-8 characters are never split.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
 <li><p><strong>s</strong> (<code>String</code>): The input

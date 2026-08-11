@@ -50,14 +50,14 @@ exclusive with <code>command</code>. Sets the runtime to
 <code>Julia</code> automatically.</p></li>
 <li><p><strong>serializer</strong> (<code>Symbol</code>): (Optional)
 Custom serializer strategy. Use <code>^</code>-prefixed symbols (e.g.,
-<code>^csv</code>, <code>^json</code>, <code>^arrow</code>,
-<code>^onnx</code>). Default = runtime-native binary serialization
-(<code>jl_serialize</code>).</p></li>
+<code>^csv</code>, <code>^json</code>, <code>^ipc</code>,
+<code>^parquet</code>, <code>^onnx</code>). Default = runtime-native
+binary serialization (<code>jl_serialize</code>).</p></li>
 <li><p><strong>deserializer</strong> (<code>Symbol</code>): (Optional)
 Custom deserializer strategy. Use <code>^</code>-prefixed symbols (e.g.,
-<code>^csv</code>, <code>^json</code>, <code>^arrow</code>,
-<code>^onnx</code>). Default = runtime-native binary
-deserialization.</p></li>
+<code>^csv</code>, <code>^json</code>, <code>^ipc</code>,
+<code>^parquet</code>, <code>^onnx</code>). Default = runtime-native
+binary deserialization.</p></li>
 <li><p><strong>functions</strong> (<code>String</code>): | List[String]
 (Optional) Julia files to source before execution.</p></li>
 <li><p><strong>include</strong> (<code>String</code>): | List[String]

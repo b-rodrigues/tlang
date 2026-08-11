@@ -20,6 +20,35 @@ let run_module name fn =
     empty_modules := name :: !empty_modules
   end
 
+(* Optional module filter: `--only m1,m2,...` runs only test modules whose
+   name equals one of the given entries. A trailing `*` makes that entry a
+   prefix glob (e.g. `Test_na*`). Default (no flag): run all. *)
+let module_filter =
+  let args = Array.to_list Sys.argv in
+  let rec pick = function
+    | "--only" :: (m :: _) -> Some (String.split_on_char ',' m)
+    | "--only" :: [] -> None
+    | _ :: rest -> pick rest
+    | [] -> None
+  in
+  pick args
+
+let matches_filter name =
+  match module_filter with
+  | None -> true
+  | Some subs ->
+      List.exists
+        (fun s ->
+          if s = "" then false
+          else
+            let len = String.length s in
+            if s.[len - 1] = '*' then
+              let prefix = String.sub s 0 (len - 1) in
+              let plen = String.length prefix in
+              String.length name >= plen && String.sub name 0 plen = prefix
+            else s = name)
+        subs
+
 let () =
   Eval.show_warnings := false
 
@@ -102,11 +131,13 @@ let () =
   Printf.printf "\n";
 
   let run name fn =
-    run_module name (fun () -> fn pass_count fail_count failures eval_string eval_string_env test)
+    if matches_filter name then
+      run_module name (fun () -> fn pass_count fail_count failures eval_string eval_string_env test)
   in
 
   let run_with_env name fn =
-    run_module name (fun () -> fn pass_count fail_count failures eval_string eval_string_env test test_env)
+    if matches_filter name then
+      run_module name (fun () -> fn pass_count fail_count failures eval_string eval_string_env test test_env)
   in
 
   (* Core tests *)
@@ -144,6 +175,20 @@ let () =
   run "Test_expect_pipeline" Test_expect_pipeline.run_tests;
   run "Test_expect_pass_fail_msg" Test_expect_pass_fail_msg.run_tests;
   run "Test_expect_ds_coverage" Test_expect_ds_coverage.run_tests;
+ run_with_env "Test_property" Test_property.run_tests;
+ run_with_env "Test_property_base" Test_property_base.run_tests;
+ run_with_env "Test_property_testcraft" Test_property_testcraft.run_tests;
+ run_with_env "Test_property_verbs" Test_property_verbs.run_tests;
+  run_with_env "Test_property_math" Test_property_math.run_tests;
+  run_with_env "Test_property_strcraft" Test_property_strcraft.run_tests;
+  run_with_env "Test_property_core" Test_property_core.run_tests;
+  run_with_env "Test_property_chrono" Test_property_chrono.run_tests;
+  run_with_env "Test_property_stats" Test_property_stats.run_tests;
+  run_with_env "Test_property_dataframe" Test_property_dataframe.run_tests;
+  run_with_env "Test_property_lens" Test_property_lens.run_tests;
+  run_with_env "Test_property_explain" Test_property_explain.run_tests;
+  run_with_env "Test_property_pipeline" Test_property_pipeline.run_tests;
+  run "Test_reserved_names" Test_reserved_names.run_tests;
   run "Test_fetchurl" Test_fetchurl.run_tests;
 
   (* Domain-specific tests *)
@@ -183,6 +228,7 @@ let () =
 
   (* Package manager tests *)
   run "Test_package_manager" Test_package_manager.run_tests;
+  run "Test_toml_parser" Test_toml_parser.run_tests;
 
   (* Lens tests *)
   run "Test_lens" Test_lens.run_tests;
@@ -232,6 +278,7 @@ let () =
   (* Full coverage push — new test modules *)
   run_with_env "Test_model_accessors" Test_model_accessors.run_tests;
   run_with_env "Test_drop_na_and_factors" Test_drop_na_and_factors.run_tests;
+  run_with_env "Test_factor_grouping" Test_factor_grouping.run_tests;
   run "Test_chrono_components" Test_chrono_components.run_tests;
   run "Test_trig_hyperbolic" Test_trig_hyperbolic.run_tests;
   run "Test_misc_functions" Test_misc_functions.run_tests;

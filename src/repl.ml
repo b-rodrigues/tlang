@@ -450,6 +450,7 @@ let print_help () =
   Printf.printf "  run [--json] --expr <expr> Execute a T expression directly\n";
   Printf.printf "  check [--json] [--schema] [--env] <file.t>  Validate pipeline structure (no Nix builds)\n";
   Printf.printf "  diff [--json] [--log-a <n>] [--log-b <n>] <file.t>  Compare two builds (output diff)\n";
+  Printf.printf "  fix [--dry-run] <file.t>  Apply suggested fixes from check diagnostics\n";
   Printf.printf "  debug <node>      Start a subshell to debug a pipeline node\n";
   Printf.printf "  --mode <m>        Type-check mode: repl or strict\n";
   Printf.printf "  --failfast        Stop execution on first error\n";
@@ -1945,12 +1946,20 @@ let () =
             if result.Fix.applied = 0 && result.Fix.would_apply = 0 && result.Fix.skipped = 0 then
               Printf.printf "No fixes to apply.\n"
             else begin
-              if dry_run then
+              if dry_run then begin
+                List.iter (fun (e : Fix.dry_run_entry) ->
+                  let label = match e.Fix.entry_outcome with
+                    | Fix.Would_apply -> "Would apply"
+                    | Fix.Skipped _ -> "Skipped"
+                  in
+                  Printf.printf "%s: %s on %s\n" label e.Fix.entry_message e.Fix.entry_file
+                ) result.Fix.dry_run_entries;
                 Printf.printf "Would apply %d fix(es), skipped %d.\n" result.Fix.would_apply result.Fix.skipped
-              else begin
+              end else begin
                 Printf.printf "Applied %d fix(es), skipped %d.\n" result.Fix.applied result.Fix.skipped;
                 Printf.printf "Run 't check %s' to verify.\n" f
-              end
+              end;
+              List.iter (fun note -> Printf.printf "  - %s\n" note) result.Fix.skip_notes
             end;
             exit 0)
   | _ :: "repl" :: _ -> cmd_repl ~failfast mode_parse.mode env

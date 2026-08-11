@@ -10,7 +10,7 @@ Expands delimited string values into multiple rows while repeating the remaining
 
 - **col** (`Column`): The column to split (bare name or $col reference).
 
-- **sep** (`String`): = "[^A-Za-z0-9]+" Regular expression separator pattern.
+- **sep** (`String`): = "[^A-Za-z0-9]+" Regular expression separator pattern
 
 
 ## Returns

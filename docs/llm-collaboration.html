@@ -513,13 +513,13 @@ analysis = pipeline {
         else &quot;low_value&quot;
       )
   
-  summary = segmented
+  summary_result = segmented
     |&gt; group_by($segment)
     |&gt; summarize($count = nrow($segment), $avg_ltv = mean($ltv))
 }
 
 write_csv(analysis.segmented, &quot;customer_segments.csv&quot;)
-write_csv(analysis.summary, &quot;segment_summary.csv&quot;)</code></pre>
+write_csv(analysis.summary_result, &quot;segment_summary.csv&quot;)</code></pre>
 <p><strong>Benefits</strong>:</p>
 <ul>
 <li>LLM understands exact requirements</li>

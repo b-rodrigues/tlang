@@ -112,7 +112,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
 
   Printf.printf "Phase 3 — Pipeline Node Access:\n";
   let env_p3 = Packages.init_env () in
-  let (_, env_p3) = eval_string_env "p = pipeline {\n  x = 10\n  y = 20\n  total = x + y\n}" env_p3 in
+  let env_p3 = Test_helpers.eval_setup eval_string_env env_p3 "test_pipeline:115" "p = pipeline {\n  x = 10\n  y = 20\n  total = x + y\n}" in
   let (v, _) = eval_string_env "read_node(p.x)" env_p3 in
   let result = Ast.Utils.value_to_string v in
   if Test_helpers.contains result "not been built yet" then begin
@@ -188,6 +188,15 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   test "duplicate node name rejected"
     {|pipeline { a = 1; a = 2 }|}
     {|Error(NameError: "Duplicate node name `a` in pipeline.")|};
+  test "reserved builtin node name rejected"
+    {|pipeline { n = 0 }|}
+    {|Error(NameError: "Node `n` is reserved: `n` is a builtin function. Node names cannot collide with builtin functions or runtime symbols. Choose a different node name.")|};
+  test "reserved runtime symbol node name rejected"
+    {|pipeline { sh = 0 }|}
+    {|Error(NameError: "Node `sh` is reserved: `sh` is a runtime symbol. Node names cannot collide with builtin functions or runtime symbols. Choose a different node name.")|};
+  test "reserved node name rejected in cross-pipeline block"
+    {|pipeline { a = 1; b = a + n; n = 2 }|}
+    {|Error(NameError: "Node `n` is reserved: `n` is a builtin function. Node names cannot collide with builtin functions or runtime symbols. Choose a different node name.")|};
 
   Printf.printf "\nPhase — Lens set + read_node behavior:\n";
   let lens_env = Packages.init_env () in
@@ -747,10 +756,10 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
 
   Printf.printf "Phase 3 — Pipeline with Functions:\n";
   test "pipeline with function calls"
-    "p = pipeline {\n  data = [1, 2, 3]\n  total = sum(data)\n  count = length(data)\n}; read_node(p.total)"
+    "p = pipeline {\n  data = [1, 2, 3]\n  total = sum(data)\n  row_count = length(data)\n}; read_node(p.total)"
     "not been built yet";
   test "pipeline nodes available individually"
-    "p = pipeline {\n  data = [1, 2, 3]\n  total = sum(data)\n  count = length(data)\n}; read_node(p.count)"
+    "p = pipeline {\n  data = [1, 2, 3]\n  total = sum(data)\n  row_count = length(data)\n}; read_node(p.row_count)"
     "not been built yet";
   print_newline ();
 
@@ -1057,28 +1066,28 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     {|p_diag = pipeline {
   data = to_dataframe([[x: 1], [x: NA], [x: 3]])
   filtered = filter(data, $x > 1)
-  count = nrow(filtered)
+  row_count = nrow(filtered)
 }; length(inspect_node(p_diag.filtered).warnings)|}
     "0";
   test "downstream nodes inherit upstream warnings"
     {|p_diag = pipeline {
   data = to_dataframe([[x: 1], [x: NA], [x: 3]])
   filtered = filter(data, $x > 1)
-  count = nrow(filtered)
-}; inspect_node(p_diag.count).warnings |> map(\(w) w.source)|}
+  row_count = nrow(filtered)
+}; inspect_node(p_diag.row_count).warnings |> map(\(w) w.source)|}
     "[]";
   test "downstream warning source points at origin node"
     {|p_diag = pipeline {
   data = to_dataframe([[x: 1], [x: NA], [x: 3]])
   filtered = filter(data, $x > 1)
-  count = nrow(filtered)
-}; inspect_node(p_diag.count).warnings|}
+  row_count = nrow(filtered)
+}; inspect_node(p_diag.row_count).warnings|}
     "[]";
   test "read_pipeline summarizes warning origins only once"
     {|p_diag = pipeline {
   data = to_dataframe([[x: 1], [x: NA], [x: 3]])
   filtered = filter(data, $x > 1)
-  count = nrow(filtered)
+  row_count = nrow(filtered)
 }; read_pipeline(p_diag).diagnostics.summary|}
     "\"0 node(s) with warnings, 0 suppressed, 0 error(s), 0 recovered\"";
   test "read_pipeline tracks error nodes"
@@ -1092,14 +1101,14 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     {|p_diag = pipeline {
   data = to_dataframe([[x: 1], [x: NA], [x: 3]])
   filtered = filter(data, $x > 1)
-  count = nrow(filtered)
+  row_count = nrow(filtered)
 }; warning_msg(p_diag.filtered) != ""|}
     "false";
   test "warning_msg property on computed node returns warning message"
     {|p_diag = pipeline {
   data = to_dataframe([[x: 1], [x: NA], [x: 3]])
   filtered = filter(data, $x > 1)
-  count = nrow(filtered)
+  row_count = nrow(filtered)
 }; p_diag.filtered.warning_msg != ""|}
     "false";
 
@@ -1119,13 +1128,13 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   output_string oc5 "name,value\nAlice,10\nBob,20\nCharlie,30\n";
   close_out oc5;
 
-  let (_, env_p3_df) = eval_string_env (Printf.sprintf
+  let env_p3_df = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_pipeline:1122" (Printf.sprintf
     {|p = pipeline {
   data = read_csv("%s")
   rows = data |> nrow
   cols = data |> ncol
   names = data |> colnames
-}|} csv_p3) (Packages.init_env ()) in
+}|} csv_p3) in
   let (v, _) = eval_string_env "read_node(p.rows)" env_p3_df in
   let result = Ast.Utils.value_to_string v in
   if Test_helpers.contains result "not been built yet" then begin
@@ -1152,7 +1161,7 @@ p_cross = pipeline {
   c = node(command = <{ b + 1 }>, runtime = Python, serializer = write_pkl, deserializer = read_pkl, functions = ["my_utils.py", "my_serializer.py"], include = "data.csv")
 }
   |} in
-  let (_, env_cross) = eval_string_env explicit_node_code (Packages.init_env ()) in
+  let env_cross = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_pipeline:1155" explicit_node_code in
   let (v_cross, _) = eval_string_env "pipeline_nodes(p_cross)" env_cross in
   let cross_nodes = Ast.Utils.value_to_string v_cross in
   if cross_nodes = "[\"a\", \"b\", \"c\"]" then begin
@@ -1361,9 +1370,9 @@ p_cross = pipeline {
 
   let (v_serializer_pipeline, _) = eval_string_env
     {|pipeline {
-  source = [answer: 42]
-  report_r = rn(command = <{ source }>, serializer = ^json, deserializer = ^json)
-  report_py = pyn(command = <{ source }>, serializer = ^arrow, deserializer = ^arrow)
+  data_source = [answer: 42]
+  report_r = rn(command = <{ data_source }>, serializer = ^json, deserializer = ^json)
+  report_py = pyn(command = <{ data_source }>, serializer = ^ipc, deserializer = ^ipc)
 }|}
     (Packages.init_env ()) in
   (match v_serializer_pipeline with
@@ -1372,20 +1381,20 @@ p_cross = pipeline {
         let has_r_json_helpers =
          contains_substring nix "r_write_json <- function" &&
          contains_substring nix "r_read_json <- function" &&
-         contains_substring nix "dep_source <- r_read_json(" &&
+         contains_substring nix "dep_data_source <- r_read_json(" &&
          contains_substring nix "r_write_json(node_result,"
        in
         let has_py_arrow_helpers =
-          contains_substring nix "def py_write_arrow(df, path):" &&
-          contains_substring nix "def py_read_arrow(path):" &&
-          contains_substring nix "__dep_source = py_read_arrow(" &&
-          contains_substring nix "py_write_arrow(__node_result,"
+          contains_substring nix "def py_write_ipc(df, path):" &&
+          contains_substring nix "def py_read_ipc(path):" &&
+          contains_substring nix "__dep_data_source = py_read_ipc(" &&
+          contains_substring nix "py_write_ipc(__node_result,"
         in
         let omits_old_runtime_prefixed_helpers =
           (not (contains_substring nix "t_read_json(")) &&
           (not (contains_substring nix "t_write_json(")) &&
-          (not (contains_substring nix "t_read_arrow(")) &&
-          (not (contains_substring nix "t_write_arrow("))
+          (not (contains_substring nix "t_read_ipc(")) &&
+          (not (contains_substring nix "t_write_ipc("))
         in
         if has_r_json_helpers && has_py_arrow_helpers && omits_old_runtime_prefixed_helpers then begin
           incr pass_count; Printf.printf "  ✓ pipeline emits r_/py_ runtime serializer helper names\n"
@@ -1394,6 +1403,60 @@ p_cross = pipeline {
         end
     | other ->
         incr fail_count; Printf.printf "  ✗ serializer naming pipeline should return VPipeline, got: %s\n"
+          (Ast.Utils.value_to_string other));
+
+  let (v_julia_parquet, _) = eval_string_env
+    {|pipeline {
+  data_source = [answer: 42]
+  report = jln(command = <{ data_source }>, serializer = ^parquet, deserializer = ^parquet)
+}|}
+    (Packages.init_env ()) in
+  (match v_julia_parquet with
+   | Ast.VPipeline p ->
+        let nix = Nix_emit_pipeline.emit_pipeline p in
+        let has_julia_parquet =
+          contains_substring nix "using Parquet2, DataFrames" &&
+          contains_substring nix "Parquet2.writefile(path, df)" &&
+          contains_substring nix "jl_write_parquet(" &&
+          contains_substring nix "jl_read_parquet(" &&
+          contains_substring nix "DataFrame(Parquet2.readfile(path))"
+        in
+        let omits_ipc_julia_helpers =
+          (not (contains_substring nix "using Arrow")) &&
+          (not (contains_substring nix "Arrow.write"))
+        in
+        if has_julia_parquet && omits_ipc_julia_helpers then begin
+          incr pass_count; Printf.printf "  ✓ Julia ^parquet node emits Parquet2.jl code, not Arrow IPC\n"
+        end else begin
+          incr fail_count; Printf.printf "  ✗ Julia ^parquet emission is not genuine Parquet2.jl code\n"
+        end
+    | other ->
+        incr fail_count; Printf.printf "  ✗ Julia parquet pipeline should return VPipeline, got: %s\n"
+          (Ast.Utils.value_to_string other));
+
+  let (v_julia_ipc, _) = eval_string_env
+    {|pipeline {
+  data_source = [answer: 42]
+  report = jln(command = <{ data_source }>, serializer = ^ipc, deserializer = ^ipc)
+}|}
+    (Packages.init_env ()) in
+  (match v_julia_ipc with
+   | Ast.VPipeline p ->
+        let nix = Nix_emit_pipeline.emit_pipeline p in
+        let has_julia_ipc =
+          contains_substring nix "using Arrow, DataFrames" &&
+          contains_substring nix "Arrow.write(path, df)" &&
+          contains_substring nix "jl_write_ipc(" &&
+          contains_substring nix "jl_read_ipc(" &&
+          contains_substring nix "Arrow.Table(path) |> DataFrame"
+        in
+        if has_julia_ipc then begin
+          incr pass_count; Printf.printf "  ✓ Julia ^ipc node emits Arrow.jl code\n"
+        end else begin
+          incr fail_count; Printf.printf "  ✗ Julia ^ipc emission is missing Arrow.jl helpers\n"
+        end
+    | other ->
+        incr fail_count; Printf.printf "  ✗ Julia ipc pipeline should return VPipeline, got: %s\n"
           (Ast.Utils.value_to_string other));
 
   let (v_plot_pipeline, _) = eval_string_env
@@ -2042,8 +2105,8 @@ p.t_step|}
         (fun dir _pipeline_path ->
           (* Build the pipeline using T OCaml interpreter *)
           let env = Packages.init_env () in
-          let (_, env) = eval_string_env "p = pipeline { golden_node = shn(command = \"echo -n 'golden_value'\", capture = \"stdout\") }" env in
-          let (_, env) = eval_string_env "build_pipeline(p)" env in
+          let env = Test_helpers.eval_setup eval_string_env env "test_pipeline:2099" "p = pipeline { golden_node = shn(command = \"echo -n 'golden_value'\", capture = \"stdout\") }" in
+          let env = Test_helpers.eval_setup eval_string_env env "test_pipeline:2100" "build_pipeline(p)" in
           (* Verify that the build completed and we can query the built value *)
           let (v_val, _) = eval_string_env "read_node(p.golden_node)" env in
           let t_value = match Ast.Utils.unwrap_value v_val with Ast.VString s -> s | _ -> "" in
@@ -2091,12 +2154,8 @@ p.t_step|}
         (fun _dir _pipeline_path ->
           let archive_path = Filename.concat (Filename.get_temp_dir_name ()) "pipeline-cache.nar" in
           let env = Packages.init_env () in
-          let (_, env) =
-            eval_string_env
-              "p = pipeline { cached_node = shn(command = \"echo -n 'artifact_roundtrip'\", capture = \"stdout\") }"
-              env
-          in
-          let (_, env) = eval_string_env "build_pipeline(p)" env in
+          let env = Test_helpers.eval_setup eval_string_env env "test_pipeline:2148" "p = pipeline { cached_node = shn(command = \"echo -n 'artifact_roundtrip'\", capture = \"stdout\") }" in
+          let env = Test_helpers.eval_setup eval_string_env env "test_pipeline:2153" "build_pipeline(p)" in
           let print_df label df_val =
             Printf.printf "    DEBUG %s:\n" label;
             match Ast.Utils.unwrap_value df_val with
@@ -2358,10 +2417,7 @@ p.t_step|}
     let env = Packages.init_env () in
     
     (* 1. Test parsing a node with pattern map *)
-    let (_, env_p) = eval_string_env
-      "p = pipeline {\n  a = 1\n  b = node(command = <{ a + 1 }>, pattern = map_pattern(a))\n}"
-      env
-    in
+    let env_p = Test_helpers.eval_setup eval_string_env env "test_pipeline:2415" "p = pipeline {\n  a = 1\n  b = node(command = <{ a + 1 }>, pattern = map_pattern(a))\n}" in
     let v_p = Ast.Env.find "p" env_p in
     (match v_p with
      | VPipeline p ->
@@ -2452,10 +2508,7 @@ p.t_step|}
   let test_composition_ref_wiring () =
     Printf.printf "Composition Ref Wiring:\n";
     let env = Packages.init_env () in
-    let (_, env_p) = eval_string_env
-      "p = pipeline { a = [1, 2, 3]; b = node(pattern = map_pattern(a)) }"
-      env
-    in
+    let env_p = Test_helpers.eval_setup eval_string_env env "test_pipeline:2509" "p = pipeline { a = [1, 2, 3]; b = node(pattern = map_pattern(a)) }" in
     let ops = [
       ("chain", "chain(p, pipeline { d = a + 1 })");
       ("parallel", "parallel(p, pipeline { d = a + 1 })");
@@ -2482,7 +2535,7 @@ p.t_step|}
     let env = Packages.init_env () in
 
     (* 1. Test expand_pipeline on pipeline without patterns — returns unchanged *)
-    let (_, env_nop) = eval_string_env "p = pipeline { a = 1 }" env in
+    let env_nop = Test_helpers.eval_setup eval_string_env env "test_pipeline:2539" "p = pipeline { a = 1 }" in
     let (v_no_pat, _) = eval_string_env "expand_pipeline(p)" env_nop in
     (match v_no_pat with
      | VPipeline p_no ->
@@ -2497,10 +2550,7 @@ p.t_step|}
          incr fail_count; Printf.printf "  ✗ expand_pipeline on non-pattern pipeline should return VPipeline, got %s\n" (Ast.Utils.value_to_string other));
 
     (* 2. Test expand_pipeline with PatternMap produces correct branches *)
-    let (_, env_p) = eval_string_env
-      "p = pipeline {\n  a = [10, 20, 30]\n  b = node(command = <{ a + 1 }>, pattern = map_pattern(a))\n}"
-      env
-    in
+    let env_p = Test_helpers.eval_setup eval_string_env env "test_pipeline:2554" "p = pipeline {\n  a = [10, 20, 30]\n  b = node(command = <{ a + 1 }>, pattern = map_pattern(a))\n}" in
     let (v_exp, _) = eval_string_env "expand_pipeline(p)" env_p in
     (match v_exp with
      | VPipeline pe ->
@@ -2530,10 +2580,7 @@ p.t_step|}
          incr fail_count; Printf.printf "  ✗ expand_pipeline should return VPipeline, got %s\n" (Ast.Utils.value_to_string other));
 
     (* 3. Test expand_pipeline with single value (length 1) — creates 1 branch *)
-    let (_, env_single) = eval_string_env
-      "p = pipeline {\n  a = 42\n  b = node(command = <{ a }>, pattern = map_pattern(a))\n}"
-      env
-    in
+    let env_single = Test_helpers.eval_setup eval_string_env env "test_pipeline:2587" "p = pipeline {\n  a = 42\n  b = node(command = <{ a }>, pattern = map_pattern(a))\n}" in
     let (v_single, _) = eval_string_env "expand_pipeline(p)" env_single in
     (match v_single with
      | VPipeline ps ->
@@ -2573,14 +2620,11 @@ p.t_step|}
     end;
 
     (* 7. Test expand_pipeline with VDataFrame dependency — branches = num_rows *)
-    let (_, env_df) = eval_string_env
-      "df = to_dataframe([[x: 10], [x: 20], [x: 30]])\n\
+    let env_df = Test_helpers.eval_setup eval_string_env env "test_pipeline:2630" "df = to_dataframe([[x: 10], [x: 20], [x: 30]])\n\
        p = pipeline {\n\
          a = df\n\
          b = node(command = <{ a }>, pattern = map_pattern(a))\n\
-       }"
-      env
-    in
+       }" in
     let (v_df_exp, _) = eval_string_env "expand_pipeline(p)" env_df in
     (match v_df_exp with
      | VPipeline pe ->
@@ -2601,13 +2645,10 @@ p.t_step|}
            (Ast.Utils.value_to_string other));
 
     (* 8. Test expand_pipeline with non-T runtime creates branches with correct runtime *)
-    let (_, env_rt) = eval_string_env
-      "p = pipeline {\n\
+    let env_rt = Test_helpers.eval_setup eval_string_env env "test_pipeline:2658" "p = pipeline {\n\
          a = [1, 2, 3]\n\
          b = node(command = <{ a }>, runtime = R, deserializer = ^json, pattern = map_pattern(a))\n\
-       }"
-      env
-    in
+       }" in
     let (v_rt_result, _) = eval_string_env "expand_pipeline(p)" env_rt in
     (match v_rt_result with
      | VPipeline pe ->
@@ -2640,14 +2681,11 @@ p.t_step|}
     let env = Packages.init_env () in
 
     (* 1. Test cross_pattern produces correct number of branches *)
-    let (_, env_cross) = eval_string_env
-      "p = pipeline {\n\
+    let env_cross = Test_helpers.eval_setup eval_string_env env "test_pipeline:2697" "p = pipeline {\n\
          a = [1, 2]\n\
          b = [10, 20, 30]\n\
          c = node(command = <{ a + b }>, pattern = cross_pattern(map_pattern(a), map_pattern(b)))\n\
-       }"
-      env
-    in
+       }" in
     let (v_exp, _) = eval_string_env "expand_pipeline(p)" env_cross in
     (match v_exp with
      | VPipeline pe ->
@@ -2674,15 +2712,12 @@ p.t_step|}
 
     (* 2. Test chained patterns: cross_pattern supplies downstream map_pattern,
           verifying that dependencies are rewired to individual branches *)
-    let (_, env_chain) = eval_string_env
-      "p = pipeline {\n\
+    let env_chain = Test_helpers.eval_setup eval_string_env env "test_pipeline:2731" "p = pipeline {\n\
          a = [1, 2]\n\
          b = [10, 20]\n\
          c = node(command = <{ a + b }>, pattern = cross_pattern(map_pattern(a), map_pattern(b)))\n\
          d = node(command = <{ c }>, pattern = map_pattern(c))\n\
-       }"
-      env
-    in
+       }" in
     let (v_chain_exp, _) = eval_string_env "expand_pipeline(p)" env_chain in
     (match v_chain_exp with
      | VPipeline pe ->
@@ -2719,13 +2754,10 @@ p.t_step|}
            (Ast.Utils.value_to_string other));
 
     (* 3. Test raw-code substitution: exact string equality and word-boundary regex *)
-    let (_, env_raw) = eval_string_env
-      "p = pipeline {\n\
+    let env_raw = Test_helpers.eval_setup eval_string_env env "test_pipeline:2776" "p = pipeline {\n\
          a = [10, 20]\n\
          b = node(command = <{ a * 2 }>, runtime = R, serializer = ^json, deserializer = ^json, pattern = map_pattern(a))\n\
-       }"
-      env
-    in
+       }" in
     let (v_raw_exp, _) = eval_string_env "expand_pipeline(p)" env_raw in
     (match v_raw_exp with
      | VPipeline pe ->
@@ -2755,13 +2787,10 @@ p.t_step|}
            (Ast.Utils.value_to_string other));
 
     (* 4. Test word-boundary regex: only standalone identifier is substituted *)
-    let (_, env_wb) = eval_string_env
-      "p = pipeline {\n\
+    let env_wb = Test_helpers.eval_setup eval_string_env env "test_pipeline:2812" "p = pipeline {\n\
          a = [10, 20]\n\
          c = node(command = <{ aa + a + a_b }>, pattern = map_pattern(a))\n\
-       }"
-      env
-    in
+       }" in
     let (v_wb_exp, _) = eval_string_env "expand_pipeline(p)" env_wb in
     (match v_wb_exp with
      | VPipeline pe ->
@@ -2799,13 +2828,10 @@ p.t_step|}
     let env = Packages.init_env () in
 
     (* 1. slice_pattern with 2 indices from 5-element list --- 2 branches *)
-    let (_, env_s) = eval_string_env
-      "p = pipeline {\n\
+    let env_s = Test_helpers.eval_setup eval_string_env env "test_pipeline:2856" "p = pipeline {\n\
          x = [10, 20, 30, 40, 50]\n\
          y = node(command = <{ x }>, pattern = slice_pattern(x, [0, 2, 4]))\n\
-       }"
-      env
-    in
+       }" in
     let (v_s, _) = eval_string_env "expand_pipeline(p)" env_s in
     (match v_s with
      | VPipeline pe ->
@@ -2822,13 +2848,10 @@ p.t_step|}
      | _ -> incr fail_count; Printf.printf "  ✗ slice_pattern should return VPipeline\n");
 
     (* 2. slice_pattern with single index --- 1 branch *)
-    let (_, env_s1) = eval_string_env
-      "p = pipeline {\n\
+    let env_s1 = Test_helpers.eval_setup eval_string_env env "test_pipeline:2879" "p = pipeline {\n\
          x = [10, 20, 30]\n\
          y = node(command = <{ x }>, pattern = slice_pattern(x, [1]))\n\
-       }"
-      env
-    in
+       }" in
     let (v_s1, _) = eval_string_env "expand_pipeline(p)" env_s1 in
     (match v_s1 with
      | VPipeline pe ->
@@ -2843,13 +2866,10 @@ p.t_step|}
      | _ -> incr fail_count; Printf.printf "  ✗ slice_pattern single should return VPipeline\n");
 
     (* 3. head_pattern with n=3 from 5 elements --- 3 branches *)
-    let (_, env_h) = eval_string_env
-      "p = pipeline {\n\
+    let env_h = Test_helpers.eval_setup eval_string_env env "test_pipeline:2900" "p = pipeline {\n\
          x = [10, 20, 30, 40, 50]\n\
          y = node(command = <{ x }>, pattern = head_pattern(x, 3))\n\
-       }"
-      env
-    in
+       }" in
     let (v_h, _) = eval_string_env "expand_pipeline(p)" env_h in
     (match v_h with
      | VPipeline pe ->
@@ -2866,13 +2886,10 @@ p.t_step|}
      | _ -> incr fail_count; Printf.printf "  ✗ head_pattern should return VPipeline\n");
 
     (* 4. head_pattern with n exceeding length --- capped *)
-    let (_, env_hcap) = eval_string_env
-      "p = pipeline {\n\
+    let env_hcap = Test_helpers.eval_setup eval_string_env env "test_pipeline:2923" "p = pipeline {\n\
          x = [10, 20, 30]\n\
          y = node(command = <{ x }>, pattern = head_pattern(x, 10))\n\
-       }"
-      env
-    in
+       }" in
     let (v_hcap, _) = eval_string_env "expand_pipeline(p)" env_hcap in
     (match v_hcap with
      | VPipeline pe ->
@@ -2887,13 +2904,10 @@ p.t_step|}
      | _ -> incr fail_count; Printf.printf "  ✗ head_pattern cap should return VPipeline\n");
 
     (* 5. tail_pattern with n=2 from 5 elements --- 2 branches (last 2) *)
-    let (_, env_t) = eval_string_env
-      "p = pipeline {\n\
+    let env_t = Test_helpers.eval_setup eval_string_env env "test_pipeline:2944" "p = pipeline {\n\
          x = [10, 20, 30, 40, 50]\n\
          y = node(command = <{ x }>, pattern = tail_pattern(x, 2))\n\
-       }"
-      env
-    in
+       }" in
     let (v_t, _) = eval_string_env "expand_pipeline(p)" env_t in
     (match v_t with
      | VPipeline pe ->
@@ -2910,13 +2924,10 @@ p.t_step|}
      | _ -> incr fail_count; Printf.printf "  ✗ tail_pattern should return VPipeline\n");
 
     (* 6. sample_pattern with n=2 from 5 elements --- 2 branches *)
-    let (_, env_samp) = eval_string_env
-      "p = pipeline {\n\
+    let env_samp = Test_helpers.eval_setup eval_string_env env "test_pipeline:2967" "p = pipeline {\n\
          x = [10, 20, 30, 40, 50]\n\
          y = node(command = <{ x }>, pattern = sample_pattern(x, 2))\n\
-       }"
-      env
-    in
+       }" in
     let (v_samp, _) = eval_string_env "expand_pipeline(p)" env_samp in
     (match v_samp with
      | VPipeline pe ->
@@ -2948,14 +2959,11 @@ p.t_step|}
       | _ -> incr fail_count; Printf.printf "  ✗ sample_pattern determinism: expand_pipeline should return VPipeline\n");
 
     (* 8. cross_pattern rejects selector sub-patterns *)
-    let (_, env_cross_rej) = eval_string_env
-      "p = pipeline {\n\
+    let env_cross_rej = Test_helpers.eval_setup eval_string_env env "test_pipeline:3005" "p = pipeline {\n\
          a = [1, 2, 3]\n\
          b = [10, 20, 30]\n\
          c = node(command = <{ a + b }>, pattern = cross_pattern(slice_pattern(a, [0]), map_pattern(b)))\n\
-       }"
-      env
-    in
+       }" in
     let (v_rej, _) = eval_string_env "expand_pipeline(p)" env_cross_rej in
     let s_rej = strip_location (Ast.Utils.value_to_string v_rej) in
     if contains_pattern "only map_pattern is supported inside cross_pattern" s_rej then
@@ -2996,7 +3004,7 @@ p.t_step|}
   let string_set_equal a b = List.sort compare a = List.sort compare b in
 
   (* Test 1: Global functions merge, runtime isolation, original pipeline unchanged *)
-  (let (_, env) = eval_string_env {|
+  (let env = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_pipeline:3053" {|
     p = pipeline {
       n1 = rn(command = <{ 1 + 1 }>)
       n2 = pyn(command = <{ 2 + 2 }>, functions = ["extra.py"])
@@ -3004,7 +3012,7 @@ p.t_step|}
       n4 = node(command = 1 + 1)
     }
     q = set_pipeline_global_options(p, functions = [rn: "test.R", pyn: ["a.py", "b.py"]])
-  |} (Packages.init_env ()) in
+  |} in
    let (vp, _) = eval_string_env "p" env in
    let (vq, _) = eval_string_env "q" env in
    match vq with
@@ -3029,12 +3037,12 @@ p.t_step|}
        incr fail_count; Printf.printf "  ✗ set_pipeline_global_options test: expected VPipeline, got %s\n" (Utils.value_to_string other));
 
   (* Test 2: Include merge *)
-  (let (_, env) = eval_string_env {|
+  (let env = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_pipeline:3086" {|
     p = pipeline {
       n1 = rn(command = <{ 1 + 1 }>, include = ["extra.csv"])
     }
     q = set_pipeline_global_options(p, include = "shared.yaml")
-  |} (Packages.init_env ()) in
+  |} in
    let (vq, _) = eval_string_env "q" env in
    match vq with
    | VPipeline q ->
@@ -3052,12 +3060,12 @@ p.t_step|}
     {|Error(TypeError: "set_pipeline_global_options: unknown argument 'unknown_arg'. Supported arguments are: functions, include, env_vars, serializer, deserializer, noop, args, shell, shell_args, flake, dependencies, runtimes, nodes.")|};
 
   (* Test 4: Composability — calling twice merges both sets of defaults *)
-  (let (_, env) = eval_string_env {|
+  (let env = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_pipeline:3109" {|
     p = pipeline {
       n1 = rn(command = <{ 1 + 1 }>)
     }
     q = set_pipeline_global_options(set_pipeline_global_options(p, functions = [rn: "first.R"]), functions = [rn: "second.R"])
-  |} (Packages.init_env ()) in
+  |} in
    let (vq, _) = eval_string_env "q" env in
    match vq with
    | Ast.VPipeline q ->
@@ -3070,12 +3078,12 @@ p.t_step|}
        incr fail_count; Printf.printf "  ✗ set_pipeline_global_options composability test: expected VPipeline, got %s\n" (Ast.Utils.value_to_string other));
 
   (* Test 5: Nodes added after the call do not inherit defaults *)
-  (let (_, env) = eval_string_env {|
+  (let env = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_pipeline:3127" {|
     p = pipeline { n1 = rn(command = <{ 1 + 1 }>) }
     q = set_pipeline_global_options(p, include = "global.yaml")
     r = pipeline { n2 = rn(command = <{ 2 + 2 }>) }
     s = union(q, r)
-  |} (Packages.init_env ()) in
+  |} in
    let (vs, _) = eval_string_env "s" env in
    match vs with
    | Ast.VPipeline s ->
@@ -3138,13 +3146,13 @@ p.t_step|}
     in
 
    (* Test 6: env_vars merge *)
-   (let (_, env) = eval_string_env {|
+   (let env = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_pipeline:3195" {|
      p = pipeline {
        n1 = rn(command = <{ 1 + 1 }>, env_vars = [EXTRA: "per_node"])
        n2 = pyn(command = <{ 2 + 2 }>)
      }
      q = set_pipeline_global_options(p, env_vars = [MODE: "fast", API_KEY: "secret"])
-   |} (Packages.init_env ()) in
+   |} in
     let (vq, _) = eval_string_env "q" env in
     let (vp, _) = eval_string_env "p" env in
     match vq with
@@ -3173,12 +3181,12 @@ p.t_step|}
         incr fail_count; Printf.printf "  ✗ set_pipeline_global_options env_vars test: expected VPipeline, got %s\n" (Utils.value_to_string other));
 
    (* Test 7: args merge *)
-   (let (_, env) = eval_string_env {|
+   (let env = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_pipeline:3230" {|
      p = pipeline {
        n1 = rn(command = <{ 1 + 1 }>, args = [extra_arg: "per_node"])
      }
      q = set_pipeline_global_options(p, args = [mode: "batch"])
-   |} (Packages.init_env ()) in
+   |} in
     let (vq, _) = eval_string_env "q" env in
     match vq with
     | VPipeline q ->
@@ -3192,19 +3200,19 @@ p.t_step|}
         incr fail_count; Printf.printf "  ✗ set_pipeline_global_options args test: expected VPipeline, got %s\n" (Utils.value_to_string other));
 
    (* Test 8: serializer override *)
-   (let (_, env) = eval_string_env {|
+   (let env = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_pipeline:3249" {|
      p = pipeline {
        n1 = rn(command = <{ 1 + 1 }>, serializer = ^json)
        n2 = pyn(command = <{ 2 + 2 }>)
      }
-     q = set_pipeline_global_options(p, serializer = ^arrow)
-   |} (Packages.init_env ()) in
+     q = set_pipeline_global_options(p, serializer = ^ipc)
+   |} in
     let (vq, _) = eval_string_env "q" env in
     match vq with
     | VPipeline q ->
         let n1_ser = get_serializer q "n1" in
         let n2_ser = get_serializer q "n2" in
-        if n1_ser = "arrow" && n2_ser = "arrow" then
+        if n1_ser = "ipc" && n2_ser = "ipc" then
           (incr pass_count; Printf.printf "  ✓ set_pipeline_global_options overrides serializer for all nodes\n")
         else
           (incr fail_count; Printf.printf "  ✗ set_pipeline_global_options serializer override failed: n1=%s n2=%s\n" n1_ser n2_ser)
@@ -3212,12 +3220,12 @@ p.t_step|}
         incr fail_count; Printf.printf "  ✗ set_pipeline_global_options serializer test: expected VPipeline, got %s\n" (Utils.value_to_string other));
 
    (* Test 9: deserializer override *)
-   (let (_, env) = eval_string_env {|
+   (let env = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_pipeline:3269" {|
      p = pipeline {
        n1 = rn(command = <{ 1 + 1 }>, deserializer = ^json)
      }
      q = set_pipeline_global_options(p, deserializer = "csv")
-   |} (Packages.init_env ()) in
+   |} in
     let (vq, _) = eval_string_env "q" env in
     match vq with
     | VPipeline q ->
@@ -3230,13 +3238,13 @@ p.t_step|}
         incr fail_count; Printf.printf "  ✗ set_pipeline_global_options deserializer test: expected VPipeline, got %s\n" (Utils.value_to_string other));
 
    (* Test 10: noop override (OR semantics) *)
-   (let (_, env) = eval_string_env {|
+   (let env = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_pipeline:3287" {|
      p = pipeline {
        n1 = rn(command = <{ 1 + 1 }>)
        n2 = pyn(command = <{ 2 + 2 }>, noop = true)
      }
      q = set_pipeline_global_options(p, noop = true)
-   |} (Packages.init_env ()) in
+   |} in
     let (vq, _) = eval_string_env "q" env in
     match vq with
     | VPipeline q ->
@@ -3250,12 +3258,12 @@ p.t_step|}
         incr fail_count; Printf.printf "  ✗ set_pipeline_global_options noop test: expected VPipeline, got %s\n" (Utils.value_to_string other));
 
    (* Test 10b: noop=false leaves nodes unchanged *)
-   (let (_, env) = eval_string_env {|
+   (let env = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_pipeline:3307" {|
      p = pipeline {
        n1 = rn(command = <{ 1 + 1 }>, noop = true)
      }
      q = set_pipeline_global_options(p, noop = false)
-   |} (Packages.init_env ()) in
+   |} in
     let (vq, _) = eval_string_env "q" env in
     match vq with
     | VPipeline q ->
@@ -3268,12 +3276,12 @@ p.t_step|}
         incr fail_count; Printf.printf "  ✗ set_pipeline_global_options noop false test: expected VPipeline, got %s\n" (Utils.value_to_string other));
 
    (* Test 11: shell override *)
-   (let (_, env) = eval_string_env {|
+   (let env = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_pipeline:3325" {|
      p = pipeline {
        n1 = rn(command = <{ 1 + 1 }>, shell = "bash")
      }
      q = set_pipeline_global_options(p, shell = "zsh")
-   |} (Packages.init_env ()) in
+   |} in
     let (vq, _) = eval_string_env "q" env in
     match vq with
     | VPipeline q ->
@@ -3287,12 +3295,12 @@ p.t_step|}
         incr fail_count; Printf.printf "  ✗ set_pipeline_global_options shell test: expected VPipeline, got %s\n" (Utils.value_to_string other));
 
    (* Test 12: shell_args prepend *)
-   (let (_, env) = eval_string_env {|
+   (let env = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_pipeline:3344" {|
      p = pipeline {
        n1 = rn(command = <{ 1 + 1 }>, shell_args = ["--per-node"])
      }
      q = set_pipeline_global_options(p, shell_args = ["--global"])
-   |} (Packages.init_env ()) in
+   |} in
     let (vq, _) = eval_string_env "q" env in
     match vq with
     | VPipeline q ->
@@ -3306,13 +3314,13 @@ p.t_step|}
         incr fail_count; Printf.printf "  ✗ set_pipeline_global_options shell_args test: expected VPipeline, got %s\n" (Utils.value_to_string other));
 
    (* Test 13: flake override *)
-   (let (_, env) = eval_string_env {|
+   (let env = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_pipeline:3363" {|
      p = pipeline {
        n1 = rn(command = <{ 1 + 1 }>)
        n2 = pyn(command = <{ 2 + 2 }>, flake = "path:./custom")
      }
      q = set_pipeline_global_options(p, flake = "path:./global")
-   |} (Packages.init_env ()) in
+   |} in
     let (vq, _) = eval_string_env "q" env in
     match vq with
     | VPipeline q ->
@@ -3328,13 +3336,13 @@ p.t_step|}
         incr fail_count; Printf.printf "  ✗ set_pipeline_global_options flake test: expected VPipeline, got %s\n" (Utils.value_to_string other));
 
    (* Test 14: dependencies prepend (per-node arg is `deps`) *)
-   (let (_, env) = eval_string_env {|
+   (let env = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_pipeline:3385" {|
      p = pipeline {
        n1 = rn(command = <{ 1 + 1 }>, deps = ["n2"])
        n2 = rn(command = <{ 2 + 2 }>)
      }
      q = set_pipeline_global_options(p, dependencies = ["global_dep"])
-   |} (Packages.init_env ()) in
+   |} in
     let (vq, _) = eval_string_env "q" env in
     match vq with
     | VPipeline q ->
@@ -3353,13 +3361,13 @@ p.t_step|}
    (* Test 14b: dependencies omitted leaves p_explicit_deps untouched *)
    (* Regression: when `dependencies` is not passed, n1's deps must stay Some ["n2"]
       (not Some [], not mutated) and n2's None must not be flipped to Some []. *)
-   (let (_, env) = eval_string_env {|
+   (let env = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_pipeline:3410" {|
      p = pipeline {
        n1 = rn(command = <{ 1 + 1 }>, deps = ["n2"])
        n2 = rn(command = <{ 2 + 2 }>)
      }
      q = set_pipeline_global_options(p, include = "x.yaml")
-   |} (Packages.init_env ()) in
+   |} in
     let (vq, _) = eval_string_env "q" env in
     match vq with
     | VPipeline q ->
@@ -3401,14 +3409,14 @@ p.t_step|}
      {|Error(TypeError: "set_pipeline_global_options: expected a string or list of strings for `dependencies`, but got Int.")|};
 
    (* Test 20: runtimes scope — serializer override only applies to R nodes *)
-   (let (_, env) = eval_string_env {|
+   (let env = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_pipeline:3458" {|
      p = pipeline {
        n1 = rn(command = <{ 1 + 1 }>)
        n2 = pyn(command = <{ 2 + 2 }>)
        n3 = rn(command = <{ 3 + 3 }>)
      }
      q = set_pipeline_global_options(p, runtimes = ["rn"], serializer = ^json)
-   |} (Packages.init_env ()) in
+   |} in
     let (vq, _) = eval_string_env "q" env in
     match vq with
     | VPipeline q ->
@@ -3426,14 +3434,14 @@ p.t_step|}
         incr fail_count; Printf.printf "  ✗ set_pipeline_global_options runtimes scope test: expected VPipeline, got %s\n" (Utils.value_to_string other));
 
    (* Test 21: nodes scope — include only applies to listed nodes *)
-   (let (_, env) = eval_string_env {|
+   (let env = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_pipeline:3483" {|
      p = pipeline {
        n1 = rn(command = <{ 1 + 1 }>)
        n2 = pyn(command = <{ 2 + 2 }>)
        n3 = rn(command = <{ 3 + 3 }>)
      }
      q = set_pipeline_global_options(p, nodes = ["n1"], include = "x.yaml")
-   |} (Packages.init_env ()) in
+   |} in
     let (vq, _) = eval_string_env "q" env in
     match vq with
     | VPipeline q ->
@@ -3450,14 +3458,14 @@ p.t_step|}
         incr fail_count; Printf.printf "  ✗ set_pipeline_global_options nodes scope test: expected VPipeline, got %s\n" (Utils.value_to_string other));
 
    (* Test 22: union of nodes and runtimes scopes *)
-   (let (_, env) = eval_string_env {|
+   (let env = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_pipeline:3507" {|
      p = pipeline {
        n1 = rn(command = <{ 1 + 1 }>)
        n2 = pyn(command = <{ 2 + 2 }>)
        n3 = node(command = 3 + 3)
      }
      q = set_pipeline_global_options(p, nodes = ["n3"], runtimes = ["rn"], noop = true)
-   |} (Packages.init_env ()) in
+   |} in
     let (vq, _) = eval_string_env "q" env in
     match vq with
     | VPipeline q ->
@@ -3481,14 +3489,14 @@ p.t_step|}
      {|Error(TypeError: "set_pipeline_global_options: unknown runtime(s) in pipeline: `Julia`. Pipeline runtimes are: `T`.")|};
 
    (* Test 25: scoped dependencies leave non-target deps untouched *)
-   (let (_, env) = eval_string_env {|
+   (let env = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_pipeline:3538" {|
      p = pipeline {
        n1 = rn(command = <{ 1 + 1 }>, deps = ["n2"])
        n2 = rn(command = <{ 2 + 2 }>)
        n3 = pyn(command = <{ 3 + 3 }>)
      }
      q = set_pipeline_global_options(p, nodes = ["n3"], dependencies = ["global_dep"])
-   |} (Packages.init_env ()) in
+   |} in
     let (vq, _) = eval_string_env "q" env in
     match vq with
     | VPipeline q ->
@@ -3507,7 +3515,7 @@ p.t_step|}
         incr fail_count; Printf.printf "  ✗ set_pipeline_global_options scoped deps test: expected VPipeline, got %s\n" (Utils.value_to_string other));
 
    (* Test 26: pipeline_node_options read-back after global options merge *)
-   (let (_, env) = eval_string_env {|
+   (let env = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_pipeline:3564" {|
      p = pipeline {
        n1 = rn(command = <{ 1 + 1 }>, deps = ["n2"])
        n2 = rn(command = <{ 2 + 2 }>)
@@ -3517,7 +3525,7 @@ p.t_step|}
                                       shell_args = "-e", flake = "git+file:///tmp/flake",
                                       serializer = ^json)
       info = pipeline_node_options(q, "n1")
-   |} (Packages.init_env ()) in
+   |} in
     let (vi, _) = eval_string_env "info" env in
     match vi with
     | VDict pairs ->
@@ -3579,13 +3587,13 @@ p.t_step|}
      {|Error(TypeError: "pipeline_node_options: arguments must be passed positionally (pipeline, node), but got named argument `p`.")|};
 
    (* Test 31: explicit empty nodes scope targets no nodes *)
-   (let (_, env) = eval_string_env {|
+   (let env = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_pipeline:3636" {|
      p = pipeline {
        n1 = rn(command = <{ 1 + 1 }>)
        n2 = pyn(command = <{ 2 + 2 }>)
      }
      q = set_pipeline_global_options(p, nodes = [], serializer = ^json)
-   |} (Packages.init_env ()) in
+   |} in
     let (vq, _) = eval_string_env "q" env in
     match vq with
     | VPipeline q ->
@@ -3598,13 +3606,13 @@ p.t_step|}
         incr fail_count; Printf.printf "  ✗ set_pipeline_global_options empty nodes scope test: expected VPipeline, got %s\n" (Utils.value_to_string other));
 
    (* Test 32: explicit empty nodes + runtimes still targets the runtime's nodes *)
-   (let (_, env) = eval_string_env {|
+   (let env = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_pipeline:3655" {|
      p = pipeline {
        n1 = rn(command = <{ 1 + 1 }>)
        n2 = pyn(command = <{ 2 + 2 }>)
      }
      q = set_pipeline_global_options(p, nodes = [], runtimes = ["rn"], serializer = ^json)
-   |} (Packages.init_env ()) in
+   |} in
     let (vq, _) = eval_string_env "q" env in
     match vq with
     | VPipeline q ->
@@ -3618,14 +3626,14 @@ p.t_step|}
 
    (* Test 33 (reviewer issue 1): serializer provenance — explicit ^text
       shows "node", sh constructor default shows NA *)
-   (let (_, env) = eval_string_env {|
+   (let env = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_pipeline:3675" {|
      p = pipeline {
        r = rn(command = <{ 1 }>, serializer = ^text)
        s = shn(command = <{ echo x }>)
      }
      info_r = pipeline_node_options(p, "r")
      info_s = pipeline_node_options(p, "s")
-   |} (Packages.init_env ()) in
+   |} in
     let (vi_r, _) = eval_string_env "info_r" env in
     let (vi_s, _) = eval_string_env "info_s" env in
     match vi_r, vi_s with
@@ -3645,13 +3653,13 @@ p.t_step|}
     | _ -> incr fail_count; Printf.printf "  ✗ serializer provenance test: expected VDict\n");
 
    (* Test 34a (reviewer issue 2): global deps visible in p_deps *)
-   (let (_, env) = eval_string_env {|
+   (let env = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_pipeline:3702" {|
      p = pipeline {
        a = rn(command = <{ 1 }>)
        b = node(command = 1)
      }
      q = set_pipeline_global_options(p, dependencies = ["b"], nodes = ["a"])
-   |} (Packages.init_env ()) in
+   |} in
     let (vq, _) = eval_string_env "q" env in
     match vq with
     | VPipeline q ->
@@ -3664,12 +3672,12 @@ p.t_step|}
     | _ -> incr fail_count; Printf.printf "  ✗ global deps p_deps test: expected VPipeline\n");
 
    (* Test 34b (reviewer issue 2): self-dep filtered from global deps *)
-   (let (_, env) = eval_string_env {|
+   (let env = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_pipeline:3721" {|
      p = pipeline {
        a = rn(command = <{ 1 }>)
      }
      q = set_pipeline_global_options(p, dependencies = ["a"], nodes = ["a"])
-   |} (Packages.init_env ()) in
+   |} in
     let (vq, _) = eval_string_env "q" env in
     match vq with
     | VPipeline q ->
@@ -3691,14 +3699,14 @@ p.t_step|}
      "1";
 
    (* Test 35 (reviewer issue 3): pipeline_cycles and pipeline_validate consistent *)
-   (let (_, env) = eval_string_env {|
+   (let env = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_pipeline:3748" {|
      p = pipeline {
        a = rn(command = <{ 1 }>)
        b = rn(command = <{ 2 }>)
      }
      q = set_pipeline_global_options(p, dependencies = ["b"], nodes = ["a"])
      q2 = set_pipeline_global_options(q, dependencies = ["a"], nodes = ["b"])
-   |} (Packages.init_env ()) in
+   |} in
     let (vcyc, _) = eval_string_env {|pipeline_cycles(q2)|} env in
     let (vval, _) = eval_string_env {|pipeline_validate(q2)|} env in
     let cycles_match =
@@ -3712,14 +3720,14 @@ p.t_step|}
         (Ast.Utils.value_to_string vcyc) (Ast.Utils.value_to_string vval)));
 
    (* Test 36 (reviewer issue 4): provenance per-function source mapping *)
-   (let (_, env) = eval_string_env {|
+   (let env = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_pipeline:3769" {|
      p = pipeline {
        a = rn(command = <{ 1 }>, functions = ["node.R"])
        b = rn(command = <{ 2 }>)
      }
      q = set_pipeline_global_options(p, functions = [rn: "global.R"], dependencies = ["b"], nodes = ["a"])
      info = pipeline_node_options(q, "a")
-   |} (Packages.init_env ()) in
+   |} in
     let (vi, _) = eval_string_env "info" env in
     match vi with
     | VDict pairs ->
@@ -3748,14 +3756,14 @@ p.t_step|}
 
    (* pipeline_config_to_frame: value-content test — verifies provenance columns
       reflect actual global-option merges *)
-   (let (_, env) = eval_string_env {|
+   (let env = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_pipeline:3805" {|
      p = pipeline {
        a = rn(command = <{ 1 }>, functions = ["node.R"])
        b = pyn(command = <{ 2 }>)
      }
      q = set_pipeline_global_options(p, functions = [rn: "global.R"], serializer = ^json, dependencies = ["b"])
      df = pipeline_config_to_frame(q)
-   |} (Packages.init_env ()) in
+   |} in
     let (vdf, _) = eval_string_env "df" env in
     match vdf with
     | VDataFrame { arrow_table; _ } ->
@@ -3795,14 +3803,14 @@ p.t_step|}
     | _ -> incr fail_count; Printf.printf "  ✗ pipeline_config_to_frame value-content test: expected VDataFrame\n");
 
    (* mutate_node: provenance check — mutated fields show Source_node, not global *)
-   (let (_, env) = eval_string_env {|
+   (let env = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_pipeline:3852" {|
      p = pipeline {
        a = rn(command = <{ 1 }>, functions = ["old.R"])
      }
      q = set_pipeline_global_options(p, functions = [rn: "global.R"])
      r = mutate_node(q, $functions = ["mutated.R"], $shell = "zsh")
      info = pipeline_node_options(r, "a")
-   |} (Packages.init_env ()) in
+   |} in
     let (vi, _) = eval_string_env "info" env in
     match vi with
     | VDict pairs ->
@@ -3823,6 +3831,45 @@ p.t_step|}
         else
           (incr fail_count; Printf.printf "  ✗ mutate_node provenance failed: funcs global=[%s] node=[%s] shell_src=%s\n"
              (String.concat ", " f_globals) (String.concat ", " f_nodes) shell_src)
-    | _ -> incr fail_count; Printf.printf "  ✗ mutate_node provenance test: expected VDict\n");
+     | _ -> incr fail_count; Printf.printf "  ✗ mutate_node provenance test: expected VDict\n");
+
+   (* Test 38 (block-local bindings in T node commands): names bound by
+      assignments inside a node's `{ }` block are NOT pipeline dependencies,
+      so pipelines using them validate cleanly. Regression for the
+      package_manager_functions_t structural errors. *)
+   test "block-local binding is not a missing dependency"
+     {|p = pipeline { a = { x = 1; [out: x] } }; length(pipeline_validate(p))|}
+     "0";
+   test "block-local binding with sibling node reference validates"
+     {|p = pipeline { a = { x = 1; [out: x] }; b = { y = a; [out: y] } }; length(pipeline_validate(p))|}
+     "0";
+   test "block-local reassignment does not create a dependency"
+     {|p = pipeline { a = { x = 1; x = x + 1; [out: x] } }; length(pipeline_validate(p))|}
+     "0";
+    test "genuinely unbound name is still a missing dependency"
+      {|p = pipeline { a = { [out: y] } }; length(pipeline_validate(p))|}
+      "1";
+    test "block-local binding shadowing a sibling node detects the dependency"
+      {|p = pipeline { src = 42; shadow = { src = src + 1; [out: src] } }; length(pipeline_validate(p))|}
+      "0";
+    (let env = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_pipeline:blocklocal-deps" {|
+      p = pipeline {
+        raw = rn(command = <{ 1 }>)
+        clean = { tmp = raw; [out: tmp] }
+      }
+    |} in
+    let get_p_deps p name =
+      match List.assoc_opt name p.p_deps with Some d -> d | None -> []
+    in
+    let (vp, _) = eval_string_env "p" env in
+    match vp with
+    | VPipeline p ->
+        let deps_clean = get_p_deps p "clean" in
+        let ok = deps_clean = ["raw"] in
+        if ok then
+          (incr pass_count; Printf.printf "  ✓ block-local binding leaves only the sibling node as a dependency\n")
+        else
+          (incr fail_count; Printf.printf "  ✗ block-local deps inference: clean deps=[%s]\n" (String.concat ", " deps_clean))
+    | _ -> incr fail_count; Printf.printf "  ✗ block-local deps inference: expected VPipeline\n");
 
    print_newline ()

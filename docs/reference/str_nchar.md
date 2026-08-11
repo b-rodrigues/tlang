@@ -2,7 +2,7 @@
 
 Get character count
 
-Returns the number of characters in a string. Vectorized.
+Returns the number of characters (Unicode code points) in a string. Multi-byte UTF-8 characters count as a single character. Vectorized.
 
 ## Parameters
 

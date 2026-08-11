@@ -36,7 +36,9 @@
 <h1 id="read_parquet">read_parquet</h1>
 <p>Read Parquet file</p>
 <p>Reads a DataFrame from a Parquet file using the native parquet-glib
-reader.</p>
+reader. Prefer Parquet for compressed, long-term storage of large
+datasets or when sharing data with external analytics tooling. For the
+fastest possible round trip (no compression), use read_ipc instead.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
 <li><strong>path</strong> (<code>String</code>): Path or URL to the
@@ -47,7 +49,7 @@ Parquet file.</li>
 <h2 id="examples">Examples</h2>
 <pre class="t"><code>df = read_parquet(&quot;data.parquet&quot;)</code></pre>
 <h2 id="see-also">See Also</h2>
-<p><a href="read_arrow.html">read_arrow</a>, <a
+<p><a href="read_ipc.html">read_ipc</a>, <a
 href="read_csv.html">read_csv</a></p>
 </div>
 <footer>

@@ -225,7 +225,7 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
   (match julia_diag.Diagnostics.diag_suggested_fix with
    | Diagnostics.Add_node_arg { node; arg; _ } ->
        check_eq "cross-runtime (Julia dep): node name" node "rn";
-       check_eq "cross-runtime (Julia dep): arg uses ^arrow" arg "deserializer = ^arrow"
+       check_eq "cross-runtime (Julia dep): arg uses ^ipc" arg "deserializer = ^ipc"
    | _ -> check "cross-runtime (Julia dep): generates Add_node_arg" false);
 
   let py_msg = "Node `jln` (Julia) depends on `pyn` (Python) but has no explicit deserializer." in
@@ -365,6 +365,70 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
         with Not_found -> false)
   in
   check "schema rename stale: suggested_fix is rename_column" has_rename_fix;
+  flush stdout;
+
+  Printf.printf "\nreserved node name fix suggestion:\n";
+
+  (* Reserved node name: the wire-phase NameError carries a Rename_node fix *)
+  let reserved_fixture = "/tmp/reserved_node_fix_test.t" in
+  let oc = open_out reserved_fixture in
+  output_string oc "p = pipeline {\n  count = node(runtime = T, command = <{ 1 }>)\n}\n";
+  close_out oc;
+  let result = eval_string (Printf.sprintf "t_check(\"%s\", schema=true, json=true)" reserved_fixture) in
+  let result_str = match result with Ast.VString s -> s | _ -> "" in
+  let has_rename_node_fix =
+    String.length result_str > 0
+    && (try ignore (Str.search_forward (Str.regexp "\"rename_node\"") result_str 0); true
+        with Not_found -> false)
+  in
+  check "reserved node name: suggested_fix is rename_node" has_rename_node_fix;
+  Sys.remove reserved_fixture;
+  flush stdout;
+
+  (* Top-level reserved-name overwrite (no pipeline block): the wire-phase
+     NameError "Cannot overwrite count: it's a reserved keyword!" must also
+     carry a Rename_node fix. *)
+  let top_reserved_fixture = "/tmp/top_reserved_node_fix_test.t" in
+  let oc = open_out top_reserved_fixture in
+  output_string oc "count = node(runtime = T, command = <{ 1 }>)\n";
+  close_out oc;
+  let top_result = eval_string (Printf.sprintf "t_check(\"%s\", schema=true, json=true)" top_reserved_fixture) in
+  let top_result_str = match top_result with Ast.VString s -> s | _ -> "" in
+  let has_top_rename_node_fix =
+    String.length top_result_str > 0
+    && (try ignore (Str.search_forward (Str.regexp "\"rename_node\"") top_result_str 0); true
+        with Not_found -> false)
+  in
+  check "top-level reserved name: suggested_fix is rename_node" has_top_rename_node_fix;
+  Sys.remove top_reserved_fixture;
+  flush stdout;
+
+  Printf.printf "\nof_verror existing-node-name guard:\n";
+
+  (* When the caller can supply the pipeline's existing node names, a reserved
+     node whose `_node` rename would collide with an existing node must not get
+     a Rename_node suggestion (mirrors of_pipeline_validation's guard). *)
+  let reserved_err = { Ast.
+    code = NameError;
+    message = "Node `count` is reserved: `count` is a builtin function.";
+    context = [];
+    location = None;
+    na_count = 0;
+  } in
+  (match Diagnostics.of_verror reserved_err with
+   | { Diagnostics.diag_suggested_fix = Diagnostics.Rename_node { old_name; new_name; _ }; _ } ->
+       check_eq "of_verror: reserved name gets rename_node" old_name "count";
+       check_eq "of_verror: rename target is _node" new_name "count_node"
+   | _ -> check "of_verror: reserved name gets rename_node" false);
+  (match Diagnostics.of_verror ~existing_node_names:["count_node"] reserved_err with
+   | { Diagnostics.diag_suggested_fix = Diagnostics.NoFix; _ } ->
+       check "of_verror: rename suppressed when `count_node` already exists" true
+   | _ ->
+       check "of_verror: rename suppressed when `count_node` already exists" false);
+  (match Diagnostics.of_verror ~existing_node_names:["other_node"] reserved_err with
+   | { Diagnostics.diag_suggested_fix = Diagnostics.Rename_node { new_name; _ }; _ } ->
+       check_eq "of_verror: rename kept when no collision" new_name "count_node"
+   | _ -> check "of_verror: rename kept when no collision" false);
   flush stdout;
 
   Printf.printf "\nmissing package detection:\n";

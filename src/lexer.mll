@@ -134,6 +134,7 @@ rule token = parse
   | "==" { EQ }      | "!=" { NEQ }
   | '<' { LT }       | '>' { GT }
   | "<=" { LTE }     | ">=" { GTE }
+  | '%' (identifier as name) '%' { PERCENT_IDENT ("%" ^ name ^ "%") }
   | '%' { PERCENT }
   | '~' { TILDE }
 

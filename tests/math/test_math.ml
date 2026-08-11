@@ -51,7 +51,7 @@ let run_tests _pass_count _fail_count _failures _eval_string eval_string_env tes
   output_string oc_vec "a,b,c\n1,2,-1\n4,3,2\n9,4,-3\n";
   close_out oc_vec;
   let env_p5 = Packages.init_env () in
-  let (_, env_p5) = eval_string_env (Printf.sprintf {|vdf = read_csv("%s")|} csv_p5_vec) env_p5 in
+  let env_p5 = Test_helpers.eval_setup eval_string_env env_p5 "test_math:54" (Printf.sprintf {|vdf = read_csv("%s")|} csv_p5_vec) in
 
   test_env env_p5 "sqrt on vector"
     "sqrt(vdf.a)"

@@ -35,7 +35,7 @@
 <div class="container">
 <h1 id="t-language-overview">T Language Overview</h1>
 <blockquote>
-<p><strong>Version</strong>: 0.54.3</p>
+<p><strong>Version</strong>: 0.55.0</p>
 </blockquote>
 <p>T is a functional programming language designed for declarative,
 tabular data manipulation. It combines the pipeline-driven style of R’s
@@ -524,11 +524,25 @@ get(to_symbol(&quot;salary&quot;))           -- 50000</code></pre>
 get(lst, 1)                  -- 20</code></pre>
 <h4 id="pipeline-node-access">3. Pipeline Node Access</h4>
 <pre class="t"><code>p = pipeline { a = 1, b = 2 }
-get(p, &quot;a&quot;)                  -- 1</code></pre>
-<h4 id="lens-focus">4. Lens Focus</h4>
+get(p, &quot;a&quot;)                  -- 1
+get(p, &quot;missing&quot;)            -- KeyError: &quot;Node `missing` not found in Pipeline.&quot;
+get(p, &quot;missing&quot;, 99)        -- 99 (default when node is absent)</code></pre>
+<p>Looking up an absent node without a default raises
+<code>KeyError: "Node \</code>missing` not found in
+Pipeline.”<code>rather than silently returning</code>NA<code>, matching</code>pipeline_node<code>. A node whose value happens to be</code>NA`
+is not treated as missing.</p>
+<h4 id="dict-key-lookup">4. Dict Key Lookup</h4>
+<pre class="t"><code>d = [a: 1, b: 2]
+get(d, &quot;a&quot;)                  -- 1
+get(d, $b)                   -- 2 (bare symbol syntax)
+get(d, &quot;missing&quot;, 99)        -- 99 (default when key is absent)</code></pre>
+<p>Looking up an absent key without a default raises
+<code>KeyError: "Key \</code>missing` not found in Dict.”` rather than
+silently returning the dict.</p>
+<h4 id="lens-focus">5. Lens Focus</h4>
 <pre class="t"><code>l = col_lens(&quot;mpg&quot;)
 get(mtcars, l)               -- Vector of &#39;mpg&#39; column</code></pre>
-<h4 id="data-mask-aware-lookup-inside-nse-verbs">5. Data-Mask Aware
+<h4 id="data-mask-aware-lookup-inside-nse-verbs">6. Data-Mask Aware
 Lookup (inside NSE verbs)</h4>
 <p>When called with a single string or symbol inside an NSE data verb
 (<code>mutate</code>, <code>filter</code>, <code>summarize</code>, …),
@@ -974,8 +988,8 @@ file. T supports R (<code>rn()</code>), Python (<code>pyn()</code>),
 Julia (<code>jln()</code>), Quarto (<code>qn()</code>), and Shell
 (<code>shn()</code>) nodes out of the box.</p>
 <p>Built-in serializer symbols include <code>^csv</code>,
-<code>^arrow</code>, <code>^pmml</code>, and <code>^onnx</code>, which
-you pass to node constructors like <code>serializer = ^csv</code>.</p>
+<code>^ipc</code>, <code>^pmml</code>, and <code>^onnx</code>, which you
+pass to node constructors like <code>serializer = ^csv</code>.</p>
 <p>The <strong>ONNX</strong> system provides full cross-runtime model
 portability:</p>
 <ul>

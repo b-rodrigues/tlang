@@ -1618,17 +1618,17 @@ and eval_intent env_ref pairs =
 
 (** Extract free variable names from an expression *)
 and free_vars (expr : Ast.expr) : string list =
-  let rec collect is_call_target = function
+  let rec collect is_call_target bound = function
     | { node = Value _; _ } -> []
-    | { node = Var s; _ } -> if is_call_target then [] else [s]
+    | { node = Var s; _ } -> if is_call_target || List.mem s bound then [] else [s]
     | { node = ColumnRef _; _ } -> []
     | { node = Call { fn; args }; _ } ->
-        collect true fn @ List.concat_map (fun (_, e) -> collect false e) args
+        collect true bound fn @ List.concat_map (fun (_, e) -> collect false bound e) args
     | { node = Lambda { body; params; _ }; _ } ->
-        let bound = params in
-        List.filter (fun v -> not (List.mem v bound)) (collect false body)
+        let bound = params @ bound in
+        collect false bound body
     | { node = IfElse { cond; then_; else_ }; _ } ->
-        collect false cond @ collect false then_ @ collect false else_
+        collect false bound cond @ collect false bound then_ @ collect false bound else_
     | { node = Match { scrutinee; cases }; _ } ->
         let collect_case (pattern, body) =
           let rec bound_vars = function
@@ -1642,31 +1642,42 @@ and free_vars (expr : Ast.expr) : string list =
                 | Some name -> name :: names
                 | None -> names
           in
-          let bound = bound_vars pattern in
-          List.filter (fun v -> not (List.mem v bound)) (collect false body)
+          let bound = bound_vars pattern @ bound in
+          collect false bound body
         in
-        collect false scrutinee @ List.concat_map collect_case cases
-    | { node = ListLit items; _ } -> List.concat_map (fun (_, e) -> collect false e) items
-    | { node = DictLit pairs; _ } -> List.concat_map (fun (_, e) -> collect false e) pairs
-    | { node = BinOp { left; right; _ }; _ } -> collect false left @ collect false right
-    | { node = UnOp { operand; _ }; _ } -> collect false operand
-    | { node = BroadcastOp { left; right; _ }; _ } -> collect false left @ collect false right
-    | { node = DotAccess { target; _ }; _ } -> collect false target
+        collect false bound scrutinee @ List.concat_map collect_case cases
+    | { node = ListLit items; _ } -> List.concat_map (fun (_, e) -> collect false bound e) items
+    | { node = DictLit pairs; _ } -> List.concat_map (fun (_, e) -> collect false bound e) pairs
+    | { node = BinOp { left; right; _ }; _ } -> collect false bound left @ collect false bound right
+    | { node = UnOp { operand; _ }; _ } -> collect false bound operand
+    | { node = BroadcastOp { left; right; _ }; _ } -> collect false bound left @ collect false bound right
+    | { node = DotAccess { target; _ }; _ } -> collect false bound target
     | { node = RawCode { raw_identifiers; _ }; _ } -> raw_identifiers  (* Lexically extracted identifiers for dependency detection *)
-    | { node = Block stmts; _ } -> List.concat_map (collect_stmt false) stmts
+    | { node = Block stmts; _ } ->
+        (* Names bound by assignments earlier in the block are not free variables
+           of the block: a later statement may reference them (e.g. `x = 1` then
+           `[out: x]`) without creating a pipeline node dependency. *)
+        let _, free =
+          List.fold_left (fun (bound, acc) stmt ->
+            let fv, bound = collect_stmt false bound stmt in
+            (bound, acc @ fv)) (bound, []) stmts
+        in
+        free
     | { node = PipelineDef _; _ } -> []
-    | { node = PipelineOfDef nodes; _ } -> List.concat_map (fun (_, e) -> collect false e) nodes
-    | { node = IntentDef pairs; _ } -> List.concat_map (fun (_, e) -> collect false e) pairs
-    | { node = Unquote e; _ } | { node = UnquoteSplice e; _ } -> collect false e
+    | { node = PipelineOfDef nodes; _ } -> List.concat_map (fun (_, e) -> collect false bound e) nodes
+    | { node = IntentDef pairs; _ } -> List.concat_map (fun (_, e) -> collect false bound e) pairs
+    | { node = Unquote e; _ } | { node = UnquoteSplice e; _ } -> collect false bound e
     | { node = ShellExpr _; _ } -> []
 
-  and collect_stmt is_call_target = function
-    | { node = Expression e; _ } -> collect is_call_target e
-    | { node = Assignment { expr; _ }; _ } -> collect false expr
-    | { node = Reassignment { expr; _ }; _ } -> collect false expr
-    | { node = Import _ | ImportPackage _ | ImportFrom _ | ImportFileFrom _; _ } -> []
+  and collect_stmt is_call_target bound = function
+    | { node = Expression e; _ } -> (collect is_call_target bound e, bound)
+    | { node = Assignment { name; expr; _ }; _ } ->
+        let fv = collect false bound expr in
+        (fv, name :: bound)
+    | { node = Reassignment { expr; _ }; _ } -> (collect false bound expr, bound)
+    | { node = Import _ | ImportPackage _ | ImportFrom _ | ImportFileFrom _; _ } -> ([], bound)
   in
-  let vars = collect false expr in
+  let vars = collect false [] expr in
   List.sort_uniq String.compare vars
 
 (** Topological sort of pipeline nodes based on dependencies *)
@@ -1738,6 +1749,12 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
   | Some (bad_name, _) ->
     Error.make_error NameError
       (Printf.sprintf "Node name `%s` ends with `_branch_N` which is reserved for auto-generated branch nodes from pattern expansion. Choose a different name." bad_name)
+  | None ->
+  (match List.find_opt (fun (name, _) ->
+    Reserved_names.is_reserved_node_name name
+  ) nodes with
+  | Some (res_name, _) ->
+    Error.make_error NameError (Reserved_names.reserved_error_message res_name)
   | None ->
   (match List.find_opt (fun (n, _) ->
     List.length (List.filter (fun (n', _) -> n' = n) nodes) > 1
@@ -2078,7 +2095,7 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
     ) p_node_diagnostics;
     result
   end
-  ))
+  )))
 
 (** Deserialize dependencies for a node during eager evaluation.
     Resolves deserialization strategy from the node's deserializer expression,
@@ -3144,7 +3161,14 @@ and eval_call env_ref fn_val raw_args =
                && expr_uses_named_scope_fields node_record_scope_fields expr ->
           let desugared = desugar_named_scope_expr ~root:"node" ~fields:node_record_scope_fields expr in
           (name, make_node_lambda desugared)
-       | _ when uses_nse expr ->
+      | Call { fn = { node = Var vname; _ }; _ }
+        when uses_nse_builtin (Some vname) ->
+          (* Nested verb call (e.g. select(d, $x) inside mutate(...)) is a
+             self-contained value computation returning a DataFrame — keep it
+             raw so it evaluates normally instead of being wrapped in a
+             row-lambda. *)
+          (name, expr)
+      | _ when uses_nse expr ->
            (* Complex expression with NSE → wrap in a scoped lambda.
               The only positional Call expressions that stay raw are selector helpers
               passed to select/select_node, where the call itself interprets the NSE
@@ -3352,7 +3376,23 @@ and eval_call env_ref fn_val raw_args =
         | Some name -> Error.arity_error_named name b_arity arg_count
         | None -> Error.arity_error b_arity arg_count
       else
-        let res = b_func named_args env_ref in
+        let res =
+          try b_func named_args env_ref
+          with
+          | Sys.Break as e -> raise e
+          | Out_of_memory as e -> raise e
+          | e ->
+              (* Builtins must return VError. An escaping exception is a
+                 programmer error; surface it as a structured RuntimeError so
+                 the user sees a diagnostic instead of a process crash. *)
+              let name =
+                match b_name with
+                | Some n -> " in builtin `" ^ n ^ "`"
+                | None -> ""
+              in
+              Error.make_error RuntimeError
+                (Printf.sprintf "Internal error%s: %s" name (Printexc.to_string e))
+        in
         enrich_type_error res named_args_enriched
 
   | VLambda { params; autoquote_params; param_types; return_type; variadic; body; env = Some closure_env; _ } ->

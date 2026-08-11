@@ -10,7 +10,7 @@ open Ast
 --#
 --# 1. **Variable Lookup**: `get("var_name")` retrieves a variable from the environment. When called inside an NSE data verb (`mutate`, `filter`, …), the **data mask** (`row` binding) is checked first — if the name matches a column, that column's value is returned; otherwise it falls back to the global environment.
 --# 2. **Collection Indexing**: `get(collection, index)` retrieves an element (0-based).
---# 3. **Pipeline Access**: `get(pipeline, "node_name")` retrieves a specific node result.
+--# 3. **Pipeline Access**: `get(pipeline, "node_name")` retrieves a specific node result. An unknown node name raises a `KeyError` (use the 3-argument form to supply a default instead).
 --# 4. **Lens Focus**: `get(data, lens)` applies a Lens to focus on a subset of data.
 --# 5. **Default Value (Fallback)**: `get(value, default)` returns `value` unchanged when it is not NA/Error; returns `default` when `value` is NA or an Error.
 --# 6. **Safe Retrieval**: `get(target, selector, default)` performs the retrieval and returns `default` only when the result is NA (missing key/node or out-of-bounds index). Type errors in unsupported target/selector combinations propagate as errors.
@@ -53,6 +53,7 @@ open Ast
 --# @family core
 --# @export
 *)
+
 let register ~eval_call env =
   (* Returns the retrieved artifact value or a structured VError if
      sandbox-backed lookup fails. *)
@@ -249,11 +250,25 @@ let register ~eval_call env =
 
       (* Pipeline Node Lookup (2 args: Pipeline, String/Symbol) *)
       | [VPipeline p; VString node_name] | [VPipeline p; VSymbol node_name] ->
-          Eval.pipeline_get_node_value (ref env) p node_name
+          let node_name = Utils.strip_dollar node_name in
+          (* Distinguish a missing node (KeyError) from a node whose value
+             happens to be NA: existence is decided by the declared node
+             names, not by the resolved value. This mirrors the Dict key
+             lookup above and `pipeline_node`. *)
+          (match List.mem_assoc node_name p.p_exprs with
+           | true -> Eval.pipeline_get_node_value (ref env) p node_name
+           | false -> Error.make_error KeyError (Printf.sprintf "Node `%s` not found in Pipeline." node_name))
 
       (* Lens Case (2 args: Data, Lens) *)
       | [data; VLens l] ->
           apply_lens l data (ref env)
+
+      (* Dict Key Lookup (2 args: Dict, String/Symbol) *)
+      | [VDict items; VString key] | [VDict items; VSymbol key] ->
+           let key = Utils.strip_dollar key in
+           (match List.assoc_opt key items with
+            | Some v -> v
+            | None -> Error.make_error KeyError (Printf.sprintf "Key `%s` not found in Dict." key))
 
       (* Collection Indexing Case (2 args: Collection, Int) *)
       | [VList items; VInt i] ->
@@ -284,8 +299,23 @@ let register ~eval_call env =
           let res = 
             match [target; selector] with
             | [VPipeline p; VString node_name] | [VPipeline p; VSymbol node_name] ->
+                let node_name = Utils.strip_dollar node_name in
+                (* Unlike the 2-arg form, existence is deliberately NOT checked
+                   here: a missing node falls through pipeline_get_node_value's
+                   VNA -> default path, per the documented safe-retrieval
+                   semantics. This means an NA-valued node is only kept (default
+                   not applied) because declared nodes are returned wrapped in a
+                   computed_node — never a bare VNA at this level. If that return
+                   representation ever unwraps scalar NA nodes, this form would
+                   silently return the default instead; the 2-arg existence guard
+                   does not protect this path. *)
                 Eval.pipeline_get_node_value (ref env) p node_name
             | [data; VLens l] -> apply_lens l data (ref env)
+            | [VDict items; VString key] | [VDict items; VSymbol key] ->
+                let key = Utils.strip_dollar key in
+                (match List.assoc_opt key items with
+                 | Some v -> v
+                 | None -> (VNA NAGeneric))
             | [VList items; VInt i] ->
                 let len = List.length items in
                 if i < 0 || i >= len then (VNA NAGeneric)
@@ -309,11 +339,16 @@ let register ~eval_call env =
            | _ -> res)
 
        | [v] -> Error.type_error (Printf.sprintf "Function `get` (1 arg) expects a String or Symbol, got %s." (Utils.type_name v))
-       (* Catch-all 2-arg case: return first arg unchanged.
-          NA and Error 2-arg cases are handled by earlier match arms above,
-          so this arm is only reached for non-NA/non-Error first arguments
-          that did not match any specific retrieval pattern. *)
-       | [v; _] -> v
+       (* Catch-all 2-arg case: no silent fallthrough. Unsupported retrieval
+          shapes must fail loudly instead of returning the first argument
+          unchanged (which silently masked `get(dict, "key")` lookups before
+          the dedicated Dict arm above). NA and Error 2-arg cases are handled
+          by the dedicated arm above; every other pair is a user error. *)
+       | [data; selector] ->
+           Error.type_error
+             (Printf.sprintf
+                "Function `get` does not support (%s, %s) retrieval. Supported forms: (collection, Int), (Dict, String), (Pipeline, String), (data, Lens), (NA, default), (Error, default)."
+                (Utils.type_name data) (Utils.type_name selector))
        | _ -> Error.arity_error_named "get" 1 (List.length args)
      ))
      env

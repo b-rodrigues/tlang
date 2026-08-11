@@ -78,6 +78,21 @@ let check_invalid_runtimes (p : pipeline_result) : validation_error list =
     else None
   ) p.p_runtimes
 
+(** Reserved-name check: node names must not collide with builtin functions or
+    runtime symbols.  Such a name can never be resolved as a cross-pipeline
+    dependency at construction time (free-variable inference treats env-bound
+    names as already known), so a colliding node is silently unreachable from
+    other nodes' blocks.  The canonical list lives in reserved_names.ml and is
+    audited against [Packages.init_env] by the test suite. *)
+let check_reserved_node_names (p : pipeline_result) : validation_error list =
+  List.filter_map (fun (name, _) ->
+    if Reserved_names.is_reserved_node_name name then
+      Some { ve_kind = "StructuralError";
+             ve_message = Reserved_names.reserved_error_message name;
+             ve_node = Some name }
+    else None
+  ) p.p_exprs
+
 (** Missing-dependency check: every entry in the resolved dep map must
     reference an actual node in the pipeline. *)
 let check_missing_deps (p : pipeline_result) : validation_error list =
@@ -284,7 +299,8 @@ let serializer_errors (p : pipeline_result) : validation_error list =
     runtimes, missing deps, cycles, cross-runtime deserializer, then the
     serializer checks. *)
 let collect_errors ?(serializer_checks = true) (p : pipeline_result) : validation_error list =
-  check_missing_files p
+  check_reserved_node_names p
+  @ check_missing_files p
   @ check_invalid_runtimes p
   @ check_missing_deps p
   @ check_cycles p

@@ -694,6 +694,13 @@ module Utils = struct
     | VString s -> Some s
     | _ -> None
 
+  (** Strip a leading `$` prefix from a string, if present. Used to make
+      `get(d, $col)` / `get(p, $node)` and `pipeline_node(p, $node)` accept
+      bare-word NSE-style selectors. *)
+  let strip_dollar s =
+    if String.length s > 0 && s.[0] = '$' then String.sub s 1 (String.length s - 1)
+    else s
+
   let rec list_take n = function
     | [] -> []
     | h :: t -> if n <= 0 then [] else h :: list_take (n - 1) t
@@ -1056,10 +1063,10 @@ module Utils = struct
         in
         let tz_suffix =
           match tz with
-          | Some name when name <> "" -> "[" ^ name ^ "]"
-          | _ -> "[UTC]"
+          | Some name when name <> "" && name <> "UTC" -> "[" ^ name ^ "]"
+          | _ -> "Z"
         in
-        "Datetime(" ^ base ^ frac ^ "Z" ^ tz_suffix ^ ")"
+        "Datetime(" ^ base ^ frac ^ tz_suffix ^ ")"
     | VList items ->
         let item_to_string = function
           | (Some name, v) -> name ^ ": " ^ value_to_string v

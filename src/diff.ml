@@ -789,9 +789,9 @@ let diff_dataframes
   let missing_a = List.filter (fun k -> not (List.mem k cols_a)) key in
   let missing_b = List.filter (fun k -> not (List.mem k cols_b)) key in
   if missing_a <> [] then
-    Error.make_error KeyError (Printf.sprintf "Key column `%s` not found in schema of DataFrame A." (List.hd missing_a))
+    Error.make_error KeyError (Printf.sprintf "Key column `%s` not found in schema of DataFrame A." (match missing_a with h :: _ -> h | [] -> "<unknown>"))
   else if missing_b <> [] then
-    Error.make_error KeyError (Printf.sprintf "Key column `%s` not found in schema of DataFrame B." (List.hd missing_b))
+    Error.make_error KeyError (Printf.sprintf "Key column `%s` not found in schema of DataFrame B." (match missing_b with h :: _ -> h | [] -> "<unknown>"))
   else
     let all_cols_a = cols_a in
     let all_cols_b = cols_b in

@@ -94,7 +94,7 @@ df
     serializer = ^csv
   )
 
-  summary = pyn(
+  summary_node = pyn(
     command = <{
 import pandas as pd
 result = clean.groupby("region")["amunt"].sum().reset_index()
@@ -113,7 +113,7 @@ Notice the pipeline structure:
 
 - **`raw`** is a T node that reads the CSV (T handles file I/O natively)
 - **`clean`** is a Python node (`pyn`) that filters and transforms the data
-- **`summary`** is a Python node that groups and aggregates
+- **`summary_node`** is a Python node that groups and aggregates
 - Each Python node receives upstream data as a pandas DataFrame via `deserializer = ^csv`
 - The bare variable names (`raw`, `clean`) inside `<{ ... }>` blocks are auto-detected
   as dependencies — T deserializes the upstream artifact and injects it as a variable
@@ -199,7 +199,7 @@ Now a different error surfaces:
       "severity": "error",
       "phase": "schema",
       "node": {
-        "id": "summary",
+        "id": "summary_node",
         "lang": "python",
         "file": "pipeline.t",
         "span": { "start": [22, 35], "end": [22, 41] }
@@ -214,7 +214,7 @@ Now a different error surfaces:
         "new_name": "amount",
         "edit_distance": 1,
         "is_unique": true,
-        "target_node": "summary"
+        "target_node": "summary_node"
       }
     }
   ]
@@ -224,8 +224,8 @@ Now a different error surfaces:
 The agent sees:
 
 - **`error_class: "schema_mismatch"`** — column name doesn't match upstream schema
-- **`caused_by: ["clean"]`** — the `summary` node reads from `clean`'s output
-- **`suggested_fix`** — rename `amunt` to `amount` in the summary node
+- **`caused_by: ["clean"]`** — the `summary_node` node reads from `clean`'s output
+- **`suggested_fix`** — rename `amunt` to `amount` in the summary_node node
 
 The agent fixes the column reference:
 
@@ -267,7 +267,7 @@ If `t fix` had been applicable, the agent would preview first:
 ```bash
 $ t fix --dry-run pipeline.t
 dry-run: would apply 1 fix to pipeline.t:
-  [Rename_column] line 22: rename column 'amunt' to 'amount' in node 'summary'
+  [Rename_column] line 22: rename column 'amunt' to 'amount' in node 'summary_node'
 ```
 
 Then apply:
@@ -302,8 +302,8 @@ Node 'raw' building...
 Node 'raw' completed (0.3s)
 Node 'clean' building... (Python environment)
 Node 'clean' completed (4.2s)
-Node 'summary' building... (Python environment)
-Node 'summary' completed (2.1s)
+Node 'summary_node' building... (Python environment)
+Node 'summary_node' completed (2.1s)
 Pipeline complete. 3/3 nodes succeeded.
 ```
 
@@ -329,7 +329,7 @@ $ t diff pipeline.t
 Name          Status    Class_a  Class_b
 raw           Unchanged T        T
 clean         Unchanged T        T
-summary       Unchanged T        T
+summary_node  Unchanged T        T
 ```
 
 All nodes unchanged — this is the first build, so there's nothing to compare against.
@@ -339,10 +339,10 @@ After an edit, you'd see:
 Name          Status    Class_a  Class_b
 raw           Unchanged T        T
 clean         Changed   T        T
-summary       Changed   T        T
+summary_node  Changed   T        T
 ```
 
-This tells you the blast radius: your edit to `clean` cascaded to `summary`.
+This tells you the blast radius: your edit to `clean` cascaded to `summary_node`.
 
 For programmatic access, use `diff_summary()` in the REPL:
 
@@ -353,7 +353,7 @@ d = diff_summary(p)
 ```
 
 > **What the human reviews:** The diff tells you whether the agent's edit had the
-> intended effect. If `summary` changed but you only edited `clean`, that's expected
+> intended effect. If `summary_node` changed but you only edited `clean`, that's expected
 > (downstream dependency). If something you didn't touch changed, investigate.
 
 ---
@@ -387,7 +387,7 @@ $ t diff pipeline.t
 Name          Status    Class_a  Class_b
 raw           Unchanged T        T
 clean         Unchanged T        T
-summary       Unchanged T        T
+summary_node  Unchanged T        T
 by_product    Added     -        T
 ```
 
@@ -428,7 +428,7 @@ $ t run --json pipeline.t 2>/dev/null
 Each line is a JSON object. First, the run starts:
 
 ```json
-{"schema_version":"1.0","seq":1,"ts":"2026-07-14T12:00:00.000Z","event":"run_started","file":"pipeline.t","nodes":[{"id":"raw","lang":"t"},{"id":"clean","lang":"python","depends_on":["raw"]},{"id":"summary","lang":"python","depends_on":["clean"]}]}
+{"schema_version":"1.0","seq":1,"ts":"2026-07-14T12:00:00.000Z","event":"run_started","file":"pipeline.t","nodes":[{"id":"raw","lang":"t"},{"id":"clean","lang":"python","depends_on":["raw"]},{"id":"summary_node","lang":"python","depends_on":["clean"]}]}
 ```
 
 If a node fails:

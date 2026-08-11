@@ -205,7 +205,7 @@ let json_datetime_string micros tz =
   in
   let tz_suffix =
     match tz with
-    | Some name when name <> "" -> "Z[" ^ name ^ "]"
+    | Some name when name <> "" && name <> "UTC" -> "[" ^ name ^ "]"
     | _ -> "Z"
   in
   base ^ frac ^ tz_suffix

@@ -527,9 +527,9 @@ let node_diff_fn named_args _env =
                  let num_builds = List.length all_matches in
                  let resolve = function
                    | VString "latest" ->
-                       if num_builds = 0 then
-                         Error (Error.make_error FileError (Printf.sprintf "No historical builds found for node '%s'." cn.cn_name))
-                       else Ok (List.hd all_matches)
+                       (match List.nth_opt all_matches 0 with
+                        | Some log -> Ok log
+                        | None -> Error (Error.make_error FileError (Printf.sprintf "No historical builds found for node '%s'." cn.cn_name)))
                    | VInt idx ->
                        if idx <= 0 then
                          Error (Error.make_error ValueError (Printf.sprintf "Function `node_diff` expects `%s` to be a positive 1-indexed integer." arg_name))

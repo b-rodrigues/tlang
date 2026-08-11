@@ -682,7 +682,7 @@ serialization methods for when a pipeline is materialized by Nix:</p>
   )
 
   -- Running a Julia node that reads and summarizes the data
-  summary = jln(
+  summary_node = jln(
     command = &lt;{
       using DataFrames
       df = CSV.read(data_path, DataFrame)
@@ -728,7 +728,7 @@ This works with <code>node()</code>, <code>pyn()</code>,
   report = shn(script = &quot;postprocess.sh&quot;)
 
   -- node() auto-detects the runtime from the file extension
-  summary = node(script = &quot;summarise.R&quot;, serializer = ^json)
+  summary_node = node(script = &quot;summarise.R&quot;, serializer = ^json)
 }</code></pre>
 <p>When using <code>script</code>, the runtime is auto-detected from the
 file extension (<code>.R</code> → R, <code>.py</code> → Python,
@@ -870,7 +870,7 @@ declaration.</p>
 }</code></pre>
 <p>Julia nodes default to <code>serializer = default</code>, which uses
 Julia’s standard <code>Serialization</code> module to write
-<code>.jls</code> artifacts. Use <code>^csv</code>, <code>^arrow</code>,
+<code>.jls</code> artifacts. Use <code>^csv</code>, <code>^ipc</code>,
 or <code>^json</code> for cross-runtime interchange with T, R, or Python
 nodes.</p>
 <h3 id="quarto-nodes-with-qn">Quarto nodes with <code>qn()</code></h3>
@@ -960,8 +960,8 @@ Subset of Nodes</h4>
 <p>By default the settings are merged into every node. Pass
 <code>runtimes</code> and/or <code>nodes</code> to restrict the merge to
 a subset; when both are given the target is their union:</p>
-<pre class="t"><code># Only R nodes get the arrow serializer
-q1 = set_pipeline_global_options(p, runtimes = [&quot;rn&quot;], serializer = ^arrow)
+<pre class="t"><code># Only R nodes get the IPC serializer
+q1 = set_pipeline_global_options(p, runtimes = [&quot;rn&quot;], serializer = ^ipc)
 
 # Only the named nodes become no-ops
 q2 = set_pipeline_global_options(p, nodes = [&quot;data&quot;], noop = true)
@@ -1125,10 +1125,10 @@ functions:</p>
 <pre class="t"><code>p = pipeline {
   data = [1, 2, 3, 4, 5]
   total = sum(data)
-  count = length(data)
+  row_count = length(data)
 }
 p.total  -- 15
-p.count  -- 5</code></pre>
+p.row_count  -- 5</code></pre>
 <hr />
 <h2 id="pipelines-with-pipe-operators">9. Pipelines with Pipe
 Operators</h2>
@@ -1179,10 +1179,10 @@ p.names  -- list of column names</code></pre>
   raw = read_csv(&quot;sales.csv&quot;)
   filtered = filter(raw, $amount &gt; 100)
   by_region = filtered |&gt; group_by($region)
-  summary = by_region |&gt; summarize($total = sum($amount))
+  summary_node = by_region |&gt; summarize($total = sum($amount))
 }
 
-p.summary  -- DataFrame with regional totals</code></pre>
+p.summary_node  -- DataFrame with regional totals</code></pre>
 <hr />
 <h2 id="pipeline-introspection">11. Pipeline Introspection</h2>
 <blockquote>

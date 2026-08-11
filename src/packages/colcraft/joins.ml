@@ -92,9 +92,20 @@ let assoc_value row name =
   | Some value -> value
   | None -> (VNA NAGeneric)
 
+(* Join keys are matched as strings, like R's coercion to character.
+   Normalize integral floats so that an Int key (1) and a Float key (1.0)
+   match each other. *)
+let join_key_string = function
+  | VInt n -> string_of_int n
+  | VFloat f ->
+      if Float.is_integer f && Float.abs f < 9_007_199_254_740_992.0 then
+        string_of_int (int_of_float f)
+      else string_of_float f
+  | v -> Ast.Utils.value_to_string v
+
 let key_of_row by row =
   by
-  |> List.map (fun name -> Ast.Utils.value_to_string (assoc_value row name))
+  |> List.map (fun name -> join_key_string (assoc_value row name))
   |> String.concat "\x1f"
 
 let make_name_unique used base =

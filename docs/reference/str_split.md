@@ -2,7 +2,7 @@
 
 Split a string on a delimiter
 
-Splits a string into a list of substrings on each occurrence of `sep`. If `sep` is empty, splits into individual characters. Works transparently on ShellResult values (splits stdout).
+Splits a string into a list of substrings on each occurrence of `sep`. If `sep` is empty, splits into individual characters (Unicode code points — multi-byte characters are never split). Works transparently on ShellResult values (splits stdout).
 
 ## Parameters
 

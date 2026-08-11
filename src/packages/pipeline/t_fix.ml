@@ -8,8 +8,9 @@ open Ast
 --# Mechanically Apply Suggested Fixes
 --#
 --# Runs `t check --schema` on a file, extracts diagnostics with suggested_fix,
---# and applies them (e.g., renaming columns, adding missing node arguments).
---# Uses bottom-up line order to avoid line-number drift.
+--# and applies them (e.g., renaming columns, renaming colliding node names,
+--# adding missing node arguments). Uses bottom-up line order to avoid
+--# line-number drift.
 --#
 --# @name t_fix
 --# @param file :: String The path to the .t file to fix.
@@ -24,7 +25,7 @@ let format_fix_result (result : Fix.fix_result) =
     "No fixes to apply.\n"
   else
     let buf = Buffer.create 256 in
-    if result.Fix.would_apply > 0 then
+    if result.Fix.would_apply > 0 || result.Fix.dry_run then
       Buffer.add_string buf (Printf.sprintf "Would apply %d fix(es), skipped %d.\n" result.Fix.would_apply result.Fix.skipped)
     else
       Buffer.add_string buf (Printf.sprintf "Applied %d fix(es), skipped %d.\n" result.Fix.applied result.Fix.skipped);
@@ -32,6 +33,8 @@ let format_fix_result (result : Fix.fix_result) =
       let fix_desc = match d.diag_suggested_fix with
         | Diagnostics.Rename_column { old_name; new_name; _ } ->
             Printf.sprintf "  Rename column '%s' to '%s'" old_name new_name
+        | Diagnostics.Rename_node { old_name; new_name; _ } ->
+            Printf.sprintf "  Rename node '%s' to '%s'" old_name new_name
         | Diagnostics.Add_node_arg _ -> "  Add node argument"
         | Diagnostics.Suggest_identifier { name; suggestion; _ } ->
             Printf.sprintf "  Did you mean '%s' instead of '%s'?" suggestion name
@@ -44,11 +47,14 @@ let format_fix_result (result : Fix.fix_result) =
         (Option.value ~default:0 d.diag_line)
         fix_desc)
     ) result.Fix.diagnostics;
+    List.iter (fun note ->
+      Buffer.add_string buf (Printf.sprintf "  - %s\n" note)
+    ) result.Fix.skip_notes;
     Buffer.contents buf
 
 let register env =
   Env.add "t_fix"
-    (make_builtin_named ~name:"t_fix" ~variadic:true 1 (fun named_args _env ->
+    (make_builtin_named ~name:"t_fix" ~variadic:true 1 (fun named_args env ->
       let named_keys = List.filter_map (fun (k, _) -> k) named_args in
       let positional_count = List.length (List.filter (fun (k, _) -> k = None) named_args) in
       match List.find_opt (fun k -> not (List.mem k ["file"; "dry_run"])) named_keys with
@@ -71,7 +77,7 @@ let register env =
             let (let*) x f = match x with Ok v -> f v | Error e -> e in
             let* do_dry_run = dry_run_result in
 
-            let check_result = Check_utils.run_check ~schema:true Typecheck.Strict file Env.empty in
+            let check_result = Check_utils.run_check ~schema:true Typecheck.Strict file env in
             let diags = Diagnostics.check_result_entries check_result in
             let fixes = diags
               |> List.filter_map (fun (d : Diagnostics.diagnostic) ->

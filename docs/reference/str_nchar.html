@@ -35,7 +35,8 @@
 <div class="container">
 <h1 id="str_nchar">str_nchar</h1>
 <p>Get character count</p>
-<p>Returns the number of characters in a string. Vectorized.</p>
+<p>Returns the number of characters (Unicode code points) in a string.
+Multi-byte UTF-8 characters count as a single character. Vectorized.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
 <li><strong>x</strong> (<code>String</code>): | Vector[String] The input
