@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.55.0] - 2026-08-11
 
 ### Breaking Changes
 
@@ -34,6 +34,8 @@
 - **`t fix` suggests renaming colliding node names**: the reserved-name error now carries a `Rename_node` suggested fix that appends `_node` to the colliding name (`count` → `count_node`). `t fix` / `t_fix()` applies it mechanically to the node's definition line. Downstream references to the node (`deps` entries, sibling expressions, or other nodes' raw code) cannot be rewritten safely at the text level, so the fix is refused — reported as skipped, file left untouched — whenever the old name appears elsewhere in the file; references must then be renamed manually. `t fix --dry-run` probes the file and reports a refused rename as skipped too (not would-apply), and a skipped rename prints a note naming the blocking line(s) (e.g. `Node \`count\` is still referenced on line 3 of …`). Confidence is `"medium"` for this reason.
 - **`t fix` dry-run is accurate for `add_node_arg` too**: `t fix --dry-run` / `t_fix(dry_run = true)` now probes the file for `Add_node_arg` fixes the same way it already did for `Rename_node`: an argument-insertion fix whose node is no longer defined in the file is reported as skipped (with a note naming the missing node) instead of would-apply, matching what the real apply would do. Internally, `apply_fixes` no longer prints per-fix preview lines to stdout — previews are returned in `fix_result.dry_run_entries` and rendered by the caller — so `t_fix()`'s returned summary string is clean (no stray `Would apply:` lines leaking from a side effect).
 - **`rewire` no longer silently ignores a bad `replace`**: `rewire(p, "node", replace = ...)` now raises an explicit error when `replace` is missing, is not a Dict or named List of node-name strings, or evaluates to an error. Previously a `list(...)` value (which is not a function in T) was swallowed into an empty replace map, making the call a silent no-op. Use the dict literal form: `rewire(p, "node", replace = [old: "new"])`.
+- **`col_lens` List values spread elementwise over DataFrame rows**: `set(df, col_lens("c"), [10, 20])` now spreads the list elementwise across the new column, matching the existing `VVector` behavior. A list whose length equals `nrow(df)` assigns position-for-position; a shorter list recycles modulo; a single-element list broadcasts to all rows; and an empty list yields an `NA` column. Previously the raw List was written as a scalar string per row (e.g. `Vector["[10,20]", "[10,20]"]`).
+- **Pipeline dependency inference no longer masked by shadowing block-local bindings**: a block-local assignment inside a T node command that happens to share a name with a sibling node (e.g. `{ src = src + 1; [out: src] }` where `src` is also a preceding node) now correctly records the sibling node as a dependency. Previously the locally-bound name was pre-registered before scanning the right-hand side's free variables, silently dropping the reference.
 
 ### Propcraft — Property-Based Testing
 

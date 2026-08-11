@@ -467,15 +467,15 @@ where <code>n = 10</code>.</p>
 <pre class="t"><code>p = pipeline {
   x = 10
   y = 20
-  sum = x + y
+  total = x + y
 }</code></pre>
 <p><strong>Execution</strong>: 1. Parse nodes →
-<code>[("x", Int 10), ("y", Int 20), ("sum", BinOp(Add, Ident "x", Ident "y"))]</code>
+<code>[("x", Int 10), ("y", Int 20), ("total", BinOp(Add, Ident "x", Ident "y"))]</code>
 2. Topological sort (dependency order): <code>x</code>, <code>y</code>,
-<code>sum</code> 3. Evaluate each node, binding results:
-<code>x → 10</code>, <code>y → 20</code>, <code>sum → 30</code> 4. Store
-in <code>VPipeline</code> with results table 5. Access via
-<code>p.sum</code> → <code>30</code></p>
+<code>total</code> 3. Evaluate each node, binding results:
+<code>x → 10</code>, <code>y → 20</code>, <code>total → 30</code> 4.
+Store in <code>VPipeline</code> with results table 5. Access via
+<code>p.total</code> → <code>30</code></p>
 <p><strong>Cycle Detection</strong>: Circular dependencies produce an
 error:</p>
 <pre class="t"><code>pipeline { a = b; b = a }  -- Error: Circular dependency</code></pre>
