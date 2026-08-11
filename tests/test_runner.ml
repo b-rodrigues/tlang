@@ -226,6 +226,7 @@ let () =
 
   (* Package manager tests *)
   run "Test_package_manager" Test_package_manager.run_tests;
+  run "Test_toml_parser" Test_toml_parser.run_tests;
 
   (* Lens tests *)
   run "Test_lens" Test_lens.run_tests;

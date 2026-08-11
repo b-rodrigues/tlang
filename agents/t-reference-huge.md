@@ -9512,6 +9512,7 @@ Now that you can work with numerical arrays, explore statistical modeling and re
 - **`rewire` no longer silently ignores a bad `replace`**: `rewire(p, "node", replace = ...)` now raises an explicit error when `replace` is missing, is not a Dict or named List of node-name strings, or evaluates to an error. Previously a `list(...)` value (which is not a function in T) was swallowed into an empty replace map, making the call a silent no-op. Use the dict literal form: `rewire(p, "node", replace = [old: "new"])`.
 - **`col_lens` List values spread elementwise over DataFrame rows**: `set(df, col_lens("c"), [10, 20])` now spreads the list elementwise across the new column, matching the existing `VVector` behavior. A list whose length equals `nrow(df)` assigns position-for-position; a shorter list recycles modulo; a single-element list broadcasts to all rows; and an empty list yields an `NA` column. Previously the raw List was written as a scalar string per row (e.g. `Vector["[10,20]", "[10,20]"]`).
 - **Pipeline dependency inference no longer masked by shadowing block-local bindings**: a block-local assignment inside a T node command that happens to share a name with a sibling node (e.g. `{ src = src + 1; [out: src] }` where `src` is also a preceding node) now correctly records the sibling node as a dependency. Previously the locally-bound name was pre-registered before scanning the right-hand side's free variables, silently dropping the reference.
+- **Hard error on invalid `[dependencies]` entry types in tproject.toml / DESCRIPTION.toml**: only `name = { git = "<url>", tag = "<tag>" }` inline tables are valid in `[dependencies]`. String version-constraints (e.g. `base = "*"`, `tlang = ">=0.52.0"`), array values (`python = ["polars", "pyarrow"]`), and tables missing `git`/`tag` now produce a hard error with an actionable message naming the invalid entry and pointing to the correct section (`[py-dependencies]`, `[r-dependencies]`, `[jl-dependencies]`, or `[t].min_version`). Previously all non-git-table entries were silently ignored, leading to missing dependencies without any warning.
 
 ### Propcraft — Property-Based Testing
 
@@ -21999,6 +22000,12 @@ data_utils = { git = "https://github.com/user/data-utils", tag = "v0.2.0" }
 [t]
 min_version = "0.55.0"
 ```
+
+> **Important**: `[dependencies]` entries **must** be `{ git, tag }` inline tables pointing to T packages. Version-constraint strings (e.g. `tlang = ">=0.52.0"`) and array values (e.g. `python = ["polars"]`) are **not valid** and will produce a hard error from `t update`. To declare runtime-language packages, use the dedicated sections:
+> - `[r-dependencies].packages` for R packages
+> - `[py-dependencies].packages` for Python packages
+> - `[jl-dependencies].packages` for Julia packages
+> For the minimum T version, use `[t].min_version`.
 
 ### 3.1 System Dependencies and LaTeX
 

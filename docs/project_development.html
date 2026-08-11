@@ -174,6 +174,19 @@ class="sourceCode toml"><code class="sourceCode toml"><span id="cb3-1"><a href="
 <span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="kw">[t]</span></span>
 <span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="dt">min_version</span> <span class="op">=</span> <span class="st">&quot;0.55.0&quot;</span></span></code></pre></div>
+<blockquote>
+<p><strong>Important</strong>: <code>[dependencies]</code> entries
+<strong>must</strong> be <code>{ git, tag }</code> inline tables
+pointing to T packages. Version-constraint strings
+(e.g. <code>tlang = "&gt;=0.52.0"</code>) and array values
+(e.g. <code>python = ["polars"]</code>) are <strong>not valid</strong>
+and will produce a hard error from <code>t update</code>. To declare
+runtime-language packages, use the dedicated sections: -
+<code>[r-dependencies].packages</code> for R packages -
+<code>[py-dependencies].packages</code> for Python packages -
+<code>[jl-dependencies].packages</code> for Julia packages For the
+minimum T version, use <code>[t].min_version</code>.</p>
+</blockquote>
 <h3 id="system-dependencies-and-latex">3.1 System Dependencies and
 LaTeX</h3>
 <p>Beyond T packages, you can declare system-level tools and LaTeX

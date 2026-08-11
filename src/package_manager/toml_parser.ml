@@ -82,19 +82,46 @@ let infer_py_version_from_requires_python (requires_python : string) : (string, 
     end
   end
 
-(** Parse dependencies from [dependencies] table *)
-let parse_dependencies toml =
+(** Parse dependencies from [dependencies] table.
+    Only { git, tag } inline tables are valid. Strings, arrays, bools,
+    numbers, and tables missing git/tag are hard errors. *)
+let parse_dependencies toml : (dependency list, string) result =
   try
-    match Otoml.find toml Otoml.get_table ["dependencies"] with
-    | pairs ->
-      List.filter_map (fun (name, value) ->
-        try
-          let git_url = Otoml.find value Otoml.get_string ["git"] in
-          let tag = Otoml.find value Otoml.get_string ["tag"] in
-          Some { dep_name = name; git_url; tag }
-        with _ -> None
-      ) pairs
-  with _ -> []
+    let pairs =
+      try Otoml.find toml Otoml.get_table ["dependencies"]
+      with _ -> []  in
+    List.fold_left (fun acc (name, value) ->
+      match acc with
+      | Error _ -> acc
+      | Ok deps ->
+        let is_table = try (ignore (Otoml.get_table value); true) with _ -> false in
+        if is_table then
+          try
+            let git_url = Otoml.find value Otoml.get_string ["git"] in
+            let tag = Otoml.find value Otoml.get_string ["tag"] in
+            Ok ({ dep_name = name; git_url; tag } :: deps)
+          with _ ->
+            Error (Printf.sprintf
+              "Invalid [dependencies] entry `%s`: expected `%s = { git = \"<url>\", tag = \"<tag>\" }`, but the inline table is missing `git` or `tag`."
+              name name)
+        else
+          let is_string = try (ignore (Otoml.get_string value); true) with _ -> false in
+          if is_string then
+            Error (Printf.sprintf
+              "Invalid [dependencies] entry `%s`: a version-constraint string is not supported. Declare a T-package dependency as `%s = { git = \"<url>\", tag = \"<tag>\" }`. For minimum T version, use the `[t]` section: `min_version = \"...\"`."
+              name name)
+          else
+            let is_array = try (ignore (Otoml.get_array (fun x -> x) value); true) with _ -> false in
+            if is_array then
+              Error (Printf.sprintf
+                "Invalid [dependencies] entry `%s`: expected `%s = { git = \"<url>\", tag = \"<tag>\" }` (a T package), but found an array. Declare runtime-language packages in their own sections: [py-dependencies].packages, [r-dependencies].packages, or [jl-dependencies].packages."
+                name name)
+            else
+              Error (Printf.sprintf
+                "Invalid [dependencies] entry `%s`: expected `%s = { git = \"<url>\", tag = \"<tag>\" }` (a T package), but found an unsupported value type."
+                name name)
+    ) (Ok []) pairs
+  with _ -> Ok []
 
 (** Parse a DESCRIPTION.toml string into package_config *)
 let parse_description_toml (content : string) : (package_config, string) result =
@@ -103,19 +130,22 @@ let parse_description_toml (content : string) : (package_config, string) result 
     let name = get_string_opt toml ["package"; "name"] ~default:"" in
     if name = "" then Error "Missing required field: package.name"
     else
-      Ok {
-        name;
-        version = get_string_opt toml ["package"; "version"] ~default:"0.1.0";
-        description = get_string_opt toml ["package"; "description"] ~default:"";
-        authors = get_string_list_opt toml ["package"; "authors"] ~default:[];
-        license = get_string_opt toml ["package"; "license"] ~default:"EUPL-1.2";
-        homepage = get_string_opt toml ["package"; "homepage"] ~default:"";
-        repository = get_string_opt toml ["package"; "repository"] ~default:"";
-        dependencies = parse_dependencies toml;
-        min_t_version = get_string_opt toml ["t"; "min_version"] ~default:Version.version;
-        additional_tools = get_string_list_opt toml ["additional-tools"; "packages"] ~default:[];
-        latex_packages = get_string_list_opt toml ["latex"; "packages"] ~default:[];
-      }
+      match parse_dependencies toml with
+      | Error msg -> Error msg
+      | Ok dependencies ->
+        Ok {
+          name;
+          version = get_string_opt toml ["package"; "version"] ~default:"0.1.0";
+          description = get_string_opt toml ["package"; "description"] ~default:"";
+          authors = get_string_list_opt toml ["package"; "authors"] ~default:[];
+          license = get_string_opt toml ["package"; "license"] ~default:"EUPL-1.2";
+          homepage = get_string_opt toml ["package"; "homepage"] ~default:"";
+          repository = get_string_opt toml ["package"; "repository"] ~default:"";
+          dependencies;
+          min_t_version = get_string_opt toml ["t"; "min_version"] ~default:Version.version;
+          additional_tools = get_string_list_opt toml ["additional-tools"; "packages"] ~default:[];
+          latex_packages = get_string_list_opt toml ["latex"; "packages"] ~default:[];
+        }
   with
   | Otoml.Parse_error (_, msg) -> Error (Printf.sprintf "TOML parse error: %s" msg)
   | exn -> Error (Printf.sprintf "Failed to parse DESCRIPTION.toml: %s" (Printexc.to_string exn))
@@ -204,15 +234,18 @@ let parse_tproject_toml ?(root_dir : string option) (content : string) : (projec
                    | _ -> ())
                 | None -> ())
              | _ -> ());
-            let r_resolver = get_string_opt toml ["r-dependencies"; "resolver"] ~default:"nixpkgs" in
+             let r_resolver = get_string_opt toml ["r-dependencies"; "resolver"] ~default:"nixpkgs" in
             if r_resolver <> "nixpkgs" && r_resolver <> "renv" then
               Error (Printf.sprintf "Unsupported [r-dependencies].resolver %S; expected \"nixpkgs\" or \"renv\"" r_resolver)
             else
-            Ok {
-              proj_name = name;
-              proj_description = get_string_opt toml ["project"; "description"] ~default:"";
-              proj_dependencies = parse_dependencies toml;
-              proj_r_dependencies = get_string_list_opt toml ["r-dependencies"; "packages"] ~default:[];
+              match parse_dependencies toml with
+              | Error msg -> Error msg
+              | Ok proj_dependencies ->
+              Ok {
+                proj_name = name;
+                proj_description = get_string_opt toml ["project"; "description"] ~default:"";
+                proj_dependencies;
+                proj_r_dependencies = get_string_list_opt toml ["r-dependencies"; "packages"] ~default:[];
               proj_r_git_dependencies = parse_r_git_dependencies toml;
               proj_r_resolver = r_resolver;
               proj_py_dependencies = py_packages;
