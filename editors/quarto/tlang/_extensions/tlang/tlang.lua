@@ -141,6 +141,200 @@ local function make_output_block(output)
     return pandoc.CodeBlock(output, pandoc.Attr("", {"text", "t-output"}))
 end
 
+-- ---------------------------------------------------------------------------
+-- T syntax highlighting
+--
+-- Mirrors pandoc's R highlighting so T code is styled identically to R. Both a
+-- raw HTML block (short-class spans, used by HTML/EPUB) and a raw LaTeX block
+-- (\*Tok commands, used by PDF) are emitted; pandoc keeps only the one that
+-- matches the output format.
+-- ---------------------------------------------------------------------------
+
+local T_KEYWORDS = {
+    ["if"] = true, ["else"] = true, import = true, ["function"] = true,
+    pipeline = true, intent = true, match = true, ["in"] = true,
+}
+
+local T_CONSTANTS = {
+    NA = true, ["true"] = true, ["false"] = true,
+}
+
+-- Longest operators first so multi-character operators win over prefixes.
+local T_OPERATORS = {
+    "?|>", "!!!", ".<=", ".>=", ".==", ".!=",
+    "|>", "::", "->", "=>", ":=", "==", "!=", "<=", ">=", "&&", "||", "!!",
+    ".+", ".-", ".*", "./", ".%", ".<", ".>", ".&", ".|",
+    "+", "-", "*", "/", "<", ">", "=", "~", "$", "%", "&", "|", "!", ".", ":",
+}
+
+local HTML_ESCAPES = {
+    ["&"] = "&amp;",
+    ["<"] = "&lt;",
+    [">"] = "&gt;",
+    ['"'] = "&quot;",
+}
+
+local LATEX_ESCAPES = {
+    ["\\"] = "\\textbackslash{}",
+    ["{"] = "\\{",
+    ["}"] = "\\}",
+    ["_"] = "\\_",
+    ["&"] = "\\&",
+    ["#"] = "\\#",
+    ["%"] = "\\%",
+    ["^"] = "\\^{}",
+    ["<"] = "\\textless{}",
+    [">"] = "\\textgreater{}",
+    ["-"] = "{-}",
+    ["~"] = "\\textasciitilde{}",
+}
+
+local LATEX_TOK_CMD = {
+    co = "CommentTok",
+    st = "StringTok",
+    dv = "DecValTok",
+    fl = "FloatTok",
+    cf = "ControlFlowTok",
+    sc = "SpecialCharTok",
+    fu = "FunctionTok",
+    cn = "ConstantTok",
+    ot = "OtherTok",
+}
+
+local function escape_map(s, map)
+    local out = {}
+    for i = 1, #s do
+        local c = s:sub(i, i)
+        table.insert(out, map[c] or c)
+    end
+    return table.concat(out)
+end
+
+local function match_operator(line, i)
+    for _, op in ipairs(T_OPERATORS) do
+        if line:sub(i, i + #op - 1) == op then
+            return op
+        end
+    end
+    return nil
+end
+
+local function tokenize_line(line)
+    local tokens = {}
+    local i, n = 1, #line
+
+    while i <= n do
+        local c = line:sub(i, i)
+
+        if c == "-" and line:sub(i, i + 1) == "--" then
+            table.insert(tokens, {cls = "co", text = line:sub(i, n)})
+            i = n + 1
+        elseif c == '"' or c == "'" then
+            local j = i + 1
+            while j <= n do
+                local cj = line:sub(j, j)
+                if cj == "\\" then
+                    j = j + 2
+                elseif cj == c then
+                    j = j + 1
+                    break
+                else
+                    j = j + 1
+                end
+            end
+            table.insert(tokens, {cls = "st", text = line:sub(i, j - 1)})
+            i = j
+        elseif c:match("%d") then
+            local j = i
+            while j <= n and line:sub(j, j):match("%d") do j = j + 1 end
+            if j <= n and line:sub(j, j) == "." and line:sub(j + 1, j + 1):match("%d") then
+                j = j + 1
+                while j <= n and line:sub(j, j):match("%d") do j = j + 1 end
+            end
+            local num = line:sub(i, j - 1)
+            table.insert(tokens, {cls = (num:find("%.") and "fl" or "dv"), text = num})
+            i = j
+        elseif c:match("%a") or c == "_" then
+            local j = i
+            while j <= n and (line:sub(j, j):match("%w") or line:sub(j, j) == "_") do
+                j = j + 1
+            end
+            local word = line:sub(i, j - 1)
+            local cls
+            if T_KEYWORDS[word] then
+                cls = "cf"
+            elseif T_CONSTANTS[word] then
+                cls = "cn"
+            elseif line:sub(j, j) == "(" then
+                cls = "fu"
+            end
+            table.insert(tokens, {cls = cls, text = word})
+            i = j
+        elseif c == "." and line:sub(i + 1, i + 1):match("%a") then
+            local j = i + 1
+            while j <= n and (line:sub(j, j):match("%w") or line:sub(j, j) == "_") do
+                j = j + 1
+            end
+            table.insert(tokens, {cls = nil, text = line:sub(i, j - 1)})
+            i = j
+        else
+            local op = match_operator(line, i)
+            if op then
+                table.insert(tokens, {cls = "sc", text = op})
+                i = i + #op
+            else
+                table.insert(tokens, {cls = nil, text = c})
+                i = i + 1
+            end
+        end
+    end
+
+    local merged = {}
+    for _, tok in ipairs(tokens) do
+        local last = merged[#merged]
+        if tok.cls == nil and last and last.cls == nil then
+            last.text = last.text .. tok.text
+        else
+            table.insert(merged, {cls = tok.cls, text = tok.text})
+        end
+    end
+
+    return merged
+end
+
+local function highlight_t(text)
+    local html_lines = {}
+    local latex_lines = {}
+
+    for _, line in ipairs(split_lines(text)) do
+        local html_parts = {}
+        local latex_parts = {}
+        for _, tok in ipairs(tokenize_line(line)) do
+            if tok.cls == nil then
+                table.insert(html_parts, escape_map(tok.text, HTML_ESCAPES))
+                table.insert(latex_parts,
+                    "\\NormalTok{" .. escape_map(tok.text, LATEX_ESCAPES) .. "}")
+            else
+                table.insert(html_parts,
+                    string.format('<span class="%s">%s</span>',
+                                   tok.cls, escape_map(tok.text, HTML_ESCAPES)))
+                table.insert(latex_parts,
+                    "\\" .. LATEX_TOK_CMD[tok.cls] .. "{"
+                        .. escape_map(tok.text, LATEX_ESCAPES) .. "}")
+            end
+        end
+        table.insert(html_lines, table.concat(html_parts))
+        table.insert(latex_lines, table.concat(latex_parts))
+    end
+
+    local html = "<pre class=\"t\"><code>" .. table.concat(html_lines, "\n") .. "</code></pre>"
+    local latex = "\\begin{Shaded}\n\\begin{Highlighting}[]\n"
+        .. table.concat(latex_lines, "\n")
+        .. "\n\\end{Highlighting}\n\\end{Shaded}"
+
+    return pandoc.RawBlock("html", html), pandoc.RawBlock("latex", latex)
+end
+
 function CodeBlock(el)
     if not (has_class(el, "t") or has_class(el, "tlang")) then return nil end
 
@@ -168,7 +362,9 @@ function CodeBlock(el)
     local rendered_blocks = {}
 
     if include and show_code then
-        table.insert(rendered_blocks, pandoc.CodeBlock(body, el.attr))
+        local html_block, latex_block = highlight_t(body)
+        table.insert(rendered_blocks, html_block)
+        table.insert(rendered_blocks, latex_block)
     end
 
     if not should_eval then return rendered_blocks end
