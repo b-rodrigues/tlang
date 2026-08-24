@@ -327,7 +327,8 @@ local function highlight_t(text)
         table.insert(latex_lines, table.concat(latex_parts))
     end
 
-    local html = "<pre class=\"t\"><code>" .. table.concat(html_lines, "\n") .. "</code></pre>"
+    local html = "<div class=\"sourceCode\"><pre class=\"sourceCode t\"><code>"
+        .. table.concat(html_lines, "\n") .. "</code></pre></div>"
     local latex = "\\begin{Shaded}\n\\begin{Highlighting}[]\n"
         .. table.concat(latex_lines, "\n")
         .. "\n\\end{Highlighting}\n\\end{Shaded}"
