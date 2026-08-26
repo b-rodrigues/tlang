@@ -313,8 +313,21 @@ let generate_project_flake
     Buffer.add_string buf "        rGitPkgs = builtins.attrValues rGitPkgSet;\n";
   end;
   Buffer.add_string buf "\n";
+  Buffer.add_string buf "        modifiedRWrapper = (pkgs.rWrapper.override {\n";
+  Buffer.add_string buf "          packages = [];\n";
+  Buffer.add_string buf "        }).overrideAttrs (finalAttrs: previousAttrs: {\n";
+  Buffer.add_string buf "          buildCommand = previousAttrs.buildCommand + ''\n";
+  Buffer.add_string buf "            # Modify the R script to add the desired comment\n";
+  Buffer.add_string buf "            sed -i '2i# Shell wrapper for R executable' $out/bin/R\n";
+  Buffer.add_string buf "            sed -i '3iR_HOME_DIR=${pkgs.R}/lib/R' $out/bin/R\n";
+  Buffer.add_string buf "            sed -i '4iif test \"''${R_HOME_DIR}\" = \"${pkgs.R}\"; then' $out/bin/R\n";
+  Buffer.add_string buf "            sed -i '5i  :' $out/bin/R\n";
+  Buffer.add_string buf "            sed -i '6ifi' $out/bin/R\n";
+  Buffer.add_string buf "          '';\n";
+  Buffer.add_string buf "        });\n";
+  Buffer.add_string buf "\n";
   Buffer.add_string buf "        # R environment\n";
-  Buffer.add_string buf "        r-env = pkgs.rWrapper.override {\n";
+  Buffer.add_string buf "        r-env = modifiedRWrapper.override {\n";
   Buffer.add_string buf "          packages = with pkgs.rPackages; [\n";
   Buffer.add_string buf "            t-lang.packages.${system}.tlang-r\n";
   List.iter (fun dep ->

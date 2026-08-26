@@ -1459,7 +1459,8 @@ workspace = "python"
       () in
     let has s = try ignore (Str.search_forward (Str.regexp_string s) flake 0); true
                 with Not_found -> false in
-    has "r-env = pkgs.rWrapper.override {"
+    has "modifiedRWrapper = (pkgs.rWrapper.override {"
+    && has "r-env = modifiedRWrapper.override {"
     && has "t-lang.packages.${system}.tlang-r"
     && has "py-env = pkgs.python314.withPackages"
     && has "export PYTHONPATH=\"${t-lang.packages.${system}.default}/share/tlang/py-package/src:''${PYTHONPATH:-}\""
