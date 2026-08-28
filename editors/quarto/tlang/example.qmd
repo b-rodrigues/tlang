@@ -25,3 +25,13 @@ text_summary = "This chunk still runs, but its source is hidden."
 ```{t}
 text_summary
 ```
+
+# Highlighting
+
+```{t}
+#| eval: false
+-- T code is highlighted, just like R.
+palette = ["red", "green", "blue"]
+ratio = 0.5
+mean([1, 2, 3, 4])
+```

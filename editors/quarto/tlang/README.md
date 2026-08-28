@@ -13,6 +13,7 @@ This folder contains a small Quarto filter extension that makes fenced `t` code 
   - `#| output: false`
   - `#| include: false`
   - `#| results: hide`
+- highlights T code (keywords, strings, numbers, comments, operators, and function calls) so it is styled like R, in HTML/EPUB and PDF
 
 This is intentionally minimal. It is meant for literate programming and console-style output, not rich widgets or plots.
 
@@ -74,4 +75,4 @@ x + 1
 
 - Chunks are executed by replaying all earlier `t` chunks plus the current chunk with `t --mode strict --unsafe run`.
 - Because T normally requires a pipeline for non-interactive scripts, the extension uses `--unsafe` to allow Quarto chunks that are not wrapped in `build_pipeline()` or `populate_pipeline()` calls.
-- Chunk output is rendered as plain text.
+- The echoed T source is syntax-highlighted (matching pandoc's R styling); the executed chunk output is rendered as plain text.

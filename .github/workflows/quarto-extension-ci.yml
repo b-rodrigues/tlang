@@ -135,6 +135,18 @@ jobs:
             exit 1
           fi
 
+          # Verify T syntax highlighting produced token spans in the rendered HTML.
+          # The "Highlighting" chunk (eval: false) contains a comment, strings,
+          # a float, integers and a mean(...) call, so the rendered HTML must
+          # contain function (fu) and comment (co) spans.
+          if grep -q 'class="fu"' example.html && grep -q 'class="co"' example.html; then
+            echo "✅ Success: Found T highlighting spans (fu, co) in rendered document."
+          else
+            echo "❌ Error: Expected T highlighting spans not found in example.html."
+            grep -o 'class="[a-z]*"' example.html | sort | uniq -c || true
+            exit 1
+          fi
+
           cp example.html "$REPO_ROOT/quarto-rendered-example.html"
 
       - name: Upload Rendered Artifact
