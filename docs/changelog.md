@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixes
+
+- **Positron R interpreter discovery**: Project R environments (`r-env` in generated `flake.nix`) now expose a Positron-visible R wrapper on Linux, so Positron lists the project R (with all `[r-dependencies]` packages) as an interpreter. Run `t update` to regenerate `flake.nix`, re-enter `nix develop`, then launch Positron from that shell.
+
 ## [0.55.0] - 2026-08-11
 
 ### Breaking Changes

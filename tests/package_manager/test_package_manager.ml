@@ -331,7 +331,9 @@ packages = []
       ~uv2nix_commit:"dummy" ~deps:[] ~r_git_deps:[pkg] () in
     Test_helpers.contains nix "buildRPackage"
     && Test_helpers.contains nix "abc1234def5678"
-    && Test_helpers.contains nix "https://github.com/user/myPkg");
+    && Test_helpers.contains nix "https://github.com/user/myPkg"
+    && Test_helpers.contains nix "rGitPkgs = builtins.attrValues rGitPkgSet;"
+    && Test_helpers.contains nix "] ++ rGitPkgs;");
 
   test_pm "nix_generator deduplicates duplicate git R deps by name" (fun () ->
     let pkg1 : Package_types.r_git_dependency =
@@ -1459,8 +1461,18 @@ workspace = "python"
       () in
     let has s = try ignore (Str.search_forward (Str.regexp_string s) flake 0); true
                 with Not_found -> false in
-    has "r-env = pkgs.rWrapper.override {"
+    has "rpkgs = with pkgs.rPackages; ["
     && has "t-lang.packages.${system}.tlang-r"
+    && has "dplyr"
+    && has "r-env = (pkgs.rWrapper.override {"
+    && has "packages = rpkgs;"
+    && has "}).overrideAttrs (finalAttrs: previousAttrs: {"
+    && has "buildCommand = previousAttrs.buildCommand"
+    && has "# Shell wrapper for R executable."
+    && has "R_HOME_DIR="
+    && has ".R-elf"
+    && not (has "modifiedRWrapper =")
+    && not (has "packages = []")
     && has "py-env = pkgs.python314.withPackages"
     && has "export PYTHONPATH=\"${t-lang.packages.${system}.default}/share/tlang/py-package/src:''${PYTHONPATH:-}\""
     && has "export JULIA_LOAD_PATH=\":${t-lang.packages.${system}.tlang-julia-path}:''${JULIA_LOAD_PATH:-}\"");

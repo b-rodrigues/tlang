@@ -313,19 +313,46 @@ let generate_project_flake
     Buffer.add_string buf "        rGitPkgs = builtins.attrValues rGitPkgSet;\n";
   end;
   Buffer.add_string buf "\n";
-  Buffer.add_string buf "        # R environment\n";
-  Buffer.add_string buf "        r-env = pkgs.rWrapper.override {\n";
-  Buffer.add_string buf "          packages = with pkgs.rPackages; [\n";
-  Buffer.add_string buf "            t-lang.packages.${system}.tlang-r\n";
+  Buffer.add_string buf "        rpkgs = with pkgs.rPackages; [\n";
+  Buffer.add_string buf "          t-lang.packages.${system}.tlang-r\n";
   List.iter (fun dep ->
     let nixified = String.concat "_" (String.split_on_char '.' dep) in
-    Printf.bprintf buf "            %s\n" nixified
+    Printf.bprintf buf "          %s\n" nixified
   ) r_deps;
   if r_git_deps <> [] then
-    Buffer.add_string buf "          ] ++ rGitPkgs;\n"
+    Buffer.add_string buf "        ] ++ rGitPkgs;\n"
   else
-    Buffer.add_string buf "          ];\n";
-  Buffer.add_string buf "        };\n";
+    Buffer.add_string buf "        ];\n";
+  Buffer.add_string buf "\n";
+  Buffer.add_string buf "        # R environment\n";
+  Buffer.add_string buf "        r-env = (pkgs.rWrapper.override {\n";
+  Buffer.add_string buf "          packages = rpkgs;\n";
+  Buffer.add_string buf "        }).overrideAttrs (finalAttrs: previousAttrs: {\n";
+  Buffer.add_string buf "          buildCommand = previousAttrs.buildCommand + ''\n";
+  Buffer.add_string buf "            # Positron on Linux only lists an R binary that looks like the\n";
+  Buffer.add_string buf "            # official R shell wrapper (see getRHomePathLinux in\n";
+  Buffer.add_string buf "            # extensions/positron-r/src/r-installation.ts): the file must\n";
+  Buffer.add_string buf "            # contain '# Shell wrapper for R executable', a 'R_HOME_DIR=...' line,\n";
+  Buffer.add_string buf "            # and an 'if test \"''${R_HOME_DIR}\" = \"...\"; then' line. rWrapper\n";
+  Buffer.add_string buf "            # ships $out/bin/R as an ELF binary (makeWrapper), so move it aside\n";
+  Buffer.add_string buf "            # and expose a small shell shim with the same package environment.\n";
+  Buffer.add_string buf "            if [ ! -f \"$out/bin/R\" ]; then\n";
+  Buffer.add_string buf "              echo \"r-env: expected $out/bin/R to exist\" >&2\n";
+  Buffer.add_string buf "              exit 1\n";
+  Buffer.add_string buf "            fi\n";
+  Buffer.add_string buf "            mv \"$out/bin/R\" \"$out/bin/.R-elf\"\n";
+  Buffer.add_string buf "            rHome=\"${pkgs.R}/lib/R\"\n";
+  Buffer.add_string buf "            { echo '#!/bin/sh';\n";
+  Buffer.add_string buf "              echo '# Shell wrapper for R executable.';\n";
+  Buffer.add_string buf "              echo \"R_HOME_DIR=\\\"$rHome\\\"\";\n";
+  Buffer.add_string buf "              echo 'if test \"''${R_HOME_DIR}\" = \"'\"$rHome\"'\"; then';\n";
+  Buffer.add_string buf "              echo '  :';\n";
+  Buffer.add_string buf "              echo 'fi';\n";
+  Buffer.add_string buf "              echo \"exec \\\"$out/bin/.R-elf\\\" \\\"\\$@\\\"\";\n";
+  Buffer.add_string buf "            } > \"$out/bin/R\"\n";
+  Buffer.add_string buf "            chmod +x \"$out/bin/R\"\n";
+  Buffer.add_string buf "          '';\n";
+  Buffer.add_string buf "        });\n";
   Buffer.add_string buf "\n";
   Buffer.add_string buf "        # Python environment\n";
   if use_uv then begin
