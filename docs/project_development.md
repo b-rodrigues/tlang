@@ -139,7 +139,7 @@ List CRAN packages from nixpkgs directly:
 packages = ["dplyr", "ggplot2", "jsonlite"]
 ```
 
-After editing, run `t update` to include them in `flake.nix`. Packages are available in every R pipeline node and in `nix develop`.
+After editing, run `t update` to include them in `flake.nix`. Packages are available in every R pipeline node and in `nix develop`. On Linux, the same project R environment is also discovered by Positron as an R interpreter (re-run `t update` and launch Positron from `nix develop`).
 
 #### 3.3.2 renv Resolver
 

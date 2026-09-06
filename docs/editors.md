@@ -187,6 +187,21 @@ Once the editor opens, open a `.t` file. Recommended entry points are:
 - Select several lines and press the same shortcut to send the selection.
 - Save files with the `.t` extension so the editor knows to activate T support.
 
+### R interpreter in Positron
+
+On Linux, the project R environment (`r-env` in the generated `flake.nix`)
+exposes a wrapper that Positron recognises, so the project R — with all
+`[r-dependencies]` packages — appears as an R interpreter. After changing R
+dependencies, run `t update`, re-enter `nix develop`, and launch Positron from
+that shell:
+
+```bash
+cd /absolute/path/to/your-t-project
+t update
+nix develop
+positron .
+```
+
 ### Optional: tree-sitter in VS Code / Positron
 
 The built-in T extension does not require tree-sitter. If you have installed a separate VS Code tree-sitter extension and it asks for a grammar path, use:
