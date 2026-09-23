@@ -28,10 +28,9 @@ let count_distinct_in_array ?(na_rm=false) values =
 let register env =
   Env.add "n_distinct"
     (make_builtin_named ~name:"n_distinct" ~variadic:true 1 (fun named_args _env ->
-      let na_rm = match Math_common.get_bool_flag "na_rm" false named_args with
-        | Ok b -> b
-        | Error _ -> false
-      in
+      match Math_common.get_bool_flag "na_rm" false named_args with
+      | Error e -> e
+      | Ok na_rm ->
       let args = Math_common.positional_args_without ["na_rm"] named_args in
       match args with
       | [VVector values] -> VInt (count_distinct_in_array ~na_rm values)

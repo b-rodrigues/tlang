@@ -25,6 +25,9 @@ let rank_of_floats xs =
   let idx = Array.init n (fun i -> i) in
   Array.sort (fun a b -> Float.compare xs.(a) xs.(b)) idx;
   let ranks = Array.make n 0.0 in
+  (* Mutable scan over the sorted index: groups equal values so tied
+     observations share their average rank. A ref loop is the direct
+     traversal here. *)
   let i = ref 0 in
   while !i < n do
     let j = ref !i in

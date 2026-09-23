@@ -27,26 +27,34 @@ let coalesce_impl args _env =
       if List.exists Option.is_none arrays then
         Error.type_error "Function `coalesce` expects only Vector or List arguments."
       else
-        let arrs = List.filter_map Fun.id arrays in
-        let lens = List.map Array.length arrs in
-        let n = List.hd lens in
-        if List.exists ((<>) n) lens then
+        (* args is non-empty here and every element converted, so arrs is
+           non-empty; match on it directly instead of List.hd. *)
+        (match List.filter_map Fun.id arrays with
+        | [] -> Error.arity_error_named "coalesce" 1 0
+        | first :: _ as arrs ->
+        let n = Array.length first in
+        if List.exists (fun arr -> Array.length arr <> n) arrs then
           Error.value_error "Function `coalesce` requires all inputs to have equal length."
         else
           let out = Array.make n (VNA NAGeneric) in
           for i = 0 to n - 1 do
+            (* Accumulates the first non-NA value; a ref loop is the
+               straightforward traversal here. *)
             let found = ref None in
+            let first_na = ref None in
             List.iter (fun arr ->
               match !found with
               | Some _ -> ()
               | None ->
                   (match arr.(i) with
-                   | VNA _ -> ()
+                   | VNA _ as na -> if !first_na = None then first_na := Some na
                    | v -> found := Some v)
             ) arrs;
-            out.(i) <- (match !found with Some v -> v | None -> VNA NAGeneric)
+            out.(i) <- (match !found with
+              | Some v -> v
+              | None -> (match !first_na with Some na -> na | None -> VNA NAGeneric))
           done;
-          VVector out
+          VVector out)
 
 let register env =
   Env.add "coalesce" (make_builtin ~name:"coalesce" ~variadic:true 1 coalesce_impl) env

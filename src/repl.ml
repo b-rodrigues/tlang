@@ -1716,6 +1716,8 @@ let () =
         let failfast = ref false in
         let timeout = ref None in
         let verbose = ref false in
+        let arg_error = ref None in
+        let flag_error msg = if !arg_error = None then arg_error := Some msg in
         List.iter (fun (k, v) ->
           match k with
           | Some ("only" | "not") ->
@@ -1729,19 +1731,24 @@ let () =
           | Some "failfast" ->
               (match v with
                | Ast.VBool b -> failfast := b
-               | _ -> ())
+               | _ -> flag_error "Function `t_test` expects `failfast` to be a Bool.")
           | Some "timeout" ->
               (match v with
                | Ast.VInt n when n >= 0 -> timeout := Some (float_of_int n)
                | Ast.VFloat f when f >= 0.0 -> timeout := Some f
                | Ast.(VNA _) -> timeout := None
-               | _ -> ())
+               | Ast.VInt _ | Ast.VFloat _ ->
+                   flag_error "Function `t_test` expects `timeout` to be a non-negative number of seconds."
+               | _ -> flag_error "Function `t_test` expects `timeout` to be a non-negative number of seconds.")
           | Some "verbose" ->
               (match v with
                | Ast.VBool b -> verbose := b
-               | _ -> ())
+               | _ -> flag_error "Function `t_test` expects `verbose` to be a Bool.")
           | _ -> ()
         ) named_args;
+        (match !arg_error with
+        | Some msg -> Error.type_error msg
+        | None ->
         let dir = Sys.getcwd () in
         let quiet = not !verbose in
         let suite_result = Test_discovery.run_suite ~verbose:!verbose ~quiet
@@ -1781,7 +1788,7 @@ let () =
                Ast.VDataFrame { arrow_table; group_keys = [] }
            end
            | Error err -> err)
-        end)
+         end))
     })
     env
   in

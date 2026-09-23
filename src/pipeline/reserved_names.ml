@@ -103,7 +103,7 @@ let builtin_functions =
     "slice_min"; "slice_pattern"; "slice_sample"; "source"; "sqrt"; "standardize";
     "starts_with"; "str_count"; "str_detect"; "str_extract"; "str_extract_all"; "str_flatten";
     "str_format"; "str_join"; "str_lines"; "str_nchar"; "str_pad"; "str_repeat";
-    "str_replace"; "str_split"; "str_squish"; "str_sprintf"; "str_substring"; "str_trim"; "str_trunc";
+    "str_replace"; "str_split"; "str_sprintf"; "str_squish"; "str_substring"; "str_trim"; "str_trunc";
     "str_words"; "subgraph"; "sum"; "summarize"; "summary"; "suppress_warnings";
     "swap"; "tail"; "tail_pattern"; "tan"; "tanh"; "t_check";
     "t_diff"; "t_fix"; "t_gc"; "t_make"; "to_array"; "to_bool";

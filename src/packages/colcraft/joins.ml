@@ -292,13 +292,14 @@ let join_impl kind named_args _env =
                   joined_rows :=
                     merge_left_right ~left_names ~right_projection ~by ~right_na_of left_row None :: !joined_rows
               | Inner, [] -> ()
-              | _, indices ->
+              | (Left | Inner | Full), indices ->
                   List.iter (fun idx ->
                     right_matches.(idx) <- true;
                     joined_rows :=
                       merge_left_right ~left_names ~right_projection ~by ~right_na_of left_row (Some right_rows.(idx))
                       :: !joined_rows
                   ) indices
+              | Right, _ -> () (* unreachable: Right returns before this loop *)
             ) left_rows;
             let joined_rows =
               match kind with

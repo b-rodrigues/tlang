@@ -521,6 +521,12 @@ df |> filter($age > 25)
   test "n_distinct na_rm excludes NA"
     {|n_distinct([1, 1, NA, 2], na_rm = true)|}
     "2";
+  test "n_distinct na_rm type error"
+    {|n_distinct([1, 2], na_rm = "yes")|}
+    {|Error(TypeError: "Flag `na_rm` must be Bool, but received String.")|};
+  test "coalesce keeps first NA type when all NA"
+    {|coalesce([na_int()], [na_float()])|}
+    {|Vector[NA(Int)]|};
   test "bind_rows unions columns"
     {|bind_rows(to_dataframe([[id: 1, x: "a"]]), to_dataframe([[id: 2, y: "b"]])) |> ncol|}
     "3";
