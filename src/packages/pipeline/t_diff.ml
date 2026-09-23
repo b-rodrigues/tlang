@@ -30,8 +30,20 @@ let format_diff_result (r : Builder_diff.diff_result) =
     let detail = match e.nde_status with
       | Builder_diff.Unchanged _ -> ""
       | Builder_diff.Changed { hash_a; hash_b } ->
-          Printf.sprintf "hash %s -> %s" (String.sub hash_a 0 (min 7 (String.length hash_a)))
-                                         (String.sub hash_b 0 (min 7 (String.length hash_b)))
+          let base =
+            Printf.sprintf "hash %s -> %s" (String.sub hash_a 0 (min 7 (String.length hash_a)))
+                                           (String.sub hash_b 0 (min 7 (String.length hash_b)))
+          in
+          let why =
+            match e.nde_reasons, e.nde_affected with
+            | [], [] -> ""
+            | reasons, [] -> Printf.sprintf " (%s)" (String.concat "," reasons)
+            | reasons, affected ->
+                Printf.sprintf " (%s; affects %s)"
+                  (if reasons = [] then "?" else String.concat "," reasons)
+                  (String.concat "," affected)
+          in
+          base ^ why
       | Builder_diff.Added _ -> "new node"
       | Builder_diff.Removed _ -> "removed"
       | Builder_diff.Errored { error_class } -> Printf.sprintf "error: %s" error_class

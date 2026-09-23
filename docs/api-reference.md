@@ -4104,6 +4104,8 @@ Compares the two most recent builds of a pipeline and returns a DataFrame summar
 - `hash_b` (String) — Nix content hash from build B.
 - `class_a` (String) — Output value class from build A.
 - `class_b` (String) — Output value class from build B.
+- `reasons` (String) — Why a changed node differs: `runtime`, `serializer`, `dependencies`, or `code-or-data` (hashes differ but logged membranes match). NA otherwise.
+- `affected` (String) — Nodes in the newer build transitively depending on a changed node (including itself). NA otherwise.
 
 **Examples:**
 ```t

@@ -532,9 +532,9 @@ Purpose: node construction, pipeline execution, graph inspection, graph rewritin
 
 ### Content-Addressed Build Diffing (`t diff` / `diff_summary`)
 
-- **CLI (`t diff <file.t>`)**: Compares the two most recent builds of a pipeline by reading per-node Nix content hashes from build logs. Reports unchanged, changed, added, and removed nodes. Supports `--json` for structured output and `--log-a`/`--log-b` flags to compare specific build ranks.
+- **CLI (`t diff <file.t>`)**: Compares the two most recent builds of a pipeline by reading per-node Nix content hashes from build logs. Reports unchanged, changed, added, and removed nodes; changed nodes carry `reasons` (`runtime`, `serializer`, `dependencies`, or `code-or-data`) and `affected` (newer-build reverse dependency closure). Supports `--json` for structured output and `--log-a`/`--log-b` flags to compare specific build ranks.
 - **T function (`t_diff(file, json = false, log_a = 2, log_b = 1)`)**: REPL-callable version of `t diff`. Returns the formatted diff as a string. Same options as CLI.
-- **T function (`diff_summary(p)`)**: Returns a DataFrame summarizing per-node differences between the two most recent builds, with columns `name`, `status`, `hash_a`, `hash_b`, `class_a`, `class_b`.
+- **T function (`diff_summary(p)`)**: Returns a DataFrame summarizing per-node differences between the two most recent builds, with columns `name`, `status`, `hash_a`, `hash_b`, `class_a`, `class_b`, `reasons`, `affected`.
 - **Per-node hashes**: Extracted from `node_store_paths` after `nix-instantiate --eval` and stored in build log JSON alongside the top-level `pipeline_output` hash.
 
 ### Mechanical Fix Application (`t fix`)

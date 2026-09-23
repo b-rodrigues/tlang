@@ -11,37 +11,45 @@ open Ast
 --#
 --# @name diff_summary
 --# @param p :: Pipeline The pipeline to compare builds for.
---# @return :: DataFrame A summary with columns: name, status, hash_a, hash_b.
+--# @return :: DataFrame A summary with columns: name, status, hash_a, hash_b, reasons, affected.
 --# @family pipeline
 --# @export
 *)
 let register env =
   Env.add "diff_summary"
     (make_builtin ~name:"diff_summary" 1 (fun args _env ->
-      match args with
-      | [VPipeline p] ->
-          (match Builder.find_two_matching_logs p with
-           | None ->
-               Error.make_error FileError
-                 "diff_summary: fewer than 2 matching build logs found. Run build_pipeline(p) at least twice."
-           | Some (log_a_path, log_b_path) ->
-               (match Builder.compute_diff log_a_path log_b_path with
-                | Error msg ->
-                    Error.make_error RuntimeError
-                      (Printf.sprintf "diff_summary: failed to compute diff: %s" msg)
-                | Ok diff_result ->
-                    let nrows = diff_result.dr_total in
-                    let arr_name = Array.make nrows None in
-                    let arr_status = Array.make nrows None in
-                    let arr_hash_a = Array.make nrows None in
-                    let arr_hash_b = Array.make nrows None in
-                    let arr_class_a = Array.make nrows None in
-                    let arr_class_b = Array.make nrows None in
-                    List.iteri (fun i e ->
-                      arr_name.(i) <- Some e.Builder_diff.nde_name;
-                      arr_status.(i) <- Some (Builder_diff.node_status_to_string e.nde_status);
-                      arr_class_a.(i) <- Some e.nde_class_a;
-                      arr_class_b.(i) <- Some e.nde_class_b;
+       match args with
+       | [VPipeline p] ->
+           (match Builder.find_two_matching_logs p with
+            | None ->
+                Error.make_error FileError
+                  "diff_summary: fewer than 2 matching build logs found. Run build_pipeline(p) at least twice."
+            | Some (log_a_path, log_b_path) ->
+                (match Builder.compute_diff log_a_path log_b_path with
+                 | Error msg ->
+                     Error.make_error RuntimeError
+                       (Printf.sprintf "diff_summary: failed to compute diff: %s" msg)
+                 | Ok diff_result ->
+                     let nrows = diff_result.dr_total in
+                     let arr_name = Array.make nrows None in
+                     let arr_status = Array.make nrows None in
+                     let arr_hash_a = Array.make nrows None in
+                     let arr_hash_b = Array.make nrows None in
+                     let arr_class_a = Array.make nrows None in
+                     let arr_class_b = Array.make nrows None in
+                     let arr_reasons = Array.make nrows None in
+                     let arr_affected = Array.make nrows None in
+                     let opt_join = function
+                       | [] -> None
+                       | xs -> Some (String.concat ", " xs)
+                     in
+                     List.iteri (fun i e ->
+                       arr_name.(i) <- Some e.Builder_diff.nde_name;
+                       arr_status.(i) <- Some (Builder_diff.node_status_to_string e.nde_status);
+                       arr_class_a.(i) <- Some e.nde_class_a;
+                       arr_class_b.(i) <- Some e.nde_class_b;
+                       arr_reasons.(i) <- opt_join e.nde_reasons;
+                       arr_affected.(i) <- opt_join e.nde_affected;
                       (match e.nde_status with
                        | Builder_diff.Unchanged { hash } ->
                            arr_hash_a.(i) <- Some hash;
@@ -55,14 +63,16 @@ let register env =
                            arr_hash_a.(i) <- Some hash
                        | Builder_diff.Errored _ -> ())
                     ) diff_result.dr_nodes;
-                    let columns = [
-                      ("name", Arrow_table.StringColumn arr_name);
-                      ("status", Arrow_table.StringColumn arr_status);
-                      ("hash_a", Arrow_table.StringColumn arr_hash_a);
-                      ("hash_b", Arrow_table.StringColumn arr_hash_b);
-                      ("class_a", Arrow_table.StringColumn arr_class_a);
-                      ("class_b", Arrow_table.StringColumn arr_class_b);
-                    ] in
+                     let columns = [
+                       ("name", Arrow_table.StringColumn arr_name);
+                       ("status", Arrow_table.StringColumn arr_status);
+                       ("hash_a", Arrow_table.StringColumn arr_hash_a);
+                       ("hash_b", Arrow_table.StringColumn arr_hash_b);
+                       ("class_a", Arrow_table.StringColumn arr_class_a);
+                       ("class_b", Arrow_table.StringColumn arr_class_b);
+                       ("reasons", Arrow_table.StringColumn arr_reasons);
+                       ("affected", Arrow_table.StringColumn arr_affected);
+                     ] in
                     let arrow_table = Arrow_table.create columns nrows in
                     VDataFrame { arrow_table; group_keys = [] }))
       | [other] ->
