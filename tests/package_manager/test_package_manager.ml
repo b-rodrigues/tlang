@@ -332,6 +332,7 @@ packages = []
     Test_helpers.contains nix "buildRPackage"
     && Test_helpers.contains nix "abc1234def5678"
     && Test_helpers.contains nix "https://github.com/user/myPkg"
+    && Test_helpers.contains nix "pname = \"myPkg\""
     && Test_helpers.contains nix "rGitPkgs = builtins.attrValues rGitPkgSet;"
     && Test_helpers.contains nix "] ++ rGitPkgs;");
 

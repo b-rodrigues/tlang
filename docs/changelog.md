@@ -26,6 +26,7 @@
 - **`t check` human output gains locations**: Each line is prefixed with `file:line:column` when known; JSON output is unchanged.
 - **`%history [text]`**: Optional case-insensitive substring filter over the whole history; bare `%history` still shows the last 50 entries.
 - **Cache docs match code**: `pipeline-materialization.md` no longer claims `pipeline_gc` defaults to `dry_run = true` (the default is `false`); the all-cached build message points to `pipeline_cache_status(p)` and `pipeline_gc(p, dry_run = true)`.
+- **Fix R builds on the 2026-09-23 snapshot**: upstream rewrote R's `generic-builder.nix` in `finalAttrs` style and now reads `attrs.pname` unconditionally. All three `buildRPackage` call sites (`tlang-r` in `flake.nix`, git R packages in generated project flakes and pipeline expressions) now set `pname`, fixing demo CI evaluation failures (`attribute 'pname' missing`).
 
 ## [0.55.0] - 2026-08-11
 
