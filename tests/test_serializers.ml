@@ -189,11 +189,51 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env _test 
   (match v with
    | VString _ -> 
        incr pass_count; Printf.printf "  ✓ Static coherence check accepts matching formats\n"
-   | other -> 
-       incr fail_count;
-        let msg = Printf.sprintf "  ✗ Static coherence check failed on matching formats. Got: %s\n" (Ast.Utils.value_to_string other) in
-        failures := msg :: !failures;
-        Printf.printf "%s" msg);
+   | other ->
+        incr fail_count;
+         let msg = Printf.sprintf "  ✗ Static coherence check failed on matching formats. Got: %s\n" (Ast.Utils.value_to_string other) in
+         failures := msg :: !failures;
+         Printf.printf "%s" msg);
+
+  (* 4a. Unknown-format check: ^arrow suggests ^ipc at validation time. *)
+  let check_unknown_format name code present absent =
+    let env_u = Packages.init_env () in
+    let (v, _) = eval_string_env code env_u in
+    let text = Ast.Utils.value_to_string v in
+    if List.for_all (fun s -> contains text s) present
+       && List.for_all (fun s -> not (contains text s)) absent then begin
+      incr pass_count; Printf.printf "  ✓ %s\n" name
+    end else begin
+      incr fail_count;
+      let msg = Printf.sprintf "  ✗ %s. Got: %s\n" name text in
+      failures := msg :: !failures;
+      Printf.printf "%s" msg
+    end
+  in
+  check_unknown_format "Unknown serializer ^arrow suggests ^ipc"
+    {|p = pipeline { a = node(command = <{ 1 }>, serializer = ^arrow) }
+      pipeline_validate(p)|}
+    ["Unknown serializer format"; "^arrow"; "^ipc"] [];
+  check_unknown_format "Unknown deserializer ^arrow suggests ^ipc"
+    {|p = pipeline { a = node(command = <{ 1 }>, deserializer = ^arrow) }
+      pipeline_validate(p)|}
+    ["Unknown deserializer format"; "^ipc"] [];
+  check_unknown_format "Unknown format is case-insensitive"
+    {|p = pipeline { a = node(command = <{ 1 }>, serializer = ^ARROW) }
+      pipeline_validate(p)|}
+    ["Unknown serializer format"; "^ipc"] [];
+  check_unknown_format "Known formats pass validation"
+    {|p = pipeline { a = node(command = <{ 1 }>, serializer = ^ipc) }
+      pipeline_validate(p)|}
+    [] ["Unknown"];
+  check_unknown_format "Custom strategy with functions passes validation"
+    {|p = pipeline { a = node(command = <{ 1 }>, serializer = ^myser, functions = ["my.R"]) }
+      pipeline_validate(p)|}
+    [] ["Unknown serializer format"];
+  check_unknown_format "Custom strategy without functions is rejected"
+    {|p = pipeline { a = node(command = <{ 1 }>, serializer = ^myser) }
+      pipeline_validate(p)|}
+    ["Unknown serializer format"; "^myser"] [];
 
   (* 4b. Shell/capture `text` edges are format-agnostic: a shell node
      consuming a typed producer, a typed consumer reading a shell node's
