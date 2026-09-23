@@ -81,7 +81,7 @@ let builtin_functions =
     "period_hours"; "period_minutes"; "period_months"; "period_seconds"; "period_years"; "pf";
     "pipeline_assert"; "pipeline_cache_status"; "pipeline_config_to_frame"; "pipeline_copy"; "pipeline_cycles"; "pipeline_deps";
     "pipeline_depth"; "pipeline_diff"; "pipeline_edges"; "pipeline_gc"; "pipeline_leaves"; "pipeline_node";
-    "pipeline_node_options"; "pipeline_nodes"; "pipeline_print"; "pipeline_report"; "pipeline_roots"; "pipeline_run";
+    "pipeline_node_options"; "pipeline_nodes"; "pipeline_print"; "pipeline_report"; "pipeline_roots";     "pipeline_run"; "pipeline_status";
     "pipeline_to_dot"; "pipeline_to_drv"; "pipeline_to_frame"; "pipeline_to_ga"; "pipeline_to_mermaid"; "pipeline_to_store";
     "pipeline_validate"; "pivot_longer"; "pivot_wider"; "pm"; "pnorm"; "poly";
     "populate_pipeline"; "pow"; "predict"; "prefetch"; "pretty_print"; "print";

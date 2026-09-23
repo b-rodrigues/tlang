@@ -161,7 +161,7 @@ let magic_command_help = [
   ("pwd",     "",       "Print working directory");
   ("cd",      "<dir>",  "Change directory");
   ("env",     "",       "List environment variables");
-  ("history", "",       "Show command history");
+  ("history", "[text]", "Show command history, optionally filtered by text");
   ("objects", "",       "List user-defined objects");
   ("magic",   "",       "List available magic commands");
   ("reset",   "",       "Reset environment to base (remove all user objects)");
@@ -365,7 +365,7 @@ let handle_magic line env mode base_keys =
   | ["env"] ->
       let out = String.concat "\n" (Array.to_list (Unix.environment ())) ^ "\n" in
       (env, Some out, true)
-  | ["history"] ->
+  | "history" :: filter_parts ->
       let items =
         try
           let ch = open_in history_file in
@@ -385,14 +385,38 @@ let handle_magic line env mode base_keys =
         with _ -> [||]
       in
       let total = Array.length items in
-      let start = max 0 (total - 50) in
+      (* Optional substring filter: `%history foo` searches the whole history
+         case-insensitively. Without a filter, show the last 50 entries. *)
+      let needle =
+        match filter_parts with
+        | [] -> None
+        | parts -> Some (String.lowercase_ascii (String.concat " " parts))
+      in
+      let matches i =
+        match needle with
+        | None -> i >= max 0 (total - 50)
+        | Some sub ->
+            let hay = String.lowercase_ascii items.(i) in
+            let h_len = String.length hay and s_len = String.length sub in
+            s_len = 0 ||
+            (let rec loop j =
+               j + s_len <= h_len &&
+               (String.sub hay j s_len = sub || loop (j + 1))
+             in loop 0)
+      in
       let out =
         if total = 0 then Printf.sprintf "%s(no history)%s\n" color_gray color_reset
         else begin
           let buf = Buffer.create 512 in
-          for i = start to total - 1 do
-            Buffer.add_string buf (Printf.sprintf "%5d  %s\n" (i + 1) items.(i))
+          let shown = ref 0 in
+          for i = 0 to total - 1 do
+            if matches i then begin
+              Buffer.add_string buf (Printf.sprintf "%5d  %s\n" (i + 1) items.(i));
+              incr shown
+            end
           done;
+          if !shown = 0 then
+            Buffer.add_string buf (Printf.sprintf "%s(no matching entries)%s\n" color_gray color_reset);
           Buffer.contents buf
         end
       in

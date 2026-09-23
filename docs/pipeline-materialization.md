@@ -190,7 +190,7 @@ print(plan)
 
 Over time, your local Nix store can accumulate unused derivations and cache files. T-Lang provides REPL functions to safely clean up OCaml/Nix artifacts directly:
 
-1. **`pipeline_gc(p, dry_run = false)`**: Deletes the store paths of the given pipeline `p`. By default (`dry_run = true`), it queries what would be deleted and returns a DataFrame showing the `node`, `store_path`, and `deleted` status. Set `dry_run = false` to perform the actual deletion.
+1. **`pipeline_gc(p, dry_run = false)`**: Deletes the store paths of the given pipeline `p` if safe (unreferenced by other profiles/roots). The default is `dry_run = false`, so pass `dry_run = true` first to preview a DataFrame of `node`, `store_path`, and `deleted` status before deleting. Safe flow: preview with `dry_run = true`, delete with `dry_run = false`, then `t_gc()` for global cleanup. Use `pipeline_cache_status(p)` to check which nodes are cached before deciding what to remove.
 2. **`t_gc()`**: Performs a global Nix store garbage collection (`nix-store --gc`), removing all unused derivations and freeing up disk space.
 
 ```t

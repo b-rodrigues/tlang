@@ -65,7 +65,7 @@ my_stats = { git = "https://github.com/user/my-stats", tag = "v0.1.0" }
 data_utils = { git = "https://github.com/user/data-utils", tag = "v0.2.0" }
 
 [t]
-min_version = "0.55.0"
+min_version = "0.55.1"
 ```
 
 > **Important**: `[dependencies]` entries **must** be `{ git, tag }` inline tables pointing to T packages. Version-constraint strings (e.g. `tlang = ">=0.52.0"`) and array values (e.g. `python = ["polars"]`) are **not valid** and will produce a hard error from `t update`. To declare runtime-language packages, use the dedicated sections:

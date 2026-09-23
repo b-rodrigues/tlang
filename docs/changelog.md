@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.55.1] - 2026-09-23
 
 ### New features
 
@@ -21,6 +21,11 @@
 - **Issue 527 needs no change**: Dependency inference already uses exact token match, not substring match. `include` paths do not create dependencies. Reporter used T 0.51.2. Current 0.55.0 does not reproduce the spurious `analysis` dependency.
 - **Stricter argument validation**: `n_distinct` propagates the `na_rm` type error instead of silently defaulting to `false`; `t_test` returns explicit `TypeError` for mistyped `failfast`/`timeout`/`verbose` flags instead of silently keeping defaults; `coalesce` keeps the first input's NA type when all inputs are NA at a position.
 - **`t test` evaluates `src/` setup once per suite**: `run_test_file` used to re-evaluate every `src/*.t` file for each test file, so top-level side effects such as `build_pipeline()` ran N times and each file was billed for a full Nix build. The shared setup now runs once per `run_suite` call (per-test isolation is preserved — `Ast.Env` is immutable). Per-file durations and `--timeout` cover the test body only.
+- **`pipeline_status(p)` health table**: Joins pipeline structure with the latest build log into one DataFrame (`name`, `runtime`, `status`, `duration`, `path`, `error`), failed nodes first. Status fields are NA before the first matching build.
+- **Build failures show log tail**: Human (non-JSON) builds now print the last 15 lines of the failing node's captured output plus the `read_log("<node>")` command, instead of only `✖ <node> failed`.
+- **`t check` human output gains locations**: Each line is prefixed with `file:line:column` when known; JSON output is unchanged.
+- **`%history [text]`**: Optional case-insensitive substring filter over the whole history; bare `%history` still shows the last 50 entries.
+- **Cache docs match code**: `pipeline-materialization.md` no longer claims `pipeline_gc` defaults to `dry_run = true` (the default is `false`); the all-cached build message points to `pipeline_cache_status(p)` and `pipeline_gc(p, dry_run = true)`.
 
 ## [0.55.0] - 2026-08-11
 

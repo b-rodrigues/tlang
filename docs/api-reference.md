@@ -3991,6 +3991,26 @@ df = build_log_to_frame(log)
 
 ---
 
+### `pipeline_status(p)`
+
+One-call health table joining pipeline structure with the latest build log. Failed nodes sort first.
+
+**Parameters:**
+
+- `p` — The Pipeline object.
+
+**Returns:**
+
+`DataFrame` — Columns `name`, `runtime`, `status`, `duration`, `path`, `error`. Status fields are NA when the pipeline has no matching build log yet.
+
+**Examples:**
+```t
+pipeline_status(p)
+pipeline_status(p) |> filter($status == "Errored")
+```
+
+---
+
 ### `build_log_history(p, n = NA, pattern = NA)`
 
 Returns a summary DataFrame of all historical builds matching the current pipeline's node signature, ordered from most recent to oldest.
