@@ -4223,7 +4223,7 @@ t test --coverage             # generate Bisect_ppx coverage summary after tests
 |------|-------------|
 | `--failfast` | Stop running tests after the first failure. |
 | `--list` | List discovered test files without running them. Respects `--only` and `--not` filters. |
-| `--timeout SECONDS` | Mark any test exceeding SECONDS as failed. Does not interrupt execution — the test runs to completion but is reported as a timeout failure. |
+| `--timeout SECONDS` | Mark any test exceeding SECONDS as failed. Does not interrupt execution — the test runs to completion but is reported as a timeout failure. The clock covers the test file body only; shared `src/` setup is evaluated once per suite and is not billed to any single file. |
 | `--coverage` | Clean old `.coverage` files, run tests, then generate a Bisect_ppx coverage summary. Requires a coverage-instrumented build (`nix build .#t-coverage` or `dune build --instrument-with bisect_ppx`). |
 
 **`.tignore` support:**

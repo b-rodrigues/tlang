@@ -1696,7 +1696,7 @@ let () =
 --# @param only :: List = [] Filter to tests whose path contains any of these substrings.
 --# @param not :: List = [] Exclude tests whose path contains any of these substrings.
 --# @param failfast :: Bool = false Stop after the first failing test file.
---# @param timeout :: Float = NA Mark any test exceeding this many seconds as failed.
+--# @param timeout :: Float = NA Mark any test exceeding this many seconds as failed (test file body only; shared src/ setup is excluded).
 --# @param verbose :: Bool = false Print per-file error details.
 --# @return :: DataFrame A DataFrame with columns: file, status, duration_ms, error.
 --# @example

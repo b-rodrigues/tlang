@@ -19,6 +19,7 @@
 - **`t_fix()` shows node argument**: `Add_node_arg` summary now shows node name and argument text.
 - **Lockfile check suggests a command**: Missing `renv.lock` packages now carry a `Run_command` fix (`R -e 'renv::install("<pkg>")'`) instead of no fix.
 - **Issue 527 needs no change**: Dependency inference already uses exact token match, not substring match. `include` paths do not create dependencies. Reporter used T 0.51.2. Current 0.55.0 does not reproduce the spurious `analysis` dependency.
+- **`t test` evaluates `src/` setup once per suite**: `run_test_file` used to re-evaluate every `src/*.t` file for each test file, so top-level side effects such as `build_pipeline()` ran N times and each file was billed for a full Nix build. The shared setup now runs once per `run_suite` call (per-test isolation is preserved — `Ast.Env` is immutable). Per-file durations and `--timeout` cover the test body only.
 
 ## [0.55.0] - 2026-08-11
 

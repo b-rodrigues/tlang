@@ -759,6 +759,28 @@ min_version = "0.51.0"
       pass_ok && fail_ok && syntax_ok && missing_ok
       && suite.total = 3 && suite.passed = 1 && suite.failed = 2)
   );
+  test_case "test_discovery evaluates src setup once per suite" (fun () ->
+    with_temp_dir "discovery-once" (fun dir ->
+      let src_dir = Filename.concat dir "src" in
+      let tests_dir = Filename.concat dir "tests" in
+      let marker = Filename.concat dir "marker.txt" in
+      Unix.mkdir src_dir 0o755;
+      Unix.mkdir tests_dir 0o755;
+      (* Top-level side effect: append one "x" to the marker file. With N
+         test files the suite must run this setup once, not N times. *)
+      write_text
+        (Filename.concat src_dir "setup.t")
+        (Printf.sprintf "prev = read_file(%S)\ncur = if (is_error(prev)) \"\" else prev\nwrite_text(%S, str_join([cur, \"x\"], \"\"))\n" marker marker);
+      write_text
+        (Filename.concat tests_dir "test-a.t")
+        "assert(true)\n";
+      write_text
+        (Filename.concat tests_dir "test-b.t")
+        "assert(true)\n";
+      let suite = Test_discovery.run_suite dir in
+      let marks = if Sys.file_exists marker then read_text marker else "" in
+      suite.total = 2 && suite.passed = 2 && suite.failed = 0 && marks = "x")
+  );
   test_case "test_discovery auto-evaluates pipelines in test files and reports node failures" (fun () ->
     with_temp_dir "test_pipeline_discovery" (fun dir ->
       let tests_dir = Filename.concat dir "tests" in
