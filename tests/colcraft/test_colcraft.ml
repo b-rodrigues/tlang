@@ -506,6 +506,21 @@ df |> filter($age > 25)
   test "anti_join keeps only left columns"
     {|left = to_dataframe([[id: 1, x: "a"], [id: 2, x: "b"]]); right = to_dataframe([[id: 2, y: "two"], [id: 3, y: "three"]]); anti_join(left, right, by = $id) |> ncol|}
     "2";
+  test "right_join keeps right rows"
+    {|left = to_dataframe([[id: 1, x: "a"], [id: 2, x: "b"]]); right = to_dataframe([[id: 2, y: "two"], [id: 3, y: "three"]]); right_join(left, right, by = $id) |> nrow|}
+    "2";
+  test "right_join fills unmatched left with NA"
+    {|left = to_dataframe([[id: 1, x: "a"], [id: 2, x: "b"]]); right = to_dataframe([[id: 2, y: "two"], [id: 3, y: "three"]]); right_join(left, right, by = $id).x|}
+    {|Vector["b", NA(String)]|};
+  test "cross_join cartesian product"
+    {|left = to_dataframe([[id: 1], [id: 2]]); right = to_dataframe([[y: "a"], [y: "b"]]); cross_join(left, right) |> nrow|}
+    "4";
+  test "coalesce first non-NA"
+    {|coalesce([1, NA, 3], [10, 20, 30])|}
+    "Vector[1, 20, 3]";
+  test "n_distinct na_rm excludes NA"
+    {|n_distinct([1, 1, NA, 2], na_rm = true)|}
+    "2";
   test "bind_rows unions columns"
     {|bind_rows(to_dataframe([[id: 1, x: "a"]]), to_dataframe([[id: 2, y: "b"]])) |> ncol|}
     "3";

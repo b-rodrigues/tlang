@@ -340,6 +340,28 @@ let trim_end_scalar args _env =
 let trim_end_impl args env = vectorize_unary trim_end_scalar args env
 
 (*
+--# Squish whitespace
+--# Trims leading and trailing whitespace and replaces each run of inner
+--# whitespace (spaces, tabs, newlines) with a single space. Vectorized.
+--# @name str_squish
+--# @param s :: String The string to squish.
+--# @return :: String The squished string.
+--# @family string
+--# @export
+*)
+let re_squish_inner = Pcre2.regexp ~flags:[`UTF] "[ \t\n\r]+"
+
+let squish_scalar args _env =
+  match args with
+  | [VString s] ->
+      let trimmed = String.trim s in
+      if trimmed = "" then VString ""
+      else VString (Pcre2.qreplace ~rex:re_squish_inner ~templ:" " trimmed)
+  | _ -> Error.type_error "str_squish expects a String."
+
+let squish_impl args env = vectorize_unary squish_scalar args env
+
+(*
 --# Split string into lines
 --# Splits on \n or \r\n. Strips trailing newline. Accepts ShellResult.
 --# @name str_lines
@@ -1214,6 +1236,7 @@ let register env =
   let env = Env.add "str_trim"    (make_builtin ~name:"str_trim"    1 trim_impl)        env in
   let env = Env.add "trim_start"  (make_builtin ~name:"trim_start"  1 trim_start_impl)  env in
   let env = Env.add "trim_end"    (make_builtin ~name:"trim_end"    1 trim_end_impl)    env in
+  let env = Env.add "str_squish"  (make_builtin ~name:"str_squish"  1 squish_impl)      env in
   let env = Env.add "str_lines"   (make_builtin ~name:"str_lines"   1 lines_impl)       env in
   let env = Env.add "str_words"   (make_builtin ~name:"str_words"   1 words_impl)       env in
   let env = Env.add "str_repeat"  (make_builtin ~name:"str_repeat"  2 str_repeat_impl)  env in

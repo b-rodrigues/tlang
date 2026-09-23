@@ -74,6 +74,8 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
     "cor([1, NA, 3], [4, 5, 6], na_rm = false)"
     {|Error(AggregationError: "Function `cor` encountered NA value. Handle missingness explicitly or set `na_rm` to true.")|};
   test "weighted cor" "cor([1, 2, 3], [2, 4, 9], weights = [1, 1, 4])" "0.982707629824";
+  test "spearman perfect monotonic" "cor([1, 2, 3], [10, 20, 30], method = \"spearman\")" "1.";
+  test "spearman non-linear monotonic" "cor([1, 2, 3], [1, 4, 9], method = \"spearman\")" "1.";
   test "min na_rm=true skips NA" "min([NA, 3, 1], na_rm = true)" "1.";
   test "max na_rm=true skips NA" "max([NA, 3, 1], na_rm = true)" "3.";
 

@@ -1695,12 +1695,16 @@ let () =
 --# @name t_test
 --# @param only :: List = [] Filter to tests whose path contains any of these substrings.
 --# @param not :: List = [] Exclude tests whose path contains any of these substrings.
+--# @param failfast :: Bool = false Stop after the first failing test file.
+--# @param timeout :: Float = NA Mark any test exceeding this many seconds as failed.
+--# @param verbose :: Bool = false Print per-file error details.
 --# @return :: DataFrame A DataFrame with columns: file, status, duration_ms, error.
 --# @example
 --#   results = t_test()
 --#   results |> filter($status == "failed")
 --#   results = t_test(only = ["arithmetic"])
 --#   results = t_test(not = ["slow"])
+--#   results = t_test(failfast = true, timeout = 30, verbose = true)
 --# @family repl
 --# @export
 *)
@@ -1709,6 +1713,9 @@ let () =
       b_func = (fun named_args _env_ref ->
         let only = ref [] in
         let not_ = ref [] in
+        let failfast = ref false in
+        let timeout = ref None in
+        let verbose = ref false in
         List.iter (fun (k, v) ->
           match k with
           | Some ("only" | "not") ->
@@ -1719,11 +1726,26 @@ let () =
                 | _ -> []
               in
               if k = Some "not" then not_ := lst else only := lst
+          | Some "failfast" ->
+              (match v with
+               | Ast.VBool b -> failfast := b
+               | _ -> ())
+          | Some "timeout" ->
+              (match v with
+               | Ast.VInt n when n >= 0 -> timeout := Some (float_of_int n)
+               | Ast.VFloat f when f >= 0.0 -> timeout := Some f
+               | Ast.(VNA _) -> timeout := None
+               | _ -> ())
+          | Some "verbose" ->
+              (match v with
+               | Ast.VBool b -> verbose := b
+               | _ -> ())
           | _ -> ()
         ) named_args;
         let dir = Sys.getcwd () in
-        let suite_result = Test_discovery.run_suite ~verbose:false ~quiet:true
-          ~only:!only ~not_:!not_ dir in
+        let quiet = not !verbose in
+        let suite_result = Test_discovery.run_suite ~verbose:!verbose ~quiet
+          ~only:!only ~not_:!not_ ~failfast:!failfast ~timeout:!timeout dir in
         let results_arr = Array.of_list suite_result.results in
         let n = Array.length results_arr in
         if n = 0 then begin

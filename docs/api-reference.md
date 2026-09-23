@@ -2034,9 +2034,9 @@ ungrouped = df |> group_by($dept) |> ungroup()
 
 ### Join and Bind Functions
 
-#### `left_join(x, y, by = NA)` / `inner_join` / `full_join` / `semi_join` / `anti_join`
+#### `left_join(x, y, by = NA)` / `right_join` / `inner_join` / `full_join` / `semi_join` / `anti_join`
 
-Join two DataFrames. Join keys are normalized so that integer `1` and float `1.0` match, mirroring R's coercion-to-character semantics.
+Join two DataFrames. Join keys are normalized so that integer `1` and float `1.0` match, mirroring R's coercion-to-character semantics. `right_join` keeps every row from the right-hand side (mirror of `left_join`).
 
 **Parameters:**
 
@@ -2046,6 +2046,18 @@ Join two DataFrames. Join keys are normalized so that integer `1` and float `1.0
 **Returns:**
 
 Joined DataFrame
+
+---
+
+#### `cross_join(x, y)`
+
+Cartesian product of two DataFrames. Every left row pairs with every right row. Overlapping right column names gain a `_y` suffix.
+
+---
+
+#### `coalesce(...)`
+
+First non-NA value per position across Vectors or Lists of equal length.
 
 ---
 
@@ -2155,9 +2167,9 @@ Returns the number of rows in the current group. Only valid inside `summarize()`
 
 ---
 
-#### `n_distinct(x)`
+#### `n_distinct(x, na_rm = false)`
 
-Returns the number of unique non-NA values.
+Returns the number of unique values. With `na_rm = true`, NA values are excluded from the count.
 
 ---
 
@@ -2621,9 +2633,9 @@ Count regex matches (PCRE2, UTF-8 aware — each code point matched by `.` count
 
 ---
 
-### `str_trim(s)` / `trim_start(s)` / `trim_end(s)`
+### `str_trim(s)` / `trim_start(s)` / `trim_end(s)` / `str_squish(s)`
 
-Remove whitespace.
+Remove whitespace. `str_squish` also collapses each run of inner whitespace to a single space.
 
 ---
 
@@ -4164,6 +4176,9 @@ results = t_test(only = ["arithmetic", "strings"])
 
 -- Exclude slow tests
 results = t_test(not = ["slow"])
+
+-- Stop on first failure, enforce timeout, show details
+results = t_test(failfast = true, timeout = 30, verbose = true)
 ```
 
 ---

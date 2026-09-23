@@ -2,9 +2,23 @@
 
 ## [Unreleased]
 
+### New features
+
+- **`right_join(x, y, by)`**: Keeps every row from the right-hand side (mirror of `left_join`). Join keys normalize integer `1` and float `1.0`, like other joins.
+- **`cross_join(x, y)`**: Cartesian product of two DataFrames. Overlapping right column names gain a `_y` suffix.
+- **`coalesce(...)`**: First non-NA value per position across Vectors or Lists of equal length.
+- **`n_distinct(x, na_rm = false)`**: New `na_rm` flag excludes NA values from the count. Default `false` preserves old results.
+- **`cor(..., method = "pearson" | "spearman")`**: New `method` argument. `"spearman"` ranks values (average ranks for ties) then computes Pearson on ranks. Weights with `"spearman"` raise an explicit error.
+- **`str_squish(s)`**: Trims ends and collapses each run of inner whitespace to a single space. Vectorized.
+- **`t_test()` new args**: `t_test(only = [], not = [], failfast = false, timeout = NA, verbose = false)` matches CLI `t test` flags. `verbose = true` prints per-file error details.
+
 ### Fixes
 
 - **Positron R interpreter discovery**: Project R environments (`r-env` in generated `flake.nix`) now expose a Positron-visible R wrapper on Linux, so Positron lists the project R (with all `[r-dependencies]` packages) as an interpreter. Run `t update` to regenerate `flake.nix`, re-enter `nix develop`, then launch Positron from that shell.
+- **`t fix` dry-run checks column text**: `Rename_column` dry-run probes the file for `$col` before reporting `Would_apply`. Absent columns report `skipped` with a note. Matches existing `Rename_node` and `Add_node_arg` probes.
+- **`t_fix()` shows node argument**: `Add_node_arg` summary now shows node name and argument text.
+- **Lockfile check suggests a command**: Missing `renv.lock` packages now carry a `Run_command` fix (`R -e 'renv::install("<pkg>")'`) instead of no fix.
+- **Issue 527 needs no change**: Dependency inference already uses exact token match, not substring match. `include` paths do not create dependencies. Reporter used T 0.51.2. Current 0.55.0 does not reproduce the spurious `analysis` dependency.
 
 ## [0.55.0] - 2026-08-11
 

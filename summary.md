@@ -459,12 +459,12 @@ Purpose: DataFrame construction, I/O, shape/column introspection, Arrow interop.
 Purpose: dplyr/tidyr-style tabular verbs, joins, missing-value helpers, factors, and window functions. In these verbs, LLMs should prefer NSE column references such as `$col`.
 
 - Core verbs: `select(df, ...)`, `filter(df, predicate_or_nse)`, `mutate(df, ...)`, `arrange(df, ..., direction = "asc")`, `group_by(df, ...)`, `ungroup(df)`, `summarize(df, ...)`, `rename(df, ...)`, `relocate(df, ..., .before = na(), .after = na())`, `distinct(df, ..., .keep_all = false)`, `count(df, ..., name = "n")`. `distinct` is NaN-aware (repeated NaN rows collapse to one), consistent with `n_distinct`.
-- Aggregation helpers: `n()`, `n_distinct(x)`
+- Aggregation helpers: `n()`, `n_distinct(x, na_rm = false)`
 - Row helpers: `slice(df, indices)`, `slice_min(df, order_by, n = 1)`, `slice_max(df, order_by, n = 1)`, `slice_sample(df, n = 1, replace = false)`
 - Window/ranking helpers: `row_number(x)`, `min_rank(x)`, `dense_rank(x)`, `percent_rank(x)`, `cume_dist(x)`, `ntile(x, n)`, `lag(x, n = 1)`, `lead(x, n = 1)`, `cumsum(x)`, `cummin(x)`, `cummax(x)`, `cummean(x, na_rm = false)`, `cumall(x)`, `cumany(x)`
 - Reshaping and expansion: `pivot_longer(df, ..., names_to = "name", values_to = "value")`, `pivot_wider(df, names_from, values_from)`, `complete(df, ..., fill = [:], explicit = true)`, `expand(df, ...)`, `crossing(...)`, `nesting(...)`, `nest(df, ..., name = "data")`, `unnest(df, col)`, `separate(df, col, into, sep = pattern, remove = true)` (PCRE2 UTF-8 pattern), `unite(df, name, ..., sep = "_", remove = true)`, `separate_rows(df, col, sep = pattern)` (PCRE2 UTF-8 pattern), `uncount(df, weights, .remove = true)`
-- Missing-value handling: `drop_na(df, ...)`, `replace_na(df, replace = [col: value, ...])`, `fill(df, ..., .direction = "down")`. `drop_na` works across all column types, including date, datetime, dictionary, and list columns.
-- Joins and binding: `left_join(x, y, by)`, `inner_join(x, y, by)`, `full_join(x, y, by)`, `semi_join(x, y, by)`, `anti_join(x, y, by)`, `bind_rows(...)`, `bind_cols(...)`. Join keys normalize so integer `1` matches float `1.0`.
+- Missing-value handling: `drop_na(df, ...)`, `replace_na(df, replace = [col: value, ...])`, `coalesce(...)`, `fill(df, ..., .direction = "down")`. `drop_na` works across all column types, including date, datetime, dictionary, and list columns.
+- Joins and binding: `left_join(x, y, by)`, `right_join(x, y, by)`, `inner_join(x, y, by)`, `full_join(x, y, by)`, `semi_join(x, y, by)`, `anti_join(x, y, by)`, `cross_join(x, y)`, `bind_rows(...)`, `bind_cols(...)`. Join keys normalize so integer `1` matches float `1.0`.
 - Selection helpers used inside `select()`: `starts_with(prefix)`, `ends_with(suffix)`, `contains(pattern)`, `everything()`, `where(predicate)`, `matches(regex)` (PCRE2 in UTF-8 mode — supports `\p{...}` classes), `all_of(names)`, `any_of(names)`, `is_numeric(x)`, `is_character(x)`, `is_logical(x)`, `is_factor(x)`
 - Factor helpers: `factor(x, levels = [], ordered = false)`, `to_factor(x)`, `to_factor(x, levels = [], ordered = false)`, `ordered(x, levels)`, `levels(x)`, `fct_infreq(x)`, `fct_reorder(f, x, .desc = false)`, `fct_relevel(f, ..., after = 0)`, `fct_rev(x)`, `fct_recode(x, new = old, ...)`, `fct_collapse(x, new_level = [old1, old2], ...)`, `fct_lump_n(x, n = 10, other_level = "Other")`, `fct_lump_min(x, min, other_level = "Other")`, `fct_lump_prop(x, prop, other_level = "Other")`, `fct_other(x, keep = [], drop = [], other_level = "Other")`, `fct_drop(x)`, `fct_expand(x, ...)`, `fct_c(...)`
 
@@ -496,9 +496,9 @@ Purpose: scalar math, trigonometry, rounding, and ndarray/matrix operations.
 
 Purpose: descriptive statistics, scaling/normalization, linear models, diagnostics, basis functions, PMML/ONNX model I/O, and distribution helpers.
 
-- Aggregation helpers: `n()`, `n_distinct(x)`
+- Aggregation helpers: `n()`, `n_distinct(x, na_rm = false)`
 - Descriptive statistics: `mean(x, na_rm = false, weights = NA)`, `median(x, na_rm = false, weights = NA)`, `min(x, na_rm = false)`, `max(x, na_rm = false)`, `range(x, na_rm = false)`, `var(x, na_rm = false, weights = NA)`, `sd(x, na_rm = false, weights = NA)`, `iqr(x, na_rm = false, weights = NA)`, `mad(x, constant = 1.4826)`, `fivenum(x, na_rm = false, weights = NA)`, `quantile(x, probs, na_rm = false, weights = NA)`, `skewness(x, na_rm = false, weights = NA)`, `kurtosis(x, na_rm = false, weights = NA)`, `trimmed_mean(x, trim = 0.1, na_rm = false, weights = NA)`, `winsorize(x, limits = [0.05, 0.05], na_rm = false, weights = NA)`, `cv(x, na_rm = false, weights = NA)`, `mode(x)`, `normalize(x)`, `standardize(x)`, `scale(x)`, `huber_loss(actual, predicted, delta = 1.0)`
-- Relationship helpers and distributions: `cor(x, y, na_rm = false, weights = NA)`, `cov(x, y, na_rm = false, weights = NA)`, `pnorm(x, mean = 0, sd = 1)`, `pt(x, df)`, `pf(x, df1, df2)`, `pchisq(x, df)`, `qnorm(p, mean = 0, sd = 1)`, `qt(p, df)`, `qf(p, df1, df2)`, `qchisq(p, df)`
+- Relationship helpers and distributions: `cor(x, y, na_rm = false, weights = NA, method = "pearson")`, `cov(x, y, na_rm = false, weights = NA)`, `pnorm(x, mean = 0, sd = 1)`, `pt(x, df)`, `pf(x, df1, df2)`, `pchisq(x, df)`, `qnorm(p, mean = 0, sd = 1)`, `qt(p, df)`, `qf(p, df1, df2)`, `qchisq(p, df)`
 - Modeling: `lm(data, formula, weights = NA)`, `predict(data, model)`, `summary(model)`, `fit_stats(model)`, `add_diagnostics(data, model)`, `coef(model)`, `conf_int(model)`, `nobs(model)`, `df_residual(model)`, `sigma(model)`, `dispersion(model)`, `vcov(model)`, `compare(model1, model2)`, `residuals(model)`, `add_diagnostics(data, model)`, `score(data, model)`, `anova(model_or_models)`, `wald_test(model, hypothesis)`
 - PMML & ONNX: Native evaluation for Decision Trees, Random Forests, XGBoost, and LightGBM via `t_read_pmml()`. Native ONNX inference via `t_read_onnx()` and `^onnx` serialization. Now supports PMML scoring in Julia nodes via `JavaCall` and JPMML, plus Julia ONNX loading through `ONNXRunTime.jl`.
 - Basis functions: `cut(x, breaks, ...)`, `poly(x, degree, ...)`
@@ -559,7 +559,7 @@ Purpose: value introspection and intent-block inspection.
 Purpose: string inspection, transformation, formatting, regex operations, and text layout helpers.
 
 - Basic inspection and slicing: `str_nchar(s)`, `is_empty(s)`, `str_substring(s, start, end)`, `slice(s, start, end)`, `char_at(s, i)`, `index_of(s, sub)`, `last_index_of(s, sub)`, `contains(s, sub)`, `starts_with(s, prefix)`, `ends_with(s, suffix)`
-- Replacement and normalization: `str_replace(s, pattern, repl)`, `replace_first(s, pattern, repl)`, `to_lower(s)`, `to_upper(s)` (Unicode-aware case mapping via `uucp`), `str_trim(s)`, `trim_start(s)`, `trim_end(s)`
+- Replacement and normalization: `str_replace(s, pattern, repl)`, `replace_first(s, pattern, repl)`, `to_lower(s)`, `to_upper(s)` (Unicode-aware case mapping via `uucp`), `str_trim(s)`, `trim_start(s)`, `trim_end(s)`, `str_squish(s)`
 - Formatting and joining: `str_repeat(s, n)`, `str_format(template, values)`, `str_sprintf(fmt, ...)`, `str_join(xs, sep = "")`, `str_string(x)`, `str_split(s, sep)`, `str_flatten(xs, collapse = "")`
 - Regex/text-layout helpers: `str_lines(s)`, `str_words(s)`, `str_extract(s, pattern)`, `str_extract_all(s, pattern)`, `str_detect(s, pattern)`, `str_pad(s, width, side = "left", pad = " ")`, `str_trunc(s, width, side = "right", ellipsis = "...")`, `str_count(s, pattern)` — regexes compile as PCRE2 in UTF-8 mode, so `.`, `[...]`, and anchors match Unicode code points and `\p{...}` classes are supported.
 
@@ -620,7 +620,7 @@ These are part of the broader user-facing tooling story and are worth knowing ev
 
 - Scaffolding and dependency management: `scaffold_project(...)`, `scaffold_package(...)`, `update_flake_lock(...)`
 - Quality tooling: `run_doctor(...)`
-- Test/doc wrappers: `t_test(...)`, `t_doc(...)`, `t_run(...)`
+- Test/doc wrappers: `t_test(only = [], not = [], failfast = false, timeout = NA, verbose = false)`, `t_doc(...)`, `t_run(...)`
 
 ## Practical LLM Guidance
 

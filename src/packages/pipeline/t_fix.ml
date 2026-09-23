@@ -35,7 +35,8 @@ let format_fix_result (result : Fix.fix_result) =
             Printf.sprintf "  Rename column '%s' to '%s'" old_name new_name
         | Diagnostics.Rename_node { old_name; new_name; _ } ->
             Printf.sprintf "  Rename node '%s' to '%s'" old_name new_name
-        | Diagnostics.Add_node_arg _ -> "  Add node argument"
+        | Diagnostics.Add_node_arg { node; arg; _ } ->
+            Printf.sprintf "  Add argument '%s' to node '%s'" arg node
         | Diagnostics.Suggest_identifier { name; suggestion; _ } ->
             Printf.sprintf "  Did you mean '%s' instead of '%s'?" suggestion name
         | Diagnostics.Run_command { command; _ } ->
