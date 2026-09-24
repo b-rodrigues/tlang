@@ -32,6 +32,7 @@
 - **`t diff` explains changes**: changed nodes now carry `reasons` (`runtime`, `serializer`, `dependencies`, or `code-or-data`) and `affected` (newer-build reverse dependency closure) in human, JSON, and `diff_summary` output.
 - **No more phantom dependencies from comments or strings**: `extract_identifiers` (pipeline dependency inference for `<{ }>` blocks) now skips `'...'`/`"..."` string literals and trailing `#` comments instead of only whole-line comments. A node name in `x <- f() # see the foo node` or `s <- "the foo node"` no longer wires a bogus edge (issue 527 follow-up; regression demo: `phantom_deps_t` in t_demos). Deliberate exception: `read_node("name")` literals are still collected, since the Quarto emitter rewrites them to store paths.
 - **New projects ignore the R package fetch cache**: scaffolded `tproject.toml` projects now list `.t_r_pkg_cache/` in `.gitignore`, so `git add .` no longer stages the embedded git checkouts used for DESCRIPTION auto-detection (issue 524).
+- **Generic R package discovery**: `t check --env` and pipeline builds now detect any R package from roxygen `@import`/`@importFrom` tags, `library()`/`require()` calls, and `pkg::` qualifiers — not just hardcoded `ggplot2`. Base packages are excluded. Discovery installs packages; code must still attach them (issue 473).
 
 ## [0.55.0] - 2026-08-11
 

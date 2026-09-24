@@ -498,6 +498,113 @@ packages = []
         && analysis.reasons = ["node `a` usage discovery"]
     | _ -> false);
 
+  test_pm "roxygen importFrom discovers the package" (fun () ->
+    let env = Packages.init_env () in
+    match fst (eval_string_env {|
+      p = pipeline {
+        a = rn(command = <{
+          #' clean_raw_data Cleans the raw data
+          #'
+          #' @importFrom dplyr mutate filter
+          clean_raw_data <- function(raw_data) {
+            mutate(raw_data, x = 1)
+          }
+          clean_raw_data
+        }>)
+      }
+      p
+    |} env) with
+    | Ast.VPipeline p ->
+        let cfg = Package_types.default_project_config "roxygen-discovery" in
+        let analysis = Pipeline_dependency_requirements.analyze_missing_requirements p cfg in
+        analysis.missing_r_deps = ["dplyr"; "jsonlite"]
+        && analysis.reasons = ["node `a` usage discovery"]
+    | _ -> false);
+
+  test_pm "roxygen import discovers several packages" (fun () ->
+    let env = Packages.init_env () in
+    match fst (eval_string_env {|
+      p = pipeline {
+        a = rn(command = <{
+          #' @import dplyr tidyr
+          1 + 1
+        }>)
+      }
+      p
+    |} env) with
+    | Ast.VPipeline p ->
+        let cfg = Package_types.default_project_config "roxygen-import" in
+        let analysis = Pipeline_dependency_requirements.analyze_missing_requirements p cfg in
+        analysis.missing_r_deps = ["dplyr"; "jsonlite"; "tidyr"]
+    | _ -> false);
+
+  test_pm "library call discovers any package" (fun () ->
+    let env = Packages.init_env () in
+    match fst (eval_string_env {|
+      p = pipeline {
+        a = rn(command = <{
+          library(tidyr)
+          1 + 1
+        }>)
+      }
+      p
+    |} env) with
+    | Ast.VPipeline p ->
+        let cfg = Package_types.default_project_config "library-discovery" in
+        let analysis = Pipeline_dependency_requirements.analyze_missing_requirements p cfg in
+        analysis.missing_r_deps = ["jsonlite"; "tidyr"]
+    | _ -> false);
+
+  test_pm "namespaced pkg::fun discovers the package" (fun () ->
+    let env = Packages.init_env () in
+    match fst (eval_string_env {|
+      p = pipeline {
+        a = rn(command = <{
+          dplyr::mutate(data.frame(x = 1), y = 2)
+        }>)
+      }
+      p
+    |} env) with
+    | Ast.VPipeline p ->
+        let cfg = Package_types.default_project_config "ns-discovery" in
+        let analysis = Pipeline_dependency_requirements.analyze_missing_requirements p cfg in
+        analysis.missing_r_deps = ["dplyr"; "jsonlite"]
+    | _ -> false);
+
+  test_pm "base packages are never required" (fun () ->
+    let env = Packages.init_env () in
+    match fst (eval_string_env {|
+      p = pipeline {
+        a = rn(command = <{
+          library(stats)
+          stats::median(c(1, 2))
+        }>)
+      }
+      p
+    |} env) with
+    | Ast.VPipeline p ->
+        let cfg = Package_types.default_project_config "base-discovery" in
+        let analysis = Pipeline_dependency_requirements.analyze_missing_requirements p cfg in
+        analysis.missing_r_deps = ["jsonlite"]
+    | _ -> false);
+
+  test_pm "ggplot2 discovery still works" (fun () ->
+    let env = Packages.init_env () in
+    match fst (eval_string_env {|
+      p = pipeline {
+        a = rn(command = <{
+          library(ggplot2)
+          ggplot(data.frame(x = 1), aes(x, y)) + geom_point()
+        }>)
+      }
+      p
+    |} env) with
+    | Ast.VPipeline p ->
+        let cfg = Package_types.default_project_config "ggplot-discovery" in
+        let analysis = Pipeline_dependency_requirements.analyze_missing_requirements p cfg in
+        analysis.missing_r_deps = ["ggplot2"; "jsonlite"]
+    | _ -> false);
+
   test_pm "matplotlib discovery does not force pandas" (fun () ->
     let env = Packages.init_env () in
     match fst (eval_string_env {|

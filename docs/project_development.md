@@ -141,6 +141,18 @@ packages = ["dplyr", "ggplot2", "jsonlite"]
 
 After editing, run `t update` to include them in `flake.nix`. Packages are available in every R pipeline node and in `nix develop`. On Linux, the same project R environment is also discovered by Positron as an R interpreter (re-run `t update` and launch Positron from `nix develop`).
 
+#### 3.3.1a Automatic Discovery from R Code
+
+T scans R node code for package usage — roxygen `@import`/`@importFrom` tags, `library()`/`require()` calls, and `pkg::fun` qualifiers — and prompts you to add any missing packages to `tproject.toml` before building (or auto-adds them with `TLANG_AUTO_ADD_PIPELINE_DEPS=1`). Base packages are never listed. Discovery only ensures packages are *installed*; your code must still attach them (`library(dplyr)` or `dplyr::mutate`).
+
+```r
+#' @importFrom dplyr mutate filter
+clean <- function(raw) {
+  mutate(raw, x = 1)
+}
+# `t check --env` / build prompts: add "dplyr" to [r-dependencies].packages
+```
+
 #### 3.3.2 renv Resolver
 
 If your project already has an `renv.lock` file, set:

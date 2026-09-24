@@ -625,10 +625,11 @@ let extract_identifiers text =
   (* `read_node("name")` literals are rewritten to store paths by the Quarto
      emitter, so they are genuine references even though they sit inside
      strings (which are otherwise skipped above). Mirror the emitter's two
-     spellings, tolerating surrounding whitespace. *)
+     spellings, tolerating surrounding whitespace. Whitespace classes use
+     plain double-quoted strings so \t stays a genuine tab. *)
   let read_node_names =
-    let re_rn = Str.regexp {|read_node[ \t]*([ \t]*"\([a-zA-Z_][a-zA-Z0-9_]*\)"[ \t]*)|} in
-    let re_rn_sq = Str.regexp {|read_node[ \t]*([ \t]*'\([a-zA-Z_][a-zA-Z0-9_]*\)'[ \t]*)|} in
+    let re_rn = Str.regexp "read_node[ \t]*([ \t]*\"\\([a-zA-Z_][a-zA-Z0-9_]*\\)\"[ \t]*)" in
+    let re_rn_sq = Str.regexp "read_node[ \t]*([ \t]*'\\([a-zA-Z_][a-zA-Z0-9_]*\\)'[ \t]*)" in
     let collect re =
       let rec loop acc pos =
         match (try Some (Str.search_forward re text pos) with Not_found -> None) with
