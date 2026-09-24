@@ -1254,6 +1254,35 @@ workspace = "python"
     ignore (Sys.command (Printf.sprintf "rm -rf %s" (Filename.quote dir)));
     ok);
 
+  test_pm "scaffold_project gitignores the R package fetch cache" (fun () ->
+    let dir = temp_dir () in
+    let opts = { (Package_types.default_options dir) with
+                 target_name = Filename.basename dir;
+                 no_git = true } in
+    let old_cwd = Sys.getcwd () in
+    Sys.chdir (Filename.dirname dir);
+    let result = Scaffold.scaffold_project opts in
+    Sys.chdir old_cwd;
+    let ok = match result with
+      | Ok () ->
+        let gi_path = Filename.concat dir ".gitignore" in
+        if not (Sys.file_exists gi_path) then false
+        else begin
+          let ic = open_in gi_path in
+          let content = really_input_string ic (in_channel_length ic) in
+          close_in ic;
+          let needle = ".t_r_pkg_cache/" in
+          let n = String.length content and m = String.length needle in
+          m <= n &&
+          (let rec loop i =
+             i <= n - m && (String.sub content i m = needle || loop (i + 1))
+           in loop 0)
+        end
+      | Error _ -> false
+    in
+    ignore (Sys.command (Printf.sprintf "rm -rf %s" (Filename.quote dir)));
+    ok);
+
   test_pm "scaffold rejects invalid name" (fun () ->
     let opts = { (Package_types.default_options "Bad-Name") with no_git = true } in
     match Scaffold.scaffold_package opts with

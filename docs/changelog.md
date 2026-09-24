@@ -30,6 +30,7 @@
 - **Unknown `^formats` fail at validation, not at build**: serializer/deserializer strategies outside the known built-in set (and not backed by the node's `functions`) are a `TypeError` naming valid formats, with a `^arrow → ^ipc` hint for the 0.55.0 rename. Surfaces via `pipeline_validate`, the build path, and `t check`.
 - **`t diff` explains changes**: changed nodes now carry `reasons` (`runtime`, `serializer`, `dependencies`, or `code-or-data`) and `affected` (newer-build reverse dependency closure) in human, JSON, and `diff_summary` output.
 - **No more phantom dependencies from comments or strings**: `extract_identifiers` (pipeline dependency inference for `<{ }>` blocks) now skips `'...'`/`"..."` string literals and trailing `#` comments instead of only whole-line comments. A node name in `x <- f() # see the foo node` or `s <- "the foo node"` no longer wires a bogus edge (issue 527 follow-up; regression demo: `phantom_deps_t` in t_demos). Deliberate exception: `read_node("name")` literals are still collected, since the Quarto emitter rewrites them to store paths.
+- **New projects ignore the R package fetch cache**: scaffolded `tproject.toml` projects now list `.t_r_pkg_cache/` in `.gitignore`, so `git add .` no longer stages the embedded git checkouts used for DESCRIPTION auto-detection (issue 524).
 
 ## [0.55.0] - 2026-08-11
 
