@@ -234,6 +234,10 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env _test 
     {|p = pipeline { a = node(command = <{ 1 }>, serializer = ^myser) }
       pipeline_validate(p)|}
     ["Unknown serializer format"; "^myser"] [];
+  check_unknown_format "Inline custom dict passes validation"
+    {|p = pipeline { a = node(command = <{ 1 }>, serializer = [format: ^myser]) }
+      pipeline_validate(p)|}
+    [] ["Unknown serializer format"];
 
   (* 4b. Shell/capture `text` edges are format-agnostic: a shell node
      consuming a typed producer, a typed consumer reading a shell node's

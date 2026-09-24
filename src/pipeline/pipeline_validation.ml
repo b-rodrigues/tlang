@@ -323,7 +323,13 @@ let check_known_formats (p : pipeline_result) : validation_error list =
         if List.mem fmt known_serializer_formats || has_functions name then []
         else [(fmt, Printf.sprintf "Unknown %s format `%s` on node `%s`." role s name)]
     | ListLit items -> List.concat_map (fun (_, e) -> unknown_in role name e) items
-    | DictLit items -> List.concat_map (fun (_, e) -> unknown_in role name e) items
+    | DictLit items ->
+        (* A literal "format" key marks an inline custom serializer dict
+           (mirroring the emitter, which reads strategy from that key and
+           snippets from its siblings). Its value is user-supplied by
+           definition, so it is never an unknown built-in. *)
+        List.concat_map (fun (k, e) ->
+          if k = "format" then [] else unknown_in role name e) items
     | _ -> []
   in
   let hint fmt =
