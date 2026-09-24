@@ -30,7 +30,7 @@ R tidyverse ecosystem, particularly packages such as dplyr, stringr, and
 lubridate. This makes it possible to perform exploratory data analysis directly
 from the T REPL before promoting computations into reproducible pipelines.
 
-**Status:** Version 0.55.0 "L'Ultime combat".
+**Status:** Version 0.55.1 "L'Ultime combat".
 
 ---
 
@@ -419,7 +419,7 @@ Now that you have your first project set up and understand the folder structure,
 
 # T Language Overview
 
-> **Version**: 0.55.0
+> **Version**: 0.55.1
 
 T is a functional programming language designed for declarative, tabular data manipulation. It combines the pipeline-driven style of R's tidyverse with OCaml's type discipline, producing a small, focused language for data wrangling and basic statistics.
 
@@ -1353,13 +1353,13 @@ When building a pipeline, T tracks the build status and logs for every node. If 
 help(read_log)
 
 -- Read the full Nix build log for a specific node
-read_log("model_r")
+read_log(p.model_r)
 ```
 
-The `read_log()` function requires a node name to identify which build output to retrieve. It returns the raw build output as a string, which can be printed with `cat()` to preserve formatting:
+The `read_log()` function takes a node (`p.node_name`), matching `read_node`. It returns the raw build output as a string, which can be printed with `cat()` to preserve formatting:
 
 ```t
-cat(read_log("scored"))
+cat(read_log(p.scored))
 ```
 
 For more comprehensive examples and templates, visit the [T Demos repository](https://github.com/b-rodrigues/t_demos).
@@ -3652,9 +3652,9 @@ ungrouped = df |> group_by($dept) |> ungroup()
 
 ### Join and Bind Functions
 
-#### `left_join(x, y, by = NA)` / `inner_join` / `full_join` / `semi_join` / `anti_join`
+#### `left_join(x, y, by = NA)` / `right_join` / `inner_join` / `full_join` / `semi_join` / `anti_join`
 
-Join two DataFrames. Join keys are normalized so that integer `1` and float `1.0` match, mirroring R's coercion-to-character semantics.
+Join two DataFrames. Join keys are normalized so that integer `1` and float `1.0` match, mirroring R's coercion-to-character semantics. `right_join` keeps every row from the right-hand side (mirror of `left_join`).
 
 **Parameters:**
 
@@ -3664,6 +3664,18 @@ Join two DataFrames. Join keys are normalized so that integer `1` and float `1.0
 **Returns:**
 
 Joined DataFrame
+
+---
+
+#### `cross_join(x, y)`
+
+Cartesian product of two DataFrames. Every left row pairs with every right row. Overlapping right column names gain a `_y` suffix.
+
+---
+
+#### `coalesce(...)`
+
+First non-NA value per position across Vectors or Lists of equal length.
 
 ---
 
@@ -3773,9 +3785,9 @@ Returns the number of rows in the current group. Only valid inside `summarize()`
 
 ---
 
-#### `n_distinct(x)`
+#### `n_distinct(x, na_rm = false)`
 
-Returns the number of unique non-NA values.
+Returns the number of unique values. With `na_rm = true`, NA values are excluded from the count.
 
 ---
 
@@ -4239,9 +4251,9 @@ Count regex matches (PCRE2, UTF-8 aware — each code point matched by `.` count
 
 ---
 
-### `str_trim(s)` / `trim_start(s)` / `trim_end(s)`
+### `str_trim(s)` / `trim_start(s)` / `trim_end(s)` / `str_squish(s)`
 
-Remove whitespace.
+Remove whitespace. `str_squish` also collapses each run of inner whitespace to a single space.
 
 ---
 
@@ -5597,6 +5609,26 @@ df = build_log_to_frame(log)
 
 ---
 
+### `pipeline_status(p)`
+
+One-call health table joining pipeline structure with the latest build log. Failed nodes sort first.
+
+**Parameters:**
+
+- `p` — The Pipeline object.
+
+**Returns:**
+
+`DataFrame` — Columns `name`, `runtime`, `status`, `duration`, `path`, `error`. Status fields are NA when the pipeline has no matching build log yet.
+
+**Examples:**
+```t
+pipeline_status(p)
+pipeline_status(p) |> filter($status == "Errored")
+```
+
+---
+
 ### `build_log_history(p, n = NA, pattern = NA)`
 
 Returns a summary DataFrame of all historical builds matching the current pipeline's node signature, ordered from most recent to oldest.
@@ -5690,6 +5722,8 @@ Compares the two most recent builds of a pipeline and returns a DataFrame summar
 - `hash_b` (String) — Nix content hash from build B.
 - `class_a` (String) — Output value class from build A.
 - `class_b` (String) — Output value class from build B.
+- `reasons` (String) — Why a changed node differs: `runtime`, `serializer`, `dependencies`, or `code-or-data` (hashes differ but logged membranes match). NA otherwise.
+- `affected` (String) — Nodes in the newer build transitively depending on a changed node (including itself). NA otherwise.
 
 **Examples:**
 ```t
@@ -5782,6 +5816,9 @@ results = t_test(only = ["arithmetic", "strings"])
 
 -- Exclude slow tests
 results = t_test(not = ["slow"])
+
+-- Stop on first failure, enforce timeout, show details
+results = t_test(failfast = true, timeout = 30, verbose = true)
 ```
 
 ---
@@ -5826,7 +5863,7 @@ t test --coverage             # generate Bisect_ppx coverage summary after tests
 |------|-------------|
 | `--failfast` | Stop running tests after the first failure. |
 | `--list` | List discovered test files without running them. Respects `--only` and `--not` filters. |
-| `--timeout SECONDS` | Mark any test exceeding SECONDS as failed. Does not interrupt execution — the test runs to completion but is reported as a timeout failure. |
+| `--timeout SECONDS` | Mark any test exceeding SECONDS as failed. Does not interrupt execution — the test runs to completion but is reported as a timeout failure. The clock covers the test file body only; shared `src/` setup is evaluated once per suite and is not billed to any single file. |
 | `--coverage` | Clean old `.coverage` files, run tests, then generate a Bisect_ppx coverage summary. Requires a coverage-instrumented build (`nix build .#t-coverage` or `dune build --instrument-with bisect_ppx`). |
 
 **`.tignore` support:**
@@ -9475,6 +9512,39 @@ Now that you can work with numerical arrays, explore statistical modeling and re
 # FILE: docs/changelog.md
 
 # Changelog
+
+## [0.55.1] - 2026-09-23
+
+### New features
+
+- **`right_join(x, y, by)`**: Keeps every row from the right-hand side (mirror of `left_join`). Join keys normalize integer `1` and float `1.0`, like other joins.
+- **`cross_join(x, y)`**: Cartesian product of two DataFrames. Overlapping right column names gain a `_y` suffix.
+- **`coalesce(...)`**: First non-NA value per position across Vectors or Lists of equal length.
+- **`n_distinct(x, na_rm = false)`**: New `na_rm` flag excludes NA values from the count. Default `false` preserves old results.
+- **`cor(..., method = "pearson" | "spearman")`**: New `method` argument. `"spearman"` ranks values (average ranks for ties) then computes Pearson on ranks. Weights with `"spearman"` raise an explicit error.
+- **`str_squish(s)`**: Trims ends and collapses each run of inner whitespace to a single space. Vectorized.
+- **`t_test()` new args**: `t_test(only = [], not = [], failfast = false, timeout = NA, verbose = false)` matches CLI `t test` flags. `verbose = true` prints per-file error details.
+
+### Fixes
+
+- **Positron R interpreter discovery**: Project R environments (`r-env` in generated `flake.nix`) now expose a Positron-visible R wrapper on Linux, so Positron lists the project R (with all `[r-dependencies]` packages) as an interpreter. Run `t update` to regenerate `flake.nix`, re-enter `nix develop`, then launch Positron from that shell.
+- **`t fix` dry-run checks column text**: `Rename_column` dry-run probes the file for `$col` before reporting `Would_apply`. Absent columns report `skipped` with a note. Matches existing `Rename_node` and `Add_node_arg` probes.
+- **`t_fix()` shows node argument**: `Add_node_arg` summary now shows node name and argument text.
+- **Lockfile check suggests a command**: Missing `renv.lock` packages now carry a `Run_command` fix (`R -e 'renv::install("<pkg>")'`) instead of no fix.
+- **Issue 527 needs no change**: Dependency inference already uses exact token match, not substring match. `include` paths do not create dependencies. Reporter used T 0.51.2. Current 0.55.0 does not reproduce the spurious `analysis` dependency.
+- **Stricter argument validation**: `n_distinct` propagates the `na_rm` type error instead of silently defaulting to `false`; `t_test` returns explicit `TypeError` for mistyped `failfast`/`timeout`/`verbose` flags instead of silently keeping defaults; `coalesce` keeps the first input's NA type when all inputs are NA at a position.
+- **`t test` evaluates `src/` setup once per suite**: `run_test_file` used to re-evaluate every `src/*.t` file for each test file, so top-level side effects such as `build_pipeline()` ran N times and each file was billed for a full Nix build. The shared setup now runs once per `run_suite` call (per-test isolation is preserved — `Ast.Env` is immutable). Per-file durations and `--timeout` cover the test body only.
+- **`pipeline_status(p)` health table**: Joins pipeline structure with the latest build log into one DataFrame (`name`, `runtime`, `status`, `duration`, `path`, `error`), failed nodes first. Status fields are NA before the first matching build.
+- **Build failures show log tail**: Human (non-JSON) builds now print the last 15 lines of the failing node's captured output plus the `read_log(p.<node>)` command, instead of only `✖ <node> failed`.
+- **`read_log` takes `p.node_name` only**: String (and Symbol) node names are now a `TypeError` naming the `p.node` form (issue 523).
+- **`t check` human output gains locations**: Each line is prefixed with `file:line:column` when known; JSON output is unchanged.
+- **`%history [text]`**: Optional case-insensitive substring filter over the whole history; bare `%history` still shows the last 50 entries.
+- **Cache docs match code**: `pipeline-materialization.md` no longer claims `pipeline_gc` defaults to `dry_run = true` (the default is `false`); the all-cached build message points to `pipeline_cache_status(p)` and `pipeline_gc(p, dry_run = true)`.
+- **Fix R builds on the 2026-09-23 snapshot**: upstream rewrote R's `generic-builder.nix` in `finalAttrs` style and now reads `attrs.pname` unconditionally. All three `buildRPackage` call sites (`tlang-r` in `flake.nix`, git R packages in generated project flakes and pipeline expressions) now set `pname`, fixing demo CI evaluation failures (`attribute 'pname' missing`).
+- **Unknown `^formats` fail at validation, not at build**: serializer/deserializer strategies outside the known built-in set (and not backed by the node's `functions`) are a `TypeError` naming valid formats, with a `^arrow → ^ipc` hint for the 0.55.0 rename. Surfaces via `pipeline_validate`, the build path, and `t check`.
+- **`t diff` explains changes**: changed nodes now carry `reasons` (`runtime`, `serializer`, `dependencies`, or `code-or-data`) and `affected` (newer-build reverse dependency closure) in human, JSON, and `diff_summary` output.
+- **No more phantom dependencies from comments or strings**: `extract_identifiers` (pipeline dependency inference for `<{ }>` blocks) now skips `'...'`/`"..."` string literals and trailing `#` comments instead of only whole-line comments. A node name in `x <- f() # see the foo node` or `s <- "the foo node"` no longer wires a bogus edge (issue 527 follow-up; regression demo: `phantom_deps_t` in t_demos). Deliberate exception: `read_node("name")` literals are still collected, since the Quarto emitter rewrites them to store paths.
+- **New projects ignore the R package fetch cache**: scaffolded `tproject.toml` projects now list `.t_r_pkg_cache/` in `.gitignore`, so `git add .` no longer stages the embedded git checkouts used for DESCRIPTION auto-detection (issue 524).
 
 ## [0.55.0] - 2026-08-11
 
@@ -13650,6 +13720,21 @@ Once the editor opens, open a `.t` file. Recommended entry points are:
 - Put your cursor on a line of T code and press **Cmd+Enter** or **Ctrl+Enter** to send that line to the REPL.
 - Select several lines and press the same shortcut to send the selection.
 - Save files with the `.t` extension so the editor knows to activate T support.
+
+### R interpreter in Positron
+
+On Linux, the project R environment (`r-env` in the generated `flake.nix`)
+exposes a wrapper that Positron recognises, so the project R — with all
+`[r-dependencies]` packages — appears as an R interpreter. After changing R
+dependencies, run `t update`, re-enter `nix develop`, and launch Positron from
+that shell:
+
+```bash
+cd /absolute/path/to/your-t-project
+t update
+nix develop
+positron .
+```
 
 ### Optional: tree-sitter in VS Code / Positron
 
@@ -18067,7 +18152,15 @@ Show the last 50 entries from the REPL command history (`~/.t_history`).
     3  %pwd
 ```
 
-If no history exists, displays `(no history)`.
+With trailing text, filter the whole history case-insensitively instead:
+
+```t
+%history filter
+   12  df |> filter($age > 18)
+   31  df |> filter($score >= 88)
+```
+
+If no history exists, displays `(no history)`. If nothing matches, displays `(no matching entries)`.
 
 ## `%ls`
 
@@ -19765,7 +19858,7 @@ print(plan)
 
 Over time, your local Nix store can accumulate unused derivations and cache files. T-Lang provides REPL functions to safely clean up OCaml/Nix artifacts directly:
 
-1. **`pipeline_gc(p, dry_run = false)`**: Deletes the store paths of the given pipeline `p`. By default (`dry_run = true`), it queries what would be deleted and returns a DataFrame showing the `node`, `store_path`, and `deleted` status. Set `dry_run = false` to perform the actual deletion.
+1. **`pipeline_gc(p, dry_run = false)`**: Deletes the store paths of the given pipeline `p` if safe (unreferenced by other profiles/roots). The default is `dry_run = false`, so pass `dry_run = true` first to preview a DataFrame of `node`, `store_path`, and `deleted` status before deleting. Safe flow: preview with `dry_run = true`, delete with `dry_run = false`, then `t_gc()` for global cleanup. Use `pipeline_cache_status(p)` to check which nodes are cached before deciding what to remove.
 2. **`t_gc()`**: Performs a global Nix store garbage collection (`nix-store --gc`), removing all unused derivations and freeing up disk space.
 
 ```t
@@ -20534,7 +20627,7 @@ A consolidated index of all pipeline reading, inspecting, and build-log function
 | `build_log_history(p, n?, pattern?)` | `Pipeline`, optional `Int`, `String` | `DataFrame` | History of all builds matching pipeline's node signature |
 | `list_logs()` | — | `DataFrame` | All log files in `_pipeline/` (filename, mtime, size, pipeline) |
 | `inspect_log(p?, which_log?)` | optional `Pipeline`, optional `String` | `DataFrame` | Derivation-level build status (derivation, build_success, path) |
-| `read_log(node_name)` | `String` | `String` | Raw Nix build log text for a specific node |
+| `read_log(p.node)` | `ComputedNode` | `String` | Raw Nix build log text for a specific node |
 
 ### Node Inspection & Diagnostics
 
@@ -21999,7 +22092,7 @@ my_stats = { git = "https://github.com/user/my-stats", tag = "v0.1.0" }
 data_utils = { git = "https://github.com/user/data-utils", tag = "v0.2.0" }
 
 [t]
-min_version = "0.55.0"
+min_version = "0.55.1"
 ```
 
 > **Important**: `[dependencies]` entries **must** be `{ git, tag }` inline tables pointing to T packages. Version-constraint strings (e.g. `tlang = ">=0.52.0"`) and array values (e.g. `python = ["polars"]`) are **not valid** and will produce a hard error from `t update`. To declare runtime-language packages, use the dedicated sections:
@@ -22073,7 +22166,7 @@ List CRAN packages from nixpkgs directly:
 packages = ["dplyr", "ggplot2", "jsonlite"]
 ```
 
-After editing, run `t update` to include them in `flake.nix`. Packages are available in every R pipeline node and in `nix develop`.
+After editing, run `t update` to include them in `flake.nix`. Packages are available in every R pipeline node and in `nix develop`. On Linux, the same project R environment is also discovered by Positron as an R interpreter (re-run `t update` and launch Positron from `nix develop`).
 
 #### 3.3.2 renv Resolver
 
@@ -37200,7 +37293,7 @@ Every T project is a **Nix flake**:
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
-    tlang.url = "github:b-rodrigues/tlang/v0.55.0";
+    tlang.url = "github:b-rodrigues/tlang/v0.55.1";
   };
 
   outputs = { self, nixpkgs, tlang }: {
@@ -37325,7 +37418,7 @@ intent {
   ],
   
   environment: {
-    t_version: "0.55.0",
+    t_version: "0.55.1",
     nix_revision: "abc123",
     run_date: "2024-01-15"
   }
@@ -37369,7 +37462,7 @@ my-analysis/
   
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
-    tlang.url = "github:b-rodrigues/tlang/v0.55.0";
+    tlang.url = "github:b-rodrigues/tlang/v0.55.1";
   };
   
   outputs = { self, nixpkgs, tlang }: {
@@ -37632,6 +37725,8 @@ If you don't specify a serializer, T uses the `default` serializer, which select
 | `^onnx` | ONNX | ML Models | T, R, Python | T, R, Python, Julia | Julia: inference only (`ONNXRunTime.jl`); export is experimental/limited |
 | `^text` | Plain Text | Logs, shell output | All | All | Raw text, no format constraints |
 | `^bin` | Binary | Passthrough, fetchurl | T | T | Opaque binary blob; default for `fetchurl()` nodes |
+
+> **Note:** `^arrow` was renamed to `^ipc` in 0.55.0 with no alias. Unknown formats (anything outside this table, `default`, and custom strategies backed by the node's `functions`) fail validation with a `TypeError` naming valid formats instead of failing at build time.
 
 ### Choosing Between `^ipc` and `^parquet`
 

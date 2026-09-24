@@ -34,7 +34,136 @@
 </nav>
 <div class="container">
 <h1 id="changelog">Changelog</h1>
-<h2 id="section">[0.55.0] - 2026-08-11</h2>
+<h2 id="section">[0.55.1] - 2026-09-23</h2>
+<h3 id="new-features">New features</h3>
+<ul>
+<li><strong><code>right_join(x, y, by)</code></strong>: Keeps every row
+from the right-hand side (mirror of <code>left_join</code>). Join keys
+normalize integer <code>1</code> and float <code>1.0</code>, like other
+joins.</li>
+<li><strong><code>cross_join(x, y)</code></strong>: Cartesian product of
+two DataFrames. Overlapping right column names gain a <code>_y</code>
+suffix.</li>
+<li><strong><code>coalesce(...)</code></strong>: First non-NA value per
+position across Vectors or Lists of equal length.</li>
+<li><strong><code>n_distinct(x, na_rm = false)</code></strong>: New
+<code>na_rm</code> flag excludes NA values from the count. Default
+<code>false</code> preserves old results.</li>
+<li><strong><code>cor(..., method = "pearson" | "spearman")</code></strong>:
+New <code>method</code> argument. <code>"spearman"</code> ranks values
+(average ranks for ties) then computes Pearson on ranks. Weights with
+<code>"spearman"</code> raise an explicit error.</li>
+<li><strong><code>str_squish(s)</code></strong>: Trims ends and
+collapses each run of inner whitespace to a single space.
+Vectorized.</li>
+<li><strong><code>t_test()</code> new args</strong>:
+<code>t_test(only = [], not = [], failfast = false, timeout = NA, verbose = false)</code>
+matches CLI <code>t test</code> flags. <code>verbose = true</code>
+prints per-file error details.</li>
+</ul>
+<h3 id="fixes">Fixes</h3>
+<ul>
+<li><strong>Positron R interpreter discovery</strong>: Project R
+environments (<code>r-env</code> in generated <code>flake.nix</code>)
+now expose a Positron-visible R wrapper on Linux, so Positron lists the
+project R (with all <code>[r-dependencies]</code> packages) as an
+interpreter. Run <code>t update</code> to regenerate
+<code>flake.nix</code>, re-enter <code>nix develop</code>, then launch
+Positron from that shell.</li>
+<li><strong><code>t fix</code> dry-run checks column text</strong>:
+<code>Rename_column</code> dry-run probes the file for <code>$col</code>
+before reporting <code>Would_apply</code>. Absent columns report
+<code>skipped</code> with a note. Matches existing
+<code>Rename_node</code> and <code>Add_node_arg</code> probes.</li>
+<li><strong><code>t_fix()</code> shows node argument</strong>:
+<code>Add_node_arg</code> summary now shows node name and argument
+text.</li>
+<li><strong>Lockfile check suggests a command</strong>: Missing
+<code>renv.lock</code> packages now carry a <code>Run_command</code> fix
+(<code>R -e 'renv::install("&lt;pkg&gt;")'</code>) instead of no
+fix.</li>
+<li><strong>Issue 527 needs no change</strong>: Dependency inference
+already uses exact token match, not substring match.
+<code>include</code> paths do not create dependencies. Reporter used T
+0.51.2. Current 0.55.0 does not reproduce the spurious
+<code>analysis</code> dependency.</li>
+<li><strong>Stricter argument validation</strong>:
+<code>n_distinct</code> propagates the <code>na_rm</code> type error
+instead of silently defaulting to <code>false</code>;
+<code>t_test</code> returns explicit <code>TypeError</code> for mistyped
+<code>failfast</code>/<code>timeout</code>/<code>verbose</code> flags
+instead of silently keeping defaults; <code>coalesce</code> keeps the
+first input’s NA type when all inputs are NA at a position.</li>
+<li><strong><code>t test</code> evaluates <code>src/</code> setup once
+per suite</strong>: <code>run_test_file</code> used to re-evaluate every
+<code>src/*.t</code> file for each test file, so top-level side effects
+such as <code>build_pipeline()</code> ran N times and each file was
+billed for a full Nix build. The shared setup now runs once per
+<code>run_suite</code> call (per-test isolation is preserved —
+<code>Ast.Env</code> is immutable). Per-file durations and
+<code>--timeout</code> cover the test body only.</li>
+<li><strong><code>pipeline_status(p)</code> health table</strong>: Joins
+pipeline structure with the latest build log into one DataFrame
+(<code>name</code>, <code>runtime</code>, <code>status</code>,
+<code>duration</code>, <code>path</code>, <code>error</code>), failed
+nodes first. Status fields are NA before the first matching build.</li>
+<li><strong>Build failures show log tail</strong>: Human (non-JSON)
+builds now print the last 15 lines of the failing node’s captured output
+plus the <code>read_log(p.&lt;node&gt;)</code> command, instead of only
+<code>✖ &lt;node&gt; failed</code>.</li>
+<li><strong><code>read_log</code> takes <code>p.node_name</code>
+only</strong>: String (and Symbol) node names are now a
+<code>TypeError</code> naming the <code>p.node</code> form (issue
+523).</li>
+<li><strong><code>t check</code> human output gains locations</strong>:
+Each line is prefixed with <code>file:line:column</code> when known;
+JSON output is unchanged.</li>
+<li><strong><code>%history [text]</code></strong>: Optional
+case-insensitive substring filter over the whole history; bare
+<code>%history</code> still shows the last 50 entries.</li>
+<li><strong>Cache docs match code</strong>:
+<code>pipeline-materialization.md</code> no longer claims
+<code>pipeline_gc</code> defaults to <code>dry_run = true</code> (the
+default is <code>false</code>); the all-cached build message points to
+<code>pipeline_cache_status(p)</code> and
+<code>pipeline_gc(p, dry_run = true)</code>.</li>
+<li><strong>Fix R builds on the 2026-09-23 snapshot</strong>: upstream
+rewrote R’s <code>generic-builder.nix</code> in <code>finalAttrs</code>
+style and now reads <code>attrs.pname</code> unconditionally. All three
+<code>buildRPackage</code> call sites (<code>tlang-r</code> in
+<code>flake.nix</code>, git R packages in generated project flakes and
+pipeline expressions) now set <code>pname</code>, fixing demo CI
+evaluation failures (<code>attribute 'pname' missing</code>).</li>
+<li><strong>Unknown <code>^formats</code> fail at validation, not at
+build</strong>: serializer/deserializer strategies outside the known
+built-in set (and not backed by the node’s <code>functions</code>) are a
+<code>TypeError</code> naming valid formats, with a
+<code>^arrow → ^ipc</code> hint for the 0.55.0 rename. Surfaces via
+<code>pipeline_validate</code>, the build path, and
+<code>t check</code>.</li>
+<li><strong><code>t diff</code> explains changes</strong>: changed nodes
+now carry <code>reasons</code> (<code>runtime</code>,
+<code>serializer</code>, <code>dependencies</code>, or
+<code>code-or-data</code>) and <code>affected</code> (newer-build
+reverse dependency closure) in human, JSON, and
+<code>diff_summary</code> output.</li>
+<li><strong>No more phantom dependencies from comments or
+strings</strong>: <code>extract_identifiers</code> (pipeline dependency
+inference for <code>&lt;{ }&gt;</code> blocks) now skips
+<code>'...'</code>/<code>"..."</code> string literals and trailing
+<code>#</code> comments instead of only whole-line comments. A node name
+in <code>x &lt;- f() # see the foo node</code> or
+<code>s &lt;- "the foo node"</code> no longer wires a bogus edge (issue
+527 follow-up; regression demo: <code>phantom_deps_t</code> in t_demos).
+Deliberate exception: <code>read_node("name")</code> literals are still
+collected, since the Quarto emitter rewrites them to store paths.</li>
+<li><strong>New projects ignore the R package fetch cache</strong>:
+scaffolded <code>tproject.toml</code> projects now list
+<code>.t_r_pkg_cache/</code> in <code>.gitignore</code>, so
+<code>git add .</code> no longer stages the embedded git checkouts used
+for DESCRIPTION auto-detection (issue 524).</li>
+</ul>
+<h2 id="section-1">[0.55.0] - 2026-08-11</h2>
 <h3 id="breaking-changes">Breaking Changes</h3>
 <ul>
 <li><strong>Arrow IPC serializer renamed <code>^arrow</code> →
@@ -459,7 +588,7 @@ value.</li>
 very negative <code>Datetime</code> counterexamples shrink correctly
 instead of overflowing a 32-bit intermediate.</li>
 </ul>
-<h2 id="section-1">[0.54.3] - 2026-08-01</h2>
+<h2 id="section-2">[0.54.3] - 2026-08-01</h2>
 <h3 id="pipeline-validation-fixes">Pipeline Validation Fixes</h3>
 <ul>
 <li><strong><code>text</code> is now treated as format-agnostic raw
@@ -591,7 +720,7 @@ guarantees.</li>
 error</strong> and returns the pipeline unchanged when valid, for
 guard-style use in pipeline chains.</li>
 </ul>
-<h2 id="section-2">[0.54.2] - 2026-07-29</h2>
+<h2 id="section-3">[0.54.2] - 2026-07-29</h2>
 <h3 id="testcraft-testing-package"><code>testcraft</code> — Testing
 Package</h3>
 <ul>
@@ -693,7 +822,7 @@ fix</strong>: Coverage cleaning and discovery now check both the project
 directory and the current working directory for <code>.coverage</code>
 files.</li>
 </ul>
-<h2 id="section-3">[0.54.1] - 2026-07-20</h2>
+<h2 id="section-4">[0.54.1] - 2026-07-20</h2>
 <h3 id="type-system-annotations-and-inference">Type System: Annotations
 and Inference</h3>
 <ul>
@@ -923,7 +1052,7 @@ commands.</li>
 <li><strong><code>write_parquet(data, path)</code></strong>: Write a
 DataFrame to a Parquet file via Arrow.</li>
 </ul>
-<h2 id="section-4">[0.54.0] - 2026-07-08</h2>
+<h2 id="section-5">[0.54.0] - 2026-07-08</h2>
 <h3 id="pipeline-diagnostics">Pipeline &amp; Diagnostics</h3>
 <ul>
 <li><strong>SoftFailed Node Classification</strong>: Fixed
@@ -1097,7 +1226,7 @@ returns its SHA-256 hash, usable as the <code>sha256</code> argument to
 <code>fetchurl</code>. Enables a two-step workflow: compute the hash
 upfront, then pin it in a pipeline for reproducible builds.</li>
 </ul>
-<h2 id="section-5">[0.53.3] - 2026-06-26</h2>
+<h2 id="section-6">[0.53.3] - 2026-06-26</h2>
 <h3 id="toolchain-ci-updates">Toolchain &amp; CI Updates</h3>
 <ul>
 <li><strong>Nixpkgs Snapshot &amp; Package Updates</strong>: Updated the
@@ -1150,7 +1279,7 @@ distribution quantile, via binary search on <code>pchisq</code>.</li>
 <li>Enables power analysis and exact p-value thresholds natively in T
 without calling R.</li>
 </ul>
-<h2 id="section-6">[0.53.2] - 2026-06-24</h2>
+<h2 id="section-7">[0.53.2] - 2026-06-24</h2>
 <h3 id="hotfix">Hotfix</h3>
 <ul>
 <li><strong>Nix Flake Update / Maven Dependency Parity</strong>: Fixed
@@ -1159,7 +1288,7 @@ for the <code>jpmml-evaluator</code> library (used for PMML model
 scoring). The nixpkgs fetch source hash has been updated to restore
 local build compatibility.</li>
 </ul>
-<h2 id="section-7">[0.53.1] - 2026-06-24</h2>
+<h2 id="section-8">[0.53.1] - 2026-06-24</h2>
 <h3 id="hotfix-1">Hotfix</h3>
 <p>Fix for https://github.com/b-rodrigues/tlang/issues/434</p>
 <p>jpmm-statsmodels PR is not yet merged into NixOS/nixpkgs master
@@ -1212,7 +1341,7 @@ Fixes</h3>
 before the global environment, enabling dynamic column name
 resolution.</li>
 </ul>
-<h2 id="section-8">[0.53.0] - 2026-06-22</h2>
+<h2 id="section-9">[0.53.0] - 2026-06-22</h2>
 <p>This release:</p>
 <ul>
 <li><strong>Atelier TUI IDE Integration</strong>: This release
@@ -1314,7 +1443,7 @@ inside assignment/reassignment statements. The error is bound to the
 variable and propagated correctly, enabling robust recovery patterns via
 subsequent <code>match</code> blocks.</li>
 </ul>
-<h2 id="section-9">[0.52.3] - 2026-06-12</h2>
+<h2 id="section-10">[0.52.3] - 2026-06-12</h2>
 <p>This release:</p>
 <ul>
 <li>introduces a new meta-pipeline composition feature
@@ -1663,7 +1792,7 @@ code.</li>
 Checklist to <code>AGENTS.md</code> as a permanent reference for future
 contributions.</li>
 </ul>
-<h2 id="section-10">[0.52.2] - 2026-05-31</h2>
+<h2 id="section-11">[0.52.2] - 2026-05-31</h2>
 <p>This release introduces interactive pipeline node debugging via
 <code>debug_node</code>, native Nix orchestration features for granular
 rebuild control, job parallelisation, Cachix binary caching, and
@@ -1886,7 +2015,7 @@ values containing non-ASCII characters (accented letters, symbols like
 <code>explain()</code> tree output, instead of being shown as raw byte
 sequences such as <code>\226\134\146</code>.</li>
 </ul>
-<h2 id="section-11">[0.52.1] - 2026-05-22</h2>
+<h2 id="section-12">[0.52.1] - 2026-05-22</h2>
 <p>This release finalizes end-to-end Julia ONNX serialization support,
 fixes pipeline compiler strategy dictionary parsing issues, strengthens
 runtime safety by protecting reserved keywords, and completes the
@@ -2240,7 +2369,7 @@ better reflect its purpose of appending model-level diagnostics
 names and remove deprecated aliases.</li>
 </ul></li>
 </ul>
-<h2 id="section-12">[0.51.5] - 2026-05-08</h2>
+<h2 id="section-13">[0.51.5] - 2026-05-08</h2>
 <p>The focus of this release was to improve language ergonomics for data
 guardrails, enhance package manager feedback, and increase test coverage
 across all packages.</p>
@@ -2469,7 +2598,7 @@ process.</li>
 streamline local reporting workflows.</li>
 </ul></li>
 </ul>
-<h2 id="section-13">[0.51.4] - 2026-04-30</h2>
+<h2 id="section-14">[0.51.4] - 2026-04-30</h2>
 <p><strong>Status</strong>: Beta</p>
 <h3 id="ai-agent-onboarding-context-tiering">AI Agent Onboarding &amp;
 Context Tiering</h3>
@@ -2732,7 +2861,7 @@ Dictionaries. The system now correctly restores the native
 <code>Error</code> type across node boundaries, even when using modern
 JSON interchange.</li>
 </ul>
-<h2 id="section-14">[0.51.3] - 2026-04-12</h2>
+<h2 id="section-15">[0.51.3] - 2026-04-12</h2>
 <p><strong>Status</strong>: Beta</p>
 <h3 id="pipeline-infrastructure-observability">Pipeline Infrastructure
 &amp; Observability</h3>
@@ -3029,7 +3158,7 @@ sweep to remove legacy version strings and hardcoded formatting in
 installation and project guides.</li>
 </ul>
 <p>Version history and roadmap for the T programming language.</p>
-<h2 id="section-15">[0.51.1] - 2026-03-21</h2>
+<h2 id="section-16">[0.51.1] - 2026-03-21</h2>
 <p><strong>Status</strong>: Beta <strong>Release Date</strong>: 21st of
 March 2026</p>
 <h3 id="features-cli">Features &amp; CLI</h3>

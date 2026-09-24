@@ -161,7 +161,7 @@ res = build_pipeline(p, verbose = 1)
 if (is_error(res)) {
   print("🚨 PIPELINE BUILD FAILED!")
   -- Retrieve and print the raw stderr log of the failed node (e.g. julia_aggregation)
-  print(read_log("julia_aggregation"))
+  print(read_log(p.julia_aggregation))
   exit(1)
 }
 

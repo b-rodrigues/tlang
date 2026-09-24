@@ -561,7 +561,7 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
         | Build_error { node_name } ->
             Printf.eprintf "\n  ✖ Node %s failed!\n%!" node_name;
             List.iter (fun l -> Printf.eprintf "    | %s\n%!" l) (tail_lines node_name);
-            Printf.eprintf "  For full logs, run: read_log(\"%s\")\n\n%!" node_name
+            Printf.eprintf "  For full logs, run: read_log(p.%s)\n\n%!" node_name
         | Nix_line_other -> ()
       in
 

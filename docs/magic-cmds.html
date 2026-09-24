@@ -58,7 +58,13 @@ PATH=/usr/bin:/bin
     1  x = 42
     2  y = x + 1
     3  %pwd</code></pre>
-<p>If no history exists, displays <code>(no history)</code>.</p>
+<p>With trailing text, filter the whole history case-insensitively
+instead:</p>
+<pre class="t"><code>%history filter
+   12  df |&gt; filter($age &gt; 18)
+   31  df |&gt; filter($score &gt;= 88)</code></pre>
+<p>If no history exists, displays <code>(no history)</code>. If nothing
+matches, displays <code>(no matching entries)</code>.</p>
 <h2 id="ls"><code>%ls</code></h2>
 <p>List files and directories in the current working directory.</p>
 <pre class="t"><code>%ls

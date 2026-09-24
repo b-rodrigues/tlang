@@ -133,7 +133,7 @@ A consolidated index of all pipeline reading, inspecting, and build-log function
 | `build_log_history(p, n?, pattern?)` | `Pipeline`, optional `Int`, `String` | `DataFrame` | History of all builds matching pipeline's node signature |
 | `list_logs()` | — | `DataFrame` | All log files in `_pipeline/` (filename, mtime, size, pipeline) |
 | `inspect_log(p?, which_log?)` | optional `Pipeline`, optional `String` | `DataFrame` | Derivation-level build status (derivation, build_success, path) |
-| `read_log(node_name)` | `String` | `String` | Raw Nix build log text for a specific node |
+| `read_log(p.node)` | `ComputedNode` | `String` | Raw Nix build log text for a specific node |
 
 ### Node Inspection & Diagnostics
 

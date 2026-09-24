@@ -55,6 +55,22 @@ nrow(filter(df, \(row) row.depth == 0))|}
 
   print_newline ();
 
+  Printf.printf "Phase 1c — read_log:\n";
+
+  test "read_log rejects String names"
+    {|read_log("calc")|}
+    {|Error(TypeError: "[L1:C1] read_log: expected p.node_name (e.g. read_log(p.calc)), but got String.")|};
+
+  test "read_log rejects Symbol names"
+    {|read_log(to_symbol("calc"))|}
+    {|Error(TypeError: "[L1:C1] read_log: expected p.node_name (e.g. read_log(p.calc)), but got Symbol.")|};
+
+  test "read_log(p.node) reaches log lookup for unknown node"
+    {|p = pipeline { rl_node_zzz = 1 }; read_log(p.rl_node_zzz)|}
+    "not found in last build attempt";
+
+  print_newline ();
+
   Printf.printf "Phase 2 — filter_node:\n";
 
   test "filter_node by runtime"

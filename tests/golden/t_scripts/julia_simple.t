@@ -8,7 +8,7 @@ p = pipeline {
 res = build_pipeline(p)
 if (is_error(res)) {
   print("PIPELINE FAILED!")
-  print(read_log("calc"))
+  print(read_log(p.calc))
   exit(1)
 }
 write_csv(read_node(p.calc), "tests/golden/t_outputs/julia_simple.csv")

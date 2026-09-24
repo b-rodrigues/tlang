@@ -9,7 +9,7 @@ p = pipeline {
 res = build_pipeline(p)
 if (is_error(res)) {
   print("PIPELINE FAILED!")
-  print(read_log("export_node"))
+  print(read_log(p.export_node))
   exit(1)
 }
 
