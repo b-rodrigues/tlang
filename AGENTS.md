@@ -693,6 +693,11 @@ T uses a single source of truth for its version. To release a new version:
 - No structural equality (`=`) on floats — use `Float.equal` or explicit epsilon comparison
 - Value restriction surprises — if something is unexpectedly monomorphized, understand why
 
+### Regular Expressions with `Str`
+- `Str` is not PCRE — never assume an escape works; backslash escapes do not mean what they do elsewhere. Proven case: `\t` is a literal `t`, not a tab, so `[ \t]` inside `{| |}` quoted strings (where the backslash survives literally) silently matches the letter `t`. Write whitespace classes in plain `"..."` strings, where `\t` is a genuine tab.
+- Greedy classes plus captures fail silently instead of loudly — a swallowed character shows up as wrong data downstream, never as an error. Always verify a new `Str` pattern empirically with a minimal `ocaml str.cma` probe (match, group extraction, and a negative case) before trusting it in a test, let alone in Review.
+- When debugging a regex mismatch, reproduce the primitive in isolation first. Test the actual hypothesis (here: `[ \t]` matching `t`), not a plausible-sounding one (an early theory blaming `?`-after-class backtracking was falsified this way and would have produced a wrong fix with a wrong comment).
+
 ### Effects & Purity
 - Functions that perform I/O or mutation are clearly named or documented as such
 - No hidden side effects inside `lazy` values or inside what looks like a pure computation
