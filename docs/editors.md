@@ -556,6 +556,8 @@ filters:
 ---
 ```
 
+`{t}` chunks get syntax highlighting identical to R chunks (HTML/EPUB spans, PDF `\Tok` commands) via the bundled filter — see the [literate programming guide](literate-programming-quarto.md#syntax-highlighting) for details.
+
 ---
 
 ## Other tree-sitter editors

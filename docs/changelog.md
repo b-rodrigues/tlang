@@ -4,6 +4,7 @@
 
 ### New features
 
+- **`tlang` Quarto extension highlights T code**: `{t}` chunks now render with syntax highlighting identical to R — pandoc short-class spans for HTML/EPUB, `\Tok` commands for PDF — inside themed `sourceCode` blocks. Ships with the `tlang` filter (extension v0.52.0, provisioned by `t update`); no document changes needed.
 - **`right_join(x, y, by)`**: Keeps every row from the right-hand side (mirror of `left_join`). Join keys normalize integer `1` and float `1.0`, like other joins.
 - **`cross_join(x, y)`**: Cartesian product of two DataFrames. Overlapping right column names gain a `_y` suffix.
 - **`coalesce(...)`**: First non-NA value per position across Vectors or Lists of equal length.

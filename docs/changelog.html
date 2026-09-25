@@ -37,6 +37,13 @@
 <h2 id="section">[0.55.1] - 2026-09-23</h2>
 <h3 id="new-features">New features</h3>
 <ul>
+<li><strong><code>tlang</code> Quarto extension highlights T
+code</strong>: <code>{t}</code> chunks now render with syntax
+highlighting identical to R — pandoc short-class spans for HTML/EPUB,
+<code>\Tok</code> commands for PDF — inside themed
+<code>sourceCode</code> blocks. Ships with the <code>tlang</code> filter
+(extension v0.52.0, provisioned by <code>t update</code>); no document
+changes needed.</li>
 <li><strong><code>right_join(x, y, by)</code></strong>: Keeps every row
 from the right-hand side (mirror of <code>left_join</code>). Join keys
 normalize integer <code>1</code> and float <code>1.0</code>, like other
