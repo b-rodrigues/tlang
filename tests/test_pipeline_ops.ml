@@ -35,6 +35,42 @@ nrow(filter(df, \(row) row.depth == 0))|}
 
   print_newline ();
 
+  Printf.printf "Phase 1b — pipeline_status:\n";
+
+  test "pipeline_status returns one row per node"
+    {|p = pipeline { ps_a = 1; ps_b = ps_a + 1 }; nrow(pipeline_status(p))|}
+    "2";
+
+  test "pipeline_status column names correct"
+    {|p = pipeline { ps_a = 1 }; colnames(pipeline_status(p))|}
+    {|["name", "runtime", "status", "duration", "path", "error"]|};
+
+  test "pipeline_status unbuilt nodes have no errored rows"
+    {|p = pipeline { ps_a = 1; ps_b = ps_a + 1 }; pipeline_status(p) |> filter($status == "Errored") |> nrow|}
+    "0";
+
+  test "pipeline_status rejects non-pipeline"
+    {|pipeline_status(42)|}
+    {|Error(TypeError: "[L1:C1] Function `pipeline_status` expects a Pipeline, but got Int.")|};
+
+  print_newline ();
+
+  Printf.printf "Phase 1c — read_log:\n";
+
+  test "read_log rejects String names"
+    {|read_log("calc")|}
+    {|Error(TypeError: "[L1:C1] read_log: expected p.node_name (e.g. read_log(p.calc)), but got String.")|};
+
+  test "read_log rejects Symbol names"
+    {|read_log(to_symbol("calc"))|}
+    {|Error(TypeError: "[L1:C1] read_log: expected p.node_name (e.g. read_log(p.calc)), but got Symbol.")|};
+
+  test "read_log(p.node) reaches log lookup for unknown node"
+    {|p = pipeline { rl_node_zzz = 1 }; read_log(p.rl_node_zzz)|}
+    "not found in last build attempt";
+
+  print_newline ();
+
   Printf.printf "Phase 2 — filter_node:\n";
 
   test "filter_node by runtime"

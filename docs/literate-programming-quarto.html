@@ -152,6 +152,14 @@ printed output.</li>
 <li><code>fig-cap</code>: Add a caption if the chunk generates a plot
 (via an R/Python sub-node).</li>
 </ul>
+<h3 id="syntax-highlighting">Syntax Highlighting</h3>
+<p><code>{t}</code> chunks are syntax-highlighted identically to R
+chunks: the <code>tlang</code> filter tokenizes T code and emits pandoc
+short-class spans for HTML/EPUB output and <code>\Tok</code> commands
+for PDF, wrapped in themed <code>sourceCode</code> blocks. No
+configuration is needed beyond the already-enabled <code>tlang</code>
+filter (extension v0.52.0+, provisioned automatically by
+<code>t update</code>).</p>
 <hr />
 <h2 id="defining-a-quarto-node">Defining a Quarto Node</h2>
 <p>A Quarto node in a pipeline takes a <code>.qmd</code> file as input

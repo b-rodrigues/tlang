@@ -2,7 +2,7 @@
   description = "T — A Functional Language for Tabular Data";
 
   inputs = {
-    nixpkgs.url = "github:rstats-on-nix/nixpkgs/2026-06-23";
+    nixpkgs.url = "github:rstats-on-nix/nixpkgs/2026-09-23";
     flake-utils.url = "github:numtide/flake-utils";
   };
 
@@ -268,7 +268,11 @@ chmod +x $out/bin/bisect-ppx-report
         t-lang-coverage = mkTLang { withCoverage = true; };
 
         # Companion R package
+        # NOTE: `pname` is required — upstream generic-builder.nix
+        # (rstats-on-nix/nixpkgs 2026-09-23+) reads `attrs.pname` for
+        # stripDebugList. `name`-only derivations fail at eval time.
         tlang-r = pkgs.rPackages.buildRPackage {
+          pname = "tlang";
           name = "tlang";
           src = ./r-package;
           propagatedBuildInputs = with pkgs.rPackages; [ diffobj jsonlite ];

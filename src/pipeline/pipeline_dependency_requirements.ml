@@ -161,18 +161,124 @@ let scan_code_requirements ~node_name ~runtime raw_text =
   let req = with_reason empty_requirements reason in
   match runtime with
   | "R" ->
-      let req = req in
-      let has_pkg pkg =
-        let re1 = Str.regexp (Printf.sprintf "library([\"']?%s[\"']?)" pkg) in
-        let re2 = Str.regexp (Printf.sprintf "require([\"']?%s[\"']?)" pkg) in
-        let re3 = Str.regexp (Printf.sprintf "%s::" pkg) in
-        (try ignore (Str.search_forward re1 raw_text 0); true with Not_found ->
-         try ignore (Str.search_forward re2 raw_text 0); true with Not_found ->
-         try ignore (Str.search_forward re3 raw_text 0); true with Not_found -> false)
+      (* Generic R package discovery: roxygen `@import`/`@importFrom`
+         (incl. Classes/Methods variants) tags, `library()`/`require()`
+         calls, and `pkg::` qualifiers — for any package name, not just a
+         hardcoded list. Base packages are excluded (always available);
+         installation still flows through tproject.toml, so every hit
+         surfaces in the prompt/auto-add UX. User code keeps attaching
+         libraries itself (`library()`/`::`). *)
+      let is_pkg_char = function
+        | 'A'..'Z' | 'a'..'z' | '0'..'9' | '.' -> true
+        | _ -> false
       in
-      if has_pkg "ggplot2" then
-        { req with r_deps = add_list req.r_deps [ "ggplot2" ] }
-      else req
+      let valid_pkg s =
+        let n = String.length s in
+        n > 0 && s.[0] <> '.' &&
+        String.for_all is_pkg_char s
+      in
+      let add_pkg acc pkg =
+        if valid_pkg pkg && not (Renv_resolver.is_base_r_package pkg)
+           && not (String_set.mem pkg acc)
+        then String_set.add pkg acc
+        else acc
+      in
+      (* Roxygen tags are line-based: `#' @import pkg...`,
+         `#' @importFrom pkg fn...` — the package is the first token. *)
+      let from_roxygen acc =
+        List.fold_left (fun acc line ->
+          let t = String.trim line in
+          let body =
+            if String.length t >= 2 && String.sub t 0 2 = "#'" then
+              String.trim (String.sub t 2 (String.length t - 2))
+            else if String.length t >= 1 && t.[0] = '#' then
+              String.trim (String.sub t 1 (String.length t - 1))
+            else ""
+          in
+          if body = "" || body.[0] <> '@' then acc
+          else
+            let tag_end =
+              try String.index body ' ' with Not_found ->
+              try String.index body '\t' with Not_found -> String.length body
+            in
+            let tag = String.sub body 0 tag_end in
+            let is_import_tag =
+              tag = "@import" || tag = "@importFrom"
+              || tag = "@importClassesFrom" || tag = "@importMethodsFrom"
+            in
+            if not is_import_tag then acc
+            else
+              let rest = String.trim (String.sub body tag_end (String.length body - tag_end)) in
+              if tag = "@import" then
+                (* `@import` may list several packages. *)
+                let parts = String.split_on_char ' ' rest
+                  |> List.concat_map (String.split_on_char '\t')
+                  |> List.concat_map (String.split_on_char ',') in
+                List.fold_left (fun acc part ->
+                  let part = String.trim part in
+                  if part = "" then acc else add_pkg acc part
+                ) acc parts
+              else begin
+                (* `@importFrom` (and Classes/Methods variants) name a
+                   single package followed by imported symbols. *)
+                let pkg_end =
+                  let i = ref 0 in
+                  while !i < String.length rest && is_pkg_char rest.[!i] do incr i done;
+                  !i
+                in
+                if pkg_end = 0 then acc
+                else add_pkg acc (String.sub rest 0 pkg_end)
+              end
+        ) acc (String.split_on_char '\n' raw_text)
+      in
+      (* library()/require() calls, quoted or not. Whitespace classes use
+         a real TAB character: inside OCaml {| |} strings a backslash is
+         literal, and Str reads \t as a plain t, so [ \t] there would
+         swallow package initials. Plain double-quoted patterns keep \t
+         a genuine tab. Two patterns (quoted/unquoted), earliest wins. *)
+      let from_library_calls acc =
+        let re_plain = Str.regexp "\\(library\\|require\\)[ \t]*([ \t]*\\([A-Za-z0-9.]+\\)" in
+        let re_quoted = Str.regexp "\\(library\\|require\\)[ \t]*([ \t]*[\"']\\([A-Za-z0-9.]+\\)" in
+        let at re pos =
+          try Some (Str.search_forward re raw_text pos) with Not_found -> None
+        in
+        let rec loop acc pos =
+          let pick =
+            match at re_plain pos, at re_quoted pos with
+            | None, None -> None
+            | Some p1, Some p2 -> Some (if p1 <= p2 then (re_plain, p1) else (re_quoted, p2))
+            | Some p, None -> Some (re_plain, p)
+            | None, Some p -> Some (re_quoted, p)
+          in
+          match pick with
+          | None -> acc
+          | Some (re, p) ->
+              let _ = Str.search_forward re raw_text p in
+              let pkg =
+                try Str.matched_group 2 raw_text with Not_found | Invalid_argument _ -> ""
+              in
+              loop (add_pkg acc pkg) (Str.match_end ())
+        in
+        loop acc 0
+      in
+      (* `pkg::fun` qualifiers. *)
+      let from_namespaced acc =
+        let re = Str.regexp {|\([A-Za-z0-9.]+\)::|} in
+        let rec loop acc pos =
+          match (try Some (Str.search_forward re raw_text pos) with Not_found -> None) with
+          | None -> acc
+          | Some _ ->
+              let pkg =
+                try Str.matched_group 1 raw_text with Not_found | Invalid_argument _ -> ""
+              in
+              loop (add_pkg acc pkg) (Str.match_end ())
+        in
+        loop acc 0
+      in
+      let found =
+        from_namespaced (from_library_calls (from_roxygen String_set.empty))
+      in
+      { req with r_deps = String_set.union req.r_deps found }
   | "Python" ->
       let has_pkg pkg =
         let re1 = Str.regexp (Printf.sprintf "import %s" pkg) in

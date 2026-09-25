@@ -36,21 +36,24 @@
 <h1 id="rewire">rewire</h1>
 <p>Rewire a Node’s Dependencies</p>
 <p>Reroutes a node’s declared dependencies. The <code>replace</code>
-argument is a named list (or Dict) mapping old dependency names to new
-ones. Only the named node’s dependency list is updated.</p>
+argument is a Dict mapping old dependency names to new ones. Only the
+named node’s dependency list is updated. A named List of
+<code>(name, "new_name")</code> pairs is also accepted. Any other value
+for <code>replace</code> (including evaluating to an error) is rejected
+loudly — a no-op rewire is never silently produced.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
 <li><p><strong>p</strong> (<code>Pipeline</code>): The
 pipeline.</p></li>
 <li><p><strong>name</strong> (<code>String</code>): The name of the node
 whose deps should change.</p></li>
-<li><p><strong>replace</strong> (<code>List[String]</code>): A named
-list mapping old dep names to new ones.</p></li>
+<li><p><strong>replace</strong> (<code>Dict[String]</code>): A dict
+mapping old dep names to new ones.</p></li>
 </ul>
 <h2 id="returns">Returns</h2>
 <p>A new pipeline with updated dependency edges.</p>
 <h2 id="examples">Examples</h2>
-<pre class="t"><code>p |&gt; rewire(&quot;model_py&quot;, replace = list(data = &quot;data_v2&quot;))</code></pre>
+<pre class="t"><code>p |&gt; rewire(&quot;model_py&quot;, replace = [data: &quot;data_v2&quot;])</code></pre>
 <h2 id="see-also">See Also</h2>
 <p><a href="rename_node.html">rename_node</a>, <a
 href="swap.html">swap</a></p>

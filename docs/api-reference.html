@@ -1635,12 +1635,14 @@ df |&gt; group_by($dept) |&gt; summarize($count, \(g) nrow(g))</code></pre>
 <hr />
 <h3 id="join-and-bind-functions">Join and Bind Functions</h3>
 <h4
-id="left_joinx-y-by-na-inner_join-full_join-semi_join-anti_join"><code>left_join(x, y, by = NA)</code>
-/ <code>inner_join</code> / <code>full_join</code> /
-<code>semi_join</code> / <code>anti_join</code></h4>
+id="left_joinx-y-by-na-right_join-inner_join-full_join-semi_join-anti_join"><code>left_join(x, y, by = NA)</code>
+/ <code>right_join</code> / <code>inner_join</code> /
+<code>full_join</code> / <code>semi_join</code> /
+<code>anti_join</code></h4>
 <p>Join two DataFrames. Join keys are normalized so that integer
 <code>1</code> and float <code>1.0</code> match, mirroring R’s
-coercion-to-character semantics.</p>
+coercion-to-character semantics. <code>right_join</code> keeps every row
+from the right-hand side (mirror of <code>left_join</code>).</p>
 <p><strong>Parameters:</strong></p>
 <ul>
 <li><code>x</code>, <code>y</code> — DataFrames to join</li>
@@ -1649,6 +1651,15 @@ common columns.</li>
 </ul>
 <p><strong>Returns:</strong></p>
 <p>Joined DataFrame</p>
+<hr />
+<h4 id="cross_joinx-y"><code>cross_join(x, y)</code></h4>
+<p>Cartesian product of two DataFrames. Every left row pairs with every
+right row. Overlapping right column names gain a <code>_y</code>
+suffix.</p>
+<hr />
+<h4 id="coalesce..."><code>coalesce(...)</code></h4>
+<p>First non-NA value per position across Vectors or Lists of equal
+length.</p>
 <hr />
 <h4 id="bind_rows...-bind_cols..."><code>bind_rows(...)</code> /
 <code>bind_cols(...)</code></h4>
@@ -1736,8 +1747,10 @@ vector.</p>
 <p>Returns the number of rows in the current group. Only valid inside
 <code>summarize()</code>.</p>
 <hr />
-<h4 id="n_distinctx"><code>n_distinct(x)</code></h4>
-<p>Returns the number of unique non-NA values.</p>
+<h4
+id="n_distinctx-na_rm-false"><code>n_distinct(x, na_rm = false)</code></h4>
+<p>Returns the number of unique values. With <code>na_rm = true</code>,
+NA values are excluded from the count.</p>
 <hr />
 <h3 id="window-functions">Window Functions</h3>
 <p>Window functions compute values across rows without collapsing
@@ -2067,9 +2080,12 @@ id="str_counts-pattern-str_nchars"><code>str_count(s, pattern)</code> /
 <p>Count regex matches (PCRE2, UTF-8 aware — each code point matched by
 <code>.</code> counts once) or total characters.</p>
 <hr />
-<h3 id="str_trims-trim_starts-trim_ends"><code>str_trim(s)</code> /
-<code>trim_start(s)</code> / <code>trim_end(s)</code></h3>
-<p>Remove whitespace.</p>
+<h3
+id="str_trims-trim_starts-trim_ends-str_squishs"><code>str_trim(s)</code>
+/ <code>trim_start(s)</code> / <code>trim_end(s)</code> /
+<code>str_squish(s)</code></h3>
+<p>Remove whitespace. <code>str_squish</code> also collapses each run of
+inner whitespace to a single space.</p>
 <hr />
 <h3 id="str_liness-str_wordss-str_splits-sep"><code>str_lines(s)</code>
 / <code>str_words(s)</code> / <code>str_split(s, sep)</code></h3>
@@ -3734,6 +3750,22 @@ df = build_log_to_frame(log)
 --   name  | status     | duration | path
 --   &quot;a&quot;   | &quot;Errored&quot;  | 0.02     | &quot;/nix/store/...&quot;</code></pre>
 <hr />
+<h3 id="pipeline_statusp"><code>pipeline_status(p)</code></h3>
+<p>One-call health table joining pipeline structure with the latest
+build log. Failed nodes sort first.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>p</code> — The Pipeline object.</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>DataFrame</code> — Columns <code>name</code>,
+<code>runtime</code>, <code>status</code>, <code>duration</code>,
+<code>path</code>, <code>error</code>. Status fields are NA when the
+pipeline has no matching build log yet.</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>pipeline_status(p)
+pipeline_status(p) |&gt; filter($status == &quot;Errored&quot;)</code></pre>
+<hr />
 <h3
 id="build_log_historyp-n-na-pattern-na"><code>build_log_history(p, n = NA, pattern = NA)</code></h3>
 <p>Returns a summary DataFrame of all historical builds matching the
@@ -3859,6 +3891,13 @@ comparison without loading artifacts.</p>
 A.</li>
 <li><code>class_b</code> (String) — Output value class from build
 B.</li>
+<li><code>reasons</code> (String) — Why a changed node differs:
+<code>runtime</code>, <code>serializer</code>,
+<code>dependencies</code>, or <code>code-or-data</code> (hashes differ
+but logged membranes match). NA otherwise.</li>
+<li><code>affected</code> (String) — Nodes in the newer build
+transitively depending on a changed node (including itself). NA
+otherwise.</li>
 </ul>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>p = pipeline { a = 1; b = 2 }
@@ -3871,10 +3910,10 @@ print(summary)</code></pre>
 <h3 id="cli-t-diff">CLI: <code>t diff</code></h3>
 <p>The <code>t diff</code> command provides the same functionality from
 the shell, without needing to write a T script:</p>
-<div class="sourceCode" id="cb116"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb116-1"><a href="#cb116-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> diff <span class="op">&lt;</span>file.t<span class="op">&gt;</span>                    <span class="co"># compare last two builds</span></span>
-<span id="cb116-2"><a href="#cb116-2" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> diff <span class="op">&lt;</span>file.t<span class="op">&gt;</span> --json             <span class="co"># structured JSON output</span></span>
-<span id="cb116-3"><a href="#cb116-3" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> diff <span class="op">&lt;</span>file.t<span class="op">&gt;</span> --log-a 2 <span class="at">--log-b</span> 4  <span class="co"># compare specific build ranks</span></span></code></pre></div>
+<div class="sourceCode" id="cb117"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb117-1"><a href="#cb117-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> diff <span class="op">&lt;</span>file.t<span class="op">&gt;</span>                    <span class="co"># compare last two builds</span></span>
+<span id="cb117-2"><a href="#cb117-2" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> diff <span class="op">&lt;</span>file.t<span class="op">&gt;</span> --json             <span class="co"># structured JSON output</span></span>
+<span id="cb117-3"><a href="#cb117-3" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> diff <span class="op">&lt;</span>file.t<span class="op">&gt;</span> --log-a 2 <span class="at">--log-b</span> 4  <span class="co"># compare specific build ranks</span></span></code></pre></div>
 <hr />
 <h3 id="cli-t-fix">CLI: <code>t fix</code></h3>
 <p>Mechanically applies <code>suggested_fix</code> values from
@@ -3882,9 +3921,9 @@ class="sourceCode bash"><code class="sourceCode bash"><span id="cb116-1"><a href
 <code>t check --json</code> internally, collects diagnostics with
 non-null <code>suggested_fix</code>, and applies them to the source
 file.</p>
-<div class="sourceCode" id="cb117"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb117-1"><a href="#cb117-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> fix <span class="op">&lt;</span>file.t<span class="op">&gt;</span>                     <span class="co"># apply all suggested fixes</span></span>
-<span id="cb117-2"><a href="#cb117-2" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> fix <span class="at">--dry-run</span> <span class="op">&lt;</span>file.t<span class="op">&gt;</span>           <span class="co"># preview fixes without applying</span></span></code></pre></div>
+<div class="sourceCode" id="cb118"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb118-1"><a href="#cb118-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> fix <span class="op">&lt;</span>file.t<span class="op">&gt;</span>                     <span class="co"># apply all suggested fixes</span></span>
+<span id="cb118-2"><a href="#cb118-2" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> fix <span class="at">--dry-run</span> <span class="op">&lt;</span>file.t<span class="op">&gt;</span>           <span class="co"># preview fixes without applying</span></span></code></pre></div>
 <p><strong>Supported fix types:</strong></p>
 <table>
 <colgroup>
@@ -3942,17 +3981,17 @@ outcome, matching the real apply</td>
 </tbody>
 </table>
 <p><strong>Example:</strong></p>
-<div class="sourceCode" id="cb118"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb118-1"><a href="#cb118-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t check <span class="at">--json</span> pipeline.t <span class="kw">|</span> <span class="ex">jq</span> <span class="st">&#39;.diagnostics[].suggested_fix&#39;</span></span>
-<span id="cb118-2"><a href="#cb118-2" aria-hidden="true" tabindex="-1"></a><span class="kw">{</span></span>
-<span id="cb118-3"><a href="#cb118-3" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;kind&quot;</span><span class="ex">:</span> <span class="st">&quot;rename_column&quot;</span>,</span>
-<span id="cb118-4"><a href="#cb118-4" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;old_name&quot;</span><span class="ex">:</span> <span class="st">&quot;mpg&quot;</span>,</span>
-<span id="cb118-5"><a href="#cb118-5" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;new_name&quot;</span><span class="ex">:</span> <span class="st">&quot;MPG&quot;</span>,</span>
-<span id="cb118-6"><a href="#cb118-6" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;target_node&quot;</span><span class="ex">:</span> <span class="st">&quot;clean&quot;</span>,</span>
-<span id="cb118-7"><a href="#cb118-7" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;file&quot;</span><span class="ex">:</span> <span class="st">&quot;pipeline.t&quot;</span>,</span>
-<span id="cb118-8"><a href="#cb118-8" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;line&quot;</span><span class="ex">:</span> 5,</span>
-<span id="cb118-9"><a href="#cb118-9" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;confidence&quot;</span><span class="ex">:</span> <span class="st">&quot;high&quot;</span></span>
-<span id="cb118-10"><a href="#cb118-10" aria-hidden="true" tabindex="-1"></a><span class="kw">}</span></span></code></pre></div>
+<div class="sourceCode" id="cb119"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb119-1"><a href="#cb119-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t check <span class="at">--json</span> pipeline.t <span class="kw">|</span> <span class="ex">jq</span> <span class="st">&#39;.diagnostics[].suggested_fix&#39;</span></span>
+<span id="cb119-2"><a href="#cb119-2" aria-hidden="true" tabindex="-1"></a><span class="kw">{</span></span>
+<span id="cb119-3"><a href="#cb119-3" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;kind&quot;</span><span class="ex">:</span> <span class="st">&quot;rename_column&quot;</span>,</span>
+<span id="cb119-4"><a href="#cb119-4" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;old_name&quot;</span><span class="ex">:</span> <span class="st">&quot;mpg&quot;</span>,</span>
+<span id="cb119-5"><a href="#cb119-5" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;new_name&quot;</span><span class="ex">:</span> <span class="st">&quot;MPG&quot;</span>,</span>
+<span id="cb119-6"><a href="#cb119-6" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;target_node&quot;</span><span class="ex">:</span> <span class="st">&quot;clean&quot;</span>,</span>
+<span id="cb119-7"><a href="#cb119-7" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;file&quot;</span><span class="ex">:</span> <span class="st">&quot;pipeline.t&quot;</span>,</span>
+<span id="cb119-8"><a href="#cb119-8" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;line&quot;</span><span class="ex">:</span> 5,</span>
+<span id="cb119-9"><a href="#cb119-9" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;confidence&quot;</span><span class="ex">:</span> <span class="st">&quot;high&quot;</span></span>
+<span id="cb119-10"><a href="#cb119-10" aria-hidden="true" tabindex="-1"></a><span class="kw">}</span></span></code></pre></div>
 <hr />
 <h3 id="t_test"><code>t_test()</code></h3>
 <p>REPL-callable version of <code>t test</code>. Runs the test suite and
@@ -3979,24 +4018,27 @@ results |&gt; filter($status == &quot;passed&quot;) |&gt; nrow()
 results = t_test(only = [&quot;arithmetic&quot;, &quot;strings&quot;])
 
 -- Exclude slow tests
-results = t_test(not = [&quot;slow&quot;])</code></pre>
+results = t_test(not = [&quot;slow&quot;])
+
+-- Stop on first failure, enforce timeout, show details
+results = t_test(failfast = true, timeout = 30, verbose = true)</code></pre>
 <hr />
 <h3 id="cli-t-test">CLI: <code>t test</code></h3>
 <p>Runs the test suite for the current project. Discovers test files
 (<code>test-*.t</code>, <code>test_*.t</code>, or <code>*_test.t</code>)
 recursively in the <code>tests/</code> directory.</p>
-<div class="sourceCode" id="cb120"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb120-1"><a href="#cb120-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test                        <span class="co"># human-readable output</span></span>
-<span id="cb120-2"><a href="#cb120-2" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--json</span>                 <span class="co"># structured JSON output (no preamble)</span></span>
-<span id="cb120-3"><a href="#cb120-3" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--format</span> junit         <span class="co"># JUnit XML output for CI</span></span>
-<span id="cb120-4"><a href="#cb120-4" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--json</span> tests/          <span class="co"># specify project directory</span></span>
-<span id="cb120-5"><a href="#cb120-5" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--only</span> <span class="st">&quot;stats&quot;</span>         <span class="co"># run only tests matching &quot;stats&quot;</span></span>
-<span id="cb120-6"><a href="#cb120-6" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--not</span> <span class="st">&quot;slow&quot;</span>           <span class="co"># skip tests matching &quot;slow&quot;</span></span>
-<span id="cb120-7"><a href="#cb120-7" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--only</span> <span class="st">&quot;stats&quot;</span> <span class="at">--not</span> <span class="st">&quot;anova&quot;</span>  <span class="co"># combine filters (OR semantics for --only)</span></span>
-<span id="cb120-8"><a href="#cb120-8" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--failfast</span>             <span class="co"># stop on first failure</span></span>
-<span id="cb120-9"><a href="#cb120-9" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--list</span>                 <span class="co"># list discovered tests without running</span></span>
-<span id="cb120-10"><a href="#cb120-10" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--timeout</span> 30           <span class="co"># mark tests exceeding 30s as failed</span></span>
-<span id="cb120-11"><a href="#cb120-11" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--coverage</span>             <span class="co"># generate Bisect_ppx coverage summary after tests</span></span></code></pre></div>
+<div class="sourceCode" id="cb121"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb121-1"><a href="#cb121-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test                        <span class="co"># human-readable output</span></span>
+<span id="cb121-2"><a href="#cb121-2" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--json</span>                 <span class="co"># structured JSON output (no preamble)</span></span>
+<span id="cb121-3"><a href="#cb121-3" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--format</span> junit         <span class="co"># JUnit XML output for CI</span></span>
+<span id="cb121-4"><a href="#cb121-4" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--json</span> tests/          <span class="co"># specify project directory</span></span>
+<span id="cb121-5"><a href="#cb121-5" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--only</span> <span class="st">&quot;stats&quot;</span>         <span class="co"># run only tests matching &quot;stats&quot;</span></span>
+<span id="cb121-6"><a href="#cb121-6" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--not</span> <span class="st">&quot;slow&quot;</span>           <span class="co"># skip tests matching &quot;slow&quot;</span></span>
+<span id="cb121-7"><a href="#cb121-7" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--only</span> <span class="st">&quot;stats&quot;</span> <span class="at">--not</span> <span class="st">&quot;anova&quot;</span>  <span class="co"># combine filters (OR semantics for --only)</span></span>
+<span id="cb121-8"><a href="#cb121-8" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--failfast</span>             <span class="co"># stop on first failure</span></span>
+<span id="cb121-9"><a href="#cb121-9" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--list</span>                 <span class="co"># list discovered tests without running</span></span>
+<span id="cb121-10"><a href="#cb121-10" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--timeout</span> 30           <span class="co"># mark tests exceeding 30s as failed</span></span>
+<span id="cb121-11"><a href="#cb121-11" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--coverage</span>             <span class="co"># generate Bisect_ppx coverage summary after tests</span></span></code></pre></div>
 <p><strong>Output formats:</strong></p>
 <table>
 <thead>
@@ -4076,7 +4118,9 @@ Multiple <code>--only</code> flags use OR semantics.</td>
 <td><code>--timeout SECONDS</code></td>
 <td>Mark any test exceeding SECONDS as failed. Does not interrupt
 execution — the test runs to completion but is reported as a timeout
-failure.</td>
+failure. The clock covers the test file body only; shared
+<code>src/</code> setup is evaluated once per suite and is not billed to
+any single file.</td>
 </tr>
 <tr>
 <td><code>--coverage</code></td>
@@ -4099,18 +4143,18 @@ slow_integration.t      # exact filename
 legacy/                 # directory at any depth</code></pre>
 <p><strong>JUnit XML schema (when using
 <code>--format junit</code>):</strong></p>
-<div class="sourceCode" id="cb122"><pre
-class="sourceCode xml"><code class="sourceCode xml"><span id="cb122-1"><a href="#cb122-1" aria-hidden="true" tabindex="-1"></a><span class="fu">&lt;?xml</span> <span class="ot">version=</span><span class="st">&quot;1.0&quot;</span> <span class="ot">encoding=</span><span class="st">&quot;UTF-8&quot;</span><span class="fu">?&gt;</span></span>
-<span id="cb122-2"><a href="#cb122-2" aria-hidden="true" tabindex="-1"></a>&lt;<span class="kw">testsuites</span> <span class="ot">name=</span><span class="st">&quot;t test&quot;</span> <span class="ot">tests=</span><span class="st">&quot;2&quot;</span> <span class="ot">failures=</span><span class="st">&quot;1&quot;</span> <span class="ot">time=</span><span class="st">&quot;0.123&quot;</span>&gt;</span>
-<span id="cb122-3"><a href="#cb122-3" aria-hidden="true" tabindex="-1"></a>  &lt;<span class="kw">testsuite</span> <span class="ot">name=</span><span class="st">&quot;t test&quot;</span> <span class="ot">tests=</span><span class="st">&quot;2&quot;</span> <span class="ot">failures=</span><span class="st">&quot;1&quot;</span> <span class="ot">time=</span><span class="st">&quot;0.123&quot;</span>&gt;</span>
-<span id="cb122-4"><a href="#cb122-4" aria-hidden="true" tabindex="-1"></a>    &lt;<span class="kw">testcase</span> <span class="ot">name=</span><span class="st">&quot;tests/test_pass.t&quot;</span> <span class="ot">time=</span><span class="st">&quot;0.050&quot;</span> /&gt;</span>
-<span id="cb122-5"><a href="#cb122-5" aria-hidden="true" tabindex="-1"></a>    &lt;<span class="kw">testcase</span> <span class="ot">name=</span><span class="st">&quot;tests/test_fail.t&quot;</span> <span class="ot">time=</span><span class="st">&quot;0.073&quot;</span>&gt;</span>
-<span id="cb122-6"><a href="#cb122-6" aria-hidden="true" tabindex="-1"></a>      &lt;<span class="kw">failure</span> <span class="ot">message=</span><span class="st">&quot;Assertion failed&quot;</span> <span class="ot">type=</span><span class="st">&quot;TestFailure&quot;</span>&gt;</span>
-<span id="cb122-7"><a href="#cb122-7" aria-hidden="true" tabindex="-1"></a>        AssertionError: test failed</span>
-<span id="cb122-8"><a href="#cb122-8" aria-hidden="true" tabindex="-1"></a>      &lt;/<span class="kw">failure</span>&gt;</span>
-<span id="cb122-9"><a href="#cb122-9" aria-hidden="true" tabindex="-1"></a>    &lt;/<span class="kw">testcase</span>&gt;</span>
-<span id="cb122-10"><a href="#cb122-10" aria-hidden="true" tabindex="-1"></a>  &lt;/<span class="kw">testsuite</span>&gt;</span>
-<span id="cb122-11"><a href="#cb122-11" aria-hidden="true" tabindex="-1"></a>&lt;/<span class="kw">testsuites</span>&gt;</span></code></pre></div>
+<div class="sourceCode" id="cb123"><pre
+class="sourceCode xml"><code class="sourceCode xml"><span id="cb123-1"><a href="#cb123-1" aria-hidden="true" tabindex="-1"></a><span class="fu">&lt;?xml</span> <span class="ot">version=</span><span class="st">&quot;1.0&quot;</span> <span class="ot">encoding=</span><span class="st">&quot;UTF-8&quot;</span><span class="fu">?&gt;</span></span>
+<span id="cb123-2"><a href="#cb123-2" aria-hidden="true" tabindex="-1"></a>&lt;<span class="kw">testsuites</span> <span class="ot">name=</span><span class="st">&quot;t test&quot;</span> <span class="ot">tests=</span><span class="st">&quot;2&quot;</span> <span class="ot">failures=</span><span class="st">&quot;1&quot;</span> <span class="ot">time=</span><span class="st">&quot;0.123&quot;</span>&gt;</span>
+<span id="cb123-3"><a href="#cb123-3" aria-hidden="true" tabindex="-1"></a>  &lt;<span class="kw">testsuite</span> <span class="ot">name=</span><span class="st">&quot;t test&quot;</span> <span class="ot">tests=</span><span class="st">&quot;2&quot;</span> <span class="ot">failures=</span><span class="st">&quot;1&quot;</span> <span class="ot">time=</span><span class="st">&quot;0.123&quot;</span>&gt;</span>
+<span id="cb123-4"><a href="#cb123-4" aria-hidden="true" tabindex="-1"></a>    &lt;<span class="kw">testcase</span> <span class="ot">name=</span><span class="st">&quot;tests/test_pass.t&quot;</span> <span class="ot">time=</span><span class="st">&quot;0.050&quot;</span> /&gt;</span>
+<span id="cb123-5"><a href="#cb123-5" aria-hidden="true" tabindex="-1"></a>    &lt;<span class="kw">testcase</span> <span class="ot">name=</span><span class="st">&quot;tests/test_fail.t&quot;</span> <span class="ot">time=</span><span class="st">&quot;0.073&quot;</span>&gt;</span>
+<span id="cb123-6"><a href="#cb123-6" aria-hidden="true" tabindex="-1"></a>      &lt;<span class="kw">failure</span> <span class="ot">message=</span><span class="st">&quot;Assertion failed&quot;</span> <span class="ot">type=</span><span class="st">&quot;TestFailure&quot;</span>&gt;</span>
+<span id="cb123-7"><a href="#cb123-7" aria-hidden="true" tabindex="-1"></a>        AssertionError: test failed</span>
+<span id="cb123-8"><a href="#cb123-8" aria-hidden="true" tabindex="-1"></a>      &lt;/<span class="kw">failure</span>&gt;</span>
+<span id="cb123-9"><a href="#cb123-9" aria-hidden="true" tabindex="-1"></a>    &lt;/<span class="kw">testcase</span>&gt;</span>
+<span id="cb123-10"><a href="#cb123-10" aria-hidden="true" tabindex="-1"></a>  &lt;/<span class="kw">testsuite</span>&gt;</span>
+<span id="cb123-11"><a href="#cb123-11" aria-hidden="true" tabindex="-1"></a>&lt;/<span class="kw">testsuites</span>&gt;</span></code></pre></div>
 <h3 id="test-fixtures">Test Fixtures</h3>
 <p>T doesn’t have a dedicated
 <code>before_each</code>/<code>after_each</code> fixture mechanism

@@ -1,5 +1,40 @@
 # Changelog
 
+## [0.55.1] - 2026-09-23
+
+### New features
+
+- **`tlang` Quarto extension highlights T code**: `{t}` chunks now render with syntax highlighting identical to R — pandoc short-class spans for HTML/EPUB, `\Tok` commands for PDF — inside themed `sourceCode` blocks. Ships with the `tlang` filter (extension v0.52.0, provisioned by `t update`); no document changes needed.
+- **`right_join(x, y, by)`**: Keeps every row from the right-hand side (mirror of `left_join`). Join keys normalize integer `1` and float `1.0`, like other joins.
+- **`cross_join(x, y)`**: Cartesian product of two DataFrames. Overlapping right column names gain a `_y` suffix.
+- **`coalesce(...)`**: First non-NA value per position across Vectors or Lists of equal length.
+- **`n_distinct(x, na_rm = false)`**: New `na_rm` flag excludes NA values from the count. Default `false` preserves old results.
+- **`cor(..., method = "pearson" | "spearman")`**: New `method` argument. `"spearman"` ranks values (average ranks for ties) then computes Pearson on ranks. Weights with `"spearman"` raise an explicit error.
+- **`str_squish(s)`**: Trims ends and collapses each run of inner whitespace to a single space. Vectorized.
+- **`t_test()` new args**: `t_test(only = [], not = [], failfast = false, timeout = NA, verbose = false)` matches CLI `t test` flags. `verbose = true` prints per-file error details.
+
+### Fixes
+
+- **Positron R interpreter discovery**: Project R environments (`r-env` in generated `flake.nix`) now expose a Positron-visible R wrapper on Linux, so Positron lists the project R (with all `[r-dependencies]` packages) as an interpreter. Run `t update` to regenerate `flake.nix`, re-enter `nix develop`, then launch Positron from that shell.
+- **`t fix` dry-run checks column text**: `Rename_column` dry-run probes the file for `$col` before reporting `Would_apply`. Absent columns report `skipped` with a note. Matches existing `Rename_node` and `Add_node_arg` probes.
+- **`t_fix()` shows node argument**: `Add_node_arg` summary now shows node name and argument text.
+- **Lockfile check suggests a command**: Missing `renv.lock` packages now carry a `Run_command` fix (`R -e 'renv::install("<pkg>")'`) instead of no fix.
+- **Issue 527 needs no change**: Dependency inference already uses exact token match, not substring match. `include` paths do not create dependencies. Verified on `0.55.0` (behavior unchanged in `0.55.1`).
+- **Stricter argument validation**: `n_distinct` propagates the `na_rm` type error instead of silently defaulting to `false`; `t_test` returns explicit `TypeError` for mistyped `failfast`/`timeout`/`verbose` flags instead of silently keeping defaults; `coalesce` keeps the first input's NA type when all inputs are NA at a position.
+- **`t test` evaluates `src/` setup once per suite**: `run_test_file` used to re-evaluate every `src/*.t` file for each test file, so top-level side effects such as `build_pipeline()` ran N times and each file was billed for a full Nix build. The shared setup now runs once per `run_suite` call (per-test isolation is preserved — `Ast.Env` is immutable). Per-file durations and `--timeout` cover the test body only.
+- **`pipeline_status(p)` health table**: Joins pipeline structure with the latest build log into one DataFrame (`name`, `runtime`, `status`, `duration`, `path`, `error`), failed nodes first. Status fields are NA before the first matching build.
+- **Build failures show log tail**: Human (non-JSON) builds now print the last 15 lines of the failing node's captured output plus the `read_log(p.<node>)` command, instead of only `✖ <node> failed`.
+- **`read_log` takes `p.node_name` only**: String (and Symbol) node names are now a `TypeError` naming the `p.node` form (issue 523).
+- **`t check` human output gains locations**: Each line is prefixed with `file:line:column` when known; JSON output is unchanged.
+- **`%history [text]`**: Optional case-insensitive substring filter over the whole history; bare `%history` still shows the last 50 entries.
+- **Cache docs match code**: `pipeline-materialization.md` no longer claims `pipeline_gc` defaults to `dry_run = true` (the default is `false`); the all-cached build message points to `pipeline_cache_status(p)` and `pipeline_gc(p, dry_run = true)`.
+- **Fix R builds on the 2026-09-23 snapshot**: upstream rewrote R's `generic-builder.nix` in `finalAttrs` style and now reads `attrs.pname` unconditionally. All three `buildRPackage` call sites (`tlang-r` in `flake.nix`, git R packages in generated project flakes and pipeline expressions) now set `pname`, fixing demo CI evaluation failures (`attribute 'pname' missing`).
+- **Unknown `^formats` fail at validation, not at build**: serializer/deserializer strategies outside the known built-in set (and not backed by the node's `functions`) are a `TypeError` naming valid formats, with a `^arrow → ^ipc` hint for the 0.55.0 rename. Surfaces via `pipeline_validate`, the build path, and `t check`.
+- **`t diff` explains changes**: changed nodes now carry `reasons` (`runtime`, `serializer`, `dependencies`, or `code-or-data`) and `affected` (newer-build reverse dependency closure) in human, JSON, and `diff_summary` output.
+- **No more phantom dependencies from comments or strings**: `extract_identifiers` (pipeline dependency inference for `<{ }>` blocks) now skips `'...'`/`"..."` string literals and trailing `#` comments instead of only whole-line comments. A node name in `x <- f() # see the foo node` or `s <- "the foo node"` no longer wires a bogus edge (issue 527 follow-up; regression demo: `phantom_deps_t` in t_demos). Deliberate exception: `read_node("name")` literals are still collected, since the Quarto emitter rewrites them to store paths.
+- **New projects ignore the R package fetch cache**: scaffolded `tproject.toml` projects now list `.t_r_pkg_cache/` in `.gitignore`, so `git add .` no longer stages the embedded git checkouts used for DESCRIPTION auto-detection (issue 524).
+- **Generic R package discovery**: `t check --env` and pipeline builds now detect any R package from roxygen `@import`/`@importFrom` tags, `library()`/`require()` calls, and `pkg::` qualifiers — not just hardcoded `ggplot2`. Base packages are excluded. Discovery installs packages; code must still attach them (issue 473).
+
 ## [0.55.0] - 2026-08-11
 
 ### Breaking Changes

@@ -73,6 +73,7 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
   test "trim start" "trim_start(\"  hello  \")" "\"hello  \"";
   test "trim end" "trim_end(\"  hello  \")" "\"  hello\"";
   test "trim newline" "str_trim(\"\\n\\t hello \\n\")" "\"hello\"";
+  test "squish inner spaces" "str_squish(\"  hello   world  \")" "\"hello world\"";
   
   Printf.printf "  Lines & Words:\n";
   test "lines basic" "str_lines(\"a\\nb\\nc\")" "[\"a\", \"b\", \"c\"]";

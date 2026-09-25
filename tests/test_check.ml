@@ -143,6 +143,18 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
   check_eq "diagnostic_message accessor"
     (Diagnostics.diagnostic_message test_diag) "test message";
 
+  Printf.printf "\nhuman location prefix:\n";
+  let human_loc = Check_utils.format_check_result
+    (Diagnostics.make_result ~tier:1 ~phase:Diagnostics.Exec [test_diag]) in
+  check "human output starts with file:line:column"
+    (Str.string_match (Str.regexp "test\\.t:5:10: warning \\[unknown_error\\] test message") human_loc 0);
+  let test_diag_noloc = { test_diag with
+    Diagnostics.diag_file = None; diag_line = None; diag_column = None } in
+  let human_noloc = Check_utils.format_check_result
+    (Diagnostics.make_result ~tier:1 ~phase:Diagnostics.Exec [test_diag_noloc]) in
+  check "human output without location keeps legacy format"
+    (Str.string_match (Str.regexp "warning \\[unknown_error\\] test message") human_noloc 0);
+
   Printf.printf "\nexpected/actual fields:\n";
   let test_diag_with_types = { test_diag with
     Diagnostics.diag_expected = Some "double";

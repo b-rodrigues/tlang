@@ -2,7 +2,7 @@
 
 Correlation
 
-Computes the Pearson correlation coefficient between two vectors.
+Computes the correlation coefficient between two vectors. `method = "pearson"` (default) is the linear correlation. `method = "spearman"` ranks values first (average ranks for ties), then computes Pearson on ranks.
 
 ## Parameters
 
@@ -12,7 +12,9 @@ Computes the Pearson correlation coefficient between two vectors.
 
 - **na_rm** (`Bool`): (Optional) Should missing values be removed? Default is false.
 
-- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights.
+- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights (Pearson only).
+
+- **method** (`String`): = "pearson" Correlation method: "pearson" or "spearman".
 
 
 ## Returns

@@ -36,7 +36,15 @@ Show the last 50 entries from the REPL command history (`~/.t_history`).
     3  %pwd
 ```
 
-If no history exists, displays `(no history)`.
+With trailing text, filter the whole history case-insensitively instead:
+
+```t
+%history filter
+   12  df |> filter($age > 18)
+   31  df |> filter($score >= 88)
+```
+
+If no history exists, displays `(no history)`. If nothing matches, displays `(no matching entries)`.
 
 ## `%ls`
 

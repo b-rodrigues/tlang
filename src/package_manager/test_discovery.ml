@@ -165,9 +165,64 @@ let read_tignore (dir : string) : string list =
         List.rev !lines)
   end else []
 
+(** Evaluate all `.t` files in `<dir>/src` once and return the resulting
+    environment as shared test setup.
+
+    Each test file used to perform this setup itself, so a suite of N files
+    evaluated `src/` N times — including any top-level side effects such as
+    `build_pipeline()` calls. Hoisting the setup to the suite level runs those
+    side effects once. Per-test isolation is preserved: [Ast.Env] is an
+    immutable map, so evaluating a test body from the shared base cannot leak
+    bindings into other tests. Errors in `src/` are ignored, matching the
+    historical per-file behaviour. *)
+let load_src_env (dir : string) : Ast.environment =
+  let base = Packages.init_env () in
+  let src_dir = Filename.concat dir "src" in
+  if not (Sys.file_exists src_dir && Sys.is_directory src_dir) then base
+  else begin
+    let entries =
+      try Sys.readdir src_dir
+      with Sys_error _ -> [||]
+    in
+    Array.sort String.compare entries;
+    Array.fold_left (fun env entry ->
+      if Filename.check_suffix entry ".t" then begin
+        let src_file = Filename.concat src_dir entry in
+        try
+          let src_content =
+            let ch = open_in src_file in
+            Fun.protect
+              ~finally:(fun () -> close_in_noerr ch)
+              (fun () -> really_input_string ch (in_channel_length ch))
+          in
+          let lexbuf = Lexing.from_string src_content in
+          try
+            let program = Parser.program Lexer.token lexbuf in
+            let rec eval_imports env = function
+              | [] -> env
+              | stmt :: rest ->
+                  let (_, new_env) = Eval.eval_statement env stmt in
+                  eval_imports new_env rest
+            in
+            eval_imports env program
+          with
+          | Out_of_memory | Stack_overflow as exn -> raise exn
+          | _ -> env (* Ignore errors in src for now, or maybe report? *)
+        with Sys_error _ -> env
+      end else env
+    ) base entries
+  end
+
 (** Run a single test file in an isolated environment.
-    Returns a test_result indicating pass/fail. *)
-let run_test_file (file : string) : test_result =
+    Returns a test_result indicating pass/fail.
+
+    When [~base_env] is given (the shared result of [load_src_env]), the test
+    body is evaluated from it and the measured [duration] covers the test body
+    only — shared `src/` setup time is not billed to any single file, so
+    [--timeout] judges test logic rather than cold-start costs. Without
+    [~base_env] the setup is performed inline, preserving the historical
+    behaviour for direct callers. *)
+let run_test_file ?(base_env : Ast.environment option) (file : string) : test_result =
   let start = Unix.gettimeofday () in
   try
     let content =
@@ -176,45 +231,16 @@ let run_test_file (file : string) : test_result =
         ~finally:(fun () -> close_in_noerr ch)
         (fun () -> really_input_string ch (in_channel_length ch))
     in
-    (* Create fresh isolated environment for each test *)
-    let env = Packages.init_env () in
-
-    (* Pre-load all .t files from src/ directory if it exists *)
-    let src_dir = Filename.concat (Filename.dirname (Filename.dirname file)) "src" in
-    let env =
-      if Sys.file_exists src_dir && Sys.is_directory src_dir then begin
-        let entries =
-          try Sys.readdir src_dir
-          with Sys_error _ -> [||]
-        in
-        Array.sort String.compare entries;
-        Array.fold_left (fun env entry ->
-          if Filename.check_suffix entry ".t" then begin
-            let src_file = Filename.concat src_dir entry in
-            try
-              let src_content =
-                let ch = open_in src_file in
-                Fun.protect
-                  ~finally:(fun () -> close_in_noerr ch)
-                  (fun () -> really_input_string ch (in_channel_length ch))
-              in
-              let lexbuf = Lexing.from_string src_content in
-              try
-                let program = Parser.program Lexer.token lexbuf in
-                let rec eval_imports env = function
-                  | [] -> env
-                  | stmt :: rest ->
-                      let (_, new_env) = Eval.eval_statement env stmt in
-                      eval_imports new_env rest
-                in
-                eval_imports env program
-              with
-              | Out_of_memory | Stack_overflow as exn -> raise exn
-              | _ -> env (* Ignore errors in src for now, or maybe report? *)
-            with Sys_error _ -> env
-          end else env
-        ) env entries
-      end else env
+    (* Shared suite setup when provided; otherwise fall back to a fresh
+       isolated environment including the src/ pre-load. *)
+    let env = match base_env with
+      | Some e -> e
+      | None ->
+          let src_dir = Filename.concat (Filename.dirname (Filename.dirname file)) "src" in
+          if Sys.file_exists src_dir && Sys.is_directory src_dir then
+            load_src_env (Filename.dirname (Filename.dirname file))
+          else
+            Packages.init_env ()
     in
 
     let lexbuf = Lexing.from_string content in
@@ -413,10 +439,14 @@ let run_suite ?(verbose=false) ?(quiet=false) ?(only=[]) ?(not_=[]) ?(failfast=f
         let start_total = Unix.gettimeofday () in
         if not quiet then Printf.printf "Running %d test file%s...\n\n"
           (List.length files) (if List.length files > 1 then "s" else "");
+        (* Shared src/ setup, evaluated once for the whole suite instead of
+           once per file (see load_src_env). Per-file isolation is unaffected
+           because Ast.Env is immutable. *)
+        let base_env = load_src_env dir in
         let rec execute_files acc = function
           | [] -> List.rev acc
           | file :: rest ->
-              let r = run_test_file file in
+              let r = run_test_file ~base_env file in
               let r = match timeout with
                 | Some secs when r.duration > secs ->
                     { r with success = false;

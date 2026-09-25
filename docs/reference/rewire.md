@@ -2,7 +2,7 @@
 
 Rewire a Node's Dependencies
 
-Reroutes a node's declared dependencies. The `replace` argument is a named list (or Dict) mapping old dependency names to new ones. Only the named node's dependency list is updated.
+Reroutes a node's declared dependencies. The `replace` argument is a Dict mapping old dependency names to new ones. Only the named node's dependency list is updated. A named List of `(name, "new_name")` pairs is also accepted. Any other value for `replace` (including evaluating to an error) is rejected loudly — a no-op rewire is never silently produced.
 
 ## Parameters
 
@@ -10,7 +10,7 @@ Reroutes a node's declared dependencies. The `replace` argument is a named list 
 
 - **name** (`String`): The name of the node whose deps should change.
 
-- **replace** (`List[String]`): A named list mapping old dep names to new ones.
+- **replace** (`Dict[String]`): A dict mapping old dep names to new ones.
 
 
 ## Returns
@@ -20,7 +20,7 @@ A new pipeline with updated dependency edges.
 ## Examples
 
 ```t
-p |> rewire("model_py", replace = list(data = "data_v2"))
+p |> rewire("model_py", replace = [data: "data_v2"])
 ```
 
 ## See Also

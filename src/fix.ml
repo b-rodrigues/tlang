@@ -70,6 +70,59 @@ let replace_word_bound ~content ~old ~replacement =
   done;
   Buffer.contents buf
 
+(* Walk backward from [pos] to check if this $col is inside a rename() call.
+   Finds the nearest unmatched '(', then checks if the identifier before it
+   is "rename". Handles nested calls by tracking paren depth. Shared by the
+   real apply and the dry-run probe so both agree on what counts as a
+   renameable reference. *)
+let is_in_rename_call content pos =
+  let found = ref false in
+  let depth = ref 0 in
+  let j = ref (pos - 1) in
+  while !j >= 0 && not !found do
+    (match content.[!j] with
+     | ')' -> incr depth
+     | '(' ->
+         if !depth = 0 then begin
+           (* Found the matching open-paren — check identifier before it *)
+           let k = ref (!j - 1) in
+           while !k >= 0 && (let c = content.[!k] in
+             c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' ||
+             c >= '0' && c <= '9' || c = '_')
+           do
+             decr k
+           done;
+           let name_start = !k + 1 in
+           let name_len = !j - name_start in
+           found :=
+             name_len = 6
+             && content.[name_start] = 'r'
+             && content.[name_start + 1] = 'e'
+             && content.[name_start + 2] = 'n'
+             && content.[name_start + 3] = 'a'
+             && content.[name_start + 4] = 'm'
+             && content.[name_start + 5] = 'e'
+             && (!k < 0 || not (is_word_char content.[!k]));
+           if not !found then j := 0 (* stop — found enclosing non-rename call *)
+         end else
+           decr depth
+     | _ -> ());
+    decr j
+  done;
+  !found
+
+(* Is the `$col` occurrence at [pos] a rename() definition site
+   (`rename(new = $old)`), which the apply leaves untouched? Only when
+   preceded by `=` (modulo spaces/tabs) AND inside a rename() call. *)
+let is_rename_def_site content pos =
+  let rec skip_ws j =
+    if j > 0 && (content.[j-1] = ' ' || content.[j-1] = '\t') then skip_ws (j-1)
+    else j
+  in
+  let eq_candidate = skip_ws pos in
+  eq_candidate > 0 && content.[eq_candidate - 1] = '='
+  && is_in_rename_call content pos
+
 let apply_rename_column ~file ~old_name ~new_name =
   let content =
     let ch = open_in file in
@@ -84,45 +137,6 @@ let apply_rename_column ~file ~old_name ~new_name =
      (= $old), which are definition sites (e.g. rename(mpg2 = $mpg)).
      Other named-argument forms like mutate(flag = $mpg > 20) are genuine
      data references and ARE renamed. *)
-  (* Walk backward from [pos] to check if this $col is inside a rename() call.
-     Finds the nearest unmatched '(', then checks if the identifier before it
-     is "rename". Handles nested calls by tracking paren depth. *)
-  let is_in_rename_call content pos =
-    let found = ref false in
-    let depth = ref 0 in
-    let j = ref (pos - 1) in
-    while !j >= 0 && not !found do
-      (match content.[!j] with
-       | ')' -> incr depth
-       | '(' ->
-           if !depth = 0 then begin
-             (* Found the matching open-paren — check identifier before it *)
-             let k = ref (!j - 1) in
-             while !k >= 0 && (let c = content.[!k] in
-               c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' ||
-               c >= '0' && c <= '9' || c = '_')
-             do
-               decr k
-             done;
-             let name_start = !k + 1 in
-             let name_len = !j - name_start in
-             found :=
-               name_len = 6
-               && content.[name_start] = 'r'
-               && content.[name_start + 1] = 'e'
-               && content.[name_start + 2] = 'n'
-               && content.[name_start + 3] = 'a'
-               && content.[name_start + 4] = 'm'
-               && content.[name_start + 5] = 'e'
-               && (!k < 0 || not (is_word_char content.[!k]));
-             if not !found then j := 0 (* stop — found enclosing non-rename call *)
-           end else
-             decr depth
-       | _ -> ());
-      decr j
-    done;
-    !found
-  in
   let replace_safely ~content ~old ~replacement =
     let buf = Buffer.create (String.length content) in
     let old_len = String.length old in
@@ -135,13 +149,7 @@ let apply_rename_column ~file ~old_name ~new_name =
       then begin
         (* Skip definition sites inside rename() calls: rename(new = $old).
            Only skip when preceded by = AND the = is inside rename(). *)
-        let rec skip_ws j =
-          if j > 0 && (content.[j-1] = ' ' || content.[j-1] = '\t') then skip_ws (j-1)
-          else j
-        in
-        let eq_candidate = skip_ws !i in
-        if eq_candidate > 0 && content.[eq_candidate - 1] = '='
-           && is_in_rename_call content !i then begin
+        if is_rename_def_site content !i then begin
           Buffer.add_string buf old;
           i := !i + old_len
         end else begin
@@ -186,6 +194,46 @@ let is_node_definition ~node ~trimmed_line =
         && rest_stripped.[String.length fn] = '(')
       ["node"; "pyn"; "rn"; "jln"; "qn"; "shn"]
   end else false
+
+(* Lightweight probe for the Rename_column dry-run: does [file] contain a
+   renameable column reference to [old_name] (`$old` or `` $`old` ``)?
+   Some true = reference found, Some false = file readable but no reference,
+   None = file unreadable. Mirrors the match logic in apply_rename_column —
+   including the rename() definition-site skip — so the preview agrees with
+   what the real apply would change. *)
+let scan_rename_column ~file ~old_name : bool option =
+  try
+    let ch = open_in file in
+    let content = Fun.protect ~finally:(fun () -> close_in_noerr ch)
+      (fun () -> really_input_string ch (in_channel_length ch))
+    in
+    let dollar_old = "$" ^ old_name in
+    let backtick_old = "$`" ^ old_name ^ "`" in
+    let has_dollar =
+      let old_len = String.length dollar_old in
+      let n = String.length content in
+      let rec loop i =
+        if i + old_len > n then false
+        else if String.sub content i old_len = dollar_old
+                && (i + old_len >= n || not (is_word_char content.[i + old_len]))
+                && not (is_rename_def_site content i)
+        then true
+        else loop (i + 1)
+      in
+      loop 0
+    in
+    let has_backtick =
+      let old_len = String.length backtick_old in
+      let n = String.length content in
+      let rec loop i =
+        if i + old_len > n then false
+        else if String.sub content i old_len = backtick_old then true
+        else loop (i + 1)
+      in
+      loop 0
+    in
+    Some (has_dollar || has_backtick)
+  with Sys_error _ -> None
 
 (* Lightweight probe for the Add_node_arg dry-run: does [file] define [node]?
    Some true = defined, Some false = file readable but no node definition found,
@@ -416,7 +464,15 @@ let apply_rename_node ~file ~old_name ~new_name =
 let dry_run_outcome ~default_file (d : Diagnostics.diagnostic) =
   let file_to_fix = match d.diag_file with Some f -> f | None -> default_file in
   match d.diag_suggested_fix with
-  | Diagnostics.Rename_column _ -> Would_apply
+  | Diagnostics.Rename_column { old_name; _ } ->
+      (* Probe the file so the dry-run agrees with the real apply: a rename
+         whose column reference is absent is skipped, not would-apply. *)
+      (match scan_rename_column ~file:file_to_fix ~old_name with
+       | Some true -> Would_apply
+       | Some false ->
+           Skipped (Some (Printf.sprintf
+             "Column `$%s` not found in %s — nothing to rename." old_name file_to_fix))
+       | None -> Skipped None)
   | Diagnostics.Add_node_arg { node; _ } ->
       (* Probe the file so the dry-run agrees with the real apply: a fix whose
          node is no longer defined in the file is skipped, not would-apply. *)

@@ -161,8 +161,22 @@ let format_check_result ?(json=false) check_result =
     let buf = Buffer.create 256 in
     let cr_diags = Diagnostics.check_result_entries check_result in
     List.iter (fun d ->
+      (* Human-readable location prefix (file:line:column) so users and
+         agents can jump straight to the fault. Parts without a location
+         keep the legacy format; JSON output is unchanged. *)
+      let loc = match d.Diagnostics.diag_file with
+        | None -> ""
+        | Some f ->
+            (match d.Diagnostics.diag_line with
+             | None -> f ^ ": "
+             | Some l ->
+                 (match d.Diagnostics.diag_column with
+                  | None -> Printf.sprintf "%s:%d: " f l
+                  | Some c -> Printf.sprintf "%s:%d:%d: " f l c))
+      in
       Buffer.add_string buf
-        (Printf.sprintf "%s [%s] %s\n"
+        (Printf.sprintf "%s%s [%s] %s\n"
+           loc
            (Diagnostics.severity_to_string (Diagnostics.diagnostic_severity d))
            (Diagnostics.error_class_to_string (Diagnostics.diagnostic_error_class d))
            (Diagnostics.diagnostic_message d))

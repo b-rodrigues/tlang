@@ -50,6 +50,10 @@ df |> glimpse
 - `results`: Set to `hide` to suppress any printed output.
 - `fig-cap`: Add a caption if the chunk generates a plot (via an R/Python sub-node).
 
+### Syntax Highlighting
+
+`{t}` chunks are syntax-highlighted identically to R chunks: the `tlang` filter tokenizes T code and emits pandoc short-class spans for HTML/EPUB output and `\Tok` commands for PDF, wrapped in themed `sourceCode` blocks. No configuration is needed beyond the already-enabled `tlang` filter (extension v0.52.0+, provisioned automatically by `t update`).
+
 ---
 
 

@@ -305,4 +305,62 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
         | _ -> check "errored then succeeded: flaky_node should be Errored" false));
   remove_path dir7;
 
+  (* Test 8: reasons distinguish membrane changes from code-or-data;
+     affected lists the newer-build reverse dependency closure. *)
+  Printf.printf "\nBuilder_diff — reasons and affected:\n";
+  let dir8 = make_temp_dir () in
+  let log_a8 = Filename.concat dir8 "build_log_20260101_120000_aaa.json" in
+  let log_b8 = Filename.concat dir8 "build_log_20260101_130000_mmm.json" in
+  let log_mem_a = {|{
+    "timestamp": "20260101_120000",
+    "hash": "aaa111",
+    "out_path": "/nix/store/aaa111-pipeline_output",
+    "duration": 1.0,
+    "pipeline": "test_pipeline",
+    "nodes": [
+      {"node": "raw", "path": "/nix/store/aaa111-pipeline_output/raw/artifact", "hash": "aaa111", "runtime": "T", "serializer": "csv", "class": "VDataFrame", "dependencies": [], "status": "Completed", "success": true, "warnings": false, "duration": 0.3},
+      {"node": "mid", "path": "/nix/store/bbb222-pipeline_output/mid/artifact", "hash": "bbb222", "runtime": "T", "serializer": "csv", "class": "VDataFrame", "dependencies": ["raw"], "status": "Completed", "success": true, "warnings": false, "duration": 0.2},
+      {"node": "top", "path": "/nix/store/ccc333-pipeline_output/top/artifact", "hash": "ccc333", "runtime": "T", "serializer": "csv", "class": "VDataFrame", "dependencies": ["mid"], "status": "Completed", "success": true, "warnings": false, "duration": 0.2}
+    ]
+  }|} in
+  let log_mem_b = {|{
+    "timestamp": "20260101_130000",
+    "hash": "mmm999",
+    "out_path": "/nix/store/mmm999-pipeline_output",
+    "duration": 1.0,
+    "pipeline": "test_pipeline",
+    "nodes": [
+      {"node": "raw", "path": "/nix/store/aaa111-pipeline_output/raw/artifact", "hash": "aaa111", "runtime": "T", "serializer": "csv", "class": "VDataFrame", "dependencies": [], "status": "Completed", "success": true, "warnings": false, "duration": 0.3},
+      {"node": "mid", "path": "/nix/store/ddd444-pipeline_output/mid/artifact", "hash": "ddd444", "runtime": "T", "serializer": "json", "class": "VDataFrame", "dependencies": ["raw"], "status": "Completed", "success": true, "warnings": false, "duration": 0.2},
+      {"node": "top", "path": "/nix/store/eee555-pipeline_output/top/artifact", "hash": "eee555", "runtime": "T", "serializer": "csv", "class": "VDataFrame", "dependencies": ["mid"], "status": "Completed", "success": true, "warnings": false, "duration": 0.2}
+    ]
+  }|} in
+  write_file log_a8 log_mem_a;
+  write_file log_b8 log_mem_b;
+  (match Builder_diff.compute_diff log_a8 log_b8 with
+   | Error msg ->
+       Printf.printf "  ✗ reasons: %s\n" msg;
+       incr fail_count
+   | Ok result ->
+       let find n = List.find (fun e -> e.Builder_diff.nde_name = n) result.dr_nodes in
+       let mid = find "mid" in
+       check_eq "reasons: serializer flip detected"
+         (String.concat "," mid.Builder_diff.nde_reasons) "serializer";
+       check_eq "affected: downstream closure of changed node"
+         (String.concat "," mid.Builder_diff.nde_affected) "mid,top";
+       let top = find "top" in
+       check_eq "reasons: identical membranes mean code-or-data"
+         (String.concat "," top.Builder_diff.nde_reasons) "code-or-data";
+       check_eq "affected: leaf affects only itself"
+         (String.concat "," top.Builder_diff.nde_affected) "top";
+       let raw = find "raw" in
+       check "reasons: unchanged node has no reasons"
+         (raw.Builder_diff.nde_reasons = [] && raw.Builder_diff.nde_affected = []);
+       let json_str = Yojson.Safe.pretty_to_string (Builder_diff.diff_result_to_yojson result) in
+       check "JSON output: contains reasons"
+         (try let _ = Str.search_forward (Str.regexp_string "\"reasons\"") json_str 0 in true with Not_found -> false);
+       check "JSON output: contains affected"
+         (try let _ = Str.search_forward (Str.regexp_string "\"affected\"") json_str 0 in true with Not_found -> false));
+  remove_path dir8;
+
   Printf.printf "\n"

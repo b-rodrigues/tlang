@@ -2,7 +2,7 @@
 
 Mechanically Apply Suggested Fixes
 
-Runs `t check --schema` on a file, extracts diagnostics with suggested_fix, and applies them (e.g., renaming columns, adding missing node arguments). Uses bottom-up line order to avoid line-number drift.
+Runs `t check --schema` on a file, extracts diagnostics with suggested_fix, and applies them (e.g., renaming columns, renaming colliding node names, adding missing node arguments). Uses bottom-up line order to avoid line-number drift.
 
 ## Parameters
 

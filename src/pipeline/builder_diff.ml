@@ -18,6 +18,15 @@ type node_diff_entry = {
   nde_status : node_status;
   nde_class_a : string;
   nde_class_b : string;
+  nde_reasons : string list;
+  (** Why a Changed node differs, compared across the two build logs:
+      any of "runtime", "serializer", "dependencies", or "code-or-data"
+      (hashes differ but logged membranes match — the command or input
+      data changed). Empty for all other statuses. *)
+  nde_affected : string list;
+  (** Nodes in the newer build that transitively depend on a Changed node
+      (including itself), i.e. what rebuilds because of it. Sorted.
+      Empty for all other statuses. *)
 }
 
 type build_info = {
@@ -77,9 +86,43 @@ let compute_diff log_a_path log_b_path =
       let names_a = Hashtbl.fold (fun k _ acc -> k :: acc) nodes_a [] |> List.sort String.compare in
       let names_b = Hashtbl.fold (fun k _ acc -> k :: acc) nodes_b [] |> List.sort String.compare in
       let all_names = List.sort String.compare (List.sort_uniq String.compare (names_a @ names_b)) in
+      (* Reverse dependency closure over the newer build: which nodes
+         transitively depend on [root] (including itself)? *)
+      let affected_by root =
+        let deps_of name =
+          match Hashtbl.find_opt nodes_b name with
+          | Some (cn, _) -> cn.Ast.cn_dependencies
+          | None -> []
+        in
+        let rec closure seen = function
+          | [] -> seen
+          | name :: rest ->
+              if List.mem name seen then closure seen rest
+              else
+                let rdependents =
+                  List.filter (fun n -> List.mem name (deps_of n)) names_b
+                in
+                closure (name :: seen) (rest @ rdependents)
+        in
+        List.sort String.compare (closure [] [root])
+      in
+      (* Membrane comparison across the two logs for a Changed node:
+         runtime, serializer, and dependency edges are logged, so a hash
+         change with identical membranes means the command or input data
+         changed. *)
+      let reasons_of cn_a cn_b =
+        let deps_a = List.sort String.compare cn_a.Ast.cn_dependencies in
+        let deps_b = List.sort String.compare cn_b.Ast.cn_dependencies in
+        let rs = ref [] in
+        if cn_a.Ast.cn_runtime <> cn_b.Ast.cn_runtime then rs := "runtime" :: !rs;
+        if cn_a.Ast.cn_serializer <> cn_b.Ast.cn_serializer then rs := "serializer" :: !rs;
+        if deps_a <> deps_b then rs := "dependencies" :: !rs;
+        if !rs = [] then ["code-or-data"] else List.rev !rs
+      in
       let entries = List.filter_map (fun name ->
         let in_a = Hashtbl.find_opt nodes_a name in
         let in_b = Hashtbl.find_opt nodes_b name in
+        let no_why = ([], []) in
         match in_a, in_b with
         | Some (cn_a, hash_a), Some (cn_b, hash_b) ->
             let class_a = cn_a.Ast.cn_class in
@@ -87,20 +130,29 @@ let compute_diff log_a_path log_b_path =
             let a_errored = class_a = "Error" || is_no_hash hash_a in
             let b_errored = class_b = "Error" || is_no_hash hash_b in
             if a_errored || b_errored then
+              let reasons, affected = no_why in
               Some { nde_name = name; nde_status = Errored { error_class = class_a ^ " -> " ^ class_b };
-                     nde_class_a = class_a; nde_class_b = class_b }
+                     nde_class_a = class_a; nde_class_b = class_b;
+                     nde_reasons = reasons; nde_affected = affected }
             else if hash_a = hash_b then
+              let reasons, affected = no_why in
               Some { nde_name = name; nde_status = Unchanged { hash = hash_a };
-                     nde_class_a = class_a; nde_class_b = class_b }
+                     nde_class_a = class_a; nde_class_b = class_b;
+                     nde_reasons = reasons; nde_affected = affected }
             else
               Some { nde_name = name; nde_status = Changed { hash_a; hash_b };
-                     nde_class_a = class_a; nde_class_b = class_b }
+                     nde_class_a = class_a; nde_class_b = class_b;
+                     nde_reasons = reasons_of cn_a cn_b; nde_affected = affected_by name }
         | Some (cn_a, hash_a), None ->
+            let reasons, affected = no_why in
             Some { nde_name = name; nde_status = Removed { hash = hash_a };
-                   nde_class_a = cn_a.Ast.cn_class; nde_class_b = "" }
+                   nde_class_a = cn_a.Ast.cn_class; nde_class_b = "";
+                   nde_reasons = reasons; nde_affected = affected }
         | None, Some (cn_b, hash_b) ->
+            let reasons, affected = no_why in
             Some { nde_name = name; nde_status = Added { hash = hash_b };
-                   nde_class_a = ""; nde_class_b = cn_b.Ast.cn_class }
+                   nde_class_a = ""; nde_class_b = cn_b.Ast.cn_class;
+                   nde_reasons = reasons; nde_affected = affected }
         | None, None -> None
       ) all_names in
       let counts = List.fold_left (fun (u, c, er, a, r) entry ->
@@ -140,8 +192,20 @@ let print_diff_result (r : diff_result) =
     let detail = match e.nde_status with
       | Unchanged _ -> ""
       | Changed { hash_a; hash_b } ->
-          Printf.sprintf "hash %s -> %s" (String.sub hash_a 0 (min 7 (String.length hash_a)))
-                                         (String.sub hash_b 0 (min 7 (String.length hash_b)))
+          let base =
+            Printf.sprintf "hash %s -> %s" (String.sub hash_a 0 (min 7 (String.length hash_a)))
+                                           (String.sub hash_b 0 (min 7 (String.length hash_b)))
+          in
+          let why =
+            match e.nde_reasons, e.nde_affected with
+            | [], [] -> ""
+            | reasons, [] -> Printf.sprintf " (%s)" (String.concat "," reasons)
+            | reasons, affected ->
+                Printf.sprintf " (%s; affects %s)"
+                  (if reasons = [] then "?" else String.concat "," reasons)
+                  (String.concat "," affected)
+          in
+          base ^ why
       | Added _ -> "new node"
       | Removed _ -> "removed"
       | Errored { error_class } -> Printf.sprintf "error: %s" error_class
@@ -157,6 +221,8 @@ let diff_result_to_yojson (r : diff_result) =
     let base = [
       ("name", `String e.nde_name);
       ("status", `String status_str);
+      ("reasons", `List (List.map (fun s -> `String s) e.nde_reasons));
+      ("affected", `List (List.map (fun s -> `String s) e.nde_affected));
     ] in
     let with_detail = match e.nde_status with
       | Unchanged { hash } -> base @ [("hash", `String hash)]

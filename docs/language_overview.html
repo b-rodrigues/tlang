@@ -35,7 +35,7 @@
 <div class="container">
 <h1 id="t-language-overview">T Language Overview</h1>
 <blockquote>
-<p><strong>Version</strong>: 0.55.0</p>
+<p><strong>Version</strong>: 0.55.1</p>
 </blockquote>
 <p>T is a functional programming language designed for declarative,
 tabular data manipulation. It combines the pipeline-driven style of R’s
@@ -1061,12 +1061,12 @@ T interpreter:</p>
 help(read_log)
 
 -- Read the full Nix build log for a specific node
-read_log(&quot;model_r&quot;)</code></pre>
-<p>The <code>read_log()</code> function requires a node name to identify
-which build output to retrieve. It returns the raw build output as a
-string, which can be printed with <code>cat()</code> to preserve
-formatting:</p>
-<pre class="t"><code>cat(read_log(&quot;scored&quot;))</code></pre>
+read_log(p.model_r)</code></pre>
+<p>The <code>read_log()</code> function takes a node
+(<code>p.node_name</code>), matching <code>read_node</code>. It returns
+the raw build output as a string, which can be printed with
+<code>cat()</code> to preserve formatting:</p>
+<pre class="t"><code>cat(read_log(p.scored))</code></pre>
 <p>For more comprehensive examples and templates, visit the <a
 href="https://github.com/b-rodrigues/t_demos">T Demos
 repository</a>.</p>

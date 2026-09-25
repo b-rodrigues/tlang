@@ -11,5 +11,5 @@ Compares the two most recent builds of a pipeline and returns a DataFrame summar
 
 ## Returns
 
-A summary with columns: name, status, hash_a, hash_b.
+A summary with columns: name, status, hash_a, hash_b, reasons, affected.
 

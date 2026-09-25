@@ -187,21 +187,22 @@ let register env =
   --# Read Node Build Log
   --#
   --# Fetches the Nix build log for a specific node from the last build attempt.
+  --# Takes the node directly (`p.node_name`), matching `read_node`.
   --#
   --# @name read_log
-  --# @param node_name :: String The name of the node to inspect.
+  --# @param node :: ComputedNode The node to inspect, written as `p.node_name`.
   --# @return :: String The build log content.
   --# @family pipeline
   --# @export
   *)
-  let env = Env.add "read_log" (make_builtin ~name:"read_log" 1 (fun args _env -> 
+  let env = Env.add "read_log" (make_builtin ~name:"read_log" 1 (fun args _env ->
     match args with
-    | [VString s] | [VSymbol s] -> Builder.read_node_log s
+    | [VComputedNode cn] -> Builder.read_node_log cn.cn_name
     | other :: _ ->
         Error.type_error
-          (Printf.sprintf "read_log: expected a String or Symbol node name, but got %s."
+          (Printf.sprintf "read_log: expected p.node_name (e.g. read_log(p.calc)), but got %s."
              (Utils.type_name other))
     | _ ->
-        Error.type_error "read_log: expected a String or Symbol node name."
+        Error.type_error "read_log: expected p.node_name (e.g. read_log(p.calc))."
   )) env in
   env

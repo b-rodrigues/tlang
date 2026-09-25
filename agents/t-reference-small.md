@@ -20,16 +20,16 @@ This file is a distilled reference for the **T programming language**. It is int
 ## 2. Standard Packages (Auto-loaded)
 
 ### `colcraft` (Data Manipulation)
-`select(df, ...)`, `filter(df, expr)`, `mutate(df, ...)`, `arrange(df, ...)`, `group_by(df, ...)`, `summarize(df, ...)`, `count(df, ...)`, `left_join(x, y, by)`, `inner_join(x, y, by)`.
+`select(df, ...)`, `filter(df, expr)`, `mutate(df, ...)`, `arrange(df, ...)`, `group_by(df, ...)`, `summarize(df, ...)`, `count(df, ...)`, `left_join(x, y, by)`, `right_join(x, y, by)`, `inner_join(x, y, by)`, `cross_join(x, y)`, `coalesce(...)`.
 
 ### `stats` & `math` (Analysis)
-`mean(x, na_rm=false)`, `median(x)`, `sd(x)`, `lm(data, formula)`, `predict(model, data)`, `abs(x)`, `sqrt(x)`, `log(x)`, `round(x, digits)`.
+`mean(x, na_rm=false)`, `median(x)`, `sd(x)`, `cor(x, y, method = "pearson")`, `lm(data, formula)`, `predict(model, data)`, `abs(x)`, `sqrt(x)`, `log(x)`, `round(x, digits)`.
 
 ### `chrono` (Dates & Times)
 `ymd(s)`, `mdy(s)`, `today()`, `now()`, `year(x)`, `month(x)`, `day(x)`, `to_date(x)`, `format_date(x, format)`.
 
 ### `strcraft` (Strings)
-`str_nchar(s)`, `str_substring(s, start, end)`, `str_replace(s, pat, repl)`, `to_lower(s)`, `to_upper(s)`, `str_join(xs, sep)`.
+`str_nchar(s)`, `str_substring(s, start, end)`, `str_replace(s, pat, repl)`, `to_lower(s)`, `to_upper(s)`, `str_squish(s)`, `str_join(xs, sep)`.
 
 ### `base` & `core` (Foundation)
 `print(...)`, `type(x)`, `length(x)`, `is_na(x)`, `is_error(x)`, `error(msg)`, `serialize(val, path)`, `deserialize(path)`.
@@ -47,7 +47,7 @@ This file is a distilled reference for the **T programming language**. It is int
   ```
 - **Node Creation**: 
   - `node(command = ..., runtime = T)`
-  - `rn(script = ..., serializer = "arrow")` (R node)
+  - `rn(script = ..., serializer = ^ipc)` (R node)
   - `pyn(script = ..., serializer = "arrow")` (Python node)
   - `shn(command = ...)` (Shell node)
 - **Execution**:

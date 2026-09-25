@@ -192,6 +192,14 @@ experimental/limited</td>
 </tr>
 </tbody>
 </table>
+<blockquote>
+<p><strong>Note:</strong> <code>^arrow</code> was renamed to
+<code>^ipc</code> in 0.55.0 with no alias. Unknown formats (anything
+outside this table, <code>default</code>, and custom strategies backed
+by the node’s <code>functions</code>) fail validation with a
+<code>TypeError</code> naming valid formats instead of failing at build
+time.</p>
+</blockquote>
 <h3 id="choosing-between-ipc-and-parquet">Choosing Between
 <code>^ipc</code> and <code>^parquet</code></h3>
 <p>Both <code>^ipc</code> and <code>^parquet</code> are columnar,

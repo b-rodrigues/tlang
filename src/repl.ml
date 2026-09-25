@@ -161,7 +161,7 @@ let magic_command_help = [
   ("pwd",     "",       "Print working directory");
   ("cd",      "<dir>",  "Change directory");
   ("env",     "",       "List environment variables");
-  ("history", "",       "Show command history");
+  ("history", "[text]", "Show command history, optionally filtered by text");
   ("objects", "",       "List user-defined objects");
   ("magic",   "",       "List available magic commands");
   ("reset",   "",       "Reset environment to base (remove all user objects)");
@@ -365,7 +365,7 @@ let handle_magic line env mode base_keys =
   | ["env"] ->
       let out = String.concat "\n" (Array.to_list (Unix.environment ())) ^ "\n" in
       (env, Some out, true)
-  | ["history"] ->
+  | "history" :: filter_parts ->
       let items =
         try
           let ch = open_in history_file in
@@ -385,14 +385,38 @@ let handle_magic line env mode base_keys =
         with _ -> [||]
       in
       let total = Array.length items in
-      let start = max 0 (total - 50) in
+      (* Optional substring filter: `%history foo` searches the whole history
+         case-insensitively. Without a filter, show the last 50 entries. *)
+      let needle =
+        match filter_parts with
+        | [] -> None
+        | parts -> Some (String.lowercase_ascii (String.concat " " parts))
+      in
+      let matches i =
+        match needle with
+        | None -> i >= max 0 (total - 50)
+        | Some sub ->
+            let hay = String.lowercase_ascii items.(i) in
+            let h_len = String.length hay and s_len = String.length sub in
+            s_len = 0 ||
+            (let rec loop j =
+               j + s_len <= h_len &&
+               (String.sub hay j s_len = sub || loop (j + 1))
+             in loop 0)
+      in
       let out =
         if total = 0 then Printf.sprintf "%s(no history)%s\n" color_gray color_reset
         else begin
           let buf = Buffer.create 512 in
-          for i = start to total - 1 do
-            Buffer.add_string buf (Printf.sprintf "%5d  %s\n" (i + 1) items.(i))
+          let shown = ref 0 in
+          for i = 0 to total - 1 do
+            if matches i then begin
+              Buffer.add_string buf (Printf.sprintf "%5d  %s\n" (i + 1) items.(i));
+              incr shown
+            end
           done;
+          if !shown = 0 then
+            Buffer.add_string buf (Printf.sprintf "%s(no matching entries)%s\n" color_gray color_reset);
           Buffer.contents buf
         end
       in
@@ -1695,12 +1719,16 @@ let () =
 --# @name t_test
 --# @param only :: List = [] Filter to tests whose path contains any of these substrings.
 --# @param not :: List = [] Exclude tests whose path contains any of these substrings.
+--# @param failfast :: Bool = false Stop after the first failing test file.
+--# @param timeout :: Float = NA Mark any test exceeding this many seconds as failed (test file body only; shared src/ setup is excluded).
+--# @param verbose :: Bool = false Print per-file error details.
 --# @return :: DataFrame A DataFrame with columns: file, status, duration_ms, error.
 --# @example
 --#   results = t_test()
 --#   results |> filter($status == "failed")
 --#   results = t_test(only = ["arithmetic"])
 --#   results = t_test(not = ["slow"])
+--#   results = t_test(failfast = true, timeout = 30, verbose = true)
 --# @family repl
 --# @export
 *)
@@ -1709,6 +1737,11 @@ let () =
       b_func = (fun named_args _env_ref ->
         let only = ref [] in
         let not_ = ref [] in
+        let failfast = ref false in
+        let timeout = ref None in
+        let verbose = ref false in
+        let arg_error = ref None in
+        let flag_error msg = if !arg_error = None then arg_error := Some msg in
         List.iter (fun (k, v) ->
           match k with
           | Some ("only" | "not") ->
@@ -1719,11 +1752,31 @@ let () =
                 | _ -> []
               in
               if k = Some "not" then not_ := lst else only := lst
+          | Some "failfast" ->
+              (match v with
+               | Ast.VBool b -> failfast := b
+               | _ -> flag_error "Function `t_test` expects `failfast` to be a Bool.")
+          | Some "timeout" ->
+              (match v with
+               | Ast.VInt n when n >= 0 -> timeout := Some (float_of_int n)
+               | Ast.VFloat f when f >= 0.0 -> timeout := Some f
+               | Ast.(VNA _) -> timeout := None
+               | Ast.VInt _ | Ast.VFloat _ ->
+                   flag_error "Function `t_test` expects `timeout` to be a non-negative number of seconds."
+               | _ -> flag_error "Function `t_test` expects `timeout` to be a non-negative number of seconds.")
+          | Some "verbose" ->
+              (match v with
+               | Ast.VBool b -> verbose := b
+               | _ -> flag_error "Function `t_test` expects `verbose` to be a Bool.")
           | _ -> ()
         ) named_args;
+        (match !arg_error with
+        | Some msg -> Error.type_error msg
+        | None ->
         let dir = Sys.getcwd () in
-        let suite_result = Test_discovery.run_suite ~verbose:false ~quiet:true
-          ~only:!only ~not_:!not_ dir in
+        let quiet = not !verbose in
+        let suite_result = Test_discovery.run_suite ~verbose:!verbose ~quiet
+          ~only:!only ~not_:!not_ ~failfast:!failfast ~timeout:!timeout dir in
         let results_arr = Array.of_list suite_result.results in
         let n = Array.length results_arr in
         if n = 0 then begin
@@ -1759,7 +1812,7 @@ let () =
                Ast.VDataFrame { arrow_table; group_keys = [] }
            end
            | Error err -> err)
-        end)
+         end))
     })
     env
   in

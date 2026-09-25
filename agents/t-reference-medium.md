@@ -30,7 +30,7 @@ This file is a comprehensive reference for the **T programming language**. It co
 `dataframe(...)`, `read_csv(path, ...)`, `read_parquet(path)`, `read_ipc(path)`, `write_csv(df, path)`, `write_ipc(df, path)`, `colnames(df)`, `nrow(df)`, `ncol(df)`, `glimpse(df)`, `pull(df, col)`, `to_array(df, cols)`, `clean_colnames(df)`.
 
 ### `colcraft` (Tabular Verbs)
-`select(df, ...)`, `filter(df, expr)`, `mutate(df, ...)`, `arrange(df, ..., direction)`, `group_by(df, ...)`, `ungroup(df)`, `summarize(df, ...)`, `rename(df, ...)`, `relocate(df, ...)`, `distinct(df, ...)`, `count(df, ...)`, `slice(df, indices)`, `slice_min(df, ...)`, `slice_max(df, ...)`, `pivot_longer(df, ...)`, `pivot_wider(df, ...)`, `complete(df, ...)`, `expand(df, ...)`, `nest(df, ...)`, `unnest(df, col)`, `separate(df, ...)`, `unite(df, ...)`, `drop_na(df, ...)`, `replace_na(df, replace = [col: value, ...])`, `fill(df, ..., .direction = "down")`, `left_join(x, y, by)`, `inner_join(x, y, by)`, `full_join(x, y, by)`, `semi_join(x, y, by)`, `anti_join(x, y, by)`, `bind_rows(...)`, `bind_cols(...)`.
+`select(df, ...)`, `filter(df, expr)`, `mutate(df, ...)`, `arrange(df, ..., direction)`, `group_by(df, ...)`, `ungroup(df)`, `summarize(df, ...)`, `rename(df, ...)`, `relocate(df, ...)`, `distinct(df, ...)`, `count(df, ...)`, `slice(df, indices)`, `slice_min(df, ...)`, `slice_max(df, ...)`, `pivot_longer(df, ...)`, `pivot_wider(df, ...)`, `complete(df, ...)`, `expand(df, ...)`, `nest(df, ...)`, `unnest(df, col)`, `separate(df, ...)`, `unite(df, ...)`, `drop_na(df, ...)`, `replace_na(df, replace = [col: value, ...])`, `fill(df, ..., .direction = "down")`, `coalesce(...)`, `left_join(x, y, by)`, `right_join(x, y, by)`, `inner_join(x, y, by)`, `cross_join(x, y)`, `full_join(x, y, by)`, `semi_join(x, y, by)`, `anti_join(x, y, by)`, `bind_rows(...)`, `bind_cols(...)`.
 - **Selection Helpers**: `starts_with()`, `ends_with()`, `contains()`, `everything()`, `where()`, `matches()`, `all_of()`, `any_of()`.
 - **Factors**: `factor(x, levels)`, `to_factor(x)`, `fct_reorder()`, `fct_relevel()`, `fct_lump_n()`.
 
@@ -41,13 +41,13 @@ This file is a comprehensive reference for the **T programming language**. It co
 `abs(x)`, `sqrt(x)`, `log(x)`, `exp(x)`, `pow(b, e)`, `floor(x)`, `ceiling(x)`, `round(x, digits)`, `sin(x)`, `cos(x)`, `tan(x)`, `ndarray(data, shape)`, `matmul(a, b)`, `inv(x)`, `transpose(x)`.
 
 ### `stats` (Statistics & Models)
-`mean(x, na_rm)`, `median(x)`, `min(x)`, `max(x)`, `range(x)`, `var(x)`, `sd(x)`, `quantile(x, probs)`, `cor(x, y)`, `cov(x, y)`, `pnorm(x, mean, sd)`, `lm(data, formula)`, `predict(model, data)`, `summary(model)`, `fit_stats(model)`, `coef(model)`, `residuals(model)`, `add_diagnostics(data, model)`, `t_read_pmml(path)`, `t_read_onnx(path)`.
+`mean(x, na_rm)`, `median(x)`, `min(x)`, `max(x)`, `range(x)`, `var(x)`, `sd(x)`, `quantile(x, probs)`, `cor(x, y, method = "pearson")`, `cov(x, y)`, `pnorm(x, mean, sd)`, `lm(data, formula)`, `predict(model, data)`, `summary(model)`, `fit_stats(model)`, `coef(model)`, `residuals(model)`, `add_diagnostics(data, model)`, `t_read_pmml(path)`, `t_read_onnx(path)`.
 
 ### `pipeline` (Execution & DAG)
-`node(...)`, `rn(...)`, `pyn(...)`, `shn(...)`, `build_pipeline(p)`, `pipeline_run(p)`, `read_node(name)`, `pipeline_copy(p, node, to)`, `inspect_pipeline(p)`, `trace_nodes(p)`, `pipeline_summary(p)`, `pipeline_nodes(p)`, `pipeline_deps(p)`, `set_pipeline_global_options(p, ...)`, `pipeline_node_options(p, node)`, `filter_node(p, pred)`, `mutate_node(p, ...)`, `suppress_warnings(node)`, `union(p1, p2)`, `patch(p1, p2)`.
+`node(...)`, `rn(...)`, `pyn(...)`, `shn(...)`, `build_pipeline(p)`, `pipeline_run(p)`, `read_node(name)`, `pipeline_copy(p, node, to)`, `inspect_pipeline(p)`, `trace_nodes(p)`, `pipeline_summary(p)`, `pipeline_nodes(p)`, `pipeline_deps(p)`, `pipeline_status(p)`, `set_pipeline_global_options(p, ...)`, `pipeline_node_options(p, node)`, `filter_node(p, pred)`, `mutate_node(p, ...)`, `suppress_warnings(node)`, `union(p1, p2)`, `patch(p1, p2)`.
 
 ### `strcraft` (Strings)
-`str_nchar(s)`, `str_substring(s, start, end)`, `str_replace(s, pat, repl)`, `to_lower(s)`, `to_upper(s)`, `str_trim(s)`, `str_join(xs, sep)`, `str_split(s, sep)`, `str_detect(s, pat)`, `str_extract(s, pat)`.
+`str_nchar(s)`, `str_substring(s, start, end)`, `str_replace(s, pat, repl)`, `to_lower(s)`, `to_upper(s)`, `str_trim(s)`, `str_squish(s)`, `str_join(xs, sep)`, `str_split(s, sep)`, `str_detect(s, pat)`, `str_extract(s, pat)`.
 
 ---
 

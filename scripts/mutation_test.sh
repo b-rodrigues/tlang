@@ -45,7 +45,7 @@ cleanup() {
     echo -e "${GREEN}  ✓ Restored${NC}"
   fi
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT INT TERM ERR
 
 run_tests() {
   # TLANG_NO_NIX=1: assume already inside a nix develop shell, run dune directly.

@@ -331,7 +331,10 @@ packages = []
       ~uv2nix_commit:"dummy" ~deps:[] ~r_git_deps:[pkg] () in
     Test_helpers.contains nix "buildRPackage"
     && Test_helpers.contains nix "abc1234def5678"
-    && Test_helpers.contains nix "https://github.com/user/myPkg");
+    && Test_helpers.contains nix "https://github.com/user/myPkg"
+    && Test_helpers.contains nix "pname = \"myPkg\""
+    && Test_helpers.contains nix "rGitPkgs = builtins.attrValues rGitPkgSet;"
+    && Test_helpers.contains nix "] ++ rGitPkgs;");
 
   test_pm "nix_generator deduplicates duplicate git R deps by name" (fun () ->
     let pkg1 : Package_types.r_git_dependency =
@@ -493,6 +496,113 @@ packages = []
         let analysis = Pipeline_dependency_requirements.analyze_missing_requirements p cfg in
         analysis.missing_r_deps = ["jsonlite"]
         && analysis.reasons = ["node `a` usage discovery"]
+    | _ -> false);
+
+  test_pm "roxygen importFrom discovers the package" (fun () ->
+    let env = Packages.init_env () in
+    match fst (eval_string_env {|
+      p = pipeline {
+        a = rn(command = <{
+          #' clean_raw_data Cleans the raw data
+          #'
+          #' @importFrom dplyr mutate filter
+          clean_raw_data <- function(raw_data) {
+            mutate(raw_data, x = 1)
+          }
+          clean_raw_data
+        }>)
+      }
+      p
+    |} env) with
+    | Ast.VPipeline p ->
+        let cfg = Package_types.default_project_config "roxygen-discovery" in
+        let analysis = Pipeline_dependency_requirements.analyze_missing_requirements p cfg in
+        analysis.missing_r_deps = ["dplyr"; "jsonlite"]
+        && analysis.reasons = ["node `a` usage discovery"]
+    | _ -> false);
+
+  test_pm "roxygen import discovers several packages" (fun () ->
+    let env = Packages.init_env () in
+    match fst (eval_string_env {|
+      p = pipeline {
+        a = rn(command = <{
+          #' @import dplyr tidyr
+          1 + 1
+        }>)
+      }
+      p
+    |} env) with
+    | Ast.VPipeline p ->
+        let cfg = Package_types.default_project_config "roxygen-import" in
+        let analysis = Pipeline_dependency_requirements.analyze_missing_requirements p cfg in
+        analysis.missing_r_deps = ["dplyr"; "jsonlite"; "tidyr"]
+    | _ -> false);
+
+  test_pm "library call discovers any package" (fun () ->
+    let env = Packages.init_env () in
+    match fst (eval_string_env {|
+      p = pipeline {
+        a = rn(command = <{
+          library(tidyr)
+          1 + 1
+        }>)
+      }
+      p
+    |} env) with
+    | Ast.VPipeline p ->
+        let cfg = Package_types.default_project_config "library-discovery" in
+        let analysis = Pipeline_dependency_requirements.analyze_missing_requirements p cfg in
+        analysis.missing_r_deps = ["jsonlite"; "tidyr"]
+    | _ -> false);
+
+  test_pm "namespaced pkg::fun discovers the package" (fun () ->
+    let env = Packages.init_env () in
+    match fst (eval_string_env {|
+      p = pipeline {
+        a = rn(command = <{
+          dplyr::mutate(data.frame(x = 1), y = 2)
+        }>)
+      }
+      p
+    |} env) with
+    | Ast.VPipeline p ->
+        let cfg = Package_types.default_project_config "ns-discovery" in
+        let analysis = Pipeline_dependency_requirements.analyze_missing_requirements p cfg in
+        analysis.missing_r_deps = ["dplyr"; "jsonlite"]
+    | _ -> false);
+
+  test_pm "base packages are never required" (fun () ->
+    let env = Packages.init_env () in
+    match fst (eval_string_env {|
+      p = pipeline {
+        a = rn(command = <{
+          library(stats)
+          stats::median(c(1, 2))
+        }>)
+      }
+      p
+    |} env) with
+    | Ast.VPipeline p ->
+        let cfg = Package_types.default_project_config "base-discovery" in
+        let analysis = Pipeline_dependency_requirements.analyze_missing_requirements p cfg in
+        analysis.missing_r_deps = ["jsonlite"]
+    | _ -> false);
+
+  test_pm "ggplot2 discovery still works" (fun () ->
+    let env = Packages.init_env () in
+    match fst (eval_string_env {|
+      p = pipeline {
+        a = rn(command = <{
+          library(ggplot2)
+          ggplot(data.frame(x = 1), aes(x, y)) + geom_point()
+        }>)
+      }
+      p
+    |} env) with
+    | Ast.VPipeline p ->
+        let cfg = Package_types.default_project_config "ggplot-discovery" in
+        let analysis = Pipeline_dependency_requirements.analyze_missing_requirements p cfg in
+        analysis.missing_r_deps = ["ggplot2"; "jsonlite"]
     | _ -> false);
 
   test_pm "matplotlib discovery does not force pandas" (fun () ->
@@ -1251,6 +1361,35 @@ workspace = "python"
     ignore (Sys.command (Printf.sprintf "rm -rf %s" (Filename.quote dir)));
     ok);
 
+  test_pm "scaffold_project gitignores the R package fetch cache" (fun () ->
+    let dir = temp_dir () in
+    let opts = { (Package_types.default_options dir) with
+                 target_name = Filename.basename dir;
+                 no_git = true } in
+    let old_cwd = Sys.getcwd () in
+    Sys.chdir (Filename.dirname dir);
+    let result = Scaffold.scaffold_project opts in
+    Sys.chdir old_cwd;
+    let ok = match result with
+      | Ok () ->
+        let gi_path = Filename.concat dir ".gitignore" in
+        if not (Sys.file_exists gi_path) then false
+        else begin
+          let ic = open_in gi_path in
+          let content = really_input_string ic (in_channel_length ic) in
+          close_in ic;
+          let needle = ".t_r_pkg_cache/" in
+          let n = String.length content and m = String.length needle in
+          m <= n &&
+          (let rec loop i =
+             i <= n - m && (String.sub content i m = needle || loop (i + 1))
+           in loop 0)
+        end
+      | Error _ -> false
+    in
+    ignore (Sys.command (Printf.sprintf "rm -rf %s" (Filename.quote dir)));
+    ok);
+
   test_pm "scaffold rejects invalid name" (fun () ->
     let opts = { (Package_types.default_options "Bad-Name") with no_git = true } in
     match Scaffold.scaffold_package opts with
@@ -1459,8 +1598,18 @@ workspace = "python"
       () in
     let has s = try ignore (Str.search_forward (Str.regexp_string s) flake 0); true
                 with Not_found -> false in
-    has "r-env = pkgs.rWrapper.override {"
+    has "rpkgs = with pkgs.rPackages; ["
     && has "t-lang.packages.${system}.tlang-r"
+    && has "dplyr"
+    && has "r-env = (pkgs.rWrapper.override {"
+    && has "packages = rpkgs;"
+    && has "}).overrideAttrs (finalAttrs: previousAttrs: {"
+    && has "buildCommand = previousAttrs.buildCommand"
+    && has "# Shell wrapper for R executable."
+    && has "R_HOME_DIR="
+    && has ".R-elf"
+    && not (has "modifiedRWrapper =")
+    && not (has "packages = []")
     && has "py-env = pkgs.python314.withPackages"
     && has "export PYTHONPATH=\"${t-lang.packages.${system}.default}/share/tlang/py-package/src:''${PYTHONPATH:-}\""
     && has "export JULIA_LOAD_PATH=\":${t-lang.packages.${system}.tlang-julia-path}:''${JULIA_LOAD_PATH:-}\"");

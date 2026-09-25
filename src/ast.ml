@@ -533,21 +533,85 @@ let options_value_to_expr_list v =
 (** Extract identifier-like tokens from a raw code string.
     Used by RawCode blocks for automatic pipeline dependency detection.
     Scans for [a-zA-Z_][a-zA-Z0-9_]* patterns and returns unique results.
-    Strips lines starting with # or -- to avoid false positives from comments. *)
-let extract_identifiers text =
-  let lines = String.split_on_char '\n' text in
-  let filtered_lines =
-    lines
-    |> List.filter_map (fun line ->
-        let trimmed = String.trim line in
-        if String.starts_with ~prefix:"--" trimmed then
-          None
-        else if String.starts_with ~prefix:"#" trimmed && not (String.starts_with ~prefix:"#!" trimmed) then
-          None
-        else
-          Some line)
+
+    Comment- and string-aware: a cross-node reference only resolves when it
+    appears as a bare executable identifier (it binds to the generated
+    `dep_<name>` variable), so identifiers inside `'...'`/`"..."` string
+    literals (backslash escapes honoured) and `#` comments can never be
+    working dependencies and are excluded — with one deliberate exception:
+    `read_node("name")` / `read_node('name')` literals ARE working references
+    (the Quarto emitter rewrites them to store paths via sed), so the names
+    they mention are always included. Whole-line `--` comments are also
+    dropped for compatibility; trailing `--` is kept because R uses `--x`
+    as double negation. `#!` shebang lines are kept as code. *)
+let strip_noncode_spans text =
+  let n = String.length text in
+  let buf = Buffer.create n in
+  let line_start i =
+    (* True when position [i] begins a line (modulo leading whitespace,
+       which the whole-line `--` check below handles on the raw line). *)
+    let rec back j =
+      if j < 0 then true
+      else match text.[j] with
+        | '\n' -> true
+        | ' ' | '\t' | '\r' -> back (j - 1)
+        | _ -> false
+    in
+    back (i - 1)
   in
-  let filtered_text = String.concat "\n" filtered_lines in
+  let rec scan i in_str =
+    if i >= n then ()
+    else match in_str with
+    | Some q ->
+        (match text.[i] with
+         | '\\' ->
+             (* Escape: blank out backslash and escaped char, stay in string. *)
+             Buffer.add_string buf "  ";
+             scan (i + 2) in_str
+         | c when c = q ->
+             Buffer.add_char buf ' ';
+             scan (i + 1) None
+         | _ ->
+             Buffer.add_char buf ' ';
+             scan (i + 1) in_str)
+    | None ->
+        (match text.[i] with
+         | '\'' | '"' as q ->
+             Buffer.add_char buf ' ';
+             scan (i + 1) (Some q)
+         | '#' ->
+             if i + 1 < n && text.[i + 1] = '!' && line_start i then begin
+               (* Shebang line: keep the rest of the line as code. *)
+               Buffer.add_char buf '#';
+               scan (i + 1) None
+             end else begin
+               (* Comment: blank to end of line. *)
+               let j = ref i in
+               while !j < n && text.[!j] <> '\n' do
+                 Buffer.add_char buf ' ';
+                 incr j
+               done;
+               scan !j None
+             end
+         | c ->
+             Buffer.add_char buf c;
+             scan (i + 1) None)
+  in
+  scan 0 None;
+  Buffer.contents buf
+
+let extract_identifiers text =
+  (* Whole-line `--` comments are dropped before scanning (as before), so a
+     stray quote inside them cannot open a phantom string span. Trailing `--`
+     is intentionally kept: R uses `--x` as double negation. *)
+  let code_lines =
+    String.split_on_char '\n' text
+    |> List.filter_map (fun line ->
+        if String.starts_with ~prefix:"--" (String.trim line) then None
+        else Some line)
+    |> String.concat "\n"
+  in
+  let filtered_text = strip_noncode_spans code_lines in
   let re = Str.regexp {|[a-zA-Z_][a-zA-Z0-9_]*|} in
   let rec find acc pos =
     match (try Some (Str.search_forward re filtered_text pos) with Not_found -> None) with
@@ -558,7 +622,29 @@ let extract_identifiers text =
         find (word :: acc) next_pos
   in
   let inferred = find [] 0 in
-  let all_set = List.fold_left (fun acc d -> String_set.add d acc) String_set.empty inferred in
+  (* `read_node("name")` literals are rewritten to store paths by the Quarto
+     emitter, so they are genuine references even though they sit inside
+     strings (which are otherwise skipped above). Mirror the emitter's two
+     spellings, tolerating surrounding whitespace. Whitespace classes use
+     plain double-quoted strings so \t stays a genuine tab. *)
+  let read_node_names =
+    let re_rn = Str.regexp "read_node[ \t]*([ \t]*\"\\([a-zA-Z_][a-zA-Z0-9_]*\\)\"[ \t]*)" in
+    let re_rn_sq = Str.regexp "read_node[ \t]*([ \t]*'\\([a-zA-Z_][a-zA-Z0-9_]*\\)'[ \t]*)" in
+    let collect re =
+      let rec loop acc pos =
+        match (try Some (Str.search_forward re text pos) with Not_found -> None) with
+        | None -> acc
+        | Some _ ->
+            let name =
+              try Str.matched_group 1 text with Not_found | Invalid_argument _ -> ""
+            in
+            loop (name :: acc) (Str.match_end ())
+      in
+      loop [] 0
+    in
+    List.filter (fun s -> s <> "") (collect re_rn @ collect re_rn_sq)
+  in
+  let all_set = List.fold_left (fun acc d -> String_set.add d acc) String_set.empty (inferred @ read_node_names) in
   String_set.elements all_set
 
 (** Convenience type alias *)

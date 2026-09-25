@@ -128,7 +128,7 @@ let strcraft_package = {
   name = "strcraft";
   description = "String inspection, transformation, and formatting";
   functions = ["str_nchar"; "is_empty"; "str_substring"; "slice"; "char_at"; "index_of"; "last_index_of"; "contains"; "starts_with"; "ends_with";
-               "str_replace"; "replace_first"; "to_lower"; "to_upper"; "str_trim"; "trim_start"; "trim_end"; "str_lines"; "str_words"; "str_repeat";
+               "str_replace"; "replace_first"; "to_lower"; "to_upper"; "str_trim"; "trim_start"; "trim_end"; "str_squish"; "str_lines"; "str_words"; "str_repeat";
                "str_format"; "str_extract"; "str_extract_all"; "str_detect"; "str_pad"; "str_trunc"; "str_flatten";
                "str_count"; "str_sprintf"; "str_join"; "str_split"];
 }
@@ -151,7 +151,7 @@ let colcraft_package = {
                "lag"; "lead"; "cumany"; "cumall"; "cummax"; "cummin"; "cummean"; "cumsum";
                "pivot_longer"; "pivot_wider"; "complete"; "fill"; "separate"; "unite"; "drop_na"; "replace_na"; "expand"; "crossing"; "nesting"; "to_factor"; "fct"; "fct_infreq"; "fct_reorder"; "fct_relevel"; "fct_rev"; "fct_recode"; "fct_collapse"; "fct_lump_n"; "fct_lump_min"; "fct_lump_prop"; "fct_other"; "fct_drop"; "fct_expand"; "fct_c"; "levels"; "ordered";
                "rename"; "relocate"; "starts_with"; "ends_with"; "contains"; "everything"; "where"; "matches"; "all_of"; "any_of"; "is_numeric"; "is_character"; "is_logical"; "is_factor"; "distinct"; "slice"; "slice_max"; "slice_min"; "slice_sample"; "count";
-               "left_join"; "inner_join"; "full_join"; "semi_join"; "anti_join"; "bind_rows"; "bind_cols";
+               "left_join"; "right_join"; "inner_join"; "full_join"; "semi_join"; "anti_join"; "cross_join"; "coalesce"; "bind_rows"; "bind_cols";
                "nest"; "unnest"; "separate_rows"; "uncount"];
 }
 
@@ -194,7 +194,7 @@ let pipeline_package = {
   name = "pipeline";
   description = "Pipeline definition and introspection";
   functions = ["pipeline_nodes"; "pipeline_deps"; "pipeline_node"; "pipeline_run"; "build_pipeline"; "populate_pipeline"; "inspect_pipeline"; "inspect_log"; "list_logs"; "read_node"; "read_past_node"; "read_pipeline"; "pipeline_copy"; "trace_nodes";
-                "pipeline_to_frame"; "pipeline_config_to_frame"; "filter_node"; "which_nodes"; "errored_nodes"; "mutate_node"; "rename_node"; "select_node"; "arrange_node"; "suppress_warnings"; "pipeline_to_drv";
+                "pipeline_to_frame"; "pipeline_status"; "pipeline_config_to_frame"; "filter_node"; "which_nodes"; "errored_nodes"; "mutate_node"; "rename_node"; "select_node"; "arrange_node"; "suppress_warnings"; "pipeline_to_drv";
                "pipeline_to_store"; "set_nix_defaults"; "pipeline_cache_status"; "pipeline_gc"; "t_gc"; "export_artifacts"; "import_artifacts"; "inspect_artifacts";
                "build_log"; "build_log_to_frame"; "collect_exceptions"; "build_log_history"; "node_diff"; "pipeline_diff"; "debug_node";
                "union"; "difference"; "intersect"; "patch";
@@ -881,6 +881,7 @@ let init_env () =
   let env = Trace_nodes.register env in
   let env = Pipeline_to_frame.register env in
   let env = Pipeline_config_to_frame.register env in
+  let env = Pipeline_status.register env in
   let env = Pipeline_to_drv.register env in
   let env = Pipeline_to_store.register env in
   let env = Set_nix_defaults.register env in
@@ -934,6 +935,7 @@ let init_env () =
   let env = Unite.register env in
   let env = Drop_na.register env in
   let env = Replace_na.register env in
+  let env = Coalesce.register env in
   let env = Expand.register env in
   let env = Factors.register env in
   let env = Rename.register env in

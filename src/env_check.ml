@@ -146,8 +146,12 @@ let check_lockfile_consistency ~file ~tproject_cfg (p : Ast.pipeline_result) =
               diag_expected = None;
               diag_actual = None;
               diag_caused_by = [];
-              diag_suggested_fix = Diagnostics.no_fix;
-           }
+              diag_suggested_fix = Diagnostics.make_run_command_fix
+                ~command:(Printf.sprintf "R -e 'renv::install(\"%s\")'" pkg)
+                ~description:(Printf.sprintf "Install %s into renv.lock via renv" pkg)
+                ?file:(Some file)
+                ();
+            }
          ) missing)
   | _ -> []
 

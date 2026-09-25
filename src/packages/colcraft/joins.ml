@@ -2,6 +2,7 @@ open Ast
 
 type join_kind =
   | Left
+  | Right
   | Inner
   | Full
   | Semi
@@ -212,10 +213,54 @@ let join_impl kind named_args _env =
             let output_columns =
               match kind with
               | Semi | Anti -> left_names
-              | Left | Inner | Full -> left_names @ List.map snd right_projection
+              | Left | Right | Inner | Full -> left_names @ List.map snd right_projection
             in
             let left_rows = table_rows left.arrow_table in
             let right_rows = table_rows right.arrow_table in
+            (* Right join is the mirror of left join: every right row is kept.
+               Build an index on the left side and drive the loop from the right. *)
+            if kind = Right then begin
+              let left_index = Hashtbl.create 32 in
+              Array.iteri
+                (fun idx row ->
+                  let key = key_of_row by row in
+                  let existing =
+                    match Hashtbl.find_opt left_index key with
+                    | Some indices -> indices
+                    | None -> []
+                  in
+                  Hashtbl.replace left_index key (idx :: existing))
+                left_rows;
+              let joined_rows = ref [] in
+              Array.iter (fun right_row ->
+                let key = key_of_row by right_row in
+                let matches =
+                  match Hashtbl.find_opt left_index key with
+                  | Some indices -> List.rev indices
+                  | None -> []
+                in
+                match matches with
+                | [] ->
+                    let left_stub =
+                      List.map (fun name ->
+                        if List.mem name by then
+                          (name, assoc_value right_row name)
+                        else
+                          (name, VNA (left_na_of name))) left_names
+                    in
+                    joined_rows :=
+                      merge_left_right ~left_names ~right_projection ~by ~right_na_of left_stub (Some right_row)
+                      :: !joined_rows
+                | indices ->
+                    List.iter (fun idx ->
+                      joined_rows :=
+                        merge_left_right ~left_names ~right_projection ~by ~right_na_of left_rows.(idx) (Some right_row)
+                        :: !joined_rows
+                    ) indices
+              ) right_rows;
+              let joined = List.rev !joined_rows in
+              rows_to_dataframe ~group_keys:right.group_keys ~column_types output_columns joined
+            end else begin
             let right_matches = Array.make (Array.length right_rows) false in
             let right_index = Hashtbl.create 32 in
             Array.iteri
@@ -247,13 +292,14 @@ let join_impl kind named_args _env =
                   joined_rows :=
                     merge_left_right ~left_names ~right_projection ~by ~right_na_of left_row None :: !joined_rows
               | Inner, [] -> ()
-              | _, indices ->
+              | (Left | Inner | Full), indices ->
                   List.iter (fun idx ->
                     right_matches.(idx) <- true;
                     joined_rows :=
                       merge_left_right ~left_names ~right_projection ~by ~right_na_of left_row (Some right_rows.(idx))
                       :: !joined_rows
                   ) indices
+              | Right, _ -> () (* unreachable: Right returns before this loop *)
             ) left_rows;
             let joined_rows =
               match kind with
@@ -280,9 +326,11 @@ let join_impl kind named_args _env =
             let preserved_group_keys =
               match kind with
               | Left | Inner | Semi | Anti -> left.group_keys
+              | Right -> right.group_keys
               | Full -> []
             in
-            rows_to_dataframe ~group_keys:preserved_group_keys ~column_types output_columns joined_rows)
+            rows_to_dataframe ~group_keys:preserved_group_keys ~column_types output_columns joined_rows
+            end)
   | _ :: _ :: _ :: _ ->
       Error.make_error ArityError
         "Join functions accept exactly two positional DataFrame arguments and at most one join-key argument (or named `by`)."
@@ -290,6 +338,41 @@ let join_impl kind named_args _env =
       Error.type_error "Join functions expect two DataFrames as the first positional arguments."
   | [] ->
       Error.make_error ArityError "Join functions require at least two DataFrames."
+
+let cross_join_impl args _env =
+  match args with
+  | [VDataFrame left; VDataFrame right] ->
+      let left_names = Arrow_table.column_names left.arrow_table in
+      let right_names = Arrow_table.column_names right.arrow_table in
+      let right_projection = right_projection left_names right_names [] in
+      let right_na_of name =
+        match Arrow_table.get_column right.arrow_table name with
+        | Some col -> Arrow_bridge.na_for_column_type col
+        | None -> NAGeneric
+      in
+      let column_types name =
+        match Arrow_table.get_column left.arrow_table name with
+        | Some col -> Arrow_bridge.na_for_column_type col
+        | None ->
+          match Arrow_table.get_column right.arrow_table name with
+          | Some col -> Arrow_bridge.na_for_column_type col
+          | None -> NAGeneric
+      in
+      let output_columns = left_names @ List.map snd right_projection in
+      let left_rows = table_rows left.arrow_table in
+      let right_rows = table_rows right.arrow_table in
+      let joined_rows = ref [] in
+      Array.iter (fun left_row ->
+        Array.iter (fun right_row ->
+          joined_rows :=
+            merge_left_right ~left_names ~right_projection ~by:[] ~right_na_of left_row (Some right_row)
+            :: !joined_rows
+        ) right_rows
+      ) left_rows;
+      rows_to_dataframe ~group_keys:[] ~column_types output_columns (List.rev !joined_rows)
+  | [VDataFrame _; _] | [_; VDataFrame _] ->
+      Error.type_error "Function `cross_join` expects two DataFrames."
+  | _ -> Error.arity_error_named "cross_join" 2 (List.length args)
 
 let bind_rows_impl args _env =
   match args with
@@ -371,6 +454,15 @@ let bind_cols_impl args _env =
 --# @export
 *)
 (*
+--# Join rows from the right table
+--#
+--# Joins two DataFrames and keeps every row from the right-hand side.
+--#
+--# @name right_join
+--# @family colcraft
+--# @export
+*)
+(*
 --# Join matching rows
 --#
 --# Joins two DataFrames and keeps only rows whose keys match in both inputs.
@@ -407,6 +499,19 @@ let bind_cols_impl args _env =
 --# @export
 *)
 (*
+--# Cartesian join
+--#
+--# Returns the cartesian product of two DataFrames (every left row paired
+--# with every right row). Overlapping right column names gain a `_y` suffix.
+--#
+--# @name cross_join
+--# @param x :: DataFrame Left DataFrame.
+--# @param y :: DataFrame Right DataFrame.
+--# @return :: DataFrame Cartesian product.
+--# @family colcraft
+--# @export
+*)
+(*
 --# Stack DataFrames by rows
 --#
 --# Appends rows from multiple DataFrames into a single DataFrame.
@@ -436,6 +541,11 @@ let register env =
       env
   in
   let env =
+    Env.add "right_join"
+      (make_builtin_named ~name:"right_join" ~variadic:true 2 (join_impl Right))
+      env
+  in
+  let env =
     Env.add "full_join"
       (make_builtin_named ~name:"full_join" ~variadic:true 2 (join_impl Full))
       env
@@ -448,6 +558,11 @@ let register env =
   let env =
     Env.add "anti_join"
       (make_builtin_named ~name:"anti_join" ~variadic:true 2 (join_impl Anti))
+      env
+  in
+  let env =
+    Env.add "cross_join"
+      (make_builtin ~name:"cross_join" ~variadic:true 2 cross_join_impl)
       env
   in
   let env =

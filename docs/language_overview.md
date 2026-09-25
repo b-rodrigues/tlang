@@ -1,6 +1,6 @@
 # T Language Overview
 
-> **Version**: 0.55.0
+> **Version**: 0.55.1
 
 T is a functional programming language designed for declarative, tabular data manipulation. It combines the pipeline-driven style of R's tidyverse with OCaml's type discipline, producing a small, focused language for data wrangling and basic statistics.
 
@@ -934,13 +934,13 @@ When building a pipeline, T tracks the build status and logs for every node. If 
 help(read_log)
 
 -- Read the full Nix build log for a specific node
-read_log("model_r")
+read_log(p.model_r)
 ```
 
-The `read_log()` function requires a node name to identify which build output to retrieve. It returns the raw build output as a string, which can be printed with `cat()` to preserve formatting:
+The `read_log()` function takes a node (`p.node_name`), matching `read_node`. It returns the raw build output as a string, which can be printed with `cat()` to preserve formatting:
 
 ```t
-cat(read_log("scored"))
+cat(read_log(p.scored))
 ```
 
 For more comprehensive examples and templates, visit the [T Demos repository](https://github.com/b-rodrigues/t_demos).

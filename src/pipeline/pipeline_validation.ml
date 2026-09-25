@@ -289,11 +289,74 @@ let check_bin_only_for_fetchurl (p : pipeline_result) : validation_error list =
     else None
   ) p.p_exprs
 
+(** Built-in serializer/deserializer formats. Mirrors
+    [Serialization_registry.init_builtins] plus the [Builder_populate]
+    strategy list: anything outside this set (and outside the node's
+    declared `functions`) cannot resolve to a reader/writer and dies at
+    build time with `could not find function "<format>"`. *)
+let known_serializer_formats =
+  [ "pmml"; "ipc"; "parquet"; "json"; "csv"; "default"; "onnx"; "bin"; "text"; "tlang";
+    (* Legacy spellings that resolve today: "serialize" is the T-native
+       default writer (see nix_emit_node ser_call fallback). *) "serialize" ]
+
+(** Unknown-format check: every serializer/deserializer strategy must be a
+    known built-in format or be backed by the node's declared `functions`
+    (custom strategies resolve against those files at build time, mirroring
+    the [Builder_populate] warning logic). Catches renames without aliases
+    (notably `^arrow`, renamed to `^ipc` in 0.55.0) and typos at validation
+    time instead of build time, where they die with
+    `could not find function "<format>"`. *)
+let check_known_formats (p : pipeline_result) : validation_error list =
+  let has_functions name =
+    match List.assoc_opt name p.p_functions with
+    | Some (_ :: _) -> true
+    | _ -> false
+  in
+  let rec unknown_in role name expr =
+    match expr.node with
+    | Value (VSerializer s) ->
+        if List.mem s.s_format known_serializer_formats then []
+        else [(s.s_format, Printf.sprintf "Unknown %s format `%s` on node `%s`." role s.s_format name)]
+    | Value (VString s) | Value (VSymbol s) ->
+        let bare = if String.length s > 0 && s.[0] = '^' then String.sub s 1 (String.length s - 1) else s in
+        let fmt = String.lowercase_ascii bare in
+        if List.mem fmt known_serializer_formats || has_functions name then []
+        else [(fmt, Printf.sprintf "Unknown %s format `%s` on node `%s`." role s name)]
+    | ListLit items -> List.concat_map (fun (_, e) -> unknown_in role name e) items
+    | DictLit items ->
+        (* A literal "format" key marks an inline custom serializer dict
+           (mirroring the emitter, which reads strategy from that key and
+           snippets from its siblings). Its value is user-supplied by
+           definition, so it is never an unknown built-in. *)
+        List.concat_map (fun (k, e) ->
+          if k = "format" then [] else unknown_in role name e) items
+    | _ -> []
+  in
+  let hint fmt =
+    if fmt = "arrow" then " Did you mean ^ipc? (^arrow was renamed to ^ipc in 0.55.0 with no alias.)"
+    else " Valid built-in formats: ^bin, ^csv, ^default, ^ipc, ^json, ^onnx, ^parquet, ^pmml, ^text, ^tlang."
+  in
+  List.concat_map (fun (name, _) ->
+    let ser = match List.assoc_opt name p.p_serializers with
+      | Some s -> s | None -> mk_expr (Var "default")
+    in
+    let des = match List.assoc_opt name p.p_deserializers with
+      | Some e -> e | None -> mk_expr (Var "default")
+    in
+    List.map (fun (fmt, m) ->
+      { ve_kind = "TypeError";
+        ve_message = m ^ hint fmt;
+        ve_node = Some name })
+      (unknown_in "serializer" name ser
+       @ unknown_in "deserializer" name des)
+  ) p.p_exprs
+
 (** Serializer-related errors (multi-dep strategies, coherence, ^bin). *)
 let serializer_errors (p : pipeline_result) : validation_error list =
   check_multi_dep_strategies p
   @ check_serializer_coherence p
   @ check_bin_only_for_fetchurl p
+  @ check_known_formats p
 
 (** All structural errors in deterministic order: missing files, invalid
     runtimes, missing deps, cycles, cross-runtime deserializer, then the

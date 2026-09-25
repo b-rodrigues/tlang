@@ -58,6 +58,8 @@ If you don't specify a serializer, T uses the `default` serializer, which select
 | `^text` | Plain Text | Logs, shell output | All | All | Raw text, no format constraints |
 | `^bin` | Binary | Passthrough, fetchurl | T | T | Opaque binary blob; default for `fetchurl()` nodes |
 
+> **Note:** `^arrow` was renamed to `^ipc` in 0.55.0 with no alias. Unknown formats (anything outside this table, `default`, and custom strategies backed by the node's `functions`) fail validation with a `TypeError` naming valid formats instead of failing at build time.
+
 ### Choosing Between `^ipc` and `^parquet`
 
 Both `^ipc` and `^parquet` are columnar, type-preserving Arrow formats that

@@ -2034,9 +2034,9 @@ ungrouped = df |> group_by($dept) |> ungroup()
 
 ### Join and Bind Functions
 
-#### `left_join(x, y, by = NA)` / `inner_join` / `full_join` / `semi_join` / `anti_join`
+#### `left_join(x, y, by = NA)` / `right_join` / `inner_join` / `full_join` / `semi_join` / `anti_join`
 
-Join two DataFrames. Join keys are normalized so that integer `1` and float `1.0` match, mirroring R's coercion-to-character semantics.
+Join two DataFrames. Join keys are normalized so that integer `1` and float `1.0` match, mirroring R's coercion-to-character semantics. `right_join` keeps every row from the right-hand side (mirror of `left_join`).
 
 **Parameters:**
 
@@ -2046,6 +2046,18 @@ Join two DataFrames. Join keys are normalized so that integer `1` and float `1.0
 **Returns:**
 
 Joined DataFrame
+
+---
+
+#### `cross_join(x, y)`
+
+Cartesian product of two DataFrames. Every left row pairs with every right row. Overlapping right column names gain a `_y` suffix.
+
+---
+
+#### `coalesce(...)`
+
+First non-NA value per position across Vectors or Lists of equal length.
 
 ---
 
@@ -2155,9 +2167,9 @@ Returns the number of rows in the current group. Only valid inside `summarize()`
 
 ---
 
-#### `n_distinct(x)`
+#### `n_distinct(x, na_rm = false)`
 
-Returns the number of unique non-NA values.
+Returns the number of unique values. With `na_rm = true`, NA values are excluded from the count.
 
 ---
 
@@ -2621,9 +2633,9 @@ Count regex matches (PCRE2, UTF-8 aware — each code point matched by `.` count
 
 ---
 
-### `str_trim(s)` / `trim_start(s)` / `trim_end(s)`
+### `str_trim(s)` / `trim_start(s)` / `trim_end(s)` / `str_squish(s)`
 
-Remove whitespace.
+Remove whitespace. `str_squish` also collapses each run of inner whitespace to a single space.
 
 ---
 
@@ -3979,6 +3991,26 @@ df = build_log_to_frame(log)
 
 ---
 
+### `pipeline_status(p)`
+
+One-call health table joining pipeline structure with the latest build log. Failed nodes sort first.
+
+**Parameters:**
+
+- `p` — The Pipeline object.
+
+**Returns:**
+
+`DataFrame` — Columns `name`, `runtime`, `status`, `duration`, `path`, `error`. Status fields are NA when the pipeline has no matching build log yet.
+
+**Examples:**
+```t
+pipeline_status(p)
+pipeline_status(p) |> filter($status == "Errored")
+```
+
+---
+
 ### `build_log_history(p, n = NA, pattern = NA)`
 
 Returns a summary DataFrame of all historical builds matching the current pipeline's node signature, ordered from most recent to oldest.
@@ -4072,6 +4104,8 @@ Compares the two most recent builds of a pipeline and returns a DataFrame summar
 - `hash_b` (String) — Nix content hash from build B.
 - `class_a` (String) — Output value class from build A.
 - `class_b` (String) — Output value class from build B.
+- `reasons` (String) — Why a changed node differs: `runtime`, `serializer`, `dependencies`, or `code-or-data` (hashes differ but logged membranes match). NA otherwise.
+- `affected` (String) — Nodes in the newer build transitively depending on a changed node (including itself). NA otherwise.
 
 **Examples:**
 ```t
@@ -4164,6 +4198,9 @@ results = t_test(only = ["arithmetic", "strings"])
 
 -- Exclude slow tests
 results = t_test(not = ["slow"])
+
+-- Stop on first failure, enforce timeout, show details
+results = t_test(failfast = true, timeout = 30, verbose = true)
 ```
 
 ---
@@ -4208,7 +4245,7 @@ t test --coverage             # generate Bisect_ppx coverage summary after tests
 |------|-------------|
 | `--failfast` | Stop running tests after the first failure. |
 | `--list` | List discovered test files without running them. Respects `--only` and `--not` filters. |
-| `--timeout SECONDS` | Mark any test exceeding SECONDS as failed. Does not interrupt execution — the test runs to completion but is reported as a timeout failure. |
+| `--timeout SECONDS` | Mark any test exceeding SECONDS as failed. Does not interrupt execution — the test runs to completion but is reported as a timeout failure. The clock covers the test file body only; shared `src/` setup is evaluated once per suite and is not billed to any single file. |
 | `--coverage` | Clean old `.coverage` files, run tests, then generate a Bisect_ppx coverage summary. Requires a coverage-instrumented build (`nix build .#t-coverage` or `dune build --instrument-with bisect_ppx`). |
 
 **`.tignore` support:**

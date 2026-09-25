@@ -44,6 +44,13 @@ the REPL.</p>
 whose path contains any of these substrings.</p></li>
 <li><p><strong>not</strong> (<code>List</code>): = [] Exclude tests
 whose path contains any of these substrings.</p></li>
+<li><p><strong>failfast</strong> (<code>Bool</code>): = false Stop after
+the first failing test file.</p></li>
+<li><p><strong>timeout</strong> (<code>Float</code>): = NA Mark any test
+exceeding this many seconds as failed (test file body only; shared src/
+setup is excluded).</p></li>
+<li><p><strong>verbose</strong> (<code>Bool</code>): = false Print
+per-file error details.</p></li>
 </ul>
 <h2 id="returns">Returns</h2>
 <p>A DataFrame with columns: file, status, duration_ms, error.</p>
@@ -51,7 +58,8 @@ whose path contains any of these substrings.</p></li>
 <pre class="t"><code>results = t_test()
 results |&gt; filter($status == &quot;failed&quot;)
 results = t_test(only = [&quot;arithmetic&quot;])
-results = t_test(not = [&quot;slow&quot;])</code></pre>
+results = t_test(not = [&quot;slow&quot;])
+results = t_test(failfast = true, timeout = 30, verbose = true)</code></pre>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

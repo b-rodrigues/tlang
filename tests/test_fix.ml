@@ -457,14 +457,14 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
       diag_message = "Node `count` is reserved: `count` is a builtin function.";
       diag_suggested_fix = Diagnostics.make_rename_node_fix ~old_name:"count" ~new_name:"count_node" ?target_node:(Some "count") ?file:(Some "test.t") ?line:(Some 15) ();
     } in
-    (* d3 and d4 target a file that does not exist: the Add_node_arg probe and
-       the Rename_node probe each report their fix as skipped — accurate
-       dry-run for both fix kinds. *)
+    (* d1 and d2 target a file that does not exist: the Rename_column probe,
+       the Add_node_arg probe and the Rename_node probe each report their fix
+       as skipped — accurate dry-run for all three fix kinds. *)
     let fixes = [d1; d2; d3; d4] in
     let result = Fix.apply_fixes ~dry_run:true ~default_file:"test.t" fixes in
     check "dry_run: applied = 0" (result.Fix.applied = 0);
-    check "dry_run: would_apply = 2" (result.Fix.would_apply = 2);
-    check "dry_run: skipped = 2" (result.Fix.skipped = 2);
+    check "dry_run: would_apply = 0" (result.Fix.would_apply = 0);
+    check "dry_run: skipped = 4" (result.Fix.skipped = 4);
     check "dry_run: entry count matches fixes"
       (List.length result.Fix.dry_run_entries = 4);
     check "dry_run: entries are in fix order"
@@ -473,14 +473,14 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
           "Column 'y' not found, did you mean 'y_new'?";
           "Node `pyn` depends on `rn` but has no explicit deserializer";
           "Node `count` is reserved: `count` is a builtin function."]);
-    check "dry_run: first two entries would-apply"
+    check "dry_run: all entries skipped"
       (match result.Fix.dry_run_entries with
-       | [a; b; _; _] ->
-           (match a.Fix.entry_outcome, b.Fix.entry_outcome with
-            | Fix.Would_apply, Fix.Would_apply -> true
+       | [a; b; c; d] ->
+           (match a.Fix.entry_outcome, b.Fix.entry_outcome, c.Fix.entry_outcome, d.Fix.entry_outcome with
+            | Fix.Skipped _, Fix.Skipped _, Fix.Skipped _, Fix.Skipped _ -> true
             | _ -> false)
        | _ -> false);
-    check "dry_run: last two entries skipped"
+    check "dry_run: all entries skipped note check"
       (match result.Fix.dry_run_entries with
        | [_; _; c; d] ->
            (match c.Fix.entry_outcome, d.Fix.entry_outcome with
@@ -583,13 +583,26 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
       diag_caused_by = [];
       diag_suggested_fix = Diagnostics.no_fix;
     } in
-    (* rename_column is always would-apply *)
-    let d_col = { base with
-      diag_suggested_fix = Diagnostics.make_rename_column_fix ~old_name:"x" ~new_name:"y" ~edit_distance:1 ~is_unique:true ?file:(Some "test.t") ?line:(Some 1) ();
+    (* rename_column probes the file: would-apply when $col is present,
+       skipped with a note when absent, skipped without a note when unreadable *)
+    let tmp_col_hit = Filename.temp_file "test_fix_dr_col_hit" ".t" in
+    write_tmp_file tmp_col_hit "clean = raw |> filter($x > 1)\n";
+    let d_col_hit = { base with
+      diag_file = Some tmp_col_hit;
+      diag_suggested_fix = Diagnostics.make_rename_column_fix ~old_name:"x" ~new_name:"y" ~edit_distance:1 ~is_unique:true ?file:(Some tmp_col_hit) ?line:(Some 1) ();
     } in
-    (match Fix.dry_run_outcome ~default_file:"test.t" d_col with
-     | Fix.Would_apply -> check "rename_column -> Would_apply" true
-     | _ -> check "rename_column -> Would_apply" false);
+    (match Fix.dry_run_outcome ~default_file:tmp_col_hit d_col_hit with
+     | Fix.Would_apply -> check "rename_column (present) -> Would_apply" true
+     | _ -> check "rename_column (present) -> Would_apply" false);
+    let tmp_col_miss = Filename.temp_file "test_fix_dr_col_miss" ".t" in
+    write_tmp_file tmp_col_miss "clean = raw |> filter($z > 1)\n";
+    let d_col_miss = { base with
+      diag_file = Some tmp_col_miss;
+      diag_suggested_fix = Diagnostics.make_rename_column_fix ~old_name:"x" ~new_name:"y" ~edit_distance:1 ~is_unique:true ?file:(Some tmp_col_miss) ?line:(Some 1) ();
+    } in
+    (match Fix.dry_run_outcome ~default_file:tmp_col_miss d_col_miss with
+     | Fix.Skipped (Some _) -> check "rename_column (absent) -> Skipped with note" true
+     | _ -> check "rename_column (absent) -> Skipped with note" false);
     (* add_node_arg probes the file: would-apply when the node is defined,
        skipped with a note when it is not, skipped without a note when the
        file is unreadable *)
@@ -621,6 +634,8 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
      | _ -> check "add_node_arg (file unreadable) -> Skipped without note" false);
     Sys.remove tmp_with_node;
     Sys.remove tmp_no_node;
+    Sys.remove tmp_col_hit;
+    Sys.remove tmp_col_miss;
     (* suggest_identifier is never auto-applied and carries an actionable note *)
     let d_ident = { base with
       diag_suggested_fix = Diagnostics.make_suggest_identifier_fix ~name:"mpg" ~suggestion:"mpg2" ~edit_distance:1 ~is_unique:true ?file:(Some "test.t") ?line:(Some 1) ();

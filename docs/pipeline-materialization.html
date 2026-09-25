@@ -371,11 +371,15 @@ cache files. T-Lang provides REPL functions to safely clean up OCaml/Nix
 artifacts directly:</p>
 <ol type="1">
 <li><strong><code>pipeline_gc(p, dry_run = false)</code></strong>:
-Deletes the store paths of the given pipeline <code>p</code>. By default
-(<code>dry_run = true</code>), it queries what would be deleted and
-returns a DataFrame showing the <code>node</code>,
-<code>store_path</code>, and <code>deleted</code> status. Set
-<code>dry_run = false</code> to perform the actual deletion.</li>
+Deletes the store paths of the given pipeline <code>p</code> if safe
+(unreferenced by other profiles/roots). The default is
+<code>dry_run = false</code>, so pass <code>dry_run = true</code> first
+to preview a DataFrame of <code>node</code>, <code>store_path</code>,
+and <code>deleted</code> status before deleting. Safe flow: preview with
+<code>dry_run = true</code>, delete with <code>dry_run = false</code>,
+then <code>t_gc()</code> for global cleanup. Use
+<code>pipeline_cache_status(p)</code> to check which nodes are cached
+before deciding what to remove.</li>
 <li><strong><code>t_gc()</code></strong>: Performs a global Nix store
 garbage collection (<code>nix-store --gc</code>), removing all unused
 derivations and freeing up disk space.</li>

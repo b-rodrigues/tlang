@@ -374,6 +374,9 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
       let node_was_built = Hashtbl.create (List.length node_names) in
       let node_error_info : (string, string * string) Hashtbl.t = Hashtbl.create (List.length node_names) in
       let node_log_bufs = Hashtbl.create (List.length node_names) in
+      (* Rolling per-node tails for human build output. Separate from
+         node_log_bufs (Buffers used by JSON mode) to keep types distinct. *)
+      let human_tails : (string, string Queue.t) Hashtbl.t = Hashtbl.create (List.length node_names) in
       let node_completed_emitted = Hashtbl.create (List.length node_names) in
       let started_building = ref false in
 
@@ -510,6 +513,41 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
         Buffer.add_string captured_output line;
         Buffer.add_char captured_output '\n';
         let event, prev_status = classify_and_update line in
+        (* Rolling per-node tail for human output: keep the last few lines per
+           node so a failure can show immediate context without extra commands.
+           Bounded queues keep memory flat on long builds. *)
+        let tail_max = 15 in
+        let push_tail name text =
+          let q = match Hashtbl.find_opt human_tails name with
+            | Some q -> q
+            | None ->
+                let q = Queue.create () in
+                Hashtbl.replace human_tails name q;
+                q
+          in
+          Queue.push text q;
+          while Queue.length q > tail_max do ignore (Queue.pop q) done
+        in
+        let tail_lines name =
+          match Hashtbl.find_opt human_tails name with
+          | None -> []
+          | Some q -> List.of_seq (Queue.to_seq q)
+        in
+        (match event with
+         | Build_start { node_name } -> push_tail node_name line
+         | Build_complete { node_name } -> push_tail node_name line
+         | Build_error _ -> ()
+         | Nix_line_other ->
+             (* Attribute unclassified lines to the most recently started
+                unfinished node when there is exactly one candidate. *)
+             let building = List.filter (fun name ->
+               match Hashtbl.find_opt statuses name with
+               | Some "Building" -> true
+               | _ -> false
+             ) node_names in
+             (match building with
+              | [single] -> push_tail single line
+              | _ -> ()));
         match event with
         | Build_start { node_name } ->
             if not !started_building then (
@@ -521,10 +559,9 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
         | Build_complete { node_name } ->
             Printf.eprintf "  ✓ %s built\n%!" node_name
         | Build_error { node_name } ->
-            if verbose > 0 then
-              Printf.eprintf "\n  ✖ Node %s failed! For full logs, run: read_log(\"%s\")\n\n%!" node_name node_name
-            else
-              Printf.eprintf "  ✖ %s failed\n%!" node_name
+            Printf.eprintf "\n  ✖ Node %s failed!\n%!" node_name;
+            List.iter (fun l -> Printf.eprintf "    | %s\n%!" l) (tail_lines node_name);
+            Printf.eprintf "  For full logs, run: read_log(p.%s)\n\n%!" node_name
         | Nix_line_other -> ()
       in
 
@@ -923,7 +960,7 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
                       List.iter (fun n -> Printf.eprintf "  ! Captured error in node: %s\n%!" n) soft_failed;
                       List.iter (fun n -> Printf.eprintf "  ? Warnings in node: %s\n%!" n) with_warnings
                     ) else if built_count = 0 then
-                      Printf.eprintf "\n○ All nodes were already cached — nothing to build.\n%!"
+                      Printf.eprintf "\n○ All nodes were already cached — nothing to build.\n  Tip: pipeline_cache_status(p) shows per-node cache state; pipeline_gc(p, dry_run = true) previews safe cleanup.\n%!"
                     else begin
                       let parts =
                         [Printf.sprintf "%d built" built_count]
@@ -948,7 +985,7 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
                         if root_causes <> [] then
                           let lines =
                             List.map (fun n ->
-                              Printf.sprintf "  → %s (Run 'error_msg(p.%s)' and share the traceback with an LLM/Copilot for instant help!)" n n
+                              Printf.sprintf "  → %s (Run 'error_msg(p.%s)' and share the traceback with an LLM for instant help!)" n n
                             ) root_causes
                           in
                           "\n💡 Recommendation: Start diagnosing at independent root failure(s):\n" ^ (String.concat "\n" lines) ^ "\n"
@@ -1093,7 +1130,7 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
                   if root_causes <> [] then
                     let lines =
                       List.map (fun n ->
-                        Printf.sprintf "  → %s (Run 'error_msg(p.%s)' and share the traceback with an LLM/Copilot for instant help!)" n n
+                        Printf.sprintf "  → %s (Run 'error_msg(p.%s)' and share the traceback with an LLM for instant help!)" n n
                       ) root_causes
                     in
                     "\n💡 Recommendation: Start diagnosing at independent root failure(s):\n" ^ (String.concat "\n" lines) ^ "\n"

@@ -630,6 +630,9 @@ result
 *.exe
 /.t_julia_depot/
 
+# R package fetch cache (shallow git clones for DESCRIPTION auto-detection)
+.t_r_pkg_cache/
+
 # Generated outputs (regenerated from source)
 outputs/
 

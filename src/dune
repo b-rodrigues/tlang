@@ -66,14 +66,14 @@
    t_read_csv t_read_parquet t_write_csv t_read_ipc t_write_ipc t_write_parquet t_dataframe colnames nrow ncol clean_colnames glimpse
        ; packages/pipeline
         pipeline_utils pipeline_args pipeline_nodes pipeline_deps pipeline_node pipeline_run build_pipeline populate_pipeline inspect_pipeline trace_nodes read_node read_past_node pipeline_copy pipeline_builder_post
-        pipeline_to_frame pipeline_config_to_frame filter_node which_nodes mutate_node rename_node select_node arrange_node pipeline_to_drv
+        pipeline_to_frame pipeline_config_to_frame pipeline_status filter_node which_nodes mutate_node rename_node select_node arrange_node pipeline_to_drv
           pipeline_set_ops pipeline_dag_ops pipeline_composition pipeline_expand pipeline_inspect2 pipeline_to_ga t_make_mod build_log pipeline_diff diff_summary pipeline_report t_check t_diff t_fix set_pipeline_global_options pipeline_node_options
       pipeline_to_store set_nix_defaults pipeline_cache_status pipeline_gc export_artifacts import_artifacts inspect_artifacts
       node_docs rn_docs pyn_docs jln_docs qn_docs shn_docs
     ; packages/colcraft
     t_select t_filter mutate arrange group_by ungroup summarize n n_distinct
     window_rank window_offset window_cumulative pivot_longer pivot_wider t_complete
-     fill separate unite drop_na replace_na expand factors selection_helpers joins rename relocate distinct slice count slice_min_max slice_sample nest unnest separate_rows uncount
+     fill separate unite drop_na replace_na coalesce expand factors selection_helpers joins rename relocate distinct slice count slice_min_max slice_sample nest unnest separate_rows uncount
    ; packages/math
    math_common t_sqrt t_abs t_log t_exp pow ndarray t_iota round floor ceiling trunc sign signif sin cos tan asin acos atan atan2 sinh cosh tanh asinh acosh atanh
    ; packages/stats
