@@ -8,7 +8,7 @@ Retrieves the value of a specific node in the pipeline.
 
 - **p** (`Pipeline`): The pipeline.
 
-- **name** (`String`): The node name.
+- **name** (`String`): The node name. A leading `$` is stripped, so
 
 
 ## Returns

@@ -9531,7 +9531,7 @@ Now that you can work with numerical arrays, explore statistical modeling and re
 - **`t fix` dry-run checks column text**: `Rename_column` dry-run probes the file for `$col` before reporting `Would_apply`. Absent columns report `skipped` with a note. Matches existing `Rename_node` and `Add_node_arg` probes.
 - **`t_fix()` shows node argument**: `Add_node_arg` summary now shows node name and argument text.
 - **Lockfile check suggests a command**: Missing `renv.lock` packages now carry a `Run_command` fix (`R -e 'renv::install("<pkg>")'`) instead of no fix.
-- **Issue 527 needs no change**: Dependency inference already uses exact token match, not substring match. `include` paths do not create dependencies. Reporter used T 0.51.2. Current 0.55.0 does not reproduce the spurious `analysis` dependency.
+- **Issue 527 needs no change**: Dependency inference already uses exact token match, not substring match. `include` paths do not create dependencies. Verified on `0.55.0` (behavior unchanged in `0.55.1`).
 - **Stricter argument validation**: `n_distinct` propagates the `na_rm` type error instead of silently defaulting to `false`; `t_test` returns explicit `TypeError` for mistyped `failfast`/`timeout`/`verbose` flags instead of silently keeping defaults; `coalesce` keeps the first input's NA type when all inputs are NA at a position.
 - **`t test` evaluates `src/` setup once per suite**: `run_test_file` used to re-evaluate every `src/*.t` file for each test file, so top-level side effects such as `build_pipeline()` ran N times and each file was billed for a full Nix build. The shared setup now runs once per `run_suite` call (per-test isolation is preserved — `Ast.Env` is immutable). Per-file durations and `--timeout` cover the test body only.
 - **`pipeline_status(p)` health table**: Joins pipeline structure with the latest build log into one DataFrame (`name`, `runtime`, `status`, `duration`, `path`, `error`), failed nodes first. Status fields are NA before the first matching build.
@@ -9545,6 +9545,7 @@ Now that you can work with numerical arrays, explore statistical modeling and re
 - **`t diff` explains changes**: changed nodes now carry `reasons` (`runtime`, `serializer`, `dependencies`, or `code-or-data`) and `affected` (newer-build reverse dependency closure) in human, JSON, and `diff_summary` output.
 - **No more phantom dependencies from comments or strings**: `extract_identifiers` (pipeline dependency inference for `<{ }>` blocks) now skips `'...'`/`"..."` string literals and trailing `#` comments instead of only whole-line comments. A node name in `x <- f() # see the foo node` or `s <- "the foo node"` no longer wires a bogus edge (issue 527 follow-up; regression demo: `phantom_deps_t` in t_demos). Deliberate exception: `read_node("name")` literals are still collected, since the Quarto emitter rewrites them to store paths.
 - **New projects ignore the R package fetch cache**: scaffolded `tproject.toml` projects now list `.t_r_pkg_cache/` in `.gitignore`, so `git add .` no longer stages the embedded git checkouts used for DESCRIPTION auto-detection (issue 524).
+- **Generic R package discovery**: `t check --env` and pipeline builds now detect any R package from roxygen `@import`/`@importFrom` tags, `library()`/`require()` calls, and `pkg::` qualifiers — not just hardcoded `ggplot2`. Base packages are excluded. Discovery installs packages; code must still attach them (issue 473).
 
 ## [0.55.0] - 2026-08-11
 
@@ -22168,6 +22169,18 @@ packages = ["dplyr", "ggplot2", "jsonlite"]
 
 After editing, run `t update` to include them in `flake.nix`. Packages are available in every R pipeline node and in `nix develop`. On Linux, the same project R environment is also discovered by Positron as an R interpreter (re-run `t update` and launch Positron from `nix develop`).
 
+#### 3.3.1a Automatic Discovery from R Code
+
+T scans R node code for package usage — roxygen `@import`/`@importFrom` tags, `library()`/`require()` calls, and `pkg::fun` qualifiers — and prompts you to add any missing packages to `tproject.toml` before building (or auto-adds them with `TLANG_AUTO_ADD_PIPELINE_DEPS=1`). Base packages are never listed. Discovery only ensures packages are *installed*; your code must still attach them (`library(dplyr)` or `dplyr::mutate`).
+
+```r
+#' @importFrom dplyr mutate filter
+clean <- function(raw) {
+  mutate(raw, x = 1)
+}
+# `t check --env` / build prompts: add "dplyr" to [r-dependencies].packages
+```
+
 #### 3.3.2 renv Resolver
 
 If your project already has an `renv.lock` file, set:
@@ -24438,6 +24451,31 @@ The cleaned column names.
 
 
 
+# FILE: docs/reference/coalesce.md
+
+# coalesce
+
+Coalesce missing values
+
+Returns the first non-NA value at each position across inputs. All inputs must be Vectors or Lists of equal length.
+
+## Parameters
+
+- **...** (`Vector`): | List Vectors to coalesce in priority order.
+
+
+## Returns
+
+The first non-NA value per position.
+
+## Examples
+
+```t
+coalesce([1, NA, 3], [10, 20, 30])
+```
+
+
+
 # FILE: docs/reference/coef.md
 
 # coef
@@ -24694,7 +24732,7 @@ True if found, false otherwise.
 
 Correlation
 
-Computes the Pearson correlation coefficient between two vectors.
+Computes the correlation coefficient between two vectors. `method = "pearson"` (default) is the linear correlation. `method = "spearman"` ranks values first (average ranks for ties), then computes Pearson on ranks.
 
 ## Parameters
 
@@ -24704,7 +24742,9 @@ Computes the Pearson correlation coefficient between two vectors.
 
 - **na_rm** (`Bool`): (Optional) Should missing values be removed? Default is false.
 
-- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights.
+- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights (Pearson only).
+
+- **method** (`String`): = "pearson" Correlation method: "pearson" or "spearman".
 
 
 ## Returns
@@ -24835,6 +24875,27 @@ A DataFrame with all unique combinations.
 ```t
 crossing(x = 1:3, y = ["a", "b"])
 ```
+
+
+
+# FILE: docs/reference/cross_join.md
+
+# cross_join
+
+Cartesian join
+
+Returns the cartesian product of two DataFrames (every left row paired with every right row). Overlapping right column names gain a `_y` suffix.
+
+## Parameters
+
+- **x** (`DataFrame`): Left DataFrame.
+
+- **y** (`DataFrame`): Right DataFrame.
+
+
+## Returns
+
+Cartesian product.
 
 
 
@@ -25391,7 +25452,7 @@ Compares the two most recent builds of a pipeline and returns a DataFrame summar
 
 ## Returns
 
-A summary with columns: name, status, hash_a, hash_b.
+A summary with columns: name, status, hash_a, hash_b, reasons, affected.
 
 
 
@@ -30380,6 +30441,8 @@ Returns the number of distinct values in a vector or list. Inside `summarize()`,
 
 - **x** (`Vector`): | List The input values.
 
+- **na_rm** (`Bool`): = false Exclude NA values from the count.
+
 
 ## Returns
 
@@ -31480,7 +31543,7 @@ Retrieves the value of a specific node in the pipeline.
 
 - **p** (`Pipeline`): The pipeline.
 
-- **name** (`String`): The node name.
+- **name** (`String`): The node name. A leading `$` is stripped, so
 
 
 ## Returns
@@ -31661,6 +31724,36 @@ The executed pipeline, or a dry-run plan DataFrame.
 ## See Also
 
 [pipeline_nodes](pipeline_nodes.html)
+
+
+
+# FILE: docs/reference/pipeline_status.md
+
+# pipeline_status
+
+Pipeline health table
+
+Joins pipeline structure with the latest build log into a single per-node health table. Failed nodes sort first so the root cause is visible without extra calls.  Columns: - `name` — node name (String) - `runtime` — e.g. "T", "R", "Python" (String) - `status` — build status from the latest matching log ("Completed", "Errored", "SoftFailed", "Cached", "Skipped", ...), or NA when the pipeline has no matching build log yet - `duration` — node build duration in seconds (Float), or NA - `path` — Nix store path of the node output, or NA - `error` — `code: message` for failed nodes (truncated), or NA
+
+## Parameters
+
+- **pipeline** (`Pipeline`): The pipeline to summarize.
+
+
+## Returns
+
+One row per node, failed nodes first.
+
+## Examples
+
+```t
+pipeline_status(p)
+pipeline_status(p) |> filter($status == "Errored")
+```
+
+## See Also
+
+[build_log_to_frame](build_log_to_frame.html), [build_log](build_log.html), [pipeline_to_frame](pipeline_to_frame.html)
 
 
 
@@ -32162,6 +32255,23 @@ pretty_print(df)
 ## See Also
 
 [print](print.html)
+
+
+
+# FILE: docs/reference/print_failed_node_logs.md
+
+# print_failed_node_logs
+
+Print Failed Node Logs
+
+Prints stderr log sections for each failed node by resolving its derivation path through `nix log`.
+
+## Parameters
+
+- **drv_paths** (`Hashtbl`): Captured derivation paths keyed by node name.
+
+- **errored** (`List[String]`): Node names that failed during the build.
+
 
 
 
@@ -32914,7 +33024,7 @@ prop_show_spec(prop_gen_int_range(0, 100))
 
 Probe a generator's behaviour
 
-Draws `n` values from `gen`, ramping the generation size from 1 to `n`, and returns a Dict summarizing what was produced: run counts, the value types observed, the sizes of any Vector/List/DataFrame values, and the wall-clock time spent.
+Draws `n` values from `gen`, ramping the generation size from 1 to `n`, and returns a Dict summarizing what was produced: run counts, the value types observed, the sizes of any Vector/List/DataFrame values, and the elapsed CPU time spent.
 
 ## Parameters
 
@@ -33512,11 +33622,11 @@ df = read_ipc("data.arrow")
 
 Read Node Build Log
 
-Fetches the Nix build log for a specific node from the last build attempt.
+Fetches the Nix build log for a specific node from the last build attempt. Takes the node directly (`p.node_name`), matching `read_node`.
 
 ## Parameters
 
-- **node_name** (`String`): The name of the node to inspect.
+- **node** (`ComputedNode`): The node to inspect, written as `p.node_name`.
 
 
 ## Returns
@@ -33837,7 +33947,7 @@ res_p = residuals(mtcars, model, type = "pearson")
 
 Rewire a Node's Dependencies
 
-Reroutes a node's declared dependencies. The `replace` argument is a named list (or Dict) mapping old dependency names to new ones. Only the named node's dependency list is updated.
+Reroutes a node's declared dependencies. The `replace` argument is a Dict mapping old dependency names to new ones. Only the named node's dependency list is updated. A named List of `(name, "new_name")` pairs is also accepted. Any other value for `replace` (including evaluating to an error) is rejected loudly — a no-op rewire is never silently produced.
 
 ## Parameters
 
@@ -33845,7 +33955,7 @@ Reroutes a node's declared dependencies. The `replace` argument is a named list 
 
 - **name** (`String`): The name of the node whose deps should change.
 
-- **replace** (`List[String]`): A named list mapping old dep names to new ones.
+- **replace** (`Dict[String]`): A dict mapping old dep names to new ones.
 
 
 ## Returns
@@ -33855,12 +33965,22 @@ A new pipeline with updated dependency edges.
 ## Examples
 
 ```t
-p |> rewire("model_py", replace = list(data = "data_v2"))
+p |> rewire("model_py", replace = [data: "data_v2"])
 ```
 
 ## See Also
 
 [rename_node](rename_node.html), [swap](swap.html)
+
+
+
+# FILE: docs/reference/right_join.md
+
+# right_join
+
+Join rows from the right table
+
+Joins two DataFrames and keeps every row from the right-hand side.
 
 
 
@@ -35324,6 +35444,25 @@ str_sprintf("Value = %d", 42)
 
 
 
+# FILE: docs/reference/str_squish.md
+
+# str_squish
+
+Squish whitespace
+
+Trims leading and trailing whitespace and replaces each run of inner whitespace (spaces, tabs, newlines) with a single space. Vectorized.
+
+## Parameters
+
+- **s** (`String`): The string to squish.
+
+
+## Returns
+
+The squished string.
+
+
+
 # FILE: docs/reference/str_string.md
 
 # to_string
@@ -35801,7 +35940,7 @@ t_doc("generate")
 
 Mechanically Apply Suggested Fixes
 
-Runs `t check --schema` on a file, extracts diagnostics with suggested_fix, and applies them (e.g., renaming columns, adding missing node arguments). Uses bottom-up line order to avoid line-number drift.
+Runs `t check --schema` on a file, extracts diagnostics with suggested_fix, and applies them (e.g., renaming columns, renaming colliding node names, adding missing node arguments). Uses bottom-up line order to avoid line-number drift.
 
 ## Parameters
 
@@ -36485,6 +36624,12 @@ Runs the test suite for the current package and returns a DataFrame with results
 
 - **not** (`List`): = [] Exclude tests whose path contains any of these substrings.
 
+- **failfast** (`Bool`): = false Stop after the first failing test file.
+
+- **timeout** (`Float`): = NA Mark any test exceeding this many seconds as failed (test file body only; shared src/ setup is excluded).
+
+- **verbose** (`Bool`): = false Print per-file error details.
+
 
 ## Returns
 
@@ -36497,6 +36642,7 @@ results = t_test()
 results |> filter($status == "failed")
 results = t_test(only = ["arithmetic"])
 results = t_test(not = ["slow"])
+results = t_test(failfast = true, timeout = 30, verbose = true)
 ```
 
 

@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>T Function Reference - pipeline_node</title>
+  <title>T Function Reference - str_squish</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -33,20 +33,16 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
-<h1 id="pipeline_node">pipeline_node</h1>
-<p>Get Pipeline Node</p>
-<p>Retrieves the value of a specific node in the pipeline.</p>
+<h1 id="str_squish">str_squish</h1>
+<p>Squish whitespace</p>
+<p>Trims leading and trailing whitespace and replaces each run of inner
+whitespace (spaces, tabs, newlines) with a single space. Vectorized.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><p><strong>p</strong> (<code>Pipeline</code>): The
-pipeline.</p></li>
-<li><p><strong>name</strong> (<code>String</code>): The node name. A
-leading <code>$</code> is stripped, so</p></li>
+<li><strong>s</strong> (<code>String</code>): The string to squish.</li>
 </ul>
 <h2 id="returns">Returns</h2>
-<p>The value of the node.</p>
-<h2 id="see-also">See Also</h2>
-<p><a href="pipeline_nodes.html">pipeline_nodes</a></p>
+<p>The squished string.</p>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

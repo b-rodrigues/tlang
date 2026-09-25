@@ -36,11 +36,12 @@
 <h1 id="read_log">read_log</h1>
 <p>Read Node Build Log</p>
 <p>Fetches the Nix build log for a specific node from the last build
-attempt.</p>
+attempt. Takes the node directly (<code>p.node_name</code>), matching
+<code>read_node</code>.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><strong>node_name</strong> (<code>String</code>): The name of the
-node to inspect.</li>
+<li><strong>node</strong> (<code>ComputedNode</code>): The node to
+inspect, written as <code>p.node_name</code>.</li>
 </ul>
 <h2 id="returns">Returns</h2>
 <p>The build log content.</p>

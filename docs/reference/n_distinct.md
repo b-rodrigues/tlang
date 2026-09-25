@@ -8,6 +8,8 @@ Returns the number of distinct values in a vector or list. Inside `summarize()`,
 
 - **x** (`Vector`): | List The input values.
 
+- **na_rm** (`Bool`): = false Exclude NA values from the count.
+
 
 ## Returns
 

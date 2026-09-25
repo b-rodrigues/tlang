@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>T Function Reference - pipeline_node</title>
+  <title>T Function Reference - pipeline_status</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -33,20 +33,32 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
-<h1 id="pipeline_node">pipeline_node</h1>
-<p>Get Pipeline Node</p>
-<p>Retrieves the value of a specific node in the pipeline.</p>
+<h1 id="pipeline_status">pipeline_status</h1>
+<p>Pipeline health table</p>
+<p>Joins pipeline structure with the latest build log into a single
+per-node health table. Failed nodes sort first so the root cause is
+visible without extra calls. Columns: - <code>name</code> — node name
+(String) - <code>runtime</code> — e.g. “T”, “R”, “Python” (String) -
+<code>status</code> — build status from the latest matching log
+(“Completed”, “Errored”, “SoftFailed”, “Cached”, “Skipped”, …), or NA
+when the pipeline has no matching build log yet - <code>duration</code>
+— node build duration in seconds (Float), or NA - <code>path</code> —
+Nix store path of the node output, or NA - <code>error</code> —
+<code>code: message</code> for failed nodes (truncated), or NA</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><p><strong>p</strong> (<code>Pipeline</code>): The
-pipeline.</p></li>
-<li><p><strong>name</strong> (<code>String</code>): The node name. A
-leading <code>$</code> is stripped, so</p></li>
+<li><strong>pipeline</strong> (<code>Pipeline</code>): The pipeline to
+summarize.</li>
 </ul>
 <h2 id="returns">Returns</h2>
-<p>The value of the node.</p>
+<p>One row per node, failed nodes first.</p>
+<h2 id="examples">Examples</h2>
+<pre class="t"><code>pipeline_status(p)
+pipeline_status(p) |&gt; filter($status == &quot;Errored&quot;)</code></pre>
 <h2 id="see-also">See Also</h2>
-<p><a href="pipeline_nodes.html">pipeline_nodes</a></p>
+<p><a href="build_log_to_frame.html">build_log_to_frame</a>, <a
+href="build_log.html">build_log</a>, <a
+href="pipeline_to_frame.html">pipeline_to_frame</a></p>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

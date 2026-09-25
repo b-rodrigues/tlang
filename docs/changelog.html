@@ -84,9 +84,8 @@ text.</li>
 fix.</li>
 <li><strong>Issue 527 needs no change</strong>: Dependency inference
 already uses exact token match, not substring match.
-<code>include</code> paths do not create dependencies. Reporter used T
-0.51.2. Current 0.55.0 does not reproduce the spurious
-<code>analysis</code> dependency.</li>
+<code>include</code> paths do not create dependencies. Verified on
+<code>0.55.0</code> (behavior unchanged in <code>0.55.1</code>).</li>
 <li><strong>Stricter argument validation</strong>:
 <code>n_distinct</code> propagates the <code>na_rm</code> type error
 instead of silently defaulting to <code>false</code>;
@@ -162,6 +161,13 @@ scaffolded <code>tproject.toml</code> projects now list
 <code>.t_r_pkg_cache/</code> in <code>.gitignore</code>, so
 <code>git add .</code> no longer stages the embedded git checkouts used
 for DESCRIPTION auto-detection (issue 524).</li>
+<li><strong>Generic R package discovery</strong>:
+<code>t check --env</code> and pipeline builds now detect any R package
+from roxygen <code>@import</code>/<code>@importFrom</code> tags,
+<code>library()</code>/<code>require()</code> calls, and
+<code>pkg::</code> qualifiers — not just hardcoded <code>ggplot2</code>.
+Base packages are excluded. Discovery installs packages; code must still
+attach them (issue 473).</li>
 </ul>
 <h2 id="section-1">[0.55.0] - 2026-08-11</h2>
 <h3 id="breaking-changes">Breaking Changes</h3>

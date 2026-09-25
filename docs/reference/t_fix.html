@@ -36,9 +36,9 @@
 <h1 id="t_fix">t_fix</h1>
 <p>Mechanically Apply Suggested Fixes</p>
 <p>Runs <code>t check --schema</code> on a file, extracts diagnostics
-with suggested_fix, and applies them (e.g., renaming columns, adding
-missing node arguments). Uses bottom-up line order to avoid line-number
-drift.</p>
+with suggested_fix, and applies them (e.g., renaming columns, renaming
+colliding node names, adding missing node arguments). Uses bottom-up
+line order to avoid line-number drift.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
 <li><p><strong>file</strong> (<code>String</code>): The path to the .t

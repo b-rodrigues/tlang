@@ -2,7 +2,7 @@
 
 Probe a generator's behaviour
 
-Draws `n` values from `gen`, ramping the generation size from 1 to `n`, and returns a Dict summarizing what was produced: run counts, the value types observed, the sizes of any Vector/List/DataFrame values, and the wall-clock time spent.
+Draws `n` values from `gen`, ramping the generation size from 1 to `n`, and returns a Dict summarizing what was produced: run counts, the value types observed, the sizes of any Vector/List/DataFrame values, and the elapsed CPU time spent.
 
 ## Parameters
 
