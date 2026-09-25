@@ -985,7 +985,7 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
                         if root_causes <> [] then
                           let lines =
                             List.map (fun n ->
-                              Printf.sprintf "  → %s (Run 'error_msg(p.%s)' and share the traceback with an LLM/Copilot for instant help!)" n n
+                              Printf.sprintf "  → %s (Run 'error_msg(p.%s)' and share the traceback with an LLM for instant help!)" n n
                             ) root_causes
                           in
                           "\n💡 Recommendation: Start diagnosing at independent root failure(s):\n" ^ (String.concat "\n" lines) ^ "\n"
@@ -1130,7 +1130,7 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
                   if root_causes <> [] then
                     let lines =
                       List.map (fun n ->
-                        Printf.sprintf "  → %s (Run 'error_msg(p.%s)' and share the traceback with an LLM/Copilot for instant help!)" n n
+                        Printf.sprintf "  → %s (Run 'error_msg(p.%s)' and share the traceback with an LLM for instant help!)" n n
                       ) root_causes
                     in
                     "\n💡 Recommendation: Start diagnosing at independent root failure(s):\n" ^ (String.concat "\n" lines) ^ "\n"
