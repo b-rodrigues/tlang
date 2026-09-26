@@ -30,7 +30,7 @@ R tidyverse ecosystem, particularly packages such as dplyr, stringr, and
 lubridate. This makes it possible to perform exploratory data analysis directly
 from the T REPL before promoting computations into reproducible pipelines.
 
-**Status:** Version 0.55.1 "L'Ultime combat".
+**Status:** Version 0.55.2 "L'Ultime combat".
 
 ---
 
@@ -419,7 +419,7 @@ Now that you have your first project set up and understand the folder structure,
 
 # T Language Overview
 
-> **Version**: 0.55.1
+> **Version**: 0.55.2
 
 T is a functional programming language designed for declarative, tabular data manipulation. It combines the pipeline-driven style of R's tidyverse with OCaml's type discipline, producing a small, focused language for data wrangling and basic statistics.
 
@@ -9512,6 +9512,14 @@ Now that you can work with numerical arrays, explore statistical modeling and re
 # FILE: docs/changelog.md
 
 # Changelog
+
+## [0.55.2] - 2026-09-26
+
+### Fixes
+
+- **Pipelines with R Git packages build again**: R code that loads a package from Git — via `renv.lock` or via `brotools = { git = ..., rev = ... }` in `tproject.toml` — no longer stops `nix` evaluation with `attribute missing`. Git packages resolve from their Git source, not from `nixpkgs`.
+- **`library(tlang)` needs no declaration**: R nodes that load the `tlang` companion package no longer trigger a missing-dependency prompt for `[r-dependencies]`. The companion comes from `tlang-r` automatically.
+- **R discovery reads more calls, skips noise**: dependency prompts now cover `requireNamespace()` and `loadNamespace()` in addition to `library()`, `require()`, and `pkg::`. Names inside string literals and `#` comments cause no prompt.
 
 ## [0.55.1] - 2026-09-23
 
@@ -22100,7 +22108,7 @@ my_stats = { git = "https://github.com/user/my-stats", tag = "v0.1.0" }
 data_utils = { git = "https://github.com/user/data-utils", tag = "v0.2.0" }
 
 [t]
-min_version = "0.55.1"
+min_version = "0.55.2"
 ```
 
 > **Important**: `[dependencies]` entries **must** be `{ git, tag }` inline tables pointing to T packages. Version-constraint strings (e.g. `tlang = ">=0.52.0"`) and array values (e.g. `python = ["polars"]`) are **not valid** and will produce a hard error from `t update`. To declare runtime-language packages, use the dedicated sections:
@@ -22178,7 +22186,7 @@ After editing, run `t update` to include them in `flake.nix`. Packages are avail
 
 #### 3.3.1a Automatic Discovery from R Code
 
-T scans R node code for package usage — roxygen `@import`/`@importFrom` tags, `library()`/`require()` calls, and `pkg::fun` qualifiers — and prompts you to add any missing packages to `tproject.toml` before building (or auto-adds them with `TLANG_AUTO_ADD_PIPELINE_DEPS=1`). Base packages are never listed. Discovery only ensures packages are *installed*; your code must still attach them (`library(dplyr)` or `dplyr::mutate`).
+T scans R node code for package usage — roxygen `@import`/`@importFrom` tags, `library()`/`require()`/`requireNamespace()`/`loadNamespace()` calls, and `pkg::fun` qualifiers — and prompts you to add any missing packages to `tproject.toml` before building (or auto-adds them with `TLANG_AUTO_ADD_PIPELINE_DEPS=1`). Base packages are never listed. Names inside string literals and `#` comments are skipped. Discovery only ensures packages are *installed*; your code must still attach them (`library(dplyr)` or `dplyr::mutate`).
 
 ```r
 #' @importFrom dplyr mutate filter
@@ -37446,7 +37454,7 @@ Every T project is a **Nix flake**:
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
-    tlang.url = "github:b-rodrigues/tlang/v0.55.1";
+    tlang.url = "github:b-rodrigues/tlang/v0.55.2";
   };
 
   outputs = { self, nixpkgs, tlang }: {
@@ -37571,7 +37579,7 @@ intent {
   ],
   
   environment: {
-    t_version: "0.55.1",
+    t_version: "0.55.2",
     nix_revision: "abc123",
     run_date: "2024-01-15"
   }
@@ -37615,7 +37623,7 @@ my-analysis/
   
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
-    tlang.url = "github:b-rodrigues/tlang/v0.55.1";
+    tlang.url = "github:b-rodrigues/tlang/v0.55.2";
   };
   
   outputs = { self, nixpkgs, tlang }: {
