@@ -6,6 +6,7 @@
 
 - **Pipelines with R Git packages build again**: R code that loads a package from Git — via `renv.lock` or via `brotools = { git = ..., rev = ... }` in `tproject.toml` — no longer stops `nix` evaluation with `attribute missing`. Git packages resolve from their Git source, not from `nixpkgs`.
 - **`library(tlang)` needs no declaration**: R nodes that load the `tlang` companion package no longer trigger a missing-dependency prompt for `[r-dependencies]`. The companion comes from `tlang-r` automatically.
+- **R discovery reads more calls, skips noise**: dependency prompts now cover `requireNamespace()` and `loadNamespace()` in addition to `library()`, `require()`, and `pkg::`. Names inside string literals and `#` comments cause no prompt.
 
 ## [0.55.1] - 2026-09-23
 

@@ -156,18 +156,88 @@ let add_quarto_requirement ~node_name =
     additional_tools = add_list req.additional_tools [ "quarto"; "which" ];
   }
 
+(** Code mask for R text: `true` for code, `false` for string literals and
+    `#` comments (newlines stay code). Roxygen collection must run on the
+    original text; `library`-family and `pkg::` scans run on the original
+    text too but keep only matches whose package-name span is all code.
+    Limits: backtick names count as code. R 4 raw strings count as code.
+    Backslash escapes inside strings are honored. *)
+let r_code_mask (text : string) : bool array =
+  let len = String.length text in
+  let mask = Array.make len true in
+  let rec scan i in_single in_double =
+    if i >= len then ()
+    else
+      let c = text.[i] in
+      if in_single then
+        match c with
+        | '\n' -> scan (i + 1) false false
+        | '\\' ->
+            mask.(i) <- false;
+            if i + 1 < len then begin
+              if text.[i + 1] <> '\n' then mask.(i + 1) <- false;
+              scan (i + 2) true false
+            end else scan (i + 1) true false
+        | '\'' -> mask.(i) <- false; scan (i + 1) false false
+        | _ -> mask.(i) <- false; scan (i + 1) true false
+      else if in_double then
+        match c with
+        | '\n' -> scan (i + 1) false false
+        | '\\' ->
+            mask.(i) <- false;
+            if i + 1 < len then begin
+              if text.[i + 1] <> '\n' then mask.(i + 1) <- false;
+              scan (i + 2) false true
+            end else scan (i + 1) false true
+        | '"' -> mask.(i) <- false; scan (i + 1) false false
+        | _ -> mask.(i) <- false; scan (i + 1) false true
+      else
+        match c with
+        | '\'' -> mask.(i) <- false; scan (i + 1) true false
+        | '"' -> mask.(i) <- false; scan (i + 1) false true
+        | '#' ->
+            let j = ref i in
+            while !j < len && text.[!j] <> '\n' do
+              mask.(!j) <- false;
+              incr j
+            done;
+            scan !j false false
+        | _ -> scan (i + 1) false false
+  in
+  scan 0 false false;
+  mask
+
+(** Render cleaned R text: non-code characters become spaces, newlines kept.
+    Test and debug helper built on [r_code_mask]. *)
+let strip_r_strings_and_comments (text : string) : string =
+  let mask = r_code_mask text in
+  String.mapi (fun i c -> if mask.(i) then c else if c = '\n' then '\n' else ' ') text
+
+(** A regex package-name span counts only when fully on code. *)
+let span_is_code mask lo hi =
+  let ok = ref true in
+  let i = ref lo in
+  while !ok && !i < hi do
+    if !i < 0 || !i >= Array.length mask || not mask.(!i) then ok := false;
+    incr i
+  done;
+  !ok && hi > lo
+
 let scan_code_requirements ~node_name ~runtime raw_text =
   let reason = Printf.sprintf "node `%s` usage discovery" node_name in
   let req = with_reason empty_requirements reason in
   match runtime with
   | "R" ->
       (* Generic R package discovery: roxygen `@import`/`@importFrom`
-         (incl. Classes/Methods variants) tags, `library()`/`require()`
-         calls, and `pkg::` qualifiers — for any package name, not just a
-         hardcoded list. Base packages are excluded (always available);
-         installation still flows through tproject.toml, so every hit
-         surfaces in the prompt/auto-add UX. User code keeps attaching
-         libraries itself (`library()`/`::`). *)
+         (incl. Classes/Methods variants) tags, `library()`/`require()`/
+         `requireNamespace()`/`loadNamespace()` calls, and `pkg::`
+         qualifiers — for any package name, not just a hardcoded list.
+         Base packages and the `tlang` companion are excluded. Roxygen is
+         read from the original text; call matches count when the call
+         sits on code, `::` matches when the package-name span sits on
+         code (no strings, no `#` comments). Installation still flows through
+         tproject.toml, so every hit surfaces in the prompt/auto-add UX.
+         User code keeps attaching libraries itself. *)
       let is_pkg_char = function
         | 'A'..'Z' | 'a'..'z' | '0'..'9' | '.' -> true
         | _ -> false
@@ -234,16 +304,23 @@ let scan_code_requirements ~node_name ~runtime raw_text =
               end
         ) acc (String.split_on_char '\n' raw_text)
       in
-      (* library()/require() calls, quoted or not. Whitespace classes use
-         a real TAB character: inside OCaml {| |} strings a backslash is
-         literal, and Str reads \t as a plain t, so [ \t] there would
-         swallow package initials. Plain double-quoted patterns keep \t
-         a genuine tab. Two patterns (quoted/unquoted), earliest wins. *)
-      let from_library_calls acc =
-        let re_plain = Str.regexp "\\(library\\|require\\)[ \t]*([ \t]*\\([A-Za-z0-9.]+\\)" in
-        let re_quoted = Str.regexp "\\(library\\|require\\)[ \t]*([ \t]*[\"']\\([A-Za-z0-9.]+\\)" in
+      (* library-family calls, quoted or not: `library`, `require`,
+         `requireNamespace`, `loadNamespace`. Longest names come first so
+         the `require` prefix never shadows `requireNamespace`.
+         Whitespace classes use a real TAB character: inside OCaml {| |}
+         strings a backslash is literal, and Str reads \t as a plain t,
+         so [ \t] there would swallow package initials. Plain
+         double-quoted patterns keep \t a genuine tab. Two patterns
+         (quoted/unquoted), earliest wins. Runs on the original text; a
+         match counts only when the call itself sits on code. Quoted
+         package names live inside string literals by design, so the
+         name span is not checked — the call-site check alone rejects
+         calls written inside strings or `#` comments. *)
+      let from_library_calls mask code acc =
+        let re_plain = Str.regexp "\\(requireNamespace\\|loadNamespace\\|library\\|require\\)[ \t]*([ \t]*\\([A-Za-z0-9.]+\\)" in
+        let re_quoted = Str.regexp "\\(requireNamespace\\|loadNamespace\\|library\\|require\\)[ \t]*([ \t]*[\"']\\([A-Za-z0-9.]+\\)" in
         let at re pos =
-          try Some (Str.search_forward re raw_text pos) with Not_found -> None
+          try Some (Str.search_forward re code pos) with Not_found -> None
         in
         let rec loop acc pos =
           let pick =
@@ -256,30 +333,43 @@ let scan_code_requirements ~node_name ~runtime raw_text =
           match pick with
           | None -> acc
           | Some (re, p) ->
-              let _ = Str.search_forward re raw_text p in
-              let pkg =
-                try Str.matched_group 2 raw_text with Not_found | Invalid_argument _ -> ""
+              let _ = Str.search_forward re code p in
+              let acc =
+                if span_is_code mask p (p + 1) then
+                  let pkg =
+                    try Str.matched_group 2 code with Not_found | Invalid_argument _ -> ""
+                  in
+                  add_pkg acc pkg
+                else acc
               in
-              loop (add_pkg acc pkg) (Str.match_end ())
+              loop acc (Str.match_end ())
         in
         loop acc 0
       in
-      (* `pkg::fun` qualifiers. *)
-      let from_namespaced acc =
+      (* `pkg::fun` qualifiers (also matches `:::`). Runs on the original
+         text; only matches with the name span on code count. *)
+      let from_namespaced mask code acc =
         let re = Str.regexp {|\([A-Za-z0-9.]+\)::|} in
         let rec loop acc pos =
-          match (try Some (Str.search_forward re raw_text pos) with Not_found -> None) with
+          match (try Some (Str.search_forward re code pos) with Not_found -> None) with
           | None -> acc
           | Some _ ->
-              let pkg =
-                try Str.matched_group 1 raw_text with Not_found | Invalid_argument _ -> ""
+              let acc =
+                (match (try Some (Str.group_beginning 1, Str.group_end 1) with Not_found | Invalid_argument _ -> None) with
+                 | Some (lo, hi) when span_is_code mask lo hi ->
+                     let pkg =
+                       try Str.matched_group 1 code with Not_found | Invalid_argument _ -> ""
+                     in
+                     add_pkg acc pkg
+                 | _ -> acc)
               in
-              loop (add_pkg acc pkg) (Str.match_end ())
+              loop acc (Str.match_end ())
         in
         loop acc 0
       in
+      let mask = r_code_mask raw_text in
       let found =
-        from_namespaced (from_library_calls (from_roxygen String_set.empty))
+        from_namespaced mask raw_text (from_library_calls mask raw_text (from_roxygen String_set.empty))
       in
       { req with r_deps = String_set.union req.r_deps found }
   | "Python" ->

@@ -143,7 +143,7 @@ After editing, run `t update` to include them in `flake.nix`. Packages are avail
 
 #### 3.3.1a Automatic Discovery from R Code
 
-T scans R node code for package usage — roxygen `@import`/`@importFrom` tags, `library()`/`require()` calls, and `pkg::fun` qualifiers — and prompts you to add any missing packages to `tproject.toml` before building (or auto-adds them with `TLANG_AUTO_ADD_PIPELINE_DEPS=1`). Base packages are never listed. Discovery only ensures packages are *installed*; your code must still attach them (`library(dplyr)` or `dplyr::mutate`).
+T scans R node code for package usage — roxygen `@import`/`@importFrom` tags, `library()`/`require()`/`requireNamespace()`/`loadNamespace()` calls, and `pkg::fun` qualifiers — and prompts you to add any missing packages to `tproject.toml` before building (or auto-adds them with `TLANG_AUTO_ADD_PIPELINE_DEPS=1`). Base packages are never listed. Names inside string literals and `#` comments are skipped. Discovery only ensures packages are *installed*; your code must still attach them (`library(dplyr)` or `dplyr::mutate`).
 
 ```r
 #' @importFrom dplyr mutate filter
