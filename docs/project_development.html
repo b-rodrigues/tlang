@@ -173,7 +173,7 @@ class="sourceCode toml"><code class="sourceCode toml"><span id="cb3-1"><a href="
 <span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="dt">data_utils</span> <span class="op">=</span> <span class="op">{ </span><span class="dt">git</span><span class="op"> =</span> <span class="st">&quot;https://github.com/user/data-utils&quot;</span><span class="op">, </span><span class="dt">tag</span><span class="op"> =</span> <span class="st">&quot;v0.2.0&quot;</span><span class="op"> }</span></span>
 <span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="kw">[t]</span></span>
-<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="dt">min_version</span> <span class="op">=</span> <span class="st">&quot;0.55.1&quot;</span></span></code></pre></div>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="dt">min_version</span> <span class="op">=</span> <span class="st">&quot;0.55.2&quot;</span></span></code></pre></div>
 <blockquote>
 <p><strong>Important</strong>: <code>[dependencies]</code> entries
 <strong>must</strong> be <code>{ git, tag }</code> inline tables
@@ -254,11 +254,12 @@ environment is also discovered by Positron as an R interpreter (re-run
 from R Code</h4>
 <p>T scans R node code for package usage — roxygen
 <code>@import</code>/<code>@importFrom</code> tags,
-<code>library()</code>/<code>require()</code> calls, and
-<code>pkg::fun</code> qualifiers — and prompts you to add any missing
-packages to <code>tproject.toml</code> before building (or auto-adds
-them with <code>TLANG_AUTO_ADD_PIPELINE_DEPS=1</code>). Base packages
-are never listed. Discovery only ensures packages are
+<code>library()</code>/<code>require()</code>/<code>requireNamespace()</code>/<code>loadNamespace()</code>
+calls, and <code>pkg::fun</code> qualifiers — and prompts you to add any
+missing packages to <code>tproject.toml</code> before building (or
+auto-adds them with <code>TLANG_AUTO_ADD_PIPELINE_DEPS=1</code>). Base
+packages are never listed. Names inside string literals and
+<code>#</code> comments are skipped. Discovery only ensures packages are
 <em>installed</em>; your code must still attach them
 (<code>library(dplyr)</code> or <code>dplyr::mutate</code>).</p>
 <div class="sourceCode" id="cb10"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co">#&#39; @importFrom dplyr mutate filter</span></span>

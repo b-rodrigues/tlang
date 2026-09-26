@@ -34,7 +34,26 @@
 </nav>
 <div class="container">
 <h1 id="changelog">Changelog</h1>
-<h2 id="section">[0.55.1] - 2026-09-23</h2>
+<h2 id="section">[0.55.2] - 2026-09-26</h2>
+<h3 id="fixes">Fixes</h3>
+<ul>
+<li><strong>Pipelines with R Git packages build again</strong>: R code
+that loads a package from Git — via <code>renv.lock</code> or via
+<code>brotools = { git = ..., rev = ... }</code> in
+<code>tproject.toml</code> — no longer stops <code>nix</code> evaluation
+with <code>attribute missing</code>. Git packages resolve from their Git
+source, not from <code>nixpkgs</code>.</li>
+<li><strong><code>library(tlang)</code> needs no declaration</strong>: R
+nodes that load the <code>tlang</code> companion package no longer
+trigger a missing-dependency prompt for <code>[r-dependencies]</code>.
+The companion comes from <code>tlang-r</code> automatically.</li>
+<li><strong>R discovery reads more calls, skips noise</strong>:
+dependency prompts now cover <code>requireNamespace()</code> and
+<code>loadNamespace()</code> in addition to <code>library()</code>,
+<code>require()</code>, and <code>pkg::</code>. Names inside string
+literals and <code>#</code> comments cause no prompt.</li>
+</ul>
+<h2 id="section-1">[0.55.1] - 2026-09-23</h2>
 <h3 id="new-features">New features</h3>
 <ul>
 <li><strong><code>tlang</code> Quarto extension highlights T
@@ -68,7 +87,7 @@ Vectorized.</li>
 matches CLI <code>t test</code> flags. <code>verbose = true</code>
 prints per-file error details.</li>
 </ul>
-<h3 id="fixes">Fixes</h3>
+<h3 id="fixes-1">Fixes</h3>
 <ul>
 <li><strong>Positron R interpreter discovery</strong>: Project R
 environments (<code>r-env</code> in generated <code>flake.nix</code>)
@@ -176,7 +195,7 @@ from roxygen <code>@import</code>/<code>@importFrom</code> tags,
 Base packages are excluded. Discovery installs packages; code must still
 attach them (issue 473).</li>
 </ul>
-<h2 id="section-1">[0.55.0] - 2026-08-11</h2>
+<h2 id="section-2">[0.55.0] - 2026-08-11</h2>
 <h3 id="breaking-changes">Breaking Changes</h3>
 <ul>
 <li><strong>Arrow IPC serializer renamed <code>^arrow</code> →
@@ -601,7 +620,7 @@ value.</li>
 very negative <code>Datetime</code> counterexamples shrink correctly
 instead of overflowing a 32-bit intermediate.</li>
 </ul>
-<h2 id="section-2">[0.54.3] - 2026-08-01</h2>
+<h2 id="section-3">[0.54.3] - 2026-08-01</h2>
 <h3 id="pipeline-validation-fixes">Pipeline Validation Fixes</h3>
 <ul>
 <li><strong><code>text</code> is now treated as format-agnostic raw
@@ -733,7 +752,7 @@ guarantees.</li>
 error</strong> and returns the pipeline unchanged when valid, for
 guard-style use in pipeline chains.</li>
 </ul>
-<h2 id="section-3">[0.54.2] - 2026-07-29</h2>
+<h2 id="section-4">[0.54.2] - 2026-07-29</h2>
 <h3 id="testcraft-testing-package"><code>testcraft</code> — Testing
 Package</h3>
 <ul>
@@ -835,7 +854,7 @@ fix</strong>: Coverage cleaning and discovery now check both the project
 directory and the current working directory for <code>.coverage</code>
 files.</li>
 </ul>
-<h2 id="section-4">[0.54.1] - 2026-07-20</h2>
+<h2 id="section-5">[0.54.1] - 2026-07-20</h2>
 <h3 id="type-system-annotations-and-inference">Type System: Annotations
 and Inference</h3>
 <ul>
@@ -1065,7 +1084,7 @@ commands.</li>
 <li><strong><code>write_parquet(data, path)</code></strong>: Write a
 DataFrame to a Parquet file via Arrow.</li>
 </ul>
-<h2 id="section-5">[0.54.0] - 2026-07-08</h2>
+<h2 id="section-6">[0.54.0] - 2026-07-08</h2>
 <h3 id="pipeline-diagnostics">Pipeline &amp; Diagnostics</h3>
 <ul>
 <li><strong>SoftFailed Node Classification</strong>: Fixed
@@ -1239,7 +1258,7 @@ returns its SHA-256 hash, usable as the <code>sha256</code> argument to
 <code>fetchurl</code>. Enables a two-step workflow: compute the hash
 upfront, then pin it in a pipeline for reproducible builds.</li>
 </ul>
-<h2 id="section-6">[0.53.3] - 2026-06-26</h2>
+<h2 id="section-7">[0.53.3] - 2026-06-26</h2>
 <h3 id="toolchain-ci-updates">Toolchain &amp; CI Updates</h3>
 <ul>
 <li><strong>Nixpkgs Snapshot &amp; Package Updates</strong>: Updated the
@@ -1292,7 +1311,7 @@ distribution quantile, via binary search on <code>pchisq</code>.</li>
 <li>Enables power analysis and exact p-value thresholds natively in T
 without calling R.</li>
 </ul>
-<h2 id="section-7">[0.53.2] - 2026-06-24</h2>
+<h2 id="section-8">[0.53.2] - 2026-06-24</h2>
 <h3 id="hotfix">Hotfix</h3>
 <ul>
 <li><strong>Nix Flake Update / Maven Dependency Parity</strong>: Fixed
@@ -1301,7 +1320,7 @@ for the <code>jpmml-evaluator</code> library (used for PMML model
 scoring). The nixpkgs fetch source hash has been updated to restore
 local build compatibility.</li>
 </ul>
-<h2 id="section-8">[0.53.1] - 2026-06-24</h2>
+<h2 id="section-9">[0.53.1] - 2026-06-24</h2>
 <h3 id="hotfix-1">Hotfix</h3>
 <p>Fix for https://github.com/b-rodrigues/tlang/issues/434</p>
 <p>jpmm-statsmodels PR is not yet merged into NixOS/nixpkgs master
@@ -1354,7 +1373,7 @@ Fixes</h3>
 before the global environment, enabling dynamic column name
 resolution.</li>
 </ul>
-<h2 id="section-9">[0.53.0] - 2026-06-22</h2>
+<h2 id="section-10">[0.53.0] - 2026-06-22</h2>
 <p>This release:</p>
 <ul>
 <li><strong>Atelier TUI IDE Integration</strong>: This release
@@ -1456,7 +1475,7 @@ inside assignment/reassignment statements. The error is bound to the
 variable and propagated correctly, enabling robust recovery patterns via
 subsequent <code>match</code> blocks.</li>
 </ul>
-<h2 id="section-10">[0.52.3] - 2026-06-12</h2>
+<h2 id="section-11">[0.52.3] - 2026-06-12</h2>
 <p>This release:</p>
 <ul>
 <li>introduces a new meta-pipeline composition feature
@@ -1805,7 +1824,7 @@ code.</li>
 Checklist to <code>AGENTS.md</code> as a permanent reference for future
 contributions.</li>
 </ul>
-<h2 id="section-11">[0.52.2] - 2026-05-31</h2>
+<h2 id="section-12">[0.52.2] - 2026-05-31</h2>
 <p>This release introduces interactive pipeline node debugging via
 <code>debug_node</code>, native Nix orchestration features for granular
 rebuild control, job parallelisation, Cachix binary caching, and
@@ -2028,7 +2047,7 @@ values containing non-ASCII characters (accented letters, symbols like
 <code>explain()</code> tree output, instead of being shown as raw byte
 sequences such as <code>\226\134\146</code>.</li>
 </ul>
-<h2 id="section-12">[0.52.1] - 2026-05-22</h2>
+<h2 id="section-13">[0.52.1] - 2026-05-22</h2>
 <p>This release finalizes end-to-end Julia ONNX serialization support,
 fixes pipeline compiler strategy dictionary parsing issues, strengthens
 runtime safety by protecting reserved keywords, and completes the
@@ -2382,7 +2401,7 @@ better reflect its purpose of appending model-level diagnostics
 names and remove deprecated aliases.</li>
 </ul></li>
 </ul>
-<h2 id="section-13">[0.51.5] - 2026-05-08</h2>
+<h2 id="section-14">[0.51.5] - 2026-05-08</h2>
 <p>The focus of this release was to improve language ergonomics for data
 guardrails, enhance package manager feedback, and increase test coverage
 across all packages.</p>
@@ -2611,7 +2630,7 @@ process.</li>
 streamline local reporting workflows.</li>
 </ul></li>
 </ul>
-<h2 id="section-14">[0.51.4] - 2026-04-30</h2>
+<h2 id="section-15">[0.51.4] - 2026-04-30</h2>
 <p><strong>Status</strong>: Beta</p>
 <h3 id="ai-agent-onboarding-context-tiering">AI Agent Onboarding &amp;
 Context Tiering</h3>
@@ -2874,7 +2893,7 @@ Dictionaries. The system now correctly restores the native
 <code>Error</code> type across node boundaries, even when using modern
 JSON interchange.</li>
 </ul>
-<h2 id="section-15">[0.51.3] - 2026-04-12</h2>
+<h2 id="section-16">[0.51.3] - 2026-04-12</h2>
 <p><strong>Status</strong>: Beta</p>
 <h3 id="pipeline-infrastructure-observability">Pipeline Infrastructure
 &amp; Observability</h3>
@@ -3171,7 +3190,7 @@ sweep to remove legacy version strings and hardcoded formatting in
 installation and project guides.</li>
 </ul>
 <p>Version history and roadmap for the T programming language.</p>
-<h2 id="section-16">[0.51.1] - 2026-03-21</h2>
+<h2 id="section-17">[0.51.1] - 2026-03-21</h2>
 <p><strong>Status</strong>: Beta <strong>Release Date</strong>: 21st of
 March 2026</p>
 <h3 id="features-cli">Features &amp; CLI</h3>

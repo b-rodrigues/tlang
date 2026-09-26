@@ -53,6 +53,17 @@ let generate_nix (p : Ast.pipeline_result) =
       let r_serializer_packages, py_serializer_packages =
         Pipeline_dependency_requirements.required_serializer_packages p
       in
+      (* Serializer packages are looked up via `rPackages.${p}` in Nix.
+         Git packages live in `rGitPkgsList` and `tlang` lives in `tlang-r`,
+         so exclude them here to avoid `attribute missing` eval errors. *)
+      let git_names =
+        List.map (fun (g : Package_types.r_git_dependency) -> g.Package_types.rgd_name) r_git_pkgs
+      in
+      let r_serializer_packages =
+        List.filter
+          (fun pkg -> pkg <> "tlang" && not (List.mem pkg git_names))
+          r_serializer_packages
+      in
       let nix_content =
         Nix_emitter.emit_pipeline ~rel_root ~r_git_pkgs ~r_renv_cran_pkgs
           ?py_version:py_version_opt ~r_serializer_packages ~py_serializer_packages p

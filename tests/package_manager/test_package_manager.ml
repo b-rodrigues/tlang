@@ -588,6 +588,145 @@ packages = []
         analysis.missing_r_deps = ["jsonlite"]
     | _ -> false);
 
+  test_pm "tlang companion is never required" (fun () ->
+    let env = Packages.init_env () in
+    match fst (eval_string_env {|
+      p = pipeline {
+        a = rn(command = <{
+          library(tlang)
+          "ok"
+        }>)
+      }
+      p
+    |} env) with
+    | Ast.VPipeline p ->
+        let cfg = Package_types.default_project_config "tlang-discovery" in
+        let analysis = Pipeline_dependency_requirements.analyze_missing_requirements p cfg in
+        analysis.missing_r_deps = ["jsonlite"]
+    | _ -> false);
+
+  test_pm "tlang namespaced use is never required" (fun () ->
+    let env = Packages.init_env () in
+    match fst (eval_string_env {|
+      p = pipeline {
+        a = rn(command = <{
+          tlang::pipeline_nodes()
+        }>)
+      }
+      p
+    |} env) with
+    | Ast.VPipeline p ->
+        let cfg = Package_types.default_project_config "tlang-ns-discovery" in
+        let analysis = Pipeline_dependency_requirements.analyze_missing_requirements p cfg in
+        analysis.missing_r_deps = ["jsonlite"]
+    | _ -> false);
+
+  test_pm "requireNamespace quoted prompts for package" (fun () ->
+    let env = Packages.init_env () in
+    match fst (eval_string_env {|
+      p = pipeline {
+        a = rn(command = <{
+          if (!requireNamespace("dplyr", quietly = TRUE)) stop("need dplyr")
+        }>)
+      }
+      p
+    |} env) with
+    | Ast.VPipeline p ->
+        let cfg = Package_types.default_project_config "reqns-quoted" in
+        let analysis = Pipeline_dependency_requirements.analyze_missing_requirements p cfg in
+        analysis.missing_r_deps = ["dplyr"; "jsonlite"]
+    | _ -> false);
+
+  test_pm "requireNamespace unquoted prompts for package" (fun () ->
+    let env = Packages.init_env () in
+    match fst (eval_string_env {|
+      p = pipeline {
+        a = rn(command = <{
+          requireNamespace(dplyr)
+        }>)
+      }
+      p
+    |} env) with
+    | Ast.VPipeline p ->
+        let cfg = Package_types.default_project_config "reqns-plain" in
+        let analysis = Pipeline_dependency_requirements.analyze_missing_requirements p cfg in
+        analysis.missing_r_deps = ["dplyr"; "jsonlite"]
+    | _ -> false);
+
+  test_pm "loadNamespace quoted prompts for package" (fun () ->
+    let env = Packages.init_env () in
+    match fst (eval_string_env {|
+      p = pipeline {
+        a = rn(command = <{
+          loadNamespace('dplyr')
+        }>)
+      }
+      p
+    |} env) with
+    | Ast.VPipeline p ->
+        let cfg = Package_types.default_project_config "loadns-quoted" in
+        let analysis = Pipeline_dependency_requirements.analyze_missing_requirements p cfg in
+        analysis.missing_r_deps = ["dplyr"; "jsonlite"]
+    | _ -> false);
+
+  test_pm "short pkg::fun prompts for package" (fun () ->
+    let env = Packages.init_env () in
+    match fst (eval_string_env {|
+      p = pipeline {
+        a = rn(command = <{
+          hu::fun()
+        }>)
+      }
+      p
+    |} env) with
+    | Ast.VPipeline p ->
+        let cfg = Package_types.default_project_config "short-ns" in
+        let analysis = Pipeline_dependency_requirements.analyze_missing_requirements p cfg in
+        analysis.missing_r_deps = ["hu"; "jsonlite"]
+    | _ -> false);
+
+  test_pm "names in comments cause no prompt" (fun () ->
+    let env = Packages.init_env () in
+    match fst (eval_string_env {|
+      p = pipeline {
+        a = rn(command = <{
+          1 + 1
+        }>)
+      }
+      p
+    |} env) with
+    | Ast.VPipeline _ ->
+        (* End-to-end: comment text with call names reaches no collector. *)
+        let code = "# library(tidyr)\n1 + 1 # requireNamespace(\"dplyr\") # loadNamespace(dplyr)\n" in
+        let req = Pipeline_dependency_requirements.scan_code_requirements ~node_name:"a" ~runtime:"R" code in
+        req.r_deps = Pipeline_dependency_requirements.String_set.empty
+    | _ -> false);
+
+  test_pm "library and :: in strings cause no prompt" (fun () ->
+    let env = Packages.init_env () in
+    match fst (eval_string_env {|
+      p = pipeline {
+        a = rn(command = <{
+          msg <- "see dplyr::mutate"
+          1 + 1
+        }>)
+      }
+      p
+    |} env) with
+    | Ast.VPipeline p ->
+        let cfg = Package_types.default_project_config "string-discovery" in
+        let analysis = Pipeline_dependency_requirements.analyze_missing_requirements p cfg in
+        analysis.missing_r_deps = ["jsonlite"]
+    | _ -> false);
+
+  test_pm "requireNamespace in string or comment causes no prompt" (fun () ->
+    let cleaned_s = Pipeline_dependency_requirements.strip_r_strings_and_comments "msg <- \"requireNamespace(dplyr)\"\n" in
+    let cleaned_c = Pipeline_dependency_requirements.strip_r_strings_and_comments "# requireNamespace(\"dplyr\")\n1 + 1\n" in
+    (not (String.contains cleaned_s '"'))
+    && (not (String.contains cleaned_c '#'))
+    && (try ignore (Str.search_forward (Str.regexp "requireNamespace") cleaned_s 0); false with Not_found -> true)
+    && (try ignore (Str.search_forward (Str.regexp "requireNamespace") cleaned_c 0); false with Not_found -> true));
+
   test_pm "ggplot2 discovery still works" (fun () ->
     let env = Packages.init_env () in
     match fst (eval_string_env {|
