@@ -73,7 +73,7 @@ Inside that shell, the project-specific T binary, dependency set, editor tooling
 
 ### Sync dependencies
 
-- Projects declare dependencies in `tproject.toml`. R dependencies can also use `resolver = "renv"` to auto-discover packages from `renv.lock`, or declare git-hosted R packages directly (e.g. `pkg = { git = "https://...", rev = "..." }`). Git R package dependencies can also be auto-detected from `DESCRIPTION`/`NAMESPACE` files. R usage is also discovered generically from node code (roxygen `@import`/`@importFrom` tags, `library()`/`require()` calls, `pkg::` qualifiers), prompting for missing packages before builds.
+- Projects declare dependencies in `tproject.toml`. R dependencies can also use `resolver = "renv"` (strict, `renv.lock` is single source, no auto fix) or `resolver = "renv+toml"` (union of `renv.lock` and `tproject.toml`, suggests `t add R`), or declare git-hosted R packages directly (e.g. `pkg = { git = "https://...", rev = "..." }`). Git R package dependencies can also be auto-detected from `DESCRIPTION`/`NAMESPACE` files. R usage is also discovered generically from node code (roxygen `@import`/`@importFrom` tags, `library()`/`require()` calls, `pkg::` qualifiers), prompting for missing packages before builds.
 - New projects ignore the R package fetch cache: scaffolded `.gitignore` lists `.t_r_pkg_cache/` so `git add .` never stages its embedded git checkouts.
 - Python dependencies use either the nixpkgs resolver (`packages = ["pandas", "numpy"]`) or the UV workspace resolver (`resolver = "uv"`, `workspace = "python"`) for PyPI-only packages.
 - Julia dependencies (`[jl-dependencies]`) set `version = "lts"` (default) or a specific release (`"1.10"`), and list packages from nixpkgs: `packages = ["DataFrames", "CSV", "GLM"]`.

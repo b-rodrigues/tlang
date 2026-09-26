@@ -37,8 +37,8 @@ let generate_nix (p : Ast.pipeline_result) =
                    ~cache_root:(Filename.concat project_root ".t_r_pkg_cache")
                    ~deps:cfg.proj_r_git_dependencies
                in
-               let cran_pkgs, git_pkgs =
-                 if cfg.proj_r_resolver = "renv" then
+                let cran_pkgs, git_pkgs =
+                  if Package_types.is_renv_family_resolver cfg.proj_r_resolver then
                    match Renv_resolver.split_packages ~project_root with
                    | Ok (renv_cran, renv_git) -> renv_cran, toml_git_pkgs @ renv_git
                    | Error _ -> [], toml_git_pkgs

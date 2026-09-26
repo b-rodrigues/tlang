@@ -186,4 +186,73 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
     | Ok _ -> false
     | Error msg -> Test_helpers.contains msg "dead");
 
+  print_newline ();
+
+  Printf.printf "Toml Parser — R resolver:\n";
+
+  test_pm "accept resolver renv" (fun () ->
+    let toml = {|
+      [project]
+      name = "test-proj"
+
+      [r-dependencies]
+      resolver = "renv"
+      packages = []
+
+      [t]
+      min_version = "0.55.0"
+    |} in
+    match Toml_parser.parse_tproject_toml toml with
+    | Ok cfg -> cfg.Package_types.proj_r_resolver = "renv"
+    | Error _ -> false);
+
+  test_pm "accept resolver renv+toml" (fun () ->
+    let toml = {|
+      [project]
+      name = "test-proj"
+
+      [r-dependencies]
+      resolver = "renv+toml"
+      packages = ["dplyr"]
+
+      [t]
+      min_version = "0.55.0"
+    |} in
+    match Toml_parser.parse_tproject_toml toml with
+    | Ok cfg -> cfg.Package_types.proj_r_resolver = "renv+toml"
+      && cfg.Package_types.proj_r_dependencies = ["dplyr"]
+    | Error _ -> false);
+
+  test_pm "reject unknown R resolver" (fun () ->
+    let toml = {|
+      [project]
+      name = "test-proj"
+
+      [r-dependencies]
+      resolver = "magic"
+      packages = []
+
+      [t]
+      min_version = "0.55.0"
+    |} in
+    match Toml_parser.parse_tproject_toml toml with
+    | Ok _ -> false
+    | Error msg -> Test_helpers.contains msg "renv+toml");
+
+  test_pm "serialize keeps renv+toml resolver" (fun () ->
+    let cfg = { (Package_types.default_project_config "demo") with
+      Package_types.proj_r_resolver = "renv+toml";
+      Package_types.proj_r_dependencies = ["dplyr"] } in
+    let s = Toml_parser.serialize_tproject_toml cfg in
+    Test_helpers.contains s "renv+toml");
+
+  test_pm "resolver helpers classify renv family" (fun () ->
+    Package_types.is_renv_family_resolver "renv"
+    && Package_types.is_renv_family_resolver "renv+toml"
+    && not (Package_types.is_renv_family_resolver "nixpkgs")
+    && Package_types.is_strict_renv_resolver "renv"
+    && not (Package_types.is_strict_renv_resolver "renv+toml")
+    && Package_types.is_mixed_renv_resolver "renv+toml"
+    && not (Package_types.is_mixed_renv_resolver "renv"));
+
   print_newline ()

@@ -172,6 +172,25 @@ When `resolver = "renv"`, T automatically discovers all R dependencies from `ren
 
 No `packages` list is required — `renv.lock` is the single source of truth. Run `t update` to regenerate `flake.nix` with the renv-discovered packages.
 
+If a pipeline needs a package that is missing from `renv.lock`, `t check --env` reports an error with no auto fix. Update `renv.lock` by hand, then run `t update`. Or switch to `renv+toml` below. Caution: then `renv.lock` is no longer the single source of truth.
+
+#### 3.3.2b renv+toml Resolver (union)
+
+To allow extra packages from `tproject.toml` without edit of `renv.lock`, set:
+
+```toml
+[r-dependencies]
+resolver = "renv+toml"
+packages = ["dplyr"]
+```
+
+When `resolver = "renv+toml"`, T uses the union of `renv.lock` and `tproject.toml`:
+
+- Packages in `renv.lock` work as in strict `renv` mode.
+- Packages in `[r-dependencies].packages` or git entries in `tproject.toml` also work.
+- If a pipeline needs a package from neither source, `t check --env` suggests `t add R <pkg> && t update`.
+- T never writes `renv.lock`. Use `t add` for `tproject.toml` only.
+
 #### 3.3.3 Git R Packages
 
 Declare R packages from remote Git repositories directly in `tproject.toml`:
@@ -184,7 +203,7 @@ my_pkg = { git = "https://github.com/user/my-pkg", rev = "abc123def456" }
 
 The `rev` field must be a full Git commit hash. Each git package is injected into every R pipeline node's `buildInputs`.
 
-When using `resolver = "renv"`, git packages from `renv.lock` are automatically merged with those declared in `tproject.toml`.
+When using `resolver = "renv"` or `resolver = "renv+toml"`, git packages from `renv.lock` are automatically merged with those declared in `tproject.toml`.
 
 ### 3.4 Python Dependencies
 

@@ -234,9 +234,9 @@ let parse_tproject_toml ?(root_dir : string option) (content : string) : (projec
                    | _ -> ())
                 | None -> ())
              | _ -> ());
-             let r_resolver = get_string_opt toml ["r-dependencies"; "resolver"] ~default:"nixpkgs" in
-            if r_resolver <> "nixpkgs" && r_resolver <> "renv" then
-              Error (Printf.sprintf "Unsupported [r-dependencies].resolver %S; expected \"nixpkgs\" or \"renv\"" r_resolver)
+              let r_resolver = get_string_opt toml ["r-dependencies"; "resolver"] ~default:"nixpkgs" in
+             if r_resolver <> "nixpkgs" && r_resolver <> "renv" && r_resolver <> "renv+toml" then
+               Error (Printf.sprintf "Unsupported [r-dependencies].resolver %S; expected \"nixpkgs\", \"renv\" or \"renv+toml\"" r_resolver)
             else
               match parse_dependencies toml with
               | Error msg -> Error msg
@@ -312,7 +312,7 @@ let serialize_tproject_toml (cfg : project_config) : string =
   ) cfg.proj_dependencies;
   Buffer.add_char buf '\n';
   Buffer.add_string buf "[r-dependencies]\n";
-  if cfg.proj_r_resolver = "renv" then
+  if cfg.proj_r_resolver = "renv" || cfg.proj_r_resolver = "renv+toml" then
     Printf.bprintf buf "resolver = %S\n" cfg.proj_r_resolver;
   List.iter (fun g ->
     let deps_str =
