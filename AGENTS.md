@@ -107,6 +107,7 @@ This runs immediately, then re-runs on every file save. Press Ctrl+C to stop. Ex
   - `Suggest_identifier`: `"high"` at distance 1 and unique, scales down with distance/uniqueness
   - `Run_command`: always `"low"` (actionable commands, check manual commands before execution)
   - **Note:** `t fix` applies all non-`NoFix` suggestions regardless of confidence. Confidence is informational for agents/tools to decide whether to auto-apply or review first.
+  - **Nix purity gate for fixes:** Every `Run_command` fix MUST respect Code Safety Rule 10 (Nix Purity and Hermeticity). Suggest only pure commands such as `t add ...` and `t update`. NEVER suggest `R -e 'renv::install(...)'`, `pip install`, `apt-get install`, or any other impure host-side install. T never writes `renv.lock` itself; tell the user to update it by hand when strict `renv` mode requires it.
 - **Avoid Watch Mode:** Do NOT use `--watch` (e.g., `t check --watch`). It runs a blocking loop that waits for file changes and requires a manual `Ctrl+C` interrupt, which hangs agent execution.
 - **Schema Silencing on Custom Verbs:** If you use a custom or unrecognized function in a pipe chain, the schema compiler drops the schema to empty (`[]`). This silences subsequent column-reference checks downstream. Always manually verify column references if custom verbs are introduced.
 
@@ -183,6 +184,8 @@ These rules are **mandatory** and apply to every line of OCaml code added or mod
 8. **Death to Null.** Under no circumstances should `null` be implemented or used. Missingness is handled via `NA` and optionality via `Error` or explicit missing values.
 
 9. **Absolute Explicitness.** No implicit behavior: all configuration, pipeline dependencies, and environment assumptions must be declared explicitly so that the codebase serves as its own complete documentation.
+
+10. **Nix Purity and Hermeticity — Never Break the Sandbox.** T builds run in a pure, hermetic Nix sandbox. No network access occurs at build time. No host mutation occurs at build time. All inputs come from declared sources only (`tproject.toml`, `flake.nix`, `flake.lock`, `renv.lock`, locked sources). **NEVER suggest a fix or solution that breaks this model** — not in code, not in docs, not in diagnostics, not in `t fix` suggestions, not in chat answers. Forbidden patterns include: `R -e 'renv::install(...)'`, `pip install`, `apt-get install`, `opam install`, `npm install -g`, direct writes to `renv.lock` by T, writes to `/nix/store`, `export PATH` to impure host tools, or any command that fetches state at build time outside Nix. The pure path is always: declare the need in `tproject.toml` (for example with `t add`), regenerate with `t update`, then rebuild. If a need cannot be met through a declared Nix input, return an explicit `VError` that tells the user to fix the lockfile or declaration by hand. Do not add a silent fallback.
 
 **Pattern to follow** (from `src/packages/stats/mean.ml`):
 ```ocaml

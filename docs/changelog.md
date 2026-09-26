@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.55.3] - 2026-09-26
+
+### New features
+
+- **`renv+toml` R resolver (union mode)**: Set `[r-dependencies] resolver = "renv+toml"` to use the union of `renv.lock` and `tproject.toml`. Packages from either source satisfy `t check --env` and builds. A package missing from both suggests `t add R <pkg> && t update`. T never writes `renv.lock`.
+
+### Changes
+
+- **Strict `renv` resolver keeps `renv.lock` as single source**: A pipeline package missing from `renv.lock` is now an error with no auto fix. Update `renv.lock` by hand, then run `t update`, or switch to `renv+toml`. Caution: `renv+toml` ends single-source truth. Impure install commands (such as `R -e 'renv::install(...)'`) are never suggested.
+
 ## [0.55.2] - 2026-09-26
 
 ### Fixes

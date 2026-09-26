@@ -30,7 +30,7 @@ R tidyverse ecosystem, particularly packages such as dplyr, stringr, and
 lubridate. This makes it possible to perform exploratory data analysis directly
 from the T REPL before promoting computations into reproducible pipelines.
 
-**Status:** Version 0.55.2 "L'Ultime combat".
+**Status:** Version 0.55.3 "L'Ultime combat".
 
 ---
 
@@ -419,7 +419,7 @@ Now that you have your first project set up and understand the folder structure,
 
 # T Language Overview
 
-> **Version**: 0.55.2
+> **Version**: 0.55.3
 
 T is a functional programming language designed for declarative, tabular data manipulation. It combines the pipeline-driven style of R's tidyverse with OCaml's type discipline, producing a small, focused language for data wrangling and basic statistics.
 
@@ -5331,7 +5331,7 @@ Schema errors are reported as `phase: "schema"` diagnostics and trigger exit cod
 When `--env` is passed, `t check` additionally runs environment resolution checks on all pipelines found in the environment:
 
 1. **Package declarations**: Checks that R/Python/Julia packages required by the pipeline are declared in `tproject.toml`.
-2. **Lockfile consistency**: For `r_resolver = "renv"`, verifies that declared R packages exist in `renv.lock`.
+2. **Lockfile consistency**: For `r_resolver = "renv"`, verifies that required R packages exist in `renv.lock`. Strict mode gives no auto fix. Message tells user to update `renv.lock` by hand or switch to `renv+toml`. For `r_resolver = "renv+toml"`, verifies against the union of `renv.lock` and `tproject.toml` and suggests `t add R <pkg> && t update`. T never writes `renv.lock`.
 3. **Nix evaluation**: Generates `pipeline.nix` and `dag.json` in `_pipeline/`, then runs `nix-instantiate --impure --eval --strict` to validate that the Nix expressions evaluate correctly. This writes to the project's pipeline directory as a side effect.
 
 Environment errors are reported as `phase: "env"` diagnostics and trigger exit code 3.
@@ -9512,6 +9512,16 @@ Now that you can work with numerical arrays, explore statistical modeling and re
 # FILE: docs/changelog.md
 
 # Changelog
+
+## [0.55.3] - 2026-09-26
+
+### New features
+
+- **`renv+toml` R resolver (union mode)**: Set `[r-dependencies] resolver = "renv+toml"` to use the union of `renv.lock` and `tproject.toml`. Packages from either source satisfy `t check --env` and builds. A package missing from both suggests `t add R <pkg> && t update`. T never writes `renv.lock`.
+
+### Changes
+
+- **Strict `renv` resolver keeps `renv.lock` as single source**: A pipeline package missing from `renv.lock` is now an error with no auto fix. Update `renv.lock` by hand, then run `t update`, or switch to `renv+toml`. Caution: `renv+toml` ends single-source truth. Impure install commands (such as `R -e 'renv::install(...)'`) are never suggested.
 
 ## [0.55.2] - 2026-09-26
 
@@ -22108,7 +22118,7 @@ my_stats = { git = "https://github.com/user/my-stats", tag = "v0.1.0" }
 data_utils = { git = "https://github.com/user/data-utils", tag = "v0.2.0" }
 
 [t]
-min_version = "0.55.2"
+min_version = "0.55.3"
 ```
 
 > **Important**: `[dependencies]` entries **must** be `{ git, tag }` inline tables pointing to T packages. Version-constraint strings (e.g. `tlang = ">=0.52.0"`) and array values (e.g. `python = ["polars"]`) are **not valid** and will produce a hard error from `t update`. To declare runtime-language packages, use the dedicated sections:
@@ -22215,6 +22225,25 @@ When `resolver = "renv"`, T automatically discovers all R dependencies from `ren
 
 No `packages` list is required — `renv.lock` is the single source of truth. Run `t update` to regenerate `flake.nix` with the renv-discovered packages.
 
+If a pipeline needs a package that is missing from `renv.lock`, `t check --env` reports an error with no auto fix. Update `renv.lock` by hand, then run `t update`. Or switch to `renv+toml` below. Caution: then `renv.lock` is no longer the single source of truth.
+
+#### 3.3.2b renv+toml Resolver (union)
+
+To allow extra packages from `tproject.toml` without edit of `renv.lock`, set:
+
+```toml
+[r-dependencies]
+resolver = "renv+toml"
+packages = ["dplyr"]
+```
+
+When `resolver = "renv+toml"`, T uses the union of `renv.lock` and `tproject.toml`:
+
+- Packages in `renv.lock` work as in strict `renv` mode.
+- Packages in `[r-dependencies].packages` or git entries in `tproject.toml` also work.
+- If a pipeline needs a package from neither source, `t check --env` suggests `t add R <pkg> && t update`.
+- T never writes `renv.lock`. Use `t add` for `tproject.toml` only.
+
 #### 3.3.3 Git R Packages
 
 Declare R packages from remote Git repositories directly in `tproject.toml`:
@@ -22227,7 +22256,7 @@ my_pkg = { git = "https://github.com/user/my-pkg", rev = "abc123def456" }
 
 The `rev` field must be a full Git commit hash. Each git package is injected into every R pipeline node's `buildInputs`.
 
-When using `resolver = "renv"`, git packages from `renv.lock` are automatically merged with those declared in `tproject.toml`.
+When using `resolver = "renv"` or `resolver = "renv+toml"`, git packages from `renv.lock` are automatically merged with those declared in `tproject.toml`.
 
 ### 3.4 Python Dependencies
 
@@ -37454,7 +37483,7 @@ Every T project is a **Nix flake**:
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
-    tlang.url = "github:b-rodrigues/tlang/v0.55.2";
+    tlang.url = "github:b-rodrigues/tlang/v0.55.3";
   };
 
   outputs = { self, nixpkgs, tlang }: {
@@ -37579,7 +37608,7 @@ intent {
   ],
   
   environment: {
-    t_version: "0.55.2",
+    t_version: "0.55.3",
     nix_revision: "abc123",
     run_date: "2024-01-15"
   }
@@ -37623,7 +37652,7 @@ my-analysis/
   
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
-    tlang.url = "github:b-rodrigues/tlang/v0.55.2";
+    tlang.url = "github:b-rodrigues/tlang/v0.55.3";
   };
   
   outputs = { self, nixpkgs, tlang }: {

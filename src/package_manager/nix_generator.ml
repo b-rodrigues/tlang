@@ -656,7 +656,7 @@ let install_flake
     () : (string, string) result =
   let flake_path = Filename.concat dir "flake.nix" in
   let r_deps, r_git_deps =
-    if kind = Project && r_resolver = "renv" then
+    if kind = Project && Package_types.is_renv_family_resolver r_resolver then
       match Renv_resolver.split_packages ~project_root:dir with
       | Ok (renv_cran, renv_git) ->
         r_deps @ renv_cran, r_git_deps @ renv_git

@@ -3452,8 +3452,14 @@ environment:</p>
 packages required by the pipeline are declared in
 <code>tproject.toml</code>.</li>
 <li><strong>Lockfile consistency</strong>: For
-<code>r_resolver = "renv"</code>, verifies that declared R packages
-exist in <code>renv.lock</code>.</li>
+<code>r_resolver = "renv"</code>, verifies that required R packages
+exist in <code>renv.lock</code>. Strict mode gives no auto fix. Message
+tells user to update <code>renv.lock</code> by hand or switch to
+<code>renv+toml</code>. For <code>r_resolver = "renv+toml"</code>,
+verifies against the union of <code>renv.lock</code> and
+<code>tproject.toml</code> and suggests
+<code>t add R &lt;pkg&gt; &amp;&amp; t update</code>. T never writes
+<code>renv.lock</code>.</li>
 <li><strong>Nix evaluation</strong>: Generates <code>pipeline.nix</code>
 and <code>dag.json</code> in <code>_pipeline/</code>, then runs
 <code>nix-instantiate --impure --eval --strict</code> to validate that

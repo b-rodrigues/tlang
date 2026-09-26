@@ -130,6 +130,13 @@ let default_project_config name = {
   proj_authors = ["Your Name <email@example.com>"];
 }
 
+(** R resolver helpers: "renv" is strict, "renv+toml" allows union with tproject.toml. *)
+let is_renv_family_resolver s = s = "renv" || s = "renv+toml"
+
+let is_strict_renv_resolver s = s = "renv"
+
+let is_mixed_renv_resolver s = s = "renv+toml"
+
 (** Validate a package/project name: lowercase, alphanumeric, hyphens only *)
 let validate_name name =
   let len = String.length name in

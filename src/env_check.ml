@@ -58,7 +58,7 @@ let check_declared_requirements ~file ~tproject_path ~project_root ~tproject_cfg
     else []
   | Some cfg ->
     let cfg =
-      if cfg.Package_types.proj_r_resolver = "renv" then
+      if Package_types.is_renv_family_resolver cfg.Package_types.proj_r_resolver then
         match Renv_resolver.split_packages ~project_root with
         | Ok (renv_cran, renv_git) ->
             { cfg with
@@ -113,10 +113,12 @@ let check_declared_requirements ~file ~tproject_path ~project_root ~tproject_cfg
       add_missing "[latex]" analysis.Pipeline_dependency_requirements.missing_latex_pkgs;
       !missing_diags
 
-(* Check lockfile consistency: for renv, verify all required packages are in renv.lock *)
+(* Check lockfile consistency:
+   - "renv" is strict: source is renv.lock only. No auto fix.
+   - "renv+toml" allows union: source is renv.lock plus tproject.toml. *)
 let check_lockfile_consistency ~file ~tproject_cfg (p : Ast.pipeline_result) =
   match tproject_cfg with
-  | Some cfg when cfg.Package_types.proj_r_resolver = "renv" ->
+  | Some cfg when Package_types.is_strict_renv_resolver cfg.Package_types.proj_r_resolver ->
     let project_root = Builder_utils.get_project_root () in
     (match Renv_resolver.split_packages ~project_root with
      | Error _ -> []
@@ -142,13 +144,51 @@ let check_lockfile_consistency ~file ~tproject_cfg (p : Ast.pipeline_result) =
               diag_column = None;
               diag_end_line = None;
               diag_end_column = None;
-               diag_message = Printf.sprintf "R package '%s' required by pipeline not found in renv.lock" pkg;
+               diag_message = Printf.sprintf "R package '%s' required by pipeline not found in renv.lock. Update renv.lock by hand, then run `t update`. Or set [r-dependencies] resolver to \"renv+toml\" to also use tproject.toml. Caution: then renv.lock is no longer the single source of truth." pkg;
+              diag_expected = None;
+              diag_actual = None;
+              diag_caused_by = [];
+              diag_suggested_fix = Diagnostics.no_fix;
+            }
+         ) missing)
+  | Some cfg when Package_types.is_mixed_renv_resolver cfg.Package_types.proj_r_resolver ->
+    let project_root = Builder_utils.get_project_root () in
+    (match Renv_resolver.split_packages ~project_root with
+     | Error _ -> []
+     | Ok (cran_pkgs, git_pkgs) ->
+         let required = Pipeline_dependency_requirements.required_for_pipeline p in
+         let union_set = List.fold_left (fun s pkg -> Pipeline_dependency_requirements.String_set.add pkg s)
+           Pipeline_dependency_requirements.String_set.empty cran_pkgs in
+         let union_set = List.fold_left (fun s (git_pkg : Package_types.r_git_dependency) ->
+           Pipeline_dependency_requirements.String_set.add git_pkg.Package_types.rgd_name s
+         ) union_set git_pkgs in
+         let union_set = List.fold_left (fun s pkg -> Pipeline_dependency_requirements.String_set.add pkg s)
+           union_set cfg.Package_types.proj_r_dependencies in
+         let union_set = List.fold_left (fun s (git_pkg : Package_types.r_git_dependency) ->
+           Pipeline_dependency_requirements.String_set.add git_pkg.Package_types.rgd_name s
+         ) union_set cfg.Package_types.proj_r_git_dependencies in
+         let missing = Pipeline_dependency_requirements.String_set.diff required.r_deps union_set
+           |> Pipeline_dependency_requirements.String_set.elements in
+         List.map (fun pkg ->
+           Diagnostics.{
+             diag_id = Diagnostics.gen_id ();
+             diag_error_class = Missing_from_lockfile;
+             diag_severity = Error;
+             diag_phase = Env;
+             diag_node_id = None;
+             diag_node_lang = None;
+             diag_file = Some file;
+              diag_line = None;
+              diag_column = None;
+              diag_end_line = None;
+              diag_end_column = None;
+               diag_message = Printf.sprintf "R package '%s' required by pipeline not found in renv.lock or tproject.toml. Add it to tproject.toml, then run `t update`. T never writes renv.lock." pkg;
               diag_expected = None;
               diag_actual = None;
               diag_caused_by = [];
               diag_suggested_fix = Diagnostics.make_run_command_fix
-                ~command:(Printf.sprintf "R -e 'renv::install(\"%s\")'" pkg)
-                ~description:(Printf.sprintf "Install %s into renv.lock via renv" pkg)
+                ~command:(Printf.sprintf "t add R %s && t update" pkg)
+                ~description:(Printf.sprintf "Declare %s in tproject.toml and regenerate flake.nix" pkg)
                 ?file:(Some file)
                 ();
             }

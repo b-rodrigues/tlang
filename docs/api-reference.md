@@ -3713,7 +3713,7 @@ Schema errors are reported as `phase: "schema"` diagnostics and trigger exit cod
 When `--env` is passed, `t check` additionally runs environment resolution checks on all pipelines found in the environment:
 
 1. **Package declarations**: Checks that R/Python/Julia packages required by the pipeline are declared in `tproject.toml`.
-2. **Lockfile consistency**: For `r_resolver = "renv"`, verifies that declared R packages exist in `renv.lock`.
+2. **Lockfile consistency**: For `r_resolver = "renv"`, verifies that required R packages exist in `renv.lock`. Strict mode gives no auto fix. Message tells user to update `renv.lock` by hand or switch to `renv+toml`. For `r_resolver = "renv+toml"`, verifies against the union of `renv.lock` and `tproject.toml` and suggests `t add R <pkg> && t update`. T never writes `renv.lock`.
 3. **Nix evaluation**: Generates `pipeline.nix` and `dag.json` in `_pipeline/`, then runs `nix-instantiate --impure --eval --strict` to validate that the Nix expressions evaluate correctly. This writes to the project's pipeline directory as a side effect.
 
 Environment errors are reported as `phase: "env"` diagnostics and trigger exit code 3.

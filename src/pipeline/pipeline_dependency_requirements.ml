@@ -655,9 +655,9 @@ let ensure_project_requirements (p : Ast.pipeline_result) =
     | Ok content ->
         (match Toml_parser.parse_tproject_toml ~root_dir:project_root content with
          | Error msg -> Error (Printf.sprintf "Cannot parse tproject.toml: %s" msg)
-         | Ok cfg ->
+          | Ok cfg ->
               let cfg =
-                if cfg.proj_r_resolver = "renv" then
+                if Package_types.is_renv_family_resolver cfg.proj_r_resolver then
                   match Renv_resolver.split_packages ~project_root with
                   | Ok (renv_cran, renv_git) ->
                     { cfg with
