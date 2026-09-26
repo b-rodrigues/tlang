@@ -178,7 +178,10 @@ let scan_code_requirements ~node_name ~runtime raw_text =
         String.for_all is_pkg_char s
       in
       let add_pkg acc pkg =
+        (* Exclude base R packages (always available) and the `tlang`
+           companion package (provided via `tlang-r`, not nixpkgs). *)
         if valid_pkg pkg && not (Renv_resolver.is_base_r_package pkg)
+           && pkg <> "tlang"
            && not (String_set.mem pkg acc)
         then String_set.add pkg acc
         else acc

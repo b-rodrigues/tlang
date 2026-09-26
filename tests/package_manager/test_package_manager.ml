@@ -588,6 +588,39 @@ packages = []
         analysis.missing_r_deps = ["jsonlite"]
     | _ -> false);
 
+  test_pm "tlang companion is never required" (fun () ->
+    let env = Packages.init_env () in
+    match fst (eval_string_env {|
+      p = pipeline {
+        a = rn(command = <{
+          library(tlang)
+          "ok"
+        }>)
+      }
+      p
+    |} env) with
+    | Ast.VPipeline p ->
+        let cfg = Package_types.default_project_config "tlang-discovery" in
+        let analysis = Pipeline_dependency_requirements.analyze_missing_requirements p cfg in
+        analysis.missing_r_deps = ["jsonlite"]
+    | _ -> false);
+
+  test_pm "tlang namespaced use is never required" (fun () ->
+    let env = Packages.init_env () in
+    match fst (eval_string_env {|
+      p = pipeline {
+        a = rn(command = <{
+          tlang::pipeline_nodes()
+        }>)
+      }
+      p
+    |} env) with
+    | Ast.VPipeline p ->
+        let cfg = Package_types.default_project_config "tlang-ns-discovery" in
+        let analysis = Pipeline_dependency_requirements.analyze_missing_requirements p cfg in
+        analysis.missing_r_deps = ["jsonlite"]
+    | _ -> false);
+
   test_pm "ggplot2 discovery still works" (fun () ->
     let env = Packages.init_env () in
     match fst (eval_string_env {|

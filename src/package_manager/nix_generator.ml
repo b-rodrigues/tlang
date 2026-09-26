@@ -196,6 +196,9 @@ let generate_project_flake
     () : string =
   let additional_tools = safe_pkg_names ~warn:warn_invalid_pkg_names additional_tools in
   let jl_deps = ensure_julia_json_dep jl_deps in
+  (* `tlang` is provided via `tlang-r`, not nixpkgs `rPackages`. Filter it
+     defensively in case an old `tproject.toml` still lists it. *)
+  let r_deps = List.filter (fun p -> p <> "tlang") r_deps in
   let has_atelier_in_tools = List.mem "atelier" additional_tools in
   let effective_use_atelier = use_atelier || has_atelier_in_tools in
   let additional_tools = List.filter (fun t -> t <> "atelier") additional_tools in
