@@ -1,4 +1,4 @@
-# T — Nix Make for Polyglot Data Science
+# T — Reproducible Polyglot Pipelines
 
 **Simulate in Julia. Train in Python. Report in R. Pin the entire stack.**
 

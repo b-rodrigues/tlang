@@ -6,7 +6,7 @@ This file is a concatenation of the entire T documentation for LLM context.
 
 # FILE: docs/index.md
 
-# T — Nix Make for Polyglot Data Science
+# T — Reproducible Polyglot Pipelines
 
 **Simulate in Julia. Train in Python. Report in R. Pin the entire stack.**
 
