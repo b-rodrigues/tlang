@@ -47,10 +47,10 @@ your tools communicate without glue and execute consistently through
 space and time: on your laptop today, on a cluster tomorrow, and five
 years from now without bitrot.</p>
 <hr />
-<h2 id="the-30-second-example">The 30-Second Example</h2>
+<h2 id="how-it-looks-in-practice">How It Looks in Practice</h2>
 <p>A complete analysis that simulates non-linear data in Julia, fits a
-gradient-boosted regressor in Python, and plots ground truth vs
-predictions in R:</p>
+gradient-boosted regressor in Python, plots ground truth vs predictions
+in R, and compiles a Quarto report:</p>
 <pre class="t"><code>p = pipeline {
   -- 1. Simulate non-linear DGP in Julia (seeded)
   sim_data = jln(
@@ -81,7 +81,7 @@ sim_data
   )
 
   -- 3. Publication figure in R (ggplot2)
-  report = rn(
+  plot = rn(
     command = &lt;{
       library(ggplot2)
 
@@ -93,6 +93,9 @@ sim_data
     }&gt;,
     deserializer = [predictions: ^ipc]
   )
+
+  -- 4. Render reproducible Quarto report
+  report = node(script = &quot;src/report.qmd&quot;, runtime = Quarto)
 }
 
 build_pipeline(p)</code></pre>
@@ -102,6 +105,9 @@ object directly; T’s runner automatically renders and caches the visual
 artifact without <code>ggsave()</code>. DataFrames pass between nodes
 via Apache Arrow IPC (<code>^ipc</code>) without <code>read.csv()</code>
 or <code>to_csv()</code> glue.</li>
+<li><strong>Literate reporting:</strong> The Quarto node compiles
+<code>src/report.qmd</code> into an HTML or PDF report inside the Nix
+sandbox, directly embedding upstream metrics and figures.</li>
 <li><strong>Hermetic sandboxes:</strong> Every node executes in an
 isolated Nix sandbox with pinned runtimes.</li>
 <li><strong>Seeded &amp; cached:</strong> Julia and Python draws are

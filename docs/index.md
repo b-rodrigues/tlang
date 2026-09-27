@@ -8,9 +8,9 @@ A language for the LLM era, T is designed to be piloted by both humans and AI mo
 
 ---
 
-## The 30-Second Example
+## How It Looks in Practice
 
-A complete analysis that simulates non-linear data in Julia, fits a gradient-boosted regressor in Python, and plots ground truth vs predictions in R:
+A complete analysis that simulates non-linear data in Julia, fits a gradient-boosted regressor in Python, plots ground truth vs predictions in R, and compiles a Quarto report:
 
 ```t
 p = pipeline {
@@ -43,7 +43,7 @@ sim_data
   )
 
   -- 3. Publication figure in R (ggplot2)
-  report = rn(
+  plot = rn(
     command = <{
       library(ggplot2)
 
@@ -55,12 +55,16 @@ sim_data
     }>,
     deserializer = [predictions: ^ipc]
   )
+
+  -- 4. Render reproducible Quarto report
+  report = node(script = "src/report.qmd", runtime = Quarto)
 }
 
 build_pipeline(p)
 ```
 
 - **Zero manual I/O:** R returns the `ggplot` object directly; T's runner automatically renders and caches the visual artifact without `ggsave()`. DataFrames pass between nodes via Apache Arrow IPC (`^ipc`) without `read.csv()` or `to_csv()` glue.
+- **Literate reporting:** The Quarto node compiles `src/report.qmd` into an HTML or PDF report inside the Nix sandbox, directly embedding upstream metrics and figures.
 - **Hermetic sandboxes:** Every node executes in an isolated Nix sandbox with pinned runtimes.
 - **Seeded & cached:** Julia and Python draws are explicitly seeded. Unchanged nodes resolve instantly from the content-addressed store.
 
