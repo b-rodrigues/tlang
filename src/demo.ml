@@ -1,5 +1,5 @@
 (* src/demo.ml *)
-(* Interactive CLI tour / demo for the T language *)
+(* Interactive CLI demo for the T language *)
 
 open Ast
 
@@ -19,7 +19,7 @@ let wait_step ~headless prompt_msg =
     flush stdout;
     let line = try read_line () with End_of_file -> "q" in
     if String.trim line = "q" || String.trim line = ":q" then begin
-      Printf.printf "\n%sExiting tour. Have fun with T!%s\n\n" color_gray color_reset;
+      Printf.printf "\n%sExiting demo. Have fun with T!%s\n\n" color_gray color_reset;
       exit 0
     end
   end
@@ -48,8 +48,8 @@ let eval_snippet env code =
   | _ -> (v, env')
 
 let run ?(headless = false) ?start_repl env =
-  banner "T Interactive Tour: Reproducible Pipelines in Action";
-  Printf.printf "Welcome to the T interactive tour!\n";
+  banner "T Interactive Demo: Reproducible Pipelines in Action";
+  Printf.printf "Welcome to the T interactive demo!\n";
   Printf.printf "In this walkthrough, we will demonstrate:\n";
   Printf.printf "  1. Defining a computation graph (pipeline) as a first-class program value\n";
   Printf.printf "  2. Inspecting the pipeline DAG (nodes, dependencies, structure)\n";
@@ -194,7 +194,7 @@ let run ?(headless = false) ?start_repl env =
 
   (* --- Step 8: REPL Handoff --- *)
   banner "Step 8: Interactive Exploration";
-  Printf.printf "The tour is complete! All computed pipeline states are retained in memory.\n\n";
+  Printf.printf "The demo is complete! All computed pipeline states are retained in memory.\n\n";
   Printf.printf "Try exploring in the REPL:\n";
   Printf.printf "  %sexplain(p)%s               -- View full pipeline tree\n" color_bold color_reset;
   Printf.printf "  %spipeline_nodes(p)%s        -- List node names\n" color_bold color_reset;
@@ -206,4 +206,4 @@ let run ?(headless = false) ?start_repl env =
   | Some repl_fn when not headless ->
       repl_fn env
   | _ ->
-      Printf.printf "%sTour finished successfully.%s\n\n" color_green color_reset
+      Printf.printf "%sDemo finished successfully.%s\n\n" color_green color_reset

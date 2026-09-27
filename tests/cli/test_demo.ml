@@ -1,7 +1,7 @@
 (* tests/cli/test_demo.ml *)
 
 let run_tests pass_count fail_count _failures _eval_string _eval_string_env _test =
-  Printf.printf "Demo / Tour tests:\n";
+  Printf.printf "Demo tests:\n";
   let test_message name predicate =
     if predicate then begin
       incr pass_count;

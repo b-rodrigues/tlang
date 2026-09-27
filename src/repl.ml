@@ -470,7 +470,7 @@ let print_help () =
   Printf.printf "Usage: t <command> [arguments]\n\n";
   Printf.printf "Commands:\n";
   Printf.printf "  repl              Start the interactive REPL (default)\n";
-  Printf.printf "  demo              Run the interactive pipeline tour\n";
+  Printf.printf "  demo              Run the interactive pipeline demo\n";
   Printf.printf "  run [--json] <file.t>      Execute a T source file\n";
   Printf.printf "  run [--json] --expr <expr> Execute a T expression directly\n";
   Printf.printf "  check [--json] [--schema] [--env] <file.t>  Validate pipeline structure (no Nix builds)\n";
@@ -2017,7 +2017,7 @@ let () =
             end;
             exit 0)
   | _ :: "repl" :: _ -> cmd_repl ~failfast mode_parse.mode env
-  | _ :: "demo" :: rest | _ :: "tour" :: rest ->
+  | _ :: "demo" :: rest ->
       let headless = List.mem "--headless" rest in
       Demo.run ~headless ~start_repl:(cmd_repl ~failfast:false mode_parse.mode) env
   | _ :: "explain" :: rest -> cmd_explain ~failfast mode_parse.mode rest env
