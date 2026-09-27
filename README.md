@@ -1,171 +1,118 @@
-# T Orchestration Engine
+# T — Nix Make for Polyglot Data Science
 
 [![Chat on Matrix](https://img.shields.io/badge/Chat%20on-Matrix-000?logo=matrix&logoColor=white)](https://matrix.to/#/#tproject:matrix.org)
 [![License: EUPL v1.2](https://img.shields.io/badge/License-EUPL%20v1.2-blue.svg)](LICENSE)
-[![Status: Beta](https://img.shields.io/badge/Status-Beta%200.55.3%20%22L%27Ultime%20combat%22-blue.svg)](https://tstats-project.org/changelog.html)
-[![Documentation](https://img.shields.io/badge/docs-tstats--project.org-informational.svg)](https://tstats-project.org/api-reference.html)
 [![Built with Nix](https://img.shields.io/badge/built%20with-Nix-5277C3.svg?logo=nixos&logoColor=white)](https://nixos.org)
+[![Documentation](https://img.shields.io/badge/docs-tstats--project.org-informational.svg)](https://tstats-project.org)
 [![CI](https://github.com/b-rodrigues/tlang/actions/workflows/unit-tests.yaml/badge.svg)](https://github.com/b-rodrigues/tlang/actions)
 [![OCaml](https://img.shields.io/badge/OCaml-5.x-EC6813.svg?logo=ocaml&logoColor=white)](https://ocaml.org)
 
-[![Watch the T Orchestration Engine Trailer](https://img.youtube.com/vi/LIatS0k0JEI/maxresdefault.jpg)](https://youtu.be/LIatS0k0JEI?si=tk11_vqRb1JY75Hq)
+**Simulate in Julia. Train in Python. Report in R. Pin the entire stack.**  
+*T is a pipeline tool that coordinates R, Python, and Julia analyses in a single, content-addressed dependency graph. One file, bit-for-bit reproducible, zero reticulate or PyCall glue.*
 
-**T** is an experimental, reproducibility-by-design DSL for polyglot data
-science. It provides a functional, immutable language for constructing
-composable micropipelines—first-class, introspectable computation graphs
-that coordinate R, Python, and Shell execution within a unified system.
-Pipelines in T are not configuration artifacts but executable program
-structures with explicit dataflow, typed nodes, and content-addressed
-outputs.
+---
 
-The engine is built for seamless interoperability: you can manipulate
-objects defined in foreign-language nodes directly from within the T
-environment. Data conversion is handled transparently for common types, and
-T offers the flexibility to define custom serializers for complex
-interchanges—allowing you to leverage the strengths of each language
-without ever leaving the T runtime.
+## The 30-Second Example
 
-## Reproducibility Is the Point
-
-Most data science pipelines don't fail because the code is wrong — they fail
-months or years later because the *environment* silently changed. A pinned
-`requirements.txt` doesn't tell you which system libraries were linked, which
-compiler built your R package, or what happened when your Python node called
-out to a Julia script that nobody re-pinned. This gets worse, not better, the
-moment a project spans more than one language: `renv` can lock your R
-dependencies and `conda` can lock your Python ones, but nothing locks the
-*seam* between them.
-
-**T makes that seam a first-class part of the language.** Every node in a T
-pipeline — R, Python, Julia, or shell — runs in its own hermetic Nix sandbox,
-and every output is content-addressed. This isn't a convention or a CI
-best-practice you have to remember to follow: it's enforced by the language
-itself. You cannot build a T pipeline outside of Nix, and you cannot define a
-node without T tracking exactly what it depends on and what it produced. A
-pipeline that builds today will build byte-for-byte identically in five
-years, on a different machine, with a different person at the keyboard.
-
-|  | Locks language deps | Locks system libraries | Locks the polyglot seam | Enforced at build time |
-|---|:---:|:---:|:---:|:---:|
-| `renv` / `conda` | ✅ | ❌ | ❌ | ❌ |
-| Docker | ⚠️ (if maintained) | ✅ | ⚠️ (one image, not per-node) | ❌ |
-| Snakemake / Nextflow / `targets` | ❌ (delegates to user) | ❌ | ❌ | ❌ |
-| **T** | ✅ | ✅ | ✅ | ✅ |
-
-The result: reproducibility isn't something you *configure* in T, it's
-something you can't opt out of. Below is what that looks like in practice —
-an R model trained via Nix-sandboxed `rn()`, evaluated natively in T with no
-R runtime required at prediction time, content-addressed at every step.
-
-### The Polyglot Orchestrator
-
-T's core strength is its **mandatory pipeline architecture**. It treats R scripts, Python models, Julia scripts, and Shell commands as first-class nodes in a directed acyclic graph (DAG). T handles the "glue":
-- **Nix-Powered Sandboxing**: Each node runs in its own reproducible environment.
-- **High-performance Data Transfer**: Move DataFrames between R, Python, and T using Apache Arrow IPC via the Nix store.
-- **Native Model Evaluation**: Train models in R/Python and evaluate them natively in T via PMML (linear models, decision trees, random forests, and boosted trees like **XGBoost** and **LightGBM**).
-- **Model Interchange & Orchestration**: Use `^onnx` for model portability across Python, R, and Julia nodes with T-native metadata orchestration.
-
-```t
--- A reproducible polyglot pipeline
-p = pipeline {
-  -- 1. Load data natively in T (using the ^csv serializer)
-  -- The ^ prefix identifies a first-class serializer in the T registry.
-  data = node(
-    command = read_csv("examples/sample_data.csv") |> filter($age > 25),
-    serializer = ^csv
-  )
-  
-  -- 2. Train a statistical model in R (using the rn() wrapper)
-  model_r = rn(
-    command = <{ lm(score ~ age, data = data) }>,
-    serializer = ^pmml,
-    deserializer = ^csv
-  )
-  
-  -- 3. Predict natively in T (no R/Python runtime needed!)
-  predictions = node(
-    command = data |> mutate($pred = predict(data, model_r)),
-    deserializer = ^pmml
-  )
-
-  -- 4. Generate a shell report
-  report = shn(command = <{
-    printf 'R model results cached at: %s\n' "$T_NODE_model_r/artifact"
-  }>)
-}
-
--- Build the pipeline into reproducible Nix artifacts
-build_pipeline(p)
-```
-
-ONNX is also available as a first-class serializer:
+A complete analysis that runs a heavy simulation in Julia, trains a model in Python, and plots the results in R:
 
 ```t
 p = pipeline {
-  model_py = pyn(
+  -- 1. Heavy numerical simulation in Julia (jln)
+  sim_data = jln(
     command = <{
-      from sklearn.linear_model import LogisticRegression
-      clf = LogisticRegression().fit(X, y)
+      using DataFrames
+      # Fast numerical simulation or ODE solving
+      simulate_panel(n_agents = 50_000, periods = 12)
+    }>,
+    serializer = ^arrow
+  )
+
+  -- 2. Train machine learning model in Python (pyn)
+  model = pyn(
+    command = <{
+      from sklearn.ensemble import GradientBoostingRegressor
+      X = sim_data.drop(columns=['y'])
+      clf = GradientBoostingRegressor().fit(X, sim_data['y'])
       clf
     }>,
+    deserializer = ^arrow,
     serializer = ^onnx
   )
 
-  scored = pyn(
+  -- 3. Publication-quality figure & audit report in R (rn)
+  report = rn(
     command = <{
-      session = model_py
-      session
+      library(ggplot2)
+      p <- ggplot(sim_data, aes(x = period, y = y)) +
+        geom_line(color = "#2c3e50") +
+        theme_minimal()
+      ggsave(file.path(output_dir, "policy_report.png"), p)
     }>,
-    deserializer = ^onnx
+    deserializer = ^arrow
   )
 }
+
+build_pipeline(p)
 ```
 
-## Why T?
+Run it once: every node executes in its own hermetic sandbox.  
+Run it again: all three nodes hit the local cache instantly.
 
-- **Orchestration, Not Invention**: T doesn't aim to replace R or Python. It aims to coordinate them. Use R for its stats, Python for its ML, and T to ensure they always talk to each other correctly.
-- **Strictly Functional**: No loops, no mutable variables, and explicit `NA` handling. This reduces the "hallucination surface" for AI-assisted coding and makes logic easier to audit.
-- **Mandatory Pipelines**: To run a script in T, you *must* define it as a pipeline. This forces you to move away from spaghetti scripts and toward a documented, cacheable architecture. Interactive line-by-line exploration is always possible in the **REPL**, however.
+---
 
-### Intent Blocks: A Thought Experiment
+## Why Polyglot Pipelines Break (And How T Fixes Them)
 
-T features **`intent` blocks**—structured metadata embedded in code that describes the "why" and "how" of an analysis. 
+Most modern quantitative projects in research, central banks, official statistics, and regulated industries are polyglot by necessity:
+- **Julia** is unmatched for raw numerical simulation, ODEs, and heavy optimization loops.
+- **Python** is the standard for modern machine learning and deep learning tooling.
+- **R** remains the gold standard for survey statistics, econometrics, and publication-ready reporting.
 
-> [!IMPORTANT]
-> **Experimental Status**: `intent` blocks are currently a **thought experiment**. We are exploring how structured metadata can help LLMs understand code intent and how it can improve reproducibility audits. Their syntax and behavior are highly likely to change as we discover what "collaboration-first" code really looks like.
+Connecting them today forces you to choose between three bad options:
 
-```t
-intent {
-  description: "Customer churn prediction",
-  assumptions: ["Age > 18", "NA imputed with median"],
-  requires: ["mtcars.csv"]
-}
-```
+| The Status Quo | The Failure Mode |
+|---|---|
+| **In-process FFI (`reticulate`, `PyCall`, `RCall`)** | Shared memory between multiple runtimes with competing garbage collectors and conflicting OpenMP/BLAS threads causes unexplained segfaults. Upgrading one runtime breaks the other. |
+| **Ad-hoc Bash scripts & CSVs** | No caching: tweaking a title in an R ggplot re-runs your 3-hour Julia simulation. Column types and missing values silently mutate during CSV export. |
+| **Chained Docker containers** | Huge container images, slow local development, impossible for an analyst to inspect or debug interactively on a laptop. |
 
-## AI-First Development
+### How T handles the seam:
 
-T is designed to treat AI agents as first-class collaborators. Its strictly functional, immutable syntax and explicit error handling significantly reduce the "hallucination surface" for LLMs.
+1. **Process-level isolation:** Each foreign language node runs in its own isolated process. Julia's memory cannot corrupt R; Python's C-extensions cannot conflict with Julia's OpenMP threads.
+2. **First-class data exchange:** Data passes between nodes using Apache Arrow IPC (`^arrow`) and standard model serialization (`^onnx`, `^pmml`, `^csv`). No custom serialization glue scripts.
+3. **One pinned environment:** Under the hood, Nix locks your R packages, Python wheels, Julia depot, and underlying system C/Fortran libraries in one declarative manifest. If it runs today, it runs byte-for-byte identically in 2030.
 
-> [!IMPORTANT]
-> **T's source code is itself 100% AI-generated** — written by AI agents
-> using the same design principles described below (strict functional
-> semantics, immutable state, explicit errors). It's tested with more than
-> 3,000 unit tests and more than 80 end-to-end integration tests. We think of
-> it as the project putting its own thesis to the test.
+---
 
-When you initialize a new T project, the CLI prompts you to select an **AI Agent Onboarding Level** (Small, Medium, Full, or Huge). T then automatically generates:
-- **`AGENTS.md`**: A project-specific onboarding guide for LLMs.
-- **`T-LANGUAGE-REFERENCE.md`**: A tiered language reference tailored to the project's complexity and the agent's context window.
+## How T Compares
 
-This ensures that any AI assistant you pair-program with has the exact technical context required to be productive immediately.
+| Feature | {targets} | Snakemake | Docker | **T** |
+|---|:---:|:---:|:---:|:---:|
+| **Language focus** | R first | Python / CLI | Any | **R + Python + Julia** |
+| **Cross-language glue** | Ad-hoc / `reticulate` | Shell scripts | Manual scripts | **Native (`^arrow`, `^onnx`)** |
+| **Node caching** | Content-addressed (R) | Timestamp / file hash | Layer-based | **Content-addressed (all nodes)** |
+| **System library locking** | ❌ (Delegates to host) | ❌ (Conda optional) | ✅ (Per image) | ✅ (Hermetic Nix sandbox) |
+| **Local interactive inspect** | ✅ (`tar_read()`) | ❌ | ❌ | ✅ (`read_node()`) |
 
-### The Verification Loop: Cheap Checks Before Expensive Builds
+---
 
-The core reason T works well with agents isn't the onboarding docs — it's that
-**`t check` is milliseconds and `t run` is minutes.** An agent can iterate on a
-pipeline dozens of times against `t check --schema` before ever triggering a Nix
-build, catching name errors, schema mismatches, and structural problems in the
-same loop it already uses to write code.
+## Workflow: From REPL Exploration to Audited DAG
+
+You do not have to start with a complex graph.
+
+1. **Explore interactively:** Use T's REPL or your native R/Python/Julia sessions inside the pinned project shell to inspect data.
+2. **Wrap in `pipeline {}`:** When your analysis stabilizes, assign your steps to `jln()`, `pyn()`, or `rn()` nodes in a single `pipeline.t` file.
+3. **Verify in milliseconds:** Run `t check --schema pipeline.t` to validate node dependencies and column names instantly—no builds triggered.
+4. **Build and cache:** Run `t run pipeline.t`. Every step is built and cached in the Nix store.
+
+---
+
+## Fast Agent / LLM Collaboration
+
+T is designed to eliminate hallucination in AI-assisted workflows:
+- **Strictly immutable semantics:** No hidden state mutations or side effects.
+- **Fast verification loop:** `t check --json` gives AI coding agents instant, machine-readable compiler diagnostics before running expensive builds.
+- **Standard agent instructions:** Every project includes an optimized `AGENTS.md` so tools like Claude Code, Cursor, and Copilot write valid T pipelines on the first prompt.
 
 Every check emits structured JSON, not a stack trace:
 
@@ -182,17 +129,11 @@ $ t check --json pipeline.t
 }
 ```
 
-An agent can parse `error_class`, locate the failing `node`, trace `caused_by`
-upstream, and either apply the `suggested_fix` via `t fix --dry-run` / `t fix`,
-or fix the root cause itself. Once `t check` is clean, `t run --json` streams
-NDJSON build events — including a `root_causes` field on failure, so the agent
-knows exactly which node to fix first instead of guessing from a wall of logs.
-After a build, `t diff` reports the blast radius of a change (which nodes were
-`Added` / `Changed` / `Unchanged`), so both agent and human can confirm an edit
-had only the intended effect.
+An agent can parse `error_class`, locate the failing `node`, trace `caused_by` upstream, and either apply the `suggested_fix` via `t fix`, or fix the root cause itself. Once `t check` is clean, `t run --json` streams NDJSON build events with root causes, and `t diff` reports the exact blast radius of a change.
 
-See the **[Agent Pairing Tutorial](docs/agent-pairing-tutorial.md)** for the
-full loop end-to-end, with real terminal output at every step.
+See the **[Agent Pairing Tutorial](docs/agent-pairing-tutorial.md)** for the full loop end-to-end.
+
+---
 
 ## Key Features
 
@@ -214,7 +155,7 @@ Pipeline nodes can be dynamically expanded into multiple branches using `map_pat
 T values and pipelines are highly introspectable. The **`explain`** package provides the `explain()` function, which can be called on any object to get a detailed summary of its structure, metadata, and status. It is the recommended way to "look inside" your data and nodes in the REPL.
 
 ### Property-Based Testing with `propcraft`
-For hardening T's standard library and reusable packages, the **`propcraft`** package provides property-based testing: state an invariant and `prop_for_all(gen, property)` checks it over many generated inputs, reporting a deterministic shrunk counterexample on failure. Generators are structured Dicts (`prop_gen_int_range`, `prop_gen_df`, `prop_gen_string_from`, ...) and all draws use the seeded RNG, so `set_seed(n)` reproduces failures exactly; `with_seed(n, \(u) ...)` scopes reproducibility to a single expression without touching surrounding draws.
+For hardening T's standard library and reusable packages, the **`propcraft`** package provides property-based testing: state an invariant and `prop_for_all(gen, property)` checks it over many generated inputs, reporting a deterministic shrunk counterexample on failure. Generators are structured Dicts (`prop_gen_int_range`, `prop_gen_df`, `prop_gen_string_from`, ...) and all draws use the seeded RNG, so `set_seed(n)` reproduces failures exactly.
 
 ```t
 set_seed(42)
@@ -227,133 +168,53 @@ See the [Property-Based Testing guide](docs/property-testing.md) for details.
 
 ## Quick Start & Installation
 
-T requires [Nix](docs/nix-installation.md) with flakes enabled. T is distributed exclusively via Nix. Because Nix is mandatory for T's reproducibility and pipeline architecture, it is the only supported installation method and will remain so.
+T requires [Nix](docs/nix-installation.md) with flakes enabled. T is distributed via Nix to guarantee byte-for-byte reproducibility across operating systems.
 
-We recommend using the **Determinate Systems Nix Installer** for the best experience. See the [Nix Installation Guide](docs/nix-installation.md) for detailed platform-specific steps.
+We recommend using the **Determinate Systems Nix Installer** for the cleanest setup. See the [Nix Installation Guide](docs/nix-installation.md) for detailed platform-specific steps.
 
-Start by launching a temporary shell that provides the `t` executable:
+Start by launching an ephemeral shell that provides the `t` executable:
 
 ```bash
 nix shell --accept-flake-config github:b-rodrigues/tlang
 ```
 
-This drops you into an ephemeral environment with `t` available on your `PATH`.  
-You can now bootstrap a new project:
+Bootstrap a new project:
 
 ```bash
-t init --project my_t_project
+t init --project my_project
 ```
 
-You will be prompted to enter basic project information, including the **AI Agent Context Level** (Small, Medium, Full, or Huge) which generates tailored reference documentation for LLMs. You can also pass `--include-atelier` to add the [Atelier](https://github.com/b-rodrigues/atelier) TUI IDE to your dev shell. When finished, leave the temporary shell:
+Enter your project's reproducible development environment:
 
 ```bash
-exit
-```
-
-This creates a new directory (e.g. `my_t_project/`) containing the necessary project files.  
-The most important file is `tproject.toml`. This file declares your project's dependencies. Dependencies must be explicitly listed here, as they are used by the project-specific flake to provide a fully reproducible environment.
-
-Note that `exit` takes you back to your normal shell — `t` is no longer on `PATH`. Don't worry; the next step puts it back.
-
-```bash
-cd my_t_project
+cd my_project
 nix develop
 ```
 
-This enters your project's reproducible development environment, which provides the `t` command alongside all declared R, Python, and Julia runtimes.
+This dev shell provides the `t` command alongside all declared R, Python, and Julia runtimes.
 
-You can now start working on your project by editing `src/pipeline.t`. 
+Edit `src/pipeline.t`, verify with `t check --schema src/pipeline.t`, and build:
 
-> [!IMPORTANT]
-> **Pipelines are Mandatory**: To execute a script (e.g., via `t run src/pipeline.t`), your code **must** be wrapped in a `pipeline { ... }` block and built using `build_pipeline(p)`. This ensures reproducibility and allows T to optimize execution.
-
-If you have a sequence of commands you've tested in the REPL, you can easily wrap them in a pipeline (or even ask an LLM to do it for you!). 
-
-### Recommended Workflow: Iterative Development
-T encourages a "node-at-a-time" development cycle:
-1. **Add Node-by-Node**: Add a new `node()` definition to your pipeline in `src/pipeline.t`.
-2. **Execute**: Run your script (e.g., via `t run src/pipeline.t`) to build the derivations.
-3. **Load & Inspect**: Load the node's output to inspect it via `read_node(p.node_name)` in the REPL to verify results. For workflows outside T, the companion packages in `r-package/` and `py-package/` provide R and Python `read_node()` helpers that read built artifacts from `_pipeline/`, defaulting to `readRDS()` in R and pickle-based deserialization in Python.
-4. **Run**: Once verified, run the entire pipeline and proceed to the next step.
-
-```t
--- A basic pipeline in src/pipeline.t
-p = pipeline {
-  -- Load data (wrapped in a node for reproducibility)
-  data = node(command = read_csv("data.csv", clean_colnames = true))
-
-  -- Data manipulation using NSE (dollar-prefix) syntax
-  result = node(command = data
-    |> filter($age > 30)
-    |> select($name, $age, $salary)
-    |> arrange($age, "desc")
-  )
-  
-  -- Analysis
-  model = node(command = lm(data = data, formula = salary ~ age))
-}
-
--- Execute and build the pipeline into reproducible Nix artifacts
-build_pipeline(p)
+```bash
+t run src/pipeline.t
 ```
-
-See the [Development Guide](docs/development.md) for detailed setup instructions if you wish to build from source.
 
 ---
 
-## Status & Missing Features
+## Ecosystem & Standard Libraries
 
-**Beta 0.55.3 "L'Ultime combat"** — The core syntax and functional semantics are stable. T is not just a DSL for reproducible, polyglot data science, but it also provides extensive native support for standard data manipulation verbs:
+The T runtime includes built-in packages inspired by the tidyverse for data wrangling before or alongside foreign nodes:
 
-- **colcraft**: Core data manipulation and categorical data management (`filter`, `select`, `mutate`, `summarize`, `pivot_*`, `fct_*`, and more — heavily inspired by `dplyr`, `tidyr`, and `forcats`).
-- **chrono**: Comprehensive date and time handling (`ymd`, `floor_date`, `interval`, etc. — inspired by `lubridate`).
-- **strcraft**: Modern string manipulation (`str_replace`, `str_detect`, `str_split`, etc. — inspired by `stringr`).
+- **colcraft**: Core data manipulation and categorical data management (`filter`, `select`, `mutate`, `summarize`, `pivot_*`, `fct_*`).
+- **chrono**: Comprehensive date and time handling (`ymd`, `floor_date`, `interval`).
+- **strcraft**: Modern string manipulation (`str_replace`, `str_detect`, `str_split`).
 - **lens**: Serializable, composable lenses for surgical updates to nested data and pipeline re-orchestration.
 - **Native Arrow I/O**: High-performance reading and writing of `CSV`, `Parquet`, and `Arrow` (IPC/Feather) formats.
-- **Polyglot & Metaprogramming**: First-class support for R, Python, Julia, and shell/CLI nodes, plus a robust metaprogramming layer (`expr`, `enquo`, `get`, `to_symbol`).
-- **Pipeline Introspection**: High-level tools for auditing and querying complex execution graphs (`which_nodes`, `filter_node`, `errored_nodes`).
-- **Weighted Statistics**: Core descriptive statistics and `lm()` now support optional observation weights for weighted summaries and weighted least squares.
-
-What is currently missing:
-* **Native T Plotting**: While T provides first-class metadata capture and headless rendering for **R (ggplot2)**, **Python (matplotlib, plotnine, plotly, altair)**, and **Julia (TidierPlots.jl, Plots.jl, Makie via CairoMakie)** objects, it does not yet have its own native charting library, and will likely never have one.
-* **Complex Modeling**: While native `lm()` is available, specialized modeling should leverage R, Python, or Julia nodes.
-* **Ecosystem Growth**: We are building out the infrastructure for user-contributed packages through `t publish`.
-
-You guessed it, I welcome contributions!
+- **Pipeline Introspection**: Query execution graphs (`which_nodes`, `filter_node`, `errored_nodes`).
 
 ---
 
-## Project Structure & Building
-
-```
-tlang/
-├── src/
-│   ├── ast.ml          # Abstract syntax tree
-│   ├── lexer.mll       # Lexer specification
-│   ├── parser.mly      # Parser grammar (Menhir)
-│   ├── eval.ml         # Tree-walking evaluator
-│   ├── repl.ml         # REPL implementation
-│   ├── arrow/          # Arrow C GLib FFI
-│   ├── ffi/            # Foreign function interface
-│   └── packages/       # Standard library
-│       ├── base/       # Errors, NA, assertions
-│       ├── core/       # Functional primitives
-│       ├── math/       # Mathematical functions
-│       ├── stats/      # Statistical functions
-│       ├── to_dataframe/  # CSV I/O, DataFrame ops
-│       ├── colcraft/   # Data verbs, window functions, factors
-│       ├── chrono/     # Date and time handling
-│       ├── strcraft/   # String manipulation
-│       ├── pipeline/   # Pipeline introspection
-│       └── explain/    # Introspection tools
-├── docs/               # Documentation
-├── examples/           # Example T programs
-├── tests/              # Test suite
-├── flake.nix           # Nix development environment
-└── atelier/            # Atelier IDE (via flake input)
-```
-
-### Building from Source
+## Building from Source
 
 ```bash
 git clone https://github.com/b-rodrigues/tlang.git
@@ -363,7 +224,7 @@ nix develop
 # Build
 dune build
 
-# Run tests
+# Run unit tests
 dune runtest
 
 # Execute REPL
@@ -399,5 +260,3 @@ We welcome contributions! Please see our [Contributing Guide](docs/contributing.
 - Testing requirements
 
 T is licensed under the [European Union Public License v1.2](LICENSE).
-
-> **Version codenames** are taken from the French edition of *Dragon Ball* published by Glénat.
