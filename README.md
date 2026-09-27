@@ -94,6 +94,7 @@ build_pipeline(p)
 
 - **Zero manual I/O:** R returns the `ggplot` object directly; T's runner automatically renders and caches the visual artifact without `ggsave()`. DataFrames pass between nodes via Apache Arrow IPC (`^ipc`) without `read.csv()` or `to_csv()` glue.
 - **No vendor lock-in (use standalone scripts):** You don't have to embed code in `<{ ... }>` blocks. Nodes accept external script files directly (`jln(script = "sim.jl")`, `pyn(script = "train.py")`, `rn(script = "plot.R")`). Your Julia, Python, and R scripts remain ordinary standalone files that your team can run or reuse anywhere with standard tooling.
+- **First-class polyglot errors (no pipeline crashes):** If an error or exception occurs inside a node—whether in Python (`raise`), R (`stop()`), Julia (`error()`), or T (`error()`)—it does not crash the entire pipeline build. T captures the error at the sandbox boundary, serializes a structured `VError` artifact, and allows independent branches to complete. Downstream nodes can inspect the error with `read_node()` or `explain()`, or recover programmatically.
 - **Literate reporting:** The Quarto node compiles `src/report.qmd` into an HTML or PDF report inside the Nix sandbox, directly embedding upstream metrics and figures.
 - **Hermetic sandboxes:** Every node executes in an isolated Nix sandbox with pinned runtimes.
 - **Seeded & cached:** Julia and Python draws are explicitly seeded. Unchanged nodes resolve instantly from the content-addressed store.
@@ -120,6 +121,7 @@ Connecting them today forces you to choose between three bad options:
 1. **Process-level isolation:** Each foreign language node runs in its own isolated process. Julia's memory cannot corrupt R; Python's C-extensions cannot conflict with Julia's OpenMP threads.
 2. **First-class data exchange:** Data passes between nodes using Apache Arrow IPC (`^ipc`) and standard model serialization (`^onnx`, `^pmml`, `^csv`). No custom serialization glue scripts.
 3. **One pinned environment:** Under the hood, Nix locks your R packages, Python wheels, Julia depot, and underlying system C/Fortran libraries in one declarative manifest. When paired with seeded execution, your pipeline builds and executes deterministically across machines.
+4. **Polyglot soft-failures:** In conventional workflow engines, an uncaught exception in a single script aborts the entire DAG run. In T, errors are first-class values across all runtimes: failing nodes capture full tracebacks into structured `VError` artifacts while independent parallel branches continue uninterrupted.
 
 ---
 
@@ -133,6 +135,7 @@ Connecting them today forces you to choose between three bad options:
 | **Node caching** | Content-addressed (R) | Content-addressed (R) | Timestamp / file hash | Docker build layer cache | **Content-addressed (all nodes)** |
 | **System library locking** | ❌ (Delegates to host) | ✅ (Hermetic Nix) | ⚠️ (Optional Conda) | ✅ (Per image) | ✅ (Hermetic per-node Nix sandbox) |
 | **Interactive inspection** | ✅ (`tar_read()`) | ✅ (`read_node()`) | ⚠️ (File inspect only) | ❌ (Container attach) | ✅ (`read_node()`, `explain()`) |
+| **Error resilience** | ❌ (Aborts run) | ❌ (Aborts run) | ❌ (Aborts run) | ❌ (Container exits) | ✅ (First-class polyglot soft-failures) |
 
 ---
 

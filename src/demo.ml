@@ -12,6 +12,12 @@ let color_blue = "\027[1;34m"
 let color_magenta = "\027[1;35m"
 let color_gray = "\027[90m"
 
+let clear_screen ~headless =
+  if not headless then begin
+    Printf.printf "\027[H\027[2J";
+    flush stdout
+  end
+
 let wait_step ~headless prompt_msg =
   if headless then ()
   else begin
@@ -21,13 +27,13 @@ let wait_step ~headless prompt_msg =
     if String.trim line = "q" || String.trim line = ":q" then begin
       Printf.printf "\n%sExiting demo. Have fun with T!%s\n\n" color_gray color_reset;
       exit 0
-    end
+    end;
+    clear_screen ~headless
   end
 
 let banner title =
-  Printf.printf "\n%s%s======================================================================%s\n" color_bold color_blue color_reset;
-  Printf.printf "%s%s  %s%s\n" color_bold color_blue title color_reset;
-  Printf.printf "%s%s======================================================================%s\n\n" color_bold color_blue color_reset
+  let width = max 2 (68 - String.length title) in
+  Printf.printf "%s%s── %s %s%s\n\n" color_bold color_blue title (String.make width '-') color_reset
 
 let print_code code =
   Printf.printf "%s%s%s\n" color_yellow code color_reset
@@ -48,32 +54,29 @@ let eval_snippet env code =
   | _ -> (v, env')
 
 let run ?(headless = false) ?start_repl env =
+  clear_screen ~headless;
   banner "T Interactive Demo: Reproducible Pipelines in Action";
-  Printf.printf "Welcome to the T interactive demo!\n";
-  Printf.printf "In this walkthrough, we will demonstrate:\n";
-  Printf.printf "  1. Defining a computation graph (pipeline) as a first-class program value\n";
-  Printf.printf "  2. Inspecting the pipeline DAG (nodes, dependencies, structure)\n";
-  Printf.printf "  3. Building the pipeline into content-addressed Nix store artifacts\n";
-  Printf.printf "  4. Inspecting artifacts in-memory via Apache Arrow IPC\n";
-  Printf.printf "  5. Growing the pipeline by adding a downstream transformation node\n";
-  Printf.printf "  6. Observing content-addressed caching (zero wasted recomputation)\n";
-  Printf.printf "  7. Dropping directly into the live interactive REPL\n";
+  Printf.printf "Welcome to the T interactive demo! We will demonstrate:\n";
+  Printf.printf "  1. Defining a pipeline DAG as a first-class program value\n";
+  Printf.printf "  2. Inspecting the DAG structure with pipeline_nodes & pipeline_deps\n";
+  Printf.printf "  3. Building the pipeline hermetically into the Nix store\n";
+  Printf.printf "  4. Inspecting in-memory artifacts via Apache Arrow IPC\n";
+  Printf.printf "  5. Growing the pipeline & observing content-addressed Nix caching\n";
+  Printf.printf "  6. First-class errors & polyglot soft-failures (no pipeline aborts)\n";
+  Printf.printf "  7. Interactive REPL handoff\n";
 
   wait_step ~headless "[Press Enter to see the initial pipeline...]";
 
   (* --- Step 1: Initial Pipeline --- *)
   banner "Step 1: The Pipeline as a First-Class Value";
-  Printf.printf "In T, pipelines are not external configuration files (like Makefiles or YAML).\n";
-  Printf.printf "They are typed, immutable program structures defined directly in the language.\n\n";
+  Printf.printf "In T, pipelines are typed, immutable values defined directly in code:\n\n";
 
   let initial_code =
     "p = pipeline {\n" ^
     "  raw = node(\n" ^
     "    command = [\n" ^
-    "      [time: 1, signal: 0.098, group: \"A\"],\n" ^
-    "      [time: 2, signal: 0.235, group: \"A\"],\n" ^
-    "      [time: 3, signal: 0.541, group: \"B\"],\n" ^
-    "      [time: 4, signal: 0.812, group: \"B\"]\n" ^
+    "      [time: 1, signal: 0.1, group: \"A\"],\n" ^
+    "      [time: 2, signal: 0.8, group: \"B\"]\n" ^
     "    ] |> to_dataframe,\n" ^
     "    serializer = ^ipc\n" ^
     "  )\n" ^
@@ -81,9 +84,8 @@ let run ?(headless = false) ?start_repl env =
   in
   print_code initial_code;
   Printf.printf "\nNotice:\n";
-  Printf.printf "  • The pipeline is bound to the regular variable `p`.\n";
-  Printf.printf "  • Node `raw` builds a DataFrame and serializes it using Apache Arrow IPC (`^ipc`).\n";
-  Printf.printf "  • Foreign nodes (`jln`, `pyn`, `rn`) share this exact same syntax.\n";
+  Printf.printf "  • Pipeline is bound to variable `p`; node `raw` outputs an Arrow DataFrame.\n";
+  Printf.printf "  • Serialized via Apache Arrow IPC (`^ipc`); foreign nodes (jln, pyn, rn) share this syntax.\n";
 
   let (_, env) = eval_snippet env initial_code in
 
@@ -91,65 +93,57 @@ let run ?(headless = false) ?start_repl env =
 
   (* --- Step 2: Inspecting the Pipeline --- *)
   banner "Step 2: Inspecting the Pipeline DAG";
-  Printf.printf "Because pipelines are first-class values, they are completely introspectable.\n";
-  Printf.printf "Let's inspect the active nodes with %spipeline_nodes(p)%s:\n\n" color_bold color_reset;
-
+  Printf.printf "Pipelines are fully introspectable program values.\n\n";
+  Printf.printf "Active nodes (%spipeline_nodes(p)%s):\n" color_bold color_reset;
   let (nodes_val, env) = eval_snippet env "pipeline_nodes(p)" in
   print_val nodes_val;
 
-  Printf.printf "\nNow let's inspect the full graph tree with %sexplain(p)%s:\n\n" color_bold color_reset;
-  let (explain_val, env) = eval_snippet env "explain(p)" in
-  print_val explain_val;
+  Printf.printf "\nGraph edges (%spipeline_deps(p)%s):\n" color_bold color_reset;
+  let (deps1_val, env) = eval_snippet env "pipeline_deps(p)" in
+  print_val deps1_val;
 
-  Printf.printf "Notice that `raw` has output_kind 'ComputedNode' with 0 errors and empty dependencies.\n";
+  Printf.printf "\nNode `raw` has no dependencies. (Tip: %sexplain(p)%s views full AST & diagnostics)\n" color_bold color_reset;
 
-  wait_step ~headless "[Press Enter to build the pipeline into the Nix store...]";
+  wait_step ~headless "[Press Enter to build pipeline (runs pure Nix derivations)...]";
 
   (* --- Step 3: Building the Pipeline --- *)
   banner "Step 3: Building the Pipeline into the Nix Store";
-  Printf.printf "Now we build the pipeline with %sbuild_pipeline(p)%s:\n\n" color_bold color_reset;
+  Printf.printf "Now we build the pipeline with %sbuild_pipeline(p)%s:\n" color_bold color_reset;
+  Printf.printf "%s⚡ Building pipeline into /nix/store... Please wait while Nix evaluates derivations.%s\n\n" color_yellow color_reset;
+  flush stdout;
 
   let (_, env) = eval_snippet env "build_pipeline(p)" in
 
-  Printf.printf "\n%s✔ Build completed! Output artifacts are stored in the content-addressed Nix store.%s\n" color_green color_reset;
+  Printf.printf "\n%s✔ Build completed! Artifacts are safely locked in /nix/store.%s\n" color_green color_reset;
 
   wait_step ~headless "[Press Enter to inspect the generated artifact...]";
 
   (* --- Step 4: Inspecting Artifacts --- *)
   banner "Step 4: Inspecting Artifacts in Memory";
-  Printf.printf "We can read any node's artifact directly into the T environment using %sread_node(p.raw)%s.\n" color_bold color_reset;
-  Printf.printf "T automatically uses the node's serializer (^ipc) to load the Apache Arrow table:\n\n";
-
+  Printf.printf "Read artifact into memory via Arrow IPC with %sread_node(p.raw)%s:\n\n" color_bold color_reset;
   let (df_val, env) = eval_snippet env "read_node(p.raw)" in
   print_val df_val;
 
-  Printf.printf "\nWe can also inspect the node's content-addressed Nix store path with %sinspect_node(p.raw)%s:\n\n" color_bold color_reset;
+  Printf.printf "\nInspect Nix store metadata with %sinspect_node(p.raw)%s:\n\n" color_bold color_reset;
   let (inspect_val, env) = eval_snippet env "inspect_node(p.raw)" in
   print_val inspect_val;
 
-  Printf.printf "Zero manual I/O: no read.csv or to_csv glue code was written.\n";
+  Printf.printf "Zero manual I/O: no read.csv or data-formatting glue code required.\n";
 
-  wait_step ~headless "[Press Enter to grow the pipeline by adding a downstream node...]";
+  wait_step ~headless "[Press Enter to grow the pipeline and observe Nix caching...]";
 
-  (* --- Step 5: Growing the Pipeline --- *)
-  banner "Step 5: Growing the Pipeline";
-  Printf.printf "Real-world analyses evolve continuously. In T, pipelines can be extended naturally.\n";
-  Printf.printf "Let's add a downstream node `filtered` that consumes `raw`, filters for signal > 0.2,\n";
-  Printf.printf "and adds an `active` boolean column:\n\n";
+  (* --- Step 5: Growing the Pipeline & Nix Caching --- *)
+  banner "Step 5: Growing the Pipeline & Content Caching";
+  Printf.printf "Extend `p` with a downstream `filtered` node consuming `raw`:\n\n";
 
   let grown_code =
     "p := pipeline {\n" ^
     "  raw = node(\n" ^
-    "    command = [\n" ^
-    "      [time: 1, signal: 0.098, group: \"A\"],\n" ^
-    "      [time: 2, signal: 0.235, group: \"A\"],\n" ^
-    "      [time: 3, signal: 0.541, group: \"B\"],\n" ^
-    "      [time: 4, signal: 0.812, group: \"B\"]\n" ^
-    "    ] |> to_dataframe,\n" ^
+    "    command = [ [time: 1, signal: 0.1, group: \"A\"], [time: 2, signal: 0.8, group: \"B\"] ] |> to_dataframe,\n" ^
     "    serializer = ^ipc\n" ^
-    "  )\n\n" ^
+    "  )\n" ^
     "  filtered = node(\n" ^
-    "    command = raw |> filter($signal > 0.2) |> mutate($active = true),\n" ^
+    "    command = raw |> filter($signal > 0.5),\n" ^
     "    deserializer = [raw: ^ipc],\n" ^
     "    serializer = ^ipc\n" ^
     "  )\n" ^
@@ -159,47 +153,63 @@ let run ?(headless = false) ?start_repl env =
 
   let (_, env) = eval_snippet env grown_code in
 
-  Printf.printf "\nLet's verify the updated dependency structure with %spipeline_deps(p)%s:\n\n" color_bold color_reset;
-  let (deps_val, env) = eval_snippet env "pipeline_deps(p)" in
-  print_val deps_val;
-
-  wait_step ~headless "[Press Enter to build the extended pipeline and observe Nix caching...]";
-
-  (* --- Step 6: Content-Addressed Caching --- *)
-  banner "Step 6: Content-Addressed Caching in Action";
-  Printf.printf "Now we re-run %sbuild_pipeline(p)%s on our grown pipeline:\n\n" color_bold color_reset;
+  Printf.printf "\nNow we re-run %sbuild_pipeline(p)%s:\n" color_bold color_reset;
+  Printf.printf "%s⚡ Building pipeline into /nix/store... Checking cache hashes.%s\n\n" color_yellow color_reset;
+  flush stdout;
 
   let (_, env) = eval_snippet env "build_pipeline(p)" in
 
-  Printf.printf "\n%sPay close attention to the build summary above:%s\n" color_bold color_reset;
-  Printf.printf "  • %s(cached: raw)%s — Node `raw` was NOT recomputed! T recognized that its code\n" color_green color_reset;
-  Printf.printf "    and inputs did not change, resolving the artifact from the Nix store instantly.\n";
-  Printf.printf "  • Only the newly added node %sfiltered%s was built.\n" color_bold color_reset;
-  Printf.printf "This caching applies equally across Julia simulations, Python ML models, and R reports.\n";
+  Printf.printf "\n%sCaching in action:%s Node `raw` was %s(cached)%s. Only `filtered` was computed!\n"
+    color_bold color_reset color_green color_reset;
 
-  wait_step ~headless "[Press Enter to inspect the new filtered artifact...]";
+  wait_step ~headless "[Press Enter to see first-class error handling in pipelines...]";
 
-  (* --- Step 7: Inspecting the New Artifact --- *)
-  banner "Step 7: Inspecting the New Artifact";
-  Printf.printf "Let's inspect the output of the new node with %sread_node(p.filtered)%s:\n\n" color_bold color_reset;
+  (* --- Step 6: First-Class Errors & Polyglot Soft-Failures --- *)
+  banner "Step 6: First-Class Errors & Polyglot Soft-Failures";
+  Printf.printf "In T, errors don't crash pipelines. Let's add a failing node `anomaly`:\n\n";
 
-  let (filtered_df, env) = eval_snippet env "read_node(p.filtered)" in
-  print_val filtered_df;
+  let error_code =
+    "p := pipeline {\n" ^
+    "  raw = node(\n" ^
+    "    command = [ [time: 1, signal: 0.1, group: \"A\"], [time: 2, signal: 0.8, group: \"B\"] ] |> to_dataframe,\n" ^
+    "    serializer = ^ipc\n" ^
+    "  )\n" ^
+    "  filtered = node(\n" ^
+    "    command = raw |> filter($signal > 0.5),\n" ^
+    "    deserializer = [raw: ^ipc],\n" ^
+    "    serializer = ^ipc\n" ^
+    "  )\n" ^
+    "  anomaly = node(\n" ^
+    "    command = error(\"Threshold exceeded: signal > 0.5 detected\")\n" ^
+    "  )\n" ^
+    "}"
+  in
+  print_code error_code;
 
-  Printf.printf "\nAnd verify that both nodes are active with %spipeline_nodes(p)%s:\n\n" color_bold color_reset;
-  let (nodes2_val, env) = eval_snippet env "pipeline_nodes(p)" in
-  print_val nodes2_val;
+  let (_, env) = eval_snippet env error_code in
+
+  Printf.printf "\nRebuilding pipeline with %sbuild_pipeline(p)%s:\n" color_bold color_reset;
+  Printf.printf "%s⚡ Building pipeline into /nix/store... Capturing errors at sandbox boundary.%s\n\n" color_yellow color_reset;
+  flush stdout;
+
+  let (_, env) = eval_snippet env "build_pipeline(p)" in
+
+  Printf.printf "\n%sPolyglot Resilience:%s\n" color_bold color_reset;
+  Printf.printf "  • The pipeline build finished without crashing! Independent nodes succeeded.\n";
+  Printf.printf "  • Uncaught errors in Python (raise), R (stop), Julia (error), or T are captured\n";
+  Printf.printf "    as first-class `VError` artifacts and inspectable via %sread_node(p.anomaly)%s.\n" color_bold color_reset;
 
   wait_step ~headless "[Press Enter to drop into the interactive REPL...]";
 
-  (* --- Step 8: REPL Handoff --- *)
-  banner "Step 8: Interactive Exploration";
+  (* --- Step 7: REPL Handoff --- *)
+  banner "Step 7: Interactive Exploration";
   Printf.printf "The demo is complete! All computed pipeline states are retained in memory.\n\n";
   Printf.printf "Try exploring in the REPL:\n";
-  Printf.printf "  %sexplain(p)%s               -- View full pipeline tree\n" color_bold color_reset;
-  Printf.printf "  %spipeline_nodes(p)%s        -- List node names\n" color_bold color_reset;
-  Printf.printf "  %sread_node(p.raw)%s         -- Read raw dataset\n" color_bold color_reset;
-  Printf.printf "  %sread_node(p.filtered)%s    -- Read filtered dataset\n" color_bold color_reset;
+  Printf.printf "  %sexplain(p)%s               -- View full pipeline tree & diagnostics\n" color_bold color_reset;
+  Printf.printf "  %spipeline_nodes(p)%s        -- List active node names\n" color_bold color_reset;
+  Printf.printf "  %sread_node(p.raw)%s         -- Read raw Arrow dataset\n" color_bold color_reset;
+  Printf.printf "  %sread_node(p.filtered)%s    -- Read filtered Arrow dataset\n" color_bold color_reset;
+  Printf.printf "  %sread_node(p.anomaly)%s     -- Read the captured error value\n" color_bold color_reset;
   Printf.printf "  %s:quit%s                    -- Exit the REPL\n\n" color_bold color_reset;
 
   match start_repl with
