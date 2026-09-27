@@ -105,6 +105,14 @@ object directly; T’s runner automatically renders and caches the visual
 artifact without <code>ggsave()</code>. DataFrames pass between nodes
 via Apache Arrow IPC (<code>^ipc</code>) without <code>read.csv()</code>
 or <code>to_csv()</code> glue.</li>
+<li><strong>No vendor lock-in (use standalone scripts):</strong> You
+don’t have to embed code in <code>&lt;{ ... }&gt;</code> blocks. Nodes
+accept external script files directly
+(<code>jln(script = "sim.jl")</code>,
+<code>pyn(script = "train.py")</code>,
+<code>rn(script = "plot.R")</code>). Your Julia, Python, and R scripts
+remain ordinary standalone files that your team can run or reuse
+anywhere with standard tooling.</li>
 <li><strong>Literate reporting:</strong> The Quarto node compiles
 <code>src/report.qmd</code> into an HTML or PDF report inside the Nix
 sandbox, directly embedding upstream metrics and figures.</li>
