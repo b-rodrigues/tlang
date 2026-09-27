@@ -37,6 +37,14 @@ A language for the LLM era, T is designed to be piloted by both humans and AI mo
 
 ---
 
+## Interactive Demo in 30 Seconds
+
+Run `t demo` right in your terminal to see pipeline introspection, hermetic Nix builds, Arrow in-memory inspection, caching, and first-class error handling in action:
+
+![T Interactive Demo](demo.gif)
+
+---
+
 ## How It Looks in Practice
 
 A complete analysis that simulates non-linear data in Julia, fits a gradient-boosted regressor in Python, plots ground truth vs predictions in R, and compiles a Quarto report:
