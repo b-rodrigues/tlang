@@ -17,9 +17,13 @@ A language for the LLM era, T is designed to be piloted by both humans and AI mo
 
 ### Quick Setup (For People in a Hurry)
 
-1. **[Install Nix](docs/nix-installation.md)** (with Flakes enabled):
+1. **[Install Nix](docs/nix-installation.md)** (installs Nix and configures the `rstats-on-nix` cache in one step):
    ```bash
-   curl --proto '=https' --tlsv1.2 -sSf -da https://install.determinate.systems/nix | sh -s -- install
+   curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | \
+     sh -s -- install --no-confirm --extra-conf "
+   trusted-users = root $USER
+   substituters = https://cache.nixos.org https://rstats-on-nix.cachix.org
+   trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= rstats-on-nix.cachix.org-1:vdiiVgocg6WeJrODIqdprZRUrhi1JzhBnXv7aWI6+F0="
    ```
 2. **Try T immediately** in an ephemeral shell:
    ```bash

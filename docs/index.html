@@ -116,9 +116,14 @@ years from now without bitrot.</p>
 Hurry)</h3>
 <ol type="1">
 <li><p><strong><a href="nix-installation.html">Install Nix</a></strong>
-(with Flakes enabled):</p>
+(installs Nix and configures the <code>rstats-on-nix</code> cache in one
+step):</p>
 <div class="sourceCode" id="cb1"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">curl</span> <span class="at">--proto</span> <span class="st">&#39;=https&#39;</span> <span class="at">--tlsv1.2</span> <span class="at">-sSf</span> <span class="at">-da</span> https://install.determinate.systems/nix <span class="kw">|</span> <span class="fu">sh</span> <span class="at">-s</span> <span class="at">--</span> install</span></code></pre></div></li>
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">curl</span> <span class="at">--proto</span> <span class="st">&#39;=https&#39;</span> <span class="at">--tlsv1.2</span> <span class="at">-sSf</span> <span class="at">-L</span> https://install.determinate.systems/nix <span class="kw">|</span> <span class="dt">\</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">sh</span> <span class="at">-s</span> <span class="at">--</span> install <span class="at">--no-confirm</span> <span class="at">--extra-conf</span> <span class="st">&quot;</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="st">trusted-users = root </span><span class="va">$USER</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="st">substituters = https://cache.nixos.org https://rstats-on-nix.cachix.org</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="st">trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= rstats-on-nix.cachix.org-1:vdiiVgocg6WeJrODIqdprZRUrhi1JzhBnXv7aWI6+F0=&quot;</span></span></code></pre></div></li>
 <li><p><strong>Try T immediately</strong> in an ephemeral shell:</p>
 <div class="sourceCode" id="cb2"><pre
 class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> shell <span class="at">--accept-flake-config</span> github:b-rodrigues/tlang</span></code></pre></div></li>
