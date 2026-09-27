@@ -1,4 +1,4 @@
-# T — Reproducible Polyglot Pipelines
+# T — Reproducible Pipelines for Polyglot Data Science
 
 **Simulate in Julia. Train in Python. Report in R. Pin the entire stack.**
 

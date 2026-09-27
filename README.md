@@ -1,4 +1,4 @@
-# T — Reproducible Polyglot Pipelines
+# T — Reproducible Pipelines for Polyglot Data Science
 
 [![Chat on Matrix](https://img.shields.io/badge/Chat%20on-Matrix-000?logo=matrix&logoColor=white)](https://matrix.to/#/#tproject:matrix.org)
 [![License: EUPL v1.2](https://img.shields.io/badge/License-EUPL%20v1.2-blue.svg)](LICENSE)
