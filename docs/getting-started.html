@@ -136,75 +136,33 @@ to share with others.</li>
 and run (while in the temporary shell you dropped in before):</p>
 <div class="sourceCode" id="cb2"><pre
 class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> init <span class="at">--project</span> my_analysis</span></code></pre></div>
-<p>If you omit the project name (<code>my_analysis</code> in the above
-example), the scaffolding tool will prompt you interactively with some
-questions (your name, the license of the project, the Nixpkgs date, the
-size of the context file for LLM agents, the pipeline template
-preference, and whether to include the <strong>Atelier</strong> TUI IDE)
-and then will generate a reproducible workspace. You can also pass
-<code>--include-atelier</code> to skip the prompt and enable Atelier
-unconditionally.</p>
-<p>For your very first T project, we highly recommend selecting the
-<code>full</code> pipeline template. Having the self-contained
-cheatsheet directly in <code>src/pipeline.t</code> makes it much faster
-to learn T’s syntax and polyglot features. Also, stick to the default
-Nixpkgs date: We strongly recommend using the default Nixpkgs date
-provided by the prompt. You should only specify a different or more
-recent date if it is absolutely necessary for your packages and if you
-are already familiar with how Nix manages environments.</p>
-<h4 id="pipeline-templates">Pipeline Templates</h4>
-<p>When initializing a project, T supports two pipeline templates:</p>
-<ul>
-<li><strong><code>minimal</code></strong>: (Default) Generates a simple,
-barebones pipeline inside <code>src/pipeline.t</code> so you can start
-writing code from scratch immediately.</li>
-<li><strong><code>full</code></strong>: Generates a rich, comprehensive
-archetypical pipeline cheatsheet inside <code>src/pipeline.t</code>.
-This acts as a complete guide that demonstrates polyglot node
-integration (Python, R, Julia, Shell, Quarto), data
-serialization/deserialization, environment variables, exit handling, and
-metadata retrieval functions (e.g., <code>read_node</code>,
-<code>read_pipeline</code>, <code>pipeline_to_frame</code>,
-<code>pipeline_copy</code>).</li>
-</ul>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> init <span class="at">--project</span> my_analysis</span></code></pre></div>
+<p>This scaffolds a complete, reproducible analysis project. By default,
+it sets up: - A runnable <code>src/pipeline.t</code> template
+demonstrating polyglot pipeline nodes. - A declarative
+<code>tproject.toml</code> tracking your language packages and runtimes.
+- A hermetic <code>flake.nix</code> that locks dependencies across Linux
+and macOS. - Built-in AI agent context files (<code>AGENTS.md</code> and
+<code>T-LANGUAGE-REFERENCE.md</code>) so coding assistants like Claude
+Code, Cursor, and Copilot understand T syntax immediately.</p>
 <h4 id="workspace-layout">Workspace Layout</h4>
 <p>The generated project has the following directory structure:</p>
 <pre class="text"><code>my_analysis/
-├── tproject.toml       # Project configuration and dependencies
-├── flake.nix           # Reproducible environment definition
-├── README.md           # Project overview
-├── AGENTS.md           # Onboarding guide for AI Agents
-├── T-LANGUAGE-REFERENCE.md # Tiered language reference for LLMs (git-ignored)
+├── tproject.toml           # Project configuration and package dependencies
+├── flake.nix               # Pinned Nix environment definition
+├── README.md               # Project documentation
+├── AGENTS.md               # Context and rules for AI coding assistants
+├── T-LANGUAGE-REFERENCE.md # Language reference guide (git-ignored)
 ├── src/
-│   └── pipeline.t      # Your main analysis script (minimal or full template)
-├── data/               # Place your raw data files here
-├── outputs/            # Output directory for results
-└── tests/              # Unit tests for your analysis</code></pre>
-<h3 id="ai-agent-onboarding">AI Agent Onboarding</h3>
-<p>T is designed to be highly compatible with AI-assisted development.
-When you run <code>t init</code>, the tool will prompt you for an
-<strong>Agent Context Level</strong>:</p>
-<ul>
-<li><strong>small</strong>: Core syntax and top 20 functions.</li>
-<li><strong>medium</strong>: (Default) Exhaustive standard library
-index.</li>
-<li><strong>full</strong>: Full language manual and detailed
-examples.</li>
-<li><strong>huge</strong>: Concatenated documentation of the entire T
-ecosystem.</li>
-</ul>
-<p>This selection generates two files in your project root: 1.
-<strong><code>AGENTS.md</code></strong>: A project-specific guide that
-tells LLMs how to work within your project’s architecture. 2.
-<strong><code>T-LANGUAGE-REFERENCE.md</code></strong>: A technical
-reference file for the AI to read.</p>
-<p>By providing these files, you ensure that any AI agent you use has
-immediate access to the exact technical context it needs.</p>
+│   └── pipeline.t          # Your main analysis pipeline
+├── data/                   # Place raw input datasets here
+└── tests/                  # Pipeline and unit assertions</code></pre>
 <h3 id="creating-a-package">Creating a Package</h3>
 <p>If you want to create a reusable library of T functions, initialize a
 package instead:</p>
-<div class="sourceCode" id="cb4"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> init <span class="at">--package</span> my_package</span></code></pre></div>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> init <span class="at">--package</span> my_package</span></code></pre></div>
 <p>The tree layout for a package is structured for development and
 testing:</p>
 <pre class="text"><code>my_package/
@@ -228,27 +186,27 @@ prompted to make the <code>flake.nix</code> discoverable, you can copy
 and paste the suggested command or simply run <code>git add .</code> to
 stage the whole project. Try <code>nix develop</code> again to drop into
 the development environment. You should see the following:</p>
-<div class="sourceCode" id="cb6"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">==================================================</span></span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span> Project: my_analysis</span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="ex">==================================================</span></span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="ex">Available</span> commands:</span>
-<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>  <span class="ex">t</span> repl              <span class="at">-</span> Start T REPL</span>
-<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>  <span class="ex">t</span> run <span class="op">&lt;</span>file<span class="op">&gt;</span>        - Run a T file</span>
-<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>  <span class="ex">t</span> test              <span class="at">-</span> Run tests</span>
-<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a><span class="ex">To</span> add dependencies:</span>
-<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>  <span class="ex">*</span> Add them to tproject.toml</span>
-<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>  <span class="ex">*</span> Run <span class="st">&#39;t update&#39;</span> to sync flake.nix</span></code></pre></div>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">==================================================</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="ex">T</span> Project: my_analysis</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="ex">==================================================</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="ex">Available</span> commands:</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>  <span class="ex">t</span> repl              <span class="at">-</span> Start T REPL</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>  <span class="ex">t</span> run <span class="op">&lt;</span>file<span class="op">&gt;</span>        - Run a T file</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>  <span class="ex">t</span> test              <span class="at">-</span> Run tests</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a><span class="ex">To</span> add dependencies:</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>  <span class="ex">*</span> Add them to tproject.toml</span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>  <span class="ex">*</span> Run <span class="st">&#39;t update&#39;</span> to sync flake.nix</span></code></pre></div>
 <p>Inside your project or package directory, you can start the
 interactive REPL to explore your data:</p>
-<div class="sourceCode" id="cb7"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> repl</span></code></pre></div>
+<div class="sourceCode" id="cb8"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> repl</span></code></pre></div>
 <p>(or simply <code>t</code>).</p>
 <p>To execute a script from end-to-end, use:</p>
-<div class="sourceCode" id="cb8"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> run src/pipeline.t</span></code></pre></div>
+<div class="sourceCode" id="cb9"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> run src/pipeline.t</span></code></pre></div>
 <h2 id="next-steps">Next Steps</h2>
 <p>Now that you have your first project set up and understand the folder
 structure, the best next step is to run a tiny reproducible pipeline

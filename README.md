@@ -14,59 +14,60 @@
 
 ## The 30-Second Example
 
-A complete analysis that runs a heavy simulation in Julia, trains a model in Python, and plots the results in R:
+A complete analysis that simulates non-linear data in Julia, fits a gradient-boosted regressor in Python, and plots ground truth vs predictions in R:
 
 ```t
 p = pipeline {
-  -- 1. Numerical simulation in Julia (jln)
+  -- 1. Simulate non-linear DGP in Julia (seeded)
   sim_data = jln(
     command = <{
-      using DataFrames
+      using Random, DataFrames
+      Random.seed!(42)
 
-      DataFrame(
-        x = 1:100,
-        y = (1:100) .* 1.5 .+ randn(100)
-      )
+      t = 1:500
+      shock = cumsum(randn(500))
+      DataFrame(time = t, shock = shock, signal = sin.(t ./ 20) .+ shock .* 0.2)
     }>,
     serializer = ^ipc
   )
 
-  -- 2. Train machine learning model in Python (pyn)
-  model_py = pyn(
+  -- 2. Train non-linear model & predict in Python (scikit-learn)
+  predictions = pyn(
     command = <{
-from sklearn.linear_model import LinearRegression
-import numpy as np
+from sklearn.ensemble import HistGradientBoostingRegressor
+import pandas as pd
 
-X = sim_data[['x']].values.astype(np.float32)
-y = sim_data['y'].values.astype(np.float32)
-
-model = LinearRegression().fit(X, y)
-model
+X = sim_data[['time', 'shock']]
+y = sim_data['signal']
+model = HistGradientBoostingRegressor(random_state=42).fit(X, y)
+sim_data['pred'] = model.predict(X)
+sim_data
     }>,
     deserializer = [sim_data: ^ipc],
-    serializer = ^onnx
+    serializer = ^ipc
   )
 
-  -- 3. Publication figure and diagnostic report in R (rn)
+  -- 3. Publication figure in R (ggplot2)
   report = rn(
     command = <{
       library(ggplot2)
 
-      ggplot(sim_data, aes(x = x, y = y)) +
-        geom_point(color = "#2c3e50") +
-        geom_smooth(method = "lm", color = "#e74c3c") +
+      ggplot(predictions, aes(x = time)) +
+        geom_point(aes(y = signal), alpha = 0.3, color = "#7f8c8d") +
+        geom_line(aes(y = pred), color = "#e74c3c", linewidth = 1) +
+        labs(title = "Julia Simulation + Python ML Predictions", y = "Value") +
         theme_minimal()
     }>,
-    deserializer = [sim_data: ^ipc]
+    deserializer = [predictions: ^ipc]
   )
 }
 
 build_pipeline(p)
 ```
 
-- **Zero manual I/O:** No `ggsave()`, `read.csv()`, or `df.to_csv()` boilerplate. T automatically serializes, deserializes, and captures plot/model artifacts at node boundaries.
-- **Hermetic sandboxes:** Every node executes in an isolated environment with its own pinned dependencies.
-- **Instant caching:** Rerun the pipeline, and unchanged nodes resolve instantly from the content-addressed Nix store.
+- **Zero manual I/O:** R returns the `ggplot` object directly; T's runner automatically renders and caches the visual artifact without `ggsave()`. DataFrames pass between nodes via Apache Arrow IPC (`^ipc`) without `read.csv()` or `to_csv()` glue.
+- **Hermetic sandboxes:** Every node executes in an isolated Nix sandbox with pinned runtimes.
+- **Seeded & cached:** Julia and Python draws are explicitly seeded. Unchanged nodes resolve instantly from the content-addressed store.
 
 ---
 
@@ -89,19 +90,20 @@ Connecting them today forces you to choose between three bad options:
 
 1. **Process-level isolation:** Each foreign language node runs in its own isolated process. Julia's memory cannot corrupt R; Python's C-extensions cannot conflict with Julia's OpenMP threads.
 2. **First-class data exchange:** Data passes between nodes using Apache Arrow IPC (`^ipc`) and standard model serialization (`^onnx`, `^pmml`, `^csv`). No custom serialization glue scripts.
-3. **One pinned environment:** Under the hood, Nix locks your R packages, Python wheels, Julia depot, and underlying system C/Fortran libraries in one declarative manifest. If it runs today, it runs byte-for-byte identically in 2030.
+3. **One pinned environment:** Under the hood, Nix locks your R packages, Python wheels, Julia depot, and underlying system C/Fortran libraries in one declarative manifest. When paired with seeded execution, your pipeline builds and executes deterministically across machines.
 
 ---
 
 ## How T Compares
 
-| Feature | {targets} | Snakemake | Docker | **T** |
-|---|:---:|:---:|:---:|:---:|
-| **Language focus** | R first | Python / CLI | Any | **R + Python + Julia** |
-| **Cross-language glue** | Ad-hoc / `reticulate` | Shell scripts | Manual scripts | **Native (`^ipc`, `^onnx`)** |
-| **Node caching** | Content-addressed (R) | Timestamp / file hash | Layer-based | **Content-addressed (all nodes)** |
-| **System library locking** | ❌ (Delegates to host) | ❌ (Conda optional) | ✅ (Per image) | ✅ (Hermetic Nix sandbox) |
-| **Local interactive inspect** | ✅ (`tar_read()`) | ❌ | ❌ | ✅ (`read_node()`) |
+| Feature | {targets} | {rixpress} | Snakemake | Docker (packaging only) | **T** |
+|---|:---:|:---:|:---:|:---:|:---:|
+| **Primary focus** | R pipelines | R + Nix pipelines | Python / CLI pipelines | Environment container | **Polyglot graph (R + Python + Julia)** |
+| **Cross-language seam** | R-native (polyglot is bolted on) | R-native via Nix | Shell scripts & CLI wrappers | Manual scripts & volume mounts | **Process-isolated IPC (`^ipc`, `^onnx`, `^pmml`)** |
+| **Intermediate I/O** | Automatic | Automatic | Manual file paths | Manual volumes & files | **Automatic (zero-boilerplate boundary transfer)** |
+| **Node caching** | Content-addressed (R) | Content-addressed (R) | Timestamp / file hash | Docker build layer cache | **Content-addressed (all nodes)** |
+| **System library locking** | ❌ (Delegates to host) | ✅ (Hermetic Nix) | ⚠️ (Optional Conda) | ✅ (Per image) | ✅ (Hermetic per-node Nix sandbox) |
+| **Interactive inspection** | ✅ (`tar_read()`) | ✅ (`read_node()`) | ⚠️ (File inspect only) | ❌ (Container attach) | ✅ (`read_node()`, `explain()`) |
 
 ---
 
@@ -118,10 +120,10 @@ You do not have to start with a complex graph.
 
 ## Fast Agent / LLM Collaboration
 
-T is designed to eliminate hallucination in AI-assisted workflows:
-- **Strictly immutable semantics:** No hidden state mutations or side effects.
-- **Fast verification loop:** `t check --json` gives AI coding agents instant, machine-readable compiler diagnostics before running expensive builds.
-- **Standard agent instructions:** Every project includes an optimized `AGENTS.md` so tools like Claude Code, Cursor, and Copilot write valid T pipelines on the first prompt.
+T shrinks the search space for AI coding assistants:
+- **Sub-second reject loops:** `t check --json` runs instant schema and DAG validation in milliseconds, giving agents structured compiler feedback before triggering expensive builds.
+- **Contract-first context:** Every project includes an optimized [AGENTS.md](AGENTS.md) so tools like Claude Code, Cursor, and Copilot understand valid node signatures on the first prompt.
+- **Functional immutability:** Strict value semantics eliminate hidden global mutations across steps.
 
 Every check emits structured JSON, not a stack trace:
 
@@ -162,16 +164,6 @@ Pipeline nodes can be dynamically expanded into multiple branches using `map_pat
 
 ### Introspection with `explain()`
 T values and pipelines are highly introspectable. The **`explain`** package provides the `explain()` function, which can be called on any object to get a detailed summary of its structure, metadata, and status. It is the recommended way to "look inside" your data and nodes in the REPL.
-
-### Property-Based Testing with `propcraft`
-For hardening T's standard library and reusable packages, the **`propcraft`** package provides property-based testing: state an invariant and `prop_for_all(gen, property)` checks it over many generated inputs, reporting a deterministic shrunk counterexample on failure. Generators are structured Dicts (`prop_gen_int_range`, `prop_gen_df`, `prop_gen_string_from`, ...) and all draws use the seeded RNG, so `set_seed(n)` reproduces failures exactly.
-
-```t
-set_seed(42)
-assert(prop_for_all(prop_gen_int_range(0, 100), \(x) x >= 0))
-```
-
-See the [Property-Based Testing guide](docs/property-testing.md) for details.
 
 ---
 

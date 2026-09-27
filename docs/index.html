@@ -50,59 +50,62 @@ Arrow IPC, ONNX, and PMML.</p>
 <p>A complete analysis that runs a heavy simulation in Julia, trains a
 model in Python, and plots the results in R:</p>
 <pre class="t"><code>p = pipeline {
-  -- 1. Numerical simulation in Julia (jln)
+  -- 1. Simulate non-linear DGP in Julia (seeded)
   sim_data = jln(
     command = &lt;{
-      using DataFrames
+      using Random, DataFrames
+      Random.seed!(42)
 
-      DataFrame(
-        x = 1:100,
-        y = (1:100) .* 1.5 .+ randn(100)
-      )
+      t = 1:500
+      shock = cumsum(randn(500))
+      DataFrame(time = t, shock = shock, signal = sin.(t ./ 20) .+ shock .* 0.2)
     }&gt;,
     serializer = ^ipc
   )
 
-  -- 2. Train machine learning model in Python (pyn)
-  model_py = pyn(
+  -- 2. Train non-linear model &amp; predict in Python (scikit-learn)
+  predictions = pyn(
     command = &lt;{
-from sklearn.linear_model import LinearRegression
-import numpy as np
+from sklearn.ensemble import HistGradientBoostingRegressor
+import pandas as pd
 
-X = sim_data[[&#39;x&#39;]].values.astype(np.float32)
-y = sim_data[&#39;y&#39;].values.astype(np.float32)
-
-model = LinearRegression().fit(X, y)
-model
+X = sim_data[[&#39;time&#39;, &#39;shock&#39;]]
+y = sim_data[&#39;signal&#39;]
+model = HistGradientBoostingRegressor(random_state=42).fit(X, y)
+sim_data[&#39;pred&#39;] = model.predict(X)
+sim_data
     }&gt;,
     deserializer = [sim_data: ^ipc],
-    serializer = ^onnx
+    serializer = ^ipc
   )
 
-  -- 3. Publication figure and diagnostic report in R (rn)
+  -- 3. Publication figure in R (ggplot2)
   report = rn(
     command = &lt;{
       library(ggplot2)
 
-      ggplot(sim_data, aes(x = x, y = y)) +
-        geom_point(color = &quot;#2c3e50&quot;) +
-        geom_smooth(method = &quot;lm&quot;, color = &quot;#e74c3c&quot;) +
+      ggplot(predictions, aes(x = time)) +
+        geom_point(aes(y = signal), alpha = 0.3, color = &quot;#7f8c8d&quot;) +
+        geom_line(aes(y = pred), color = &quot;#e74c3c&quot;, linewidth = 1) +
+        labs(title = &quot;Julia Simulation + Python ML Predictions&quot;, y = &quot;Value&quot;) +
         theme_minimal()
     }&gt;,
-    deserializer = [sim_data: ^ipc]
+    deserializer = [predictions: ^ipc]
   )
 }
 
 build_pipeline(p)</code></pre>
 <ul>
-<li><strong>Zero manual I/O:</strong> No <code>ggsave()</code>,
-<code>read.csv()</code>, or <code>df.to_csv()</code> boilerplate. T
-automatically serializes, deserializes, and captures plot/model
-artifacts at node boundaries.</li>
+<li><strong>Zero manual I/O:</strong> R returns the <code>ggplot</code>
+object directly; T’s runner automatically renders and caches the visual
+artifact without <code>ggsave()</code>. DataFrames pass between nodes
+via Apache Arrow IPC (<code>^ipc</code>) without <code>read.csv()</code>
+or <code>to_csv()</code> glue.</li>
 <li><strong>Hermetic sandboxes:</strong> Every node executes in an
-isolated environment with its own pinned dependencies.</li>
-<li><strong>Instant caching:</strong> Rerun the pipeline, and unchanged
-nodes resolve instantly from the content-addressed Nix store.</li>
+isolated Nix sandbox with pinned runtimes.</li>
+<li><strong>Seeded &amp; cached:</strong> Julia and Python draws are
+explicitly seeded. Unchanged nodes resolve instantly from the
+content-addressed store.</li>
 </ul>
 <hr />
 <h2 id="why-polyglot-pipelines-break-and-how-t-fixes-them">Why Polyglot
@@ -159,65 +162,85 @@ serialization (<code>^onnx</code>, <code>^pmml</code>,
 <code>^csv</code>). No custom serialization glue scripts.</li>
 <li><strong>One pinned environment:</strong> Under the hood, Nix locks
 your R packages, Python wheels, Julia depot, and underlying system
-C/Fortran libraries in one declarative manifest. If it runs today, it
-runs byte-for-byte identically in 2030.</li>
+C/Fortran libraries in one declarative manifest. When paired with seeded
+execution, your pipeline builds and executes deterministically across
+machines.</li>
 </ol>
 <hr />
 <h2 id="how-t-compares">How T Compares</h2>
-<table style="width:100%;">
+<table>
 <colgroup>
-<col style="width: 13%" />
-<col style="width: 21%" />
-<col style="width: 21%" />
-<col style="width: 21%" />
-<col style="width: 21%" />
+<col style="width: 10%" />
+<col style="width: 17%" />
+<col style="width: 17%" />
+<col style="width: 17%" />
+<col style="width: 17%" />
+<col style="width: 17%" />
 </colgroup>
 <thead>
 <tr>
 <th>Feature</th>
 <th style="text-align: center;">{targets}</th>
+<th style="text-align: center;">{rixpress}</th>
 <th style="text-align: center;">Snakemake</th>
-<th style="text-align: center;">Docker</th>
+<th style="text-align: center;">Docker (packaging only)</th>
 <th style="text-align: center;"><strong>T</strong></th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><strong>Language focus</strong></td>
-<td style="text-align: center;">R first</td>
-<td style="text-align: center;">Python / CLI</td>
-<td style="text-align: center;">Any</td>
-<td style="text-align: center;"><strong>R + Python + Julia</strong></td>
+<td><strong>Primary focus</strong></td>
+<td style="text-align: center;">R pipelines</td>
+<td style="text-align: center;">R + Nix pipelines</td>
+<td style="text-align: center;">Python / CLI pipelines</td>
+<td style="text-align: center;">Environment container</td>
+<td style="text-align: center;"><strong>Polyglot graph (R + Python +
+Julia)</strong></td>
 </tr>
 <tr>
-<td><strong>Cross-language glue</strong></td>
-<td style="text-align: center;">Ad-hoc / <code>reticulate</code></td>
-<td style="text-align: center;">Shell scripts</td>
-<td style="text-align: center;">Manual scripts</td>
-<td style="text-align: center;"><strong>Native (<code>^ipc</code>,
-<code>^onnx</code>)</strong></td>
+<td><strong>Cross-language seam</strong></td>
+<td style="text-align: center;">R-native (polyglot is bolted on)</td>
+<td style="text-align: center;">R-native via Nix</td>
+<td style="text-align: center;">Shell scripts &amp; CLI wrappers</td>
+<td style="text-align: center;">Manual scripts &amp; volume mounts</td>
+<td style="text-align: center;"><strong>Process-isolated IPC
+(<code>^ipc</code>, <code>^onnx</code>,
+<code>^pmml</code>)</strong></td>
+</tr>
+<tr>
+<td><strong>Intermediate I/O</strong></td>
+<td style="text-align: center;">Automatic</td>
+<td style="text-align: center;">Automatic</td>
+<td style="text-align: center;">Manual file paths</td>
+<td style="text-align: center;">Manual volumes &amp; files</td>
+<td style="text-align: center;"><strong>Automatic (zero-boilerplate
+boundary transfer)</strong></td>
 </tr>
 <tr>
 <td><strong>Node caching</strong></td>
 <td style="text-align: center;">Content-addressed (R)</td>
+<td style="text-align: center;">Content-addressed (R)</td>
 <td style="text-align: center;">Timestamp / file hash</td>
-<td style="text-align: center;">Layer-based</td>
+<td style="text-align: center;">Docker build layer cache</td>
 <td style="text-align: center;"><strong>Content-addressed (all
 nodes)</strong></td>
 </tr>
 <tr>
 <td><strong>System library locking</strong></td>
 <td style="text-align: center;">❌ (Delegates to host)</td>
-<td style="text-align: center;">❌ (Conda optional)</td>
+<td style="text-align: center;">✅ (Hermetic Nix)</td>
+<td style="text-align: center;">⚠️ (Optional Conda)</td>
 <td style="text-align: center;">✅ (Per image)</td>
-<td style="text-align: center;">✅ (Hermetic Nix sandbox)</td>
+<td style="text-align: center;">✅ (Hermetic per-node Nix sandbox)</td>
 </tr>
 <tr>
-<td><strong>Local interactive inspect</strong></td>
+<td><strong>Interactive inspection</strong></td>
 <td style="text-align: center;">✅ (<code>tar_read()</code>)</td>
-<td style="text-align: center;">❌</td>
-<td style="text-align: center;">❌</td>
 <td style="text-align: center;">✅ (<code>read_node()</code>)</td>
+<td style="text-align: center;">⚠️ (File inspect only)</td>
+<td style="text-align: center;">❌ (Container attach)</td>
+<td style="text-align: center;">✅ (<code>read_node()</code>,
+<code>explain()</code>)</td>
 </tr>
 </tbody>
 </table>
