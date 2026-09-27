@@ -16,6 +16,24 @@ A language for the LLM era, T is designed to be piloted by both humans and AI mo
 
 ---
 
+### Quick Setup (For People in a Hurry)
+
+1. **[Install Nix](nix-installation.html)** (with Flakes enabled):
+   ```bash
+   curl --proto '=https' --tlsv1.2 -sSf -da https://install.determinate.systems/nix | sh -s -- install
+   ```
+2. **Try T immediately** in an ephemeral shell:
+   ```bash
+   nix shell --accept-flake-config github:b-rodrigues/tlang
+   ```
+3. **Scaffold a project** and enter its pinned environment:
+   ```bash
+   t init --project my_project && cd my_project && nix develop
+   ```
+*(See the [Nix Installation Guide](nix-installation.html) and [Getting Started Tutorial](getting-started.html) for full platform instructions).*
+
+---
+
 ## How It Looks in Practice
 
 A complete analysis that simulates non-linear data in Julia, fits a gradient-boosted regressor in Python, plots ground truth vs predictions in R, and compiles a Quarto report:
