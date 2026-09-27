@@ -2,7 +2,7 @@
 
 **Simulate in Julia. Train in Python. Report in R. Pin the entire stack.**
 
-T is a pipeline orchestration engine and language that coordinates R, Python, and Julia analyses in a single, content-addressed dependency graph. One file, bit-for-bit reproducible, zero reticulate or PyCall glue.
+T is a pipeline tool that coordinates R, Python, and Julia analyses in a single, content-addressed dependency graph. One file, hermetic Nix caching, zero reticulate or PyCall glue.
 
 Built on Nix, T integrates declarative environment management and deterministic builds at the language level. Every node runs in its own hermetic sandbox, and data moves seamlessly across languages via Apache Arrow IPC, ONNX, and PMML.
 
@@ -10,7 +10,7 @@ Built on Nix, T integrates declarative environment management and deterministic 
 
 ## The 30-Second Example
 
-A complete analysis that runs a heavy simulation in Julia, trains a model in Python, and plots the results in R:
+A complete analysis that simulates non-linear data in Julia, fits a gradient-boosted regressor in Python, and plots ground truth vs predictions in R:
 
 ```t
 p = pipeline {
@@ -31,7 +31,6 @@ p = pipeline {
   predictions = pyn(
     command = <{
 from sklearn.ensemble import HistGradientBoostingRegressor
-import pandas as pd
 
 X = sim_data[['time', 'shock']]
 y = sim_data['signal']
@@ -94,8 +93,8 @@ Connecting them today forces you to choose between three bad options:
 
 | Feature | {targets} | {rixpress} | Snakemake | Docker (packaging only) | **T** |
 |---|:---:|:---:|:---:|:---:|:---:|
-| **Primary focus** | R pipelines | R + Nix pipelines | Python / CLI pipelines | Environment container | **Polyglot graph (R + Python + Julia)** |
-| **Cross-language seam** | R-native (polyglot is bolted on) | R-native via Nix | Shell scripts & CLI wrappers | Manual scripts & volume mounts | **Process-isolated IPC (`^ipc`, `^onnx`, `^pmml`)** |
+| **Interface & Engine** | R package (`_targets.R`), host environment | R package API, Nix engine | Python / CLI DSL, Conda/host | Container image, Docker daemon | **Dedicated pipeline language, Nix engine** |
+| **Cross-language seam** | R-native (polyglot is bolted on) | R-native (Python nodes via `rixpress` helpers) | Shell scripts & CLI wrappers | Manual entrypoints & volume mounts | **Process-isolated IPC across R, Python, and Julia** |
 | **Intermediate I/O** | Automatic | Automatic | Manual file paths | Manual volumes & files | **Automatic (zero-boilerplate boundary transfer)** |
 | **Node caching** | Content-addressed (R) | Content-addressed (R) | Timestamp / file hash | Docker build layer cache | **Content-addressed (all nodes)** |
 | **System library locking** | ❌ (Delegates to host) | ✅ (Hermetic Nix) | ⚠️ (Optional Conda) | ✅ (Per image) | ✅ (Hermetic per-node Nix sandbox) |

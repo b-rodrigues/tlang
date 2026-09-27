@@ -37,18 +37,18 @@
 Data Science</h1>
 <p><strong>Simulate in Julia. Train in Python. Report in R. Pin the
 entire stack.</strong></p>
-<p>T is a pipeline orchestration engine and language that coordinates R,
-Python, and Julia analyses in a single, content-addressed dependency
-graph. One file, bit-for-bit reproducible, zero reticulate or PyCall
-glue.</p>
+<p>T is a pipeline tool that coordinates R, Python, and Julia analyses
+in a single, content-addressed dependency graph. One file, hermetic Nix
+caching, zero reticulate or PyCall glue.</p>
 <p>Built on Nix, T integrates declarative environment management and
 deterministic builds at the language level. Every node runs in its own
 hermetic sandbox, and data moves seamlessly across languages via Apache
 Arrow IPC, ONNX, and PMML.</p>
 <hr />
 <h2 id="the-30-second-example">The 30-Second Example</h2>
-<p>A complete analysis that runs a heavy simulation in Julia, trains a
-model in Python, and plots the results in R:</p>
+<p>A complete analysis that simulates non-linear data in Julia, fits a
+gradient-boosted regressor in Python, and plots ground truth vs
+predictions in R:</p>
 <pre class="t"><code>p = pipeline {
   -- 1. Simulate non-linear DGP in Julia (seeded)
   sim_data = jln(
@@ -67,7 +67,6 @@ model in Python, and plots the results in R:</p>
   predictions = pyn(
     command = &lt;{
 from sklearn.ensemble import HistGradientBoostingRegressor
-import pandas as pd
 
 X = sim_data[[&#39;time&#39;, &#39;shock&#39;]]
 y = sim_data[&#39;signal&#39;]
@@ -189,23 +188,25 @@ machines.</li>
 </thead>
 <tbody>
 <tr>
-<td><strong>Primary focus</strong></td>
-<td style="text-align: center;">R pipelines</td>
-<td style="text-align: center;">R + Nix pipelines</td>
-<td style="text-align: center;">Python / CLI pipelines</td>
-<td style="text-align: center;">Environment container</td>
-<td style="text-align: center;"><strong>Polyglot graph (R + Python +
-Julia)</strong></td>
+<td><strong>Interface &amp; Engine</strong></td>
+<td style="text-align: center;">R package (<code>_targets.R</code>),
+host environment</td>
+<td style="text-align: center;">R package API, Nix engine</td>
+<td style="text-align: center;">Python / CLI DSL, Conda/host</td>
+<td style="text-align: center;">Container image, Docker daemon</td>
+<td style="text-align: center;"><strong>Dedicated pipeline language, Nix
+engine</strong></td>
 </tr>
 <tr>
 <td><strong>Cross-language seam</strong></td>
 <td style="text-align: center;">R-native (polyglot is bolted on)</td>
-<td style="text-align: center;">R-native via Nix</td>
+<td style="text-align: center;">R-native (Python nodes via
+<code>rixpress</code> helpers)</td>
 <td style="text-align: center;">Shell scripts &amp; CLI wrappers</td>
-<td style="text-align: center;">Manual scripts &amp; volume mounts</td>
-<td style="text-align: center;"><strong>Process-isolated IPC
-(<code>^ipc</code>, <code>^onnx</code>,
-<code>^pmml</code>)</strong></td>
+<td style="text-align: center;">Manual entrypoints &amp; volume
+mounts</td>
+<td style="text-align: center;"><strong>Process-isolated IPC across R,
+Python, and Julia</strong></td>
 </tr>
 <tr>
 <td><strong>Intermediate I/O</strong></td>
