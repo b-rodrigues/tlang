@@ -164,14 +164,11 @@ Pipeline nodes can be dynamically expanded into multiple branches using `map_pat
 ### Introspection with `explain()`
 T values and pipelines are highly introspectable. The **`explain`** package provides the `explain()` function, which can be called on any object to get a detailed summary of its structure, metadata, and status. It is the recommended way to "look inside" your data and nodes in the REPL.
 
-### Advanced Architectural Capabilities
-For large-scale, audited, or high-performance analyses, T includes:
-- **Portable Model Interchange:** Move models across Python, R, and Julia via `^onnx`, or evaluate tree ensembles and GLMs natively in T using embedded `^pmml` without spawning external runtimes.
-- **Composable Lenses (`lens`):** Serializable functional optics for querying and surgically updating deeply nested immutable structures and computation graphs.
-- **Property-Based Testing (`propcraft`):** Generative invariant testing with deterministic shrinking and seeded pseudo-randomness.
-- **Custom Serializers:** Extensible serialization registry allowing inline polyglot readers and writers for arbitrary file formats.
+### Technical Presentation & Language Architecture
 
-See the **[Advanced Technical Features Guide](docs/technical-features.md)** for detailed documentation and examples.
+For compiler engineers, programming language researchers, and systems architects interested in T's underlying formal semantics, AST design, process-isolated Nix execution engine, embedded PMML/ONNX model scoring, and composable optics:
+
+👉 **Read the [Technical Presentation & Language Architecture Guide](docs/technical-presentation.md)**.
 
 ---
 

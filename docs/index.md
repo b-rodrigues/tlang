@@ -187,7 +187,7 @@ node's output in the Nix store. You can inspect the artifact directly or pass it
 - [External Helper Packages](external-packages.html) — reading T artifacts from R, Python, and Julia
 
 ### Advanced Topics
-- [Advanced Technical Features](technical-features.html) — dynamic branching, PMML/ONNX scoring, lenses, and property-based testing
+- [Technical Presentation](technical-presentation.html) — DSL design, formal semantics, Arrow IPC, and Nix sandboxing architecture
 - [Reproducibility Guide](reproducibility.html) — Nix integration and reproducible workflows
 - [LLM Collaboration](llm-collaboration.html) — intent blocks and AI-assisted development
 - [Quotation & Metaprogramming](quotation.html) — capturing and generating code
