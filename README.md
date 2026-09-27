@@ -7,8 +7,11 @@
 [![CI](https://github.com/b-rodrigues/tlang/actions/workflows/unit-tests.yaml/badge.svg)](https://github.com/b-rodrigues/tlang/actions)
 [![OCaml](https://img.shields.io/badge/OCaml-5.x-EC6813.svg?logo=ocaml&logoColor=white)](https://ocaml.org)
 
-**Simulate in Julia. Train in Python. Report in R. Pin the entire stack.**  
-*T is a pipeline tool that coordinates R, Python, and Julia analyses in a single, content-addressed dependency graph. One file, hermetic Nix caching, zero reticulate or PyCall glue.*
+**Use Julia, Python, and R for what they’re really good at — whatever that is for you. T orchestrates them.**
+
+Simulations in Julia, ML in Python, statistics in R — or the exact opposite. It doesn't matter how you divide the labor: the hard part of polyglot data science was never the languages, it was the fragile seam between them.
+
+A language for the LLM era, T is designed to be piloted by both humans and AI models. It gives you one hermetic dependency graph where your tools communicate without glue and execute consistently through space and time: on your laptop today, on a cluster tomorrow, and five years from now without bitrot.
 
 ---
 

@@ -1,10 +1,10 @@
 # T — Reproducible Pipelines for Polyglot Data Science
 
-**Simulate in Julia. Train in Python. Report in R. Pin the entire stack.**
+**Use Julia, Python, and R for what they’re really good at — whatever that is for you. T orchestrates them.**
 
-T is a pipeline tool that coordinates R, Python, and Julia analyses in a single, content-addressed dependency graph. One file, hermetic Nix caching, zero reticulate or PyCall glue.
+Simulations in Julia, ML in Python, statistics in R — or the exact opposite. It doesn't matter how you divide the labor: the hard part of polyglot data science was never the languages, it was the fragile seam between them.
 
-Built on Nix, T integrates declarative environment management and deterministic builds at the language level. Every node runs in its own hermetic sandbox, and data moves seamlessly across languages via Apache Arrow IPC, ONNX, and PMML.
+A language for the LLM era, T is designed to be piloted by both humans and AI models. It gives you one hermetic dependency graph where your tools communicate without glue and execute consistently through space and time: on your laptop today, on a cluster tomorrow, and five years from now without bitrot.
 
 ---
 
