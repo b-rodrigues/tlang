@@ -147,6 +147,9 @@ t test --coverage
 t doc --parse --generate
 
 t doctor
+
+t demo                                    # interactive tour: pipeline DAG, Nix build, Arrow IPC & caching
+t demo --headless                         # non-interactive tour for CI/scripts
 ```
 
 ### CI coverage reporting
