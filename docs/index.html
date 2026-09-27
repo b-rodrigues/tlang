@@ -50,44 +50,60 @@ Arrow IPC, ONNX, and PMML.</p>
 <p>A complete analysis that runs a heavy simulation in Julia, trains a
 model in Python, and plots the results in R:</p>
 <pre class="t"><code>p = pipeline {
-  -- 1. Heavy numerical simulation in Julia (jln)
+  -- 1. Numerical simulation in Julia (jln)
   sim_data = jln(
     command = &lt;{
       using DataFrames
-      # Fast numerical simulation or ODE solving
-      simulate_panel(n_agents = 50_000, periods = 12)
+
+      DataFrame(
+        x = 1:100,
+        y = (1:100) .* 1.5 .+ randn(100)
+      )
     }&gt;,
-    serializer = ^arrow
+    serializer = ^ipc
   )
 
   -- 2. Train machine learning model in Python (pyn)
-  model = pyn(
+  model_py = pyn(
     command = &lt;{
-      from sklearn.ensemble import GradientBoostingRegressor
-      X = sim_data.drop(columns=[&#39;y&#39;])
-      clf = GradientBoostingRegressor().fit(X, sim_data[&#39;y&#39;])
-      clf
+from sklearn.linear_model import LinearRegression
+import numpy as np
+
+X = sim_data[[&#39;x&#39;]].values.astype(np.float32)
+y = sim_data[&#39;y&#39;].values.astype(np.float32)
+
+model = LinearRegression().fit(X, y)
+model
     }&gt;,
-    deserializer = ^arrow,
+    deserializer = [sim_data: ^ipc],
     serializer = ^onnx
   )
 
-  -- 3. Publication-quality figure &amp; audit report in R (rn)
+  -- 3. Publication figure and diagnostic report in R (rn)
   report = rn(
     command = &lt;{
       library(ggplot2)
-      p &lt;- ggplot(sim_data, aes(x = period, y = y)) +
-        geom_line(color = &quot;#2c3e50&quot;) +
+
+      ggplot(sim_data, aes(x = x, y = y)) +
+        geom_point(color = &quot;#2c3e50&quot;) +
+        geom_smooth(method = &quot;lm&quot;, color = &quot;#e74c3c&quot;) +
         theme_minimal()
-      ggsave(file.path(output_dir, &quot;policy_report.png&quot;), p)
     }&gt;,
-    deserializer = ^arrow
+    deserializer = [sim_data: ^ipc]
   )
 }
 
 build_pipeline(p)</code></pre>
-<p>Run it once: every node executes in its own hermetic sandbox.<br />
-Run it again: all three nodes hit the local cache instantly.</p>
+<ul>
+<li><strong>Zero manual I/O:</strong> No <code>ggsave()</code>,
+<code>read.csv()</code>, or <code>df.to_csv()</code> boilerplate. T
+automatically serializes, deserializes, and captures plot/model
+artifacts at node boundaries.</li>
+<li><strong>Hermetic sandboxes:</strong> Every node executes in an
+isolated environment with its own pinned dependencies.</li>
+<li><strong>Instant caching:</strong> Rerun the pipeline, and unchanged
+nodes resolve instantly from the content-addressed Nix store.</li>
+</ul>
 <hr />
 <h2 id="why-polyglot-pipelines-break-and-how-t-fixes-them">Why Polyglot
 Pipelines Break (And How T Fixes Them)</h2>
@@ -138,7 +154,7 @@ analyst to inspect or debug interactively on a laptop.</td>
 runs in its own isolated process. Julia’s memory cannot corrupt R;
 Python’s C-extensions cannot conflict with Julia’s OpenMP threads.</li>
 <li><strong>First-class data exchange:</strong> Data passes between
-nodes using Apache Arrow IPC (<code>^arrow</code>) and standard model
+nodes using Apache Arrow IPC (<code>^ipc</code>) and standard model
 serialization (<code>^onnx</code>, <code>^pmml</code>,
 <code>^csv</code>). No custom serialization glue scripts.</li>
 <li><strong>One pinned environment:</strong> Under the hood, Nix locks
@@ -178,7 +194,7 @@ runs byte-for-byte identically in 2030.</li>
 <td style="text-align: center;">Ad-hoc / <code>reticulate</code></td>
 <td style="text-align: center;">Shell scripts</td>
 <td style="text-align: center;">Manual scripts</td>
-<td style="text-align: center;"><strong>Native (<code>^arrow</code>,
+<td style="text-align: center;"><strong>Native (<code>^ipc</code>,
 <code>^onnx</code>)</strong></td>
 </tr>
 <tr>

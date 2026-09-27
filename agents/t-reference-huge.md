@@ -22,46 +22,55 @@ A complete analysis that runs a heavy simulation in Julia, trains a model in Pyt
 
 ```t
 p = pipeline {
-  -- 1. Heavy numerical simulation in Julia (jln)
+  -- 1. Numerical simulation in Julia (jln)
   sim_data = jln(
     command = <{
       using DataFrames
-      # Fast numerical simulation or ODE solving
-      simulate_panel(n_agents = 50_000, periods = 12)
+
+      DataFrame(
+        x = 1:100,
+        y = (1:100) .* 1.5 .+ randn(100)
+      )
     }>,
-    serializer = ^arrow
+    serializer = ^ipc
   )
 
   -- 2. Train machine learning model in Python (pyn)
-  model = pyn(
+  model_py = pyn(
     command = <{
-      from sklearn.ensemble import GradientBoostingRegressor
-      X = sim_data.drop(columns=['y'])
-      clf = GradientBoostingRegressor().fit(X, sim_data['y'])
-      clf
+from sklearn.linear_model import LinearRegression
+import numpy as np
+
+X = sim_data[['x']].values.astype(np.float32)
+y = sim_data['y'].values.astype(np.float32)
+
+model = LinearRegression().fit(X, y)
+model
     }>,
-    deserializer = ^arrow,
+    deserializer = [sim_data: ^ipc],
     serializer = ^onnx
   )
 
-  -- 3. Publication-quality figure & audit report in R (rn)
+  -- 3. Publication figure and diagnostic report in R (rn)
   report = rn(
     command = <{
       library(ggplot2)
-      p <- ggplot(sim_data, aes(x = period, y = y)) +
-        geom_line(color = "#2c3e50") +
+
+      ggplot(sim_data, aes(x = x, y = y)) +
+        geom_point(color = "#2c3e50") +
+        geom_smooth(method = "lm", color = "#e74c3c") +
         theme_minimal()
-      ggsave(file.path(output_dir, "policy_report.png"), p)
     }>,
-    deserializer = ^arrow
+    deserializer = [sim_data: ^ipc]
   )
 }
 
 build_pipeline(p)
 ```
 
-Run it once: every node executes in its own hermetic sandbox.  
-Run it again: all three nodes hit the local cache instantly.
+- **Zero manual I/O:** No `ggsave()`, `read.csv()`, or `df.to_csv()` boilerplate. T automatically serializes, deserializes, and captures plot/model artifacts at node boundaries.
+- **Hermetic sandboxes:** Every node executes in an isolated environment with its own pinned dependencies.
+- **Instant caching:** Rerun the pipeline, and unchanged nodes resolve instantly from the content-addressed Nix store.
 
 ---
 
@@ -83,7 +92,7 @@ Connecting them today forces you to choose between three bad options:
 ### How T handles the seam:
 
 1. **Process-level isolation:** Each foreign language node runs in its own isolated process. Julia's memory cannot corrupt R; Python's C-extensions cannot conflict with Julia's OpenMP threads.
-2. **First-class data exchange:** Data passes between nodes using Apache Arrow IPC (`^arrow`) and standard model serialization (`^onnx`, `^pmml`, `^csv`). No custom serialization glue scripts.
+2. **First-class data exchange:** Data passes between nodes using Apache Arrow IPC (`^ipc`) and standard model serialization (`^onnx`, `^pmml`, `^csv`). No custom serialization glue scripts.
 3. **One pinned environment:** Under the hood, Nix locks your R packages, Python wheels, Julia depot, and underlying system C/Fortran libraries in one declarative manifest. If it runs today, it runs byte-for-byte identically in 2030.
 
 ---
@@ -93,7 +102,7 @@ Connecting them today forces you to choose between three bad options:
 | Feature | {targets} | Snakemake | Docker | **T** |
 |---|:---:|:---:|:---:|:---:|
 | **Language focus** | R first | Python / CLI | Any | **R + Python + Julia** |
-| **Cross-language glue** | Ad-hoc / `reticulate` | Shell scripts | Manual scripts | **Native (`^arrow`, `^onnx`)** |
+| **Cross-language glue** | Ad-hoc / `reticulate` | Shell scripts | Manual scripts | **Native (`^ipc`, `^onnx`)** |
 | **Node caching** | Content-addressed (R) | Timestamp / file hash | Layer-based | **Content-addressed (all nodes)** |
 | **System library locking** | ❌ (Delegates to host) | ❌ (Conda optional) | ✅ (Per image) | ✅ (Hermetic Nix sandbox) |
 | **Local interactive inspect** | ✅ (`tar_read()`) | ❌ | ❌ | ✅ (`read_node()`) |
