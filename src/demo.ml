@@ -63,7 +63,8 @@ let run ?(headless = false) ?start_repl env =
   Printf.printf "  4. Inspecting in-memory artifacts via Apache Arrow IPC\n";
   Printf.printf "  5. Growing the pipeline & observing content-addressed Nix caching\n";
   Printf.printf "  6. First-class errors & polyglot soft-failures (no pipeline aborts)\n";
-  Printf.printf "  7. Interactive REPL handoff\n";
+  Printf.printf "  7. Interactive REPL handoff\n\n";
+  Printf.printf "%sNote: This demo uses pure T nodes for quick demonstration, but pipelines\nwork identically across Python (`pyn`), R (`rn`), and Julia (`jln`) runtimes.%s\n" color_gray color_reset;
 
   wait_step ~headless "[Press Enter to see the initial pipeline...]";
 
