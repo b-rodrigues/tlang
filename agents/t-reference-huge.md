@@ -6,101 +6,147 @@ This file is a concatenation of the entire T documentation for LLM context.
 
 # FILE: docs/index.md
 
-# T — The Orchestration Engine for Polyglot Data Science
+# T — Reproducible Pipelines for Polyglot Data Science
 
-T is a reproducibility-first domain-specific language (DSL) for polyglot data
-science. It provides a functional, immutable language for constructing
-composable *micropipelines*: first-class, introspectable computation graphs
-that coordinate R, Python, Julia, Quarto, and Shell execution within a unified
-system. Pipelines in T are not configuration artifacts but executable program
-structures with explicit dataflow, typed nodes, and content-addressed outputs.
-Artifacts are automatically serialized and exchanged across language boundaries,
-allowing polyglot workflows to compose without manual I/O glue code.
+**Use Julia, Python, and R for what they’re really good at — whatever that is for you. T orchestrates them.**
 
-Built on Nix, T integrates declarative environment management and deterministic
-builds at the language level, enabling reproducible execution across machines
-and operating systems. Workflow structure, dependency resolution, environment
-specification, and provenance tracking are intrinsic properties of the language
-rather than concerns delegated to external tooling. As a result, T is designed
-so that reproducible workflows are the default: reproducibility of your projects
-is not an afterthought anymore.
+Simulations in Julia, ML in Python, statistics in R — or the exact opposite. It doesn't matter how you divide the labor: the hard part of polyglot data science was never the languages, it was the fragile seam between them.
 
-T also includes a growing collection of data manipulation verbs inspired by the
-R tidyverse ecosystem, particularly packages such as dplyr, stringr, and
-lubridate. This makes it possible to perform exploratory data analysis directly
-from the T REPL before promoting computations into reproducible pipelines.
+A language for the LLM era, T is designed to be piloted by both humans and AI models. It gives you one hermetic dependency graph where your tools communicate without glue and execute consistently through space and time: on your laptop today, on a cluster tomorrow, and five years from now without bitrot.
 
 **Status:** Version 0.55.4 "L'Ultime combat".
 
 ---
 
-## The Polyglot Pipeline
+### Quick Setup (For People in a Hurry)
 
-T's core strength is its **mandatory pipeline architecture**. To execute code in
-T, you typically define it as a series of nodes in a directed acyclic graph
-(DAG). T handles the "glue":
-
-```t
--- A reproducible polyglot pipeline
-p = pipeline {
-  -- 1. Load data natively in T (CSV backend)
-  data = node(
-    command = read_csv("examples/sample_data.csv") |> filter($age > 25),
-    serializer = ^csv
-  )
-
-  -- 2. Train a statistical model in R (using the rn() wrapper)
-  model_r = rn(
-    command = <{ lm(score ~ age, data = data) }>,
-    serializer = ^pmml,
-    deserializer = ^csv
-  )
-
-  -- 3. Predict natively in T (no R/Python runtime needed for evaluation!)
-  predictions = node(
-    command = data |> mutate($pred = predict(data, model_r)),
-    deserializer = ^pmml
-  )
-
-  -- 4. Generate a shell report
-  report = shn(command = <{
-    printf 'R model results cached at: %s\n' "$T_NODE_model_r/artifact"
-  }>)
-}
-
--- Build the pipeline into reproducible Nix artifacts
-build_pipeline(p)
-```
-
-Pipelines are not mandatory in the T REPL. This is a deliberate design choice
-intended to support exploratory data analysis and rapid experimentation before
-computations are promoted into reproducible pipelines. Users can also launch
-R, Python, or Julia REPLs directly from within a T project, inheriting the
-same pinned environments and project dependencies. This allows exploratory
-work to take place in familiar ecosystems while remaining integrated with T's
-reproducibility model.
+1. **[Install Nix](nix-installation.html)** (installs Nix and configures the `rstats-on-nix` cache in one step):
+   ```bash
+   curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | \
+     sh -s -- install --no-confirm --extra-conf "
+   trusted-users = root $USER
+   substituters = https://cache.nixos.org https://rstats-on-nix.cachix.org
+   trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= rstats-on-nix.cachix.org-1:vdiiVgocg6WeJrODIqdprZRUrhi1JzhBnXv7aWI6+F0="
+   ```
+2. **Try T immediately** in an ephemeral shell:
+   ```bash
+   nix shell --accept-flake-config github:b-rodrigues/tlang
+   ```
+3. **Scaffold a project** and enter its pinned environment:
+   ```bash
+   t init --project my_project && cd my_project && nix develop
+   ```
+*(See the [Nix Installation Guide](nix-installation.html) and [Getting Started Tutorial](getting-started.html) for full platform instructions).*
 
 ---
 
-## T in relation to the big three data science languages
+## Interactive Demo in 30 Seconds
 
-T is not designed to replace your existing tools; it is designed to
-**orchestrate** them. It addresses the "dependency drift" and "works on my
-machine" syndrome by making **Nix mandatory**.
+Run `t demo` right in your terminal to see pipeline introspection, hermetic Nix builds, Arrow in-memory inspection, caching, and first-class error handling in action:
 
-- **Orchestration, Not Invention**: Use R for its statistics, Python for its
-  machine learning, and T to ensure they always talk to each other correctly via
-  high-performance formats like Apache Arrow.
-- **Strictly Functional & Immutable**: T eliminates side effects and mutable
-  state. If `a = 1 / 0`, then `a` is an `Error` value, not an exception. Logic
-  is auditable and predictable.
-- **Mandatory Reproducibility**: Every node in a T pipeline runs in its own
-  sandboxed Nix environment. T automatically detects dependencies and ensures
-  that if a node's inputs haven't changed, its results are pulled from the
-  cache.
-- **AI-Native Design**: Through features like `intent` blocks and structured
-  metadata, T is built for a future where humans and AI collaborate on complex
-  data workflows.
+![T Interactive Demo](demo.gif)
+
+---
+
+## How It Looks in Practice
+
+A complete analysis that simulates non-linear data in Julia, fits a gradient-boosted regressor in Python, plots ground truth vs predictions in R, and compiles a Quarto report:
+
+```t
+p = pipeline {
+  -- 1. Simulate non-linear DGP in Julia (seeded)
+  sim_data = jln(
+    command = <{
+      using Random, DataFrames
+      Random.seed!(42)
+
+      t = 1:500
+      shock = cumsum(randn(500))
+      DataFrame(time = t, shock = shock, signal = sin.(t ./ 20) .+ shock .* 0.2)
+    }>,
+    serializer = ^ipc
+  )
+
+  -- 2. Train non-linear model & predict in Python (scikit-learn)
+  predictions = pyn(
+    command = <{
+from sklearn.ensemble import HistGradientBoostingRegressor
+
+X = sim_data[['time', 'shock']]
+y = sim_data['signal']
+model = HistGradientBoostingRegressor(random_state=42).fit(X, y)
+sim_data['pred'] = model.predict(X)
+sim_data
+    }>,
+    deserializer = [sim_data: ^ipc],
+    serializer = ^ipc
+  )
+
+  -- 3. Publication figure in R (ggplot2)
+  plot = rn(
+    command = <{
+      library(ggplot2)
+
+      ggplot(predictions, aes(x = time)) +
+        geom_point(aes(y = signal), alpha = 0.3, color = "#7f8c8d") +
+        geom_line(aes(y = pred), color = "#e74c3c", linewidth = 1) +
+        labs(title = "Julia Simulation + Python ML Predictions", y = "Value") +
+        theme_minimal()
+    }>,
+    deserializer = [predictions: ^ipc]
+  )
+
+  -- 4. Render reproducible Quarto report
+  report = node(script = "src/report.qmd", runtime = Quarto)
+}
+
+build_pipeline(p)
+```
+
+- **Zero manual I/O:** R returns the `ggplot` object directly; T's runner automatically renders and caches the visual artifact without `ggsave()`. DataFrames pass between nodes via Apache Arrow IPC (`^ipc`) without `read.csv()` or `to_csv()` glue.
+- **No vendor lock-in (use standalone scripts):** You don't have to embed code in `<{ ... }>` blocks. Nodes accept external script files directly (`jln(script = "sim.jl")`, `pyn(script = "train.py")`, `rn(script = "plot.R")`). Your Julia, Python, and R scripts remain ordinary standalone files that your team can run or reuse anywhere with standard tooling.
+- **First-class polyglot errors (no pipeline crashes):** If an error or exception occurs inside a node—whether in Python (`raise`), R (`stop()`), Julia (`error()`), or T (`error()`)—it does not crash the entire pipeline build. T captures the error at the sandbox boundary, serializes a structured `VError` artifact, and allows independent branches to complete. Downstream nodes can inspect the error with `read_node()` or `explain()`, or recover programmatically.
+- **Literate reporting:** The Quarto node compiles `src/report.qmd` into an HTML or PDF report inside the Nix sandbox, directly embedding upstream metrics and figures.
+- **Hermetic sandboxes:** Every node executes in an isolated Nix sandbox with pinned runtimes.
+- **Seeded & cached:** Julia and Python draws are explicitly seeded. Unchanged nodes resolve instantly from the content-addressed store.
+
+---
+
+## Why Polyglot Pipelines Break (And How T Fixes Them)
+
+Most modern quantitative projects in research, central banks, official statistics, and regulated industries are polyglot by necessity:
+- **Julia** is unmatched for raw numerical simulation, ODEs, and heavy optimization loops.
+- **Python** is the standard for modern machine learning and deep learning tooling.
+- **R** remains the gold standard for survey statistics, econometrics, and publication-ready reporting.
+
+Connecting them today forces you to choose between three bad options:
+
+| The Status Quo | The Failure Mode |
+|---|---|
+| **In-process FFI (`reticulate`, `PyCall`, `RCall`)** | Shared memory between multiple runtimes with competing garbage collectors and conflicting OpenMP/BLAS threads causes unexplained segfaults. Upgrading one runtime breaks the other. |
+| **Ad-hoc Bash scripts & CSVs** | No caching: tweaking a title in an R ggplot re-runs your 3-hour Julia simulation. Column types and missing values silently mutate during CSV export. |
+| **Chained Docker containers** | Huge container images, slow local development, impossible for an analyst to inspect or debug interactively on a laptop. |
+
+### How T handles the seam:
+
+1. **Process-level isolation:** Each foreign language node runs in its own isolated process. Julia's memory cannot corrupt R; Python's C-extensions cannot conflict with Julia's OpenMP threads.
+2. **First-class data exchange:** Data passes between nodes using Apache Arrow IPC (`^ipc`) and standard model serialization (`^onnx`, `^pmml`, `^csv`). No custom serialization glue scripts.
+3. **One pinned environment:** Under the hood, Nix locks your R packages, Python wheels, Julia depot, and underlying system C/Fortran libraries in one declarative manifest. When paired with seeded execution, your pipeline builds and executes deterministically across machines.
+4. **Polyglot soft-failures:** In conventional workflow engines, an uncaught exception in a single script aborts the entire DAG run. In T, errors are first-class values across all runtimes: failing nodes capture full tracebacks into structured `VError` artifacts while independent parallel branches continue uninterrupted.
+
+---
+
+## How T Compares
+
+| Feature | {targets} | {rixpress} | Snakemake | Docker (packaging only) | **T** |
+|---|:---:|:---:|:---:|:---:|:---:|
+| **Interface & Engine** | R package (`_targets.R`), host environment | R package API, Nix engine | Python / CLI DSL, Conda/host | Container image, Docker daemon | **Dedicated pipeline language, Nix engine** |
+| **Cross-language seam** | R-native (polyglot is bolted on) | R-native (Python nodes via `rixpress` helpers) | Shell scripts & CLI wrappers | Manual entrypoints & volume mounts | **Process-isolated IPC across R, Python, and Julia** |
+| **Intermediate I/O** | Automatic | Automatic | Manual file paths | Manual volumes & files | **Automatic (zero-boilerplate boundary transfer)** |
+| **Node caching** | Content-addressed (R) | Content-addressed (R) | Timestamp / file hash | Docker build layer cache | **Content-addressed (all nodes)** |
+| **System library locking** | ❌ (Delegates to host) | ✅ (Hermetic Nix) | ⚠️ (Optional Conda) | ✅ (Per image) | ✅ (Hermetic per-node Nix sandbox) |
+| **Interactive inspection** | ✅ (`tar_read()`) | ✅ (`read_node()`) | ⚠️ (File inspect only) | ❌ (Container attach) | ✅ (`read_node()`, `explain()`) |
+| **Error resilience** | ❌ (Aborts run) | ❌ (Aborts run) | ❌ (Aborts run) | ❌ (Container exits) | ✅ (First-class polyglot soft-failures) |
 
 ---
 
@@ -128,12 +174,7 @@ environment:
 | `json` | `Dict` / `List` | JSON parser |
 | `pmml` | `Model` | Native T model evaluator |
 
-### Looking into the "Entrails"
-
-If a node's serializer is not supported for automatic deserialization,
-`read_node()` returns the **Computed Node object** itself. This object contains
-all the metadata necessary to load the artifact manually or inspect its
-provenance.
+### Inspecting Built Nodes with `explain()`
 
 You can use `explain()` to look inside a built node:
 
@@ -152,14 +193,8 @@ You can use `explain()` to look inside a built node:
 }
 ```
 
-The `path` field is the "escape hatch": it gives you the absolute path to the
-node's output in the Nix store. You can use this to start an external
-interpreter and inspect the file directly, or pass it to a custom loader like
-`read_parquet(model_node.path)`.
-
-For a more streamlined experience, you can use our **[External Helper
-Packages](external-packages.html)** for R, Python, and Julia, which automate log
-resolution and deserialization from within those environments.
+The `path` field is the escape hatch: it gives you the absolute path to the
+node's output in the Nix store. You can inspect the artifact directly or pass it to external tools.
 
 ---
 
@@ -200,6 +235,7 @@ resolution and deserialization from within those environments.
 - [External Helper Packages](external-packages.html) — reading T artifacts from R, Python, and Julia
 
 ### Advanced Topics
+- [Technical Presentation](technical-presentation.html) — DSL design, formal semantics, Arrow IPC, and Nix sandboxing architecture
 - [Reproducibility Guide](reproducibility.html) — Nix integration and reproducible workflows
 - [LLM Collaboration](llm-collaboration.html) — intent blocks and AI-assisted development
 - [Quotation & Metaprogramming](quotation.html) — capturing and generating code
@@ -272,34 +308,15 @@ To start a new data analysis project, navigate to your desired folder and run
 t init --project my_analysis
 ```
 
-If you omit the project name (`my_analysis` in the above example), the
-scaffolding tool will prompt you interactively with some questions (your name,
-the license of the project, the Nixpkgs date, the size of the context file for
-LLM agents, the pipeline template preference, and whether to include the
-**Atelier** TUI IDE) and then will generate a reproducible workspace. You can
-also pass `--include-atelier` to skip the prompt and enable Atelier
-unconditionally.
+```bash
+t init --project my_analysis
+```
 
-For your very first T project, we highly recommend selecting the `full` pipeline
-template. Having the self-contained cheatsheet directly in `src/pipeline.t`
-makes it much faster to learn T's syntax and polyglot features. Also, stick to
-the default Nixpkgs date: We strongly recommend using the default Nixpkgs date
-provided by the prompt. You should only specify a different or more recent date
-if it is absolutely necessary for your packages and if you are already familiar
-with how Nix manages environments.
-
-#### Pipeline Templates
-
-When initializing a project, T supports two pipeline templates:
-
-- **`minimal`**: (Default) Generates a simple, barebones pipeline inside
-  `src/pipeline.t` so you can start writing code from scratch immediately.
-- **`full`**: Generates a rich, comprehensive archetypical pipeline cheatsheet
-  inside `src/pipeline.t`. This acts as a complete guide that demonstrates
-  polyglot node integration (Python, R, Julia, Shell, Quarto), data
-  serialization/deserialization, environment variables, exit handling, and
-  metadata retrieval functions (e.g., `read_node`, `read_pipeline`,
-  `pipeline_to_frame`, `pipeline_copy`).
+This scaffolds a complete, reproducible analysis project. By default, it sets up:
+- A runnable `src/pipeline.t` template demonstrating polyglot pipeline nodes.
+- A declarative `tproject.toml` tracking your language packages and runtimes.
+- A hermetic `flake.nix` that locks dependencies across Linux and macOS.
+- Built-in AI agent context files (`AGENTS.md` and `T-LANGUAGE-REFERENCE.md`) so coding assistants like Claude Code, Cursor, and Copilot understand T syntax immediately.
 
 #### Workspace Layout
 
@@ -307,35 +324,16 @@ The generated project has the following directory structure:
 
 ```text
 my_analysis/
-├── tproject.toml       # Project configuration and dependencies
-├── flake.nix           # Reproducible environment definition
-├── README.md           # Project overview
-├── AGENTS.md           # Onboarding guide for AI Agents
-├── T-LANGUAGE-REFERENCE.md # Tiered language reference for LLMs (git-ignored)
+├── tproject.toml           # Project configuration and package dependencies
+├── flake.nix               # Pinned Nix environment definition
+├── README.md               # Project documentation
+├── AGENTS.md               # Context and rules for AI coding assistants
+├── T-LANGUAGE-REFERENCE.md # Language reference guide (git-ignored)
 ├── src/
-│   └── pipeline.t      # Your main analysis script (minimal or full template)
-├── data/               # Place your raw data files here
-├── outputs/            # Output directory for results
-└── tests/              # Unit tests for your analysis
+│   └── pipeline.t          # Your main analysis pipeline
+├── data/                   # Place raw input datasets here
+└── tests/                  # Pipeline and unit assertions
 ```
-
-### AI Agent Onboarding
-
-T is designed to be highly compatible with AI-assisted development. When you run
-`t init`, the tool will prompt you for an **Agent Context Level**:
-
-- **small**: Core syntax and top 20 functions.
-- **medium**: (Default) Exhaustive standard library index.
-- **full**: Full language manual and detailed examples.
-- **huge**: Concatenated documentation of the entire T ecosystem.
-
-This selection generates two files in your project root:
-1. **`AGENTS.md`**: A project-specific guide that tells LLMs how to work within
-   your project's architecture.
-2. **`T-LANGUAGE-REFERENCE.md`**: A technical reference file for the AI to read.
-
-By providing these files, you ensure that any AI agent you use has immediate
-access to the exact technical context it needs.
 
 ### Creating a Package
 
@@ -38240,6 +38238,373 @@ Now that you can manipulate text, explore categorical data and vector operations
 2. **[Arrays and Matrices](arrays.md)** — Vector and matrix operations.
 3. **[Formulas and Models](formulas.md)** — Statistical modeling in T.
 4. **[API Reference](api-reference.md)** — Complete function reference by package.
+
+
+# FILE: docs/technical-presentation.md
+
+# T — Technical Presentation: DSL Design, Semantics, and Architecture
+
+**An architectural and language-level presentation of the T Orchestration Engine.**
+
+---
+
+## 1. Executive Summary & Design Philosophy
+
+**T** is an experimental, reproducibility-by-design domain-specific language (DSL) for polyglot data science. Rather than treating pipelines as external configuration artifacts (such as Makefiles, YAML definitions, or Python orchestration scripts), T models computation graphs as **first-class, typed program structures** with explicit dataflow, immutable semantics, and content-addressed outputs.
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                          T Source Script (.t)                          │
+│                                                                        │
+│   p = pipeline {                                                       │
+│     raw   = jln(command = <{ ... }>, serializer = ^ipc)                │
+│     model = pyn(command = <{ ... }>, deserializer = [raw: ^ipc])       │
+│     plot  = rn(command  = <{ ... }>, deserializer = [model: ^ipc])     │
+│   }                                                                    │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │
+                                    ↓
+┌────────────────────────────────────────────────────────────────────────┐
+│                        T Compiler & DAG Builder                        │
+│                                                                        │
+│   • Sub-second schema & DAG validation (t check --schema)              │
+│   • Dependency cycle detection & serialization resolution              │
+│   • Dynamic pattern branching (map_pattern, cross_pattern)             │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │
+                                    ↓
+┌────────────────────────────────────────────────────────────────────────┐
+│                     Hermetic Nix Execution Sandbox                     │
+│                                                                        │
+│  ┌───────────────────────┐ ┌───────────────────────┐ ┌───────────────┐ │
+│  │   Julia Runtime Node  │ │   Python Runtime Node │ │   R Runtime   │ │
+│  │  (Isolated Sandbox)   │ │  (Isolated Sandbox)   │ │   (Sandbox)   │ │
+│  └───────────┬───────────┘ └───────────┬───────────┘ └───────┬───────┘ │
+│              │                         │                     │         │
+│              ▼                         ▼                     ▼         │
+│  ┌───────────────────────────────────────────────────────────────────┐ │
+│  │             Content-Addressed Nix Store (/nix/store/...)           │ │
+│  │        Zero-Copy Apache Arrow IPC (^ipc) / ONNX (^onnx) / PMML    │ │
+│  └───────────────────────────────────────────────────────────────────┘ │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+The language was developed to resolve a fundamental failure mode in contemporary quantitative research: **the polyglot seam**. Modern quantitative workflows require the complementary strengths of specialized ecosystems:
+- **Julia** for high-performance numerical simulation, ODE solving, and intensive mathematical loops.
+- **Python** for modern machine learning, deep neural networks, and specialized AI frameworks.
+- **R** for econometrics, specialized survey statistics, and publication-grade visualization.
+
+When unified through conventional approaches—such as in-process foreign function interfaces (`reticulate`, `PyCall`), ad-hoc shell scripts, or fat container images—these systems become fragile. Shared memory collisions, runtime thread contention, and unpinned transitive system libraries cause pipelines to degrade over time.
+
+T elevates the polyglot boundary into a first-class language construct:
+1. **Hermetic Sandboxing:** Each node executes in an isolated Nix environment pinned to exact software revisions and system libraries.
+2. **Process Isolation & Memory Safety:** Foreign runtimes communicate across separate process boundaries via structured, high-throughput serializations (principally Apache Arrow IPC and ONNX).
+3. **Functional Immutability:** The language eliminates side effects, mutable state, and unhandled runtime exceptions.
+4. **Sub-Second Static Auditing:** Structural and column-level schema mismatches are diagnosed in milliseconds before Nix build sandboxes are ever spawned.
+
+---
+
+## 2. Language Semantics & Functional Core
+
+T is implemented as an immutable, functional tree-walking interpreter in OCaml 5.x with a formal LR grammar (Menhir) and lexer (ocamllex). The core semantics are strictly functional:
+
+### 2.1 Immutability and Environment Bindings
+
+All variables in T are immutable bindings created with the `=` operator. Re-binding an existing identifier in the same scope requires explicit variable shadowing via the `:=` operator. Variables can be explicitly unbound using `rm()`:
+
+```t
+-- Immutable binding
+x = 42
+
+-- Overwriting requires explicit shadowing
+x := 43
+
+-- Variables can be explicitly removed from the environment
+rm(x)
+```
+
+There are no unrestricted `while` or `for` loops in T. Iteration and collection transformations are expressed purely through functional higher-order combinators (`map`, `filter`, `fold`, `reduce`) or DAG-level branch expansions (`map_pattern`).
+
+### 2.2 First-Class Errors and the Dual-Pipe Architecture
+
+T completely eliminates raw runtime exceptions. Functions never throw uncaught exceptions; instead, failures return a first-class structured value of type `Error` (`VError` in the internal AST). Errors carry a structured diagnostic payload including error class, message, call site, and suggested remediation.
+
+To control dataflow across potential failure boundaries, T introduces two complementary pipe operators:
+
+```
+Standard Pipe (|>)
+   Value ─────────► [ Function ] ─────────► Result
+   Error ─────────► (Short-Circuit) ──────► Error (Untouched)
+
+Maybe-Pipe (?|>)
+   Value ─────────► [ Function ] ─────────► Result
+   Error ─────────► [ Handler  ] ─────────► Recovered / Handled
+```
+
+- **Linear Pipe (`|>`)**: Designed for deterministic transformation chains. If the input expression evaluates to an `Error`, the pipe short-circuits and forwards the `Error` without executing downstream functions:
+  ```t
+  -- If read_csv fails (e.g., file not found), filter and nrow are skipped
+  read_csv("missing.csv") |> filter($age > 25) |> nrow
+  ```
+
+- **Maybe-Pipe (`?|>`)**: Designed for explicit error inspection, handling, and fallback recovery. It unconditionally passes the left-hand value—including `Error` instances—to the right-hand function:
+  ```t
+  -- Gracefully recover from missing data
+  read_csv("dataset.csv") ?|> (\(res) if (is_error(res)) default_df else res)
+  ```
+
+### 2.3 Explicit Missingness (`NA`)
+
+In accordance with strict safety principles, T rejects `null`. Missing data is represented exclusively by the typed `NA` sentinel (`VNA`), preserving R-style missing data semantics. Operations encountering `NA` values without explicit `na_rm = true` flags propagate missingness or return a descriptive `Error`, preventing silent corrupted calculations.
+
+### 2.4 Block Quotation and Non-Standard Evaluation (NSE)
+
+Foreign language execution blocks in T are syntactically captured using quotation delimiters `<{ ... }>`. Within quotation blocks, raw code is captured as an unevaluated expression tree, preserving literal formatting, whitespace, and embedded tokens for transmission to the respective runtime compiler:
+
+```t
+-- Foreign Julia computation captured as quoted AST
+raw_data = jln(command = <{
+  using DataFrames, Random
+  Random.seed!(42)
+  DataFrame(x = rand(100), y = rand(100))
+}>, serializer = ^ipc)
+```
+
+Within native T expressions, non-standard evaluation allows column references via `$colname` symbols, compiling into verified columnar access against Arrow schema descriptors.
+
+---
+
+## 3. The Computation Graph (DAG) Model
+
+In T, pipelines are not declarative configuration text; they are first-class language values constructed via the `pipeline { ... }` primitive.
+
+### 3.1 Node Typings and Node Lifecycle
+
+Nodes inside a pipeline represent computations in T, R (`rn`), Python (`pyn`), Julia (`jln`), or POSIX Shell (`shn`). Every node traverses two distinct phases:
+
+1. **Unbuilt Node (`UnbuiltNode`)**: A declarative specification capturing:
+   - Target runtime and command payload (quoted block or T expression).
+   - Inbound dependencies (`deps`).
+   - Output serializer (`serializer`).
+   - Inbound deserializer bindings (`deserializer`).
+   - Environment variables, system package requirements, and resource constraints.
+2. **Computed Node (`ComputedNode`)**: An immutable artifact residing in the content-addressed Nix store (`/nix/store/<hash>-t-node-<name>`).
+
+```t
+p = pipeline {
+  -- Native T node
+  filtered = node(
+    command = raw_data |> filter($score > 0.5),
+    serializer = ^ipc
+  )
+
+  -- Python training node with explicit deserialization mapping
+  model = pyn(
+    command = <{
+      from sklearn.ensemble import RandomForestRegressor
+      rf = RandomForestRegressor(random_state=42).fit(filtered[['x']], filtered['y'])
+      rf
+    }>,
+    deserializer = [filtered: ^ipc],
+    serializer = ^onnx
+  )
+}
+```
+
+### 3.2 Dynamic Pattern Branching (`map_pattern` & `cross_pattern`)
+
+When pipelines must scale across parameter grids, folds, or partitioned datasets, T avoids imperative node generation scripts. The DAG compiler supports declarative pattern expansion:
+
+```t
+p = pipeline {
+  -- Dynamically fan-out a node across cross-validation folds or groups
+  folds = map_pattern(split_data, \(fold) {
+    pyn(
+      command = <{ train_fold(fold) }>,
+      deserializer = [fold: ^ipc]
+    )
+  })
+}
+```
+
+Branches are compiled directly into the dependency graph before build execution, preserving static cycle detection and hermetic caching across every generated branch.
+
+### 3.3 Static DAG Conditionals (`node_when` & `node_fork`)
+
+To accommodate conditional pipelines (e.g., executing heavy training nodes only in production environments or when external flags are asserted), T provides static graph combinators:
+- `node_when(condition, node_def)`: Conditionally excludes a node from the DAG during compilation if `condition` evaluates to `false`.
+- `node_fork(cond1, node1, cond2, node2, ..., .default = node_default)`: Evaluates conditional guards to select exactly one active dependency branch.
+
+Critically, conditionals are evaluated during pipeline compilation, ensuring that the resulting Nix dependency graph remains completely static, acyclic, and deterministic.
+
+---
+
+## 4. Inter-Process Communication & Serialization Architecture
+
+The core technical differentiator of T's multi-language execution engine is the complete elimination of shared-memory in-process bindings. Foreign runtimes execute in separate operating system processes within isolated Nix sandboxes.
+
+### 4.1 Apache Arrow IPC (`^ipc`)
+
+For tabular data interchange between T, Julia, Python, and R, T relies on the Apache Arrow IPC stream format. Arrow provides a standardized columnar memory layout:
+- **Zero-Copy Deserialization:** Arrays are mapped directly from storage into runtime memory buffers without field-by-field conversion.
+- **Type Fidelity:** Floating-point numbers, 64-bit integers, booleans, timestamps, and string dictionaries retain identical types across Julia, Python, R, and T.
+- **No Text Parsing Overhead:** Replaces slow, lossy intermediate CSV/JSON generation with binary stream serialization.
+
+### 4.2 Native Model Scoring via Embedded PMML (`^pmml`)
+
+One of T's unique architectural features is **zero-runtime model scoring**. When a statistical or machine learning model is trained in R or Python (such as generalized linear models, decision trees, random forests, XGBoost, or LightGBM), T can capture the model as a Predictive Model Markup Language (`^pmml`) artifact.
+
+The T runtime embeds its own native OCaml PMML evaluation engine:
+```t
+p = pipeline {
+  -- Train complex tree ensemble in Python
+  model = pyn(
+    command = <{
+      from sklearn.ensemble import HistGradientBoostingRegressor
+      from skl2pmml import sklearn2pmml, PMMLPipeline
+      pipeline = PMMLPipeline([("regressor", HistGradientBoostingRegressor())])
+      pipeline.fit(X, y)
+      pipeline
+    }>,
+    serializer = ^pmml
+  )
+
+  -- Evaluate natively inside T: NO Python or R runtime needed!
+  scored = node(
+    command = new_data |> mutate($prediction = predict(new_data, model)),
+    deserializer = [model: ^pmml]
+  )
+}
+```
+
+At prediction time, T evaluates the model natively inside its own process. The downstream prediction node does not spawn Python, load `scikit-learn`, or link CPython shared libraries, reducing runtime memory overhead and eliminating dependency drift at scoring time.
+
+### 4.3 Open Neural Network Exchange (`^onnx`)
+
+For deep neural networks and complex estimators, T supports `^onnx` serialization. Models trained in PyTorch, scikit-learn, or Julia's Flux can be serialized to ONNX format and evaluated by any other node supporting an ONNX runtime session, with T orchestrating model metadata and versioning across the graph.
+
+---
+
+## 5. Hermetic Nix Integration & Build Sandboxing
+
+T's reproducibility guarantee is rooted in its mandatory coupling with the [Nix package manager](https://nixos.org).
+
+### 5.1 The Nix Store as a Content-Addressed Cache
+
+Every node in a pipeline compiles into a Nix derivation (`.drv`). The derivation captures:
+- The exact hash of the node's command code and quotation AST.
+- The content-addressed hashes of all upstream input artifacts.
+- The exact Nix store paths of the runtime environments (e.g., Python 3.11 with scikit-learn 1.4.1, R 4.3 with ggplot2 3.5, Julia 1.10 with DataFrames 1.6).
+- System-level shared libraries, compilers, BLAS/LAPACK implementations, and environment variables.
+
+When `build_pipeline(p)` is invoked:
+1. T computes the derivation hashes for each node in topological order.
+2. If an identical derivation already exists in the local Nix store or binary cache, the build step is skipped entirely, and the existing artifact path is returned immediately.
+3. If an input changes, only the invalidated downstream subgraph is rebuilt in an isolated, network-disabled Nix sandbox.
+
+### 5.2 Determinism Across Machines
+
+Unlike tools that rely on floating version tags or unpinned system libraries, T guarantees that an identical pipeline run on a different host, CI runner, or cloud environment executes against the exact same bit-level binary toolchain.
+
+---
+
+## 6. Graph Introspection & Verification Tools
+
+T provides a suite of compiler-level introspection tools to inspect and verify computation graphs without executing full builds:
+
+### 6.1 Sub-Second Diagnostic Checking (`t check`)
+
+Before launching builds, developers and AI agents can validate pipelines using `t check`:
+
+| Tier | Flag | Scope of Verification | Nix Execution? |
+|---|---|---|:---:|
+| **Tier 1: Structural** | `t check script.t` | DAG topology, syntax, unbound identifiers, dependency cycles | **No** (milliseconds) |
+| **Tier 2: Schema** | `t check --schema script.t` | + Column-level schema tracking, Arrow data types, name references | **No** (milliseconds) |
+| **Tier 3: Environment** | `t check --env script.t` | + Nix expressions, `tproject.toml` package consistency, lockfiles | **Yes** (eval only) |
+
+When errors occur, `t check --json` emits structured diagnostics designed for automated parsing:
+
+```json
+{
+  "error_class": "schema_mismatch",
+  "node": { "id": "predictions", "lang": "python" },
+  "message": "Column 'signal' not found in upstream node 'sim_data'. Did you mean 'sig'?",
+  "caused_by": ["sim_data"],
+  "suggested_fix": {
+    "kind": "rename_column",
+    "old_name": "signal",
+    "new_name": "sig",
+    "confidence": "high"
+  }
+}
+```
+
+The accompanying `t fix` engine can dry-run and apply high-confidence repairs automatically.
+
+### 6.2 Deep Object Introspection (`explain()`)
+
+Any runtime object, dataset, or pipeline node can be inspected via the built-in `explain()` primitive:
+
+```t
+explain(p.predictions)
+```
+
+`explain()` outputs full AST metadata, inbound and outbound dependency links, serialization formats, schema definitions, and content-addressed Nix store coordinates.
+
+---
+
+## 7. Advanced Functional Optics & Verification
+
+### 7.1 Composable Lenses (`lens`)
+
+To safely query and transform deeply nested immutable data structures (such as nested configuration dictionaries, pipeline metadata, or complex JSON trees), T incorporates functional lenses:
+
+```t
+import lens
+
+-- Create composable optics
+user_city_lens = lens_path(["user", "address", "city"])
+
+-- Non-destructively read or update
+city = lens_view(user_city_lens, state)
+new_state = lens_set(user_city_lens, "Geneva", state)
+```
+
+Lenses guarantee that updates produce modified copies while preserving the immutability and provenance of the original structures.
+
+### 7.2 Property-Based Testing (`propcraft`)
+
+For mission-critical analytical libraries and statistical pipelines, the **`propcraft`** package introduces generative property-based testing. Rather than asserting isolated test cases, developers declare system invariants:
+
+```t
+set_seed(42)
+
+-- Assert invariant across hundreds of generated pseudo-random DataFrames
+assert(
+  prop_for_all(
+    prop_gen_df([col_int("age", min=18, max=90), col_float("score")]),
+    \(df) df |> filter($age >= 18) |> nrow == nrow(df)
+  )
+)
+```
+
+On invariant failure, `propcraft` performs deterministic test-case shrinking to extract the minimal failing counterexample, ensuring that edge cases in data parsing or mathematical routines are identified reproducibly.
+
+---
+
+## 8. Summary Table: T Architectural Attributes
+
+| Dimension | T Design Specification |
+|---|---|
+| **Host Language** | OCaml 5.x (compiled via Dune) |
+| **Parsing & Grammar** | LR(1) via Menhir; lexical analysis via ocamllex |
+| **Execution Model** | Tree-walking interpreter + Nix-sandboxed polyglot process runner |
+| **Graph Model** | First-class, immutable directed acyclic graph (`pipeline { ... }`) |
+| **Data Interchange** | Process-isolated Apache Arrow IPC (`^ipc`), ONNX (`^onnx`), PMML (`^pmml`) |
+| **Error Handling** | First-class `Error` values; short-circuiting pipe `|>`, recovery pipe `?|>` |
+| **State Semantics** | Strictly immutable bindings; explicit shadowing (`:=`); no uncontrolled loops |
+| **Reproducibility Engine** | Content-addressed Nix store derivations; hermetic sandbox per node |
+| **Verification Loop** | Millisecond static checks (`t check --schema`), structured JSON diagnostics, `t fix` |
 
 
 # FILE: docs/troubleshooting.md
