@@ -35,6 +35,17 @@
 <div class="container">
 <h1 id="changelog">Changelog</h1>
 <h2 id="section">[0.55.4] - 2026-09-28</h2>
+<h3 id="new-features">New features</h3>
+<ul>
+<li><strong>Automatic editor setup in new projects</strong>:
+<code>t init</code> now writes an <code>.envrc</code>
+(<code>use flake</code>) and a <code>.vscode/</code> folder recommending
+the T and direnv extensions, so Positron and VS Code pick up the flake
+environment — including <code>t-lsp</code> and the project R/Python
+interpreters — after one <code>direnv allow</code>. Direnv state
+(<code>.direnv/</code>) is git-ignored in new projects and
+packages.</li>
+</ul>
 <h3 id="fixes">Fixes</h3>
 <ul>
 <li><strong>Positron Python interpreter startup</strong>: Project Python
@@ -75,7 +86,7 @@ escaped, so special characters cannot break generated flake
 evaluation.</li>
 </ul>
 <h2 id="section-1">[0.55.3] - 2026-09-26</h2>
-<h3 id="new-features">New features</h3>
+<h3 id="new-features-1">New features</h3>
 <ul>
 <li><strong><code>renv+toml</code> R resolver (union mode)</strong>: Set
 <code>[r-dependencies] resolver = "renv+toml"</code> to use the union of
@@ -115,7 +126,7 @@ dependency prompts now cover <code>requireNamespace()</code> and
 literals and <code>#</code> comments cause no prompt.</li>
 </ul>
 <h2 id="section-3">[0.55.1] - 2026-09-23</h2>
-<h3 id="new-features-1">New features</h3>
+<h3 id="new-features-2">New features</h3>
 <ul>
 <li><strong><code>tlang</code> Quarto extension highlights T
 code</strong>: <code>{t}</code> chunks now render with syntax

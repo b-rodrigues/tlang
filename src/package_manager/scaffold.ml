@@ -442,6 +442,9 @@ result
 *.exe
 /.t_julia_depot/
 
+# direnv state (machine-local; .envrc itself is shared)
+.direnv/
+
 # Editor files
 *~
 .#*
@@ -633,6 +636,9 @@ result
 # R package fetch cache (shallow git clones for DESCRIPTION auto-detection)
 .t_r_pkg_cache/
 
+# direnv state (machine-local; .envrc itself is shared)
+.direnv/
+
 # Generated outputs (regenerated from source)
 outputs/
 
@@ -716,6 +722,41 @@ let write_license_file dir license =
     false
   end
 
+(* ================================================================ *)
+(* Editor integration files                                         *)
+(* ================================================================ *)
+
+(** direnv entry: loads the flake dev shell automatically so editors
+    launched from the desktop (via the direnv extension) see the same
+    environment as `nix develop`, including `t-lsp` and the R/Python
+    interpreters. `.envrc` is shared; direnv's `.direnv/` state dir is
+    git-ignored. *)
+let editor_envrc = "use flake\n"
+
+(** VS Code/Positron recommended extensions for T projects. *)
+let vscode_extensions_json = {|{
+  "recommendations": [
+    "t-lang.t-lang",
+    "mkhl.direnv"
+  ]
+}
+|}
+
+(** VS Code/Positron workspace settings for T projects. *)
+let vscode_settings_json = {|{
+  "direnv.restartExtensionsOnChange": true
+}
+|}
+
+(** Write the shared editor integration files (`.envrc` + `.vscode/`)
+    into a freshly scaffolded project or package directory. *)
+let write_editor_files dir =
+  write_file (Filename.concat dir ".envrc") editor_envrc;
+  create_dir (Filename.concat dir ".vscode");
+  write_file (Filename.concat dir ".vscode/extensions.json") vscode_extensions_json;
+  write_file (Filename.concat dir ".vscode/settings.json") vscode_settings_json
+
+(* ================================================================ *)
 (*
 --# Scaffold a new T package
 --#
@@ -769,6 +810,7 @@ let scaffold_package (opts : scaffold_options) : (unit, string) result =
         write_file (Filename.concat dir ".gitignore") package_gitignore;
         if opts.use_atelier then
           append_to_gitignore dir "\n# Atelier IDE session data\n_atelier/";
+        write_editor_files dir;
         write_file (Filename.concat dir "src/main.t") (sub package_src_example);
         write_file (Filename.concat dir (Printf.sprintf "tests/test-%s.t" opts.target_name)) (sub package_test_example);
         write_file (Filename.concat dir "docs/index.md") (Printf.sprintf "# %s\n\nPackage documentation.\n" opts.target_name);
@@ -786,6 +828,8 @@ let scaffold_package (opts : scaffold_options) : (unit, string) result =
         Printf.printf "  ├── CHANGELOG.md\n";
         Printf.printf "  ├── LICENSE\n";
         Printf.printf "  ├── .gitignore\n";
+        Printf.printf "  ├── .envrc\n";
+        Printf.printf "  ├── .vscode/\n";
         Printf.printf "  ├── src/\n";
         Printf.printf "  │   └── main.t\n";
         Printf.printf "  ├── tests/\n";
@@ -801,15 +845,12 @@ let scaffold_package (opts : scaffold_options) : (unit, string) result =
         Printf.printf "  t repl                # Start the REPL\n";
         Printf.printf "  t run src/main.t      # Run the example\n";
         Printf.printf "  t test                # Run tests\n";
+        Printf.printf "  direnv allow          # Enable automatic flake env in editors\n";
         if opts.use_atelier then
           Printf.printf "  atelier               # Launch Atelier IDE\n";
         Ok ()
       with Sys_error msg ->
         Error ("System file error during scaffolding: " ^ msg)
-
-
-
-(* ================================================================ *)
 (* Interactive Prompts                                              *)
 (* ================================================================ *)
 
@@ -930,6 +971,7 @@ let scaffold_project (opts : scaffold_options) : (unit, string) result =
         write_file (Filename.concat dir ".gitignore") project_gitignore;
         if opts.use_atelier then
           append_to_gitignore dir "\n# Atelier IDE session data\n_atelier/";
+        write_editor_files dir;
         let _ = write_project_pipeline dir opts sub in
         (* Agent files *)
         let _ = copy_agent_files dir false opts.agent_context in
@@ -944,6 +986,8 @@ let scaffold_project (opts : scaffold_options) : (unit, string) result =
         Printf.printf "  ├── README.md\n";
         Printf.printf "  ├── LICENSE\n";
         Printf.printf "  ├── .gitignore\n";
+        Printf.printf "  ├── .envrc\n";
+        Printf.printf "  ├── .vscode/\n";
         Printf.printf "  ├── src/\n";
         Printf.printf "  │   └── pipeline.t\n";
         Printf.printf "  ├── data/\n";
@@ -955,6 +999,7 @@ let scaffold_project (opts : scaffold_options) : (unit, string) result =
         Printf.printf "  nix develop           # Enter reproducible environment\n";
         Printf.printf "  t repl                # Start the REPL\n";
         Printf.printf "  t run src/pipeline.t  # Run the pipeline\n";
+        Printf.printf "  direnv allow          # Enable automatic flake env in editors\n";
         if opts.use_atelier then
           Printf.printf "  atelier               # Launch Atelier IDE\n";
         Printf.printf "\nEditor Setup:\n";

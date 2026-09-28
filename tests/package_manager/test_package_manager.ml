@@ -1465,6 +1465,8 @@ workspace = "python"
         && Sys.file_exists (Filename.concat dir "README.md")
         && Sys.file_exists (Filename.concat dir "LICENSE")
         && Sys.file_exists (Filename.concat dir "src/main.t")
+        && Sys.file_exists (Filename.concat dir ".envrc")
+        && Sys.file_exists (Filename.concat dir ".vscode/extensions.json")
         && Sys.file_exists (Filename.concat dir (Printf.sprintf "tests/test-%s.t" (Filename.basename dir)))
         && Sys.is_directory (Filename.concat dir "tests")
         && Sys.is_directory (Filename.concat dir "examples")
@@ -1502,6 +1504,9 @@ workspace = "python"
         && Sys.file_exists (Filename.concat dir "flake.nix")
         && Sys.file_exists (Filename.concat dir "LICENSE")
         && Sys.file_exists (Filename.concat dir "src/pipeline.t")
+        && Sys.file_exists (Filename.concat dir ".envrc")
+        && Sys.file_exists (Filename.concat dir ".vscode/extensions.json")
+        && Sys.file_exists (Filename.concat dir ".vscode/settings.json")
         && Sys.is_directory (Filename.concat dir "data")
         && Sys.is_directory (Filename.concat dir "outputs")
         && not (Sys.file_exists (Filename.concat dir "tests"))
@@ -1535,6 +1540,34 @@ workspace = "python"
              i <= n - m && (String.sub content i m = needle || loop (i + 1))
            in loop 0)
         end
+      | Error _ -> false
+    in
+    ignore (Sys.command (Printf.sprintf "rm -rf %s" (Filename.quote dir)));
+    ok);
+
+  test_pm "scaffolded .envrc loads the flake and recommends T + direnv extensions" (fun () ->
+    let dir = temp_dir () in
+    let opts = { (Package_types.default_options dir) with
+                 target_name = Filename.basename dir;
+                 no_git = true } in
+    let old_cwd = Sys.getcwd () in
+    Sys.chdir (Filename.dirname dir);
+    let result = Scaffold.scaffold_project opts in
+    Sys.chdir old_cwd;
+    let read_all path =
+      let ic = open_in path in
+      let content = really_input_string ic (in_channel_length ic) in
+      close_in ic;
+      content
+    in
+    let ok = match result with
+      | Ok () ->
+        Sys.file_exists (Filename.concat dir ".envrc")
+        && read_all (Filename.concat dir ".envrc") = "use flake\n"
+        && Test_helpers.contains
+             (read_all (Filename.concat dir ".vscode/extensions.json")) "t-lang.t-lang"
+        && Test_helpers.contains
+             (read_all (Filename.concat dir ".vscode/extensions.json")) "mkhl.direnv"
       | Error _ -> false
     in
     ignore (Sys.command (Printf.sprintf "rm -rf %s" (Filename.quote dir)));

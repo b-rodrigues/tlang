@@ -30,4 +30,7 @@ sed -i "s/min_version = \"[0-9.]*\"/min_version = \"$VERSION\"/g" docs/project_d
 sed -i "s/tlang\/v[0-9.]*/tlang\/$TAG/g" docs/reproducibility.md
 sed -i "s/t_version: \"[0-9.]*\"/t_version: \"$VERSION\"/g" docs/reproducibility.md
 
+# VS Code/Positron extension version (used for the next .vsix build)
+sed -i "s/\"version\": \"[0-9.]*\"/\"version\": \"$VERSION\"/" editors/vscode/extensions/t-lang/package.json
+
 echo "Done. Please review changes and commit."

@@ -354,6 +354,8 @@ my_analysis/
 ├── README.md               # Project documentation
 ├── AGENTS.md               # Context and rules for AI coding assistants
 ├── T-LANGUAGE-REFERENCE.md # Language reference guide (git-ignored)
+├── .envrc                  # direnv entry: loads the flake environment (`direnv allow` once)
+├── .vscode/                # Recommended extensions (T, direnv) and workspace settings
 ├── src/
 │   └── pipeline.t          # Your main analysis pipeline (minimal or full template)
 ├── data/                   # Place raw input datasets here
@@ -9557,6 +9559,10 @@ Now that you can work with numerical arrays, explore statistical modeling and re
 
 ## [0.55.4] - 2026-09-28
 
+### New features
+
+- **Automatic editor setup in new projects**: `t init` now writes an `.envrc` (`use flake`) and a `.vscode/` folder recommending the T and direnv extensions, so Positron and VS Code pick up the flake environment — including `t-lsp` and the project R/Python interpreters — after one `direnv allow`. Direnv state (`.direnv/`) is git-ignored in new projects and packages.
+
 ### Fixes
 
 - **Positron Python interpreter startup**: Project Python environments (`py-env` in generated `flake.nix`) are now wrapped with `LD_LIBRARY_PATH` containing C/C++ runtime libraries (`pkgs.stdenv.cc.cc.lib` and `pkgs.zlib`). This allows Positron's bundled language server and IPyKernel dependencies (specifically `pyzmq`, which requires `libstdc++.so.6`) to start up successfully when selecting the project Python interpreter on Linux.
@@ -13731,17 +13737,19 @@ You do **not** need to build the tree-sitter grammar for the normal VS Code/Posi
 
 ### Option A: Download the `.vsix` file (recommended)
 
-1. Download the latest release: [`t-lang-0.51.0.vsix`](https://github.com/b-rodrigues/tlang/raw/main/editors/vscode/t-lang-0.51.0.vsix) (or download from the repository assets).
+1. Download the latest release asset (`t-lang-<version>.vsix`) from the
+   [GitHub releases page](https://github.com/b-rodrigues/tlang/releases),
+   or use the copy bundled with the repository under `editors/vscode/`.
 2. Install the extension from the command line:
 
    ```bash
-   code --install-extension /path/to/downloaded/t-lang-0.51.0.vsix
+   code --install-extension /path/to/downloaded/t-lang-<version>.vsix
    ```
 
    In Positron, use the equivalent `positron` command if it is available:
 
    ```bash
-   positron --install-extension /path/to/downloaded/t-lang-0.51.0.vsix
+   positron --install-extension /path/to/downloaded/t-lang-<version>.vsix
    ```
 
    If the command-line launcher is not available, open the editor, go to the Extensions view, click the `...` menu, and choose **Install from VSIX...**.
@@ -13752,21 +13760,27 @@ If you have already cloned the T repository locally:
 
 ```bash
 cd /absolute/path/to/tlang
-code --install-extension editors/vscode/t-lang-0.51.0.vsix
+code --install-extension editors/vscode/t-lang-<version>.vsix
 ```
 
 For Positron, replace `code` with `positron` if that command exists:
 
 ```bash
 cd /absolute/path/to/tlang
-positron --install-extension editors/vscode/t-lang-0.51.0.vsix
+positron --install-extension editors/vscode/t-lang-<version>.vsix
 ```
 
 ### Launch VS Code or Positron correctly
 
-The most common beginner mistake is launching the editor from a normal desktop shortcut. That often means the editor cannot find `t-lsp`.
+New projects scaffolded with `t init` already contain an `.envrc` (`use flake`)
+and a `.vscode/` folder recommending the T and direnv extensions. With the
+direnv extension installed, run `direnv allow` once in the project root — the
+editor then picks up the flake environment automatically, including `t-lsp`
+and the project R/Python interpreters.
 
-Do this instead:
+Without direnv, launch the editor from inside `nix develop` instead (the most
+common beginner mistake is launching from a normal desktop shortcut, which
+means the editor cannot find `t-lsp`):
 
 ```bash
 cd /absolute/path/to/your-t-project

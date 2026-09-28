@@ -90,6 +90,8 @@ my_analysis/
 ├── README.md               # Project documentation
 ├── AGENTS.md               # Context and rules for AI coding assistants
 ├── T-LANGUAGE-REFERENCE.md # Language reference guide (git-ignored)
+├── .envrc                  # direnv entry: loads the flake environment (`direnv allow` once)
+├── .vscode/                # Recommended extensions (T, direnv) and workspace settings
 ├── src/
 │   └── pipeline.t          # Your main analysis pipeline (minimal or full template)
 ├── data/                   # Place raw input datasets here

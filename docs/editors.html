@@ -264,16 +264,18 @@ features.</p>
 <h3 id="option-a-download-the-.vsix-file-recommended">Option A: Download
 the <code>.vsix</code> file (recommended)</h3>
 <ol type="1">
-<li><p>Download the latest release: <a
-href="https://github.com/b-rodrigues/tlang/raw/main/editors/vscode/t-lang-0.51.0.vsix"><code>t-lang-0.51.0.vsix</code></a>
-(or download from the repository assets).</p></li>
+<li><p>Download the latest release asset
+(<code>t-lang-&lt;version&gt;.vsix</code>) from the <a
+href="https://github.com/b-rodrigues/tlang/releases">GitHub releases
+page</a>, or use the copy bundled with the repository under
+<code>editors/vscode/</code>.</p></li>
 <li><p>Install the extension from the command line:</p>
 <div class="sourceCode" id="cb6"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">code</span> <span class="at">--install-extension</span> /path/to/downloaded/t-lang-0.51.0.vsix</span></code></pre></div>
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">code</span> <span class="at">--install-extension</span> /path/to/downloaded/t-lang-<span class="op">&lt;</span>version<span class="op">&gt;</span>.vsix</span></code></pre></div>
 <p>In Positron, use the equivalent <code>positron</code> command if it
 is available:</p>
 <div class="sourceCode" id="cb7"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">positron</span> <span class="at">--install-extension</span> /path/to/downloaded/t-lang-0.51.0.vsix</span></code></pre></div>
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">positron</span> <span class="at">--install-extension</span> /path/to/downloaded/t-lang-<span class="op">&lt;</span>version<span class="op">&gt;</span>.vsix</span></code></pre></div>
 <p>If the command-line launcher is not available, open the editor, go to
 the Extensions view, click the <code>...</code> menu, and choose
 <strong>Install from VSIX…</strong>.</p></li>
@@ -283,18 +285,24 @@ from a cloned T repository</h3>
 <p>If you have already cloned the T repository locally:</p>
 <div class="sourceCode" id="cb8"><pre
 class="sourceCode bash"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> /absolute/path/to/tlang</span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="ex">code</span> <span class="at">--install-extension</span> editors/vscode/t-lang-0.51.0.vsix</span></code></pre></div>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="ex">code</span> <span class="at">--install-extension</span> editors/vscode/t-lang-<span class="op">&lt;</span>version<span class="op">&gt;</span>.vsix</span></code></pre></div>
 <p>For Positron, replace <code>code</code> with <code>positron</code> if
 that command exists:</p>
 <div class="sourceCode" id="cb9"><pre
 class="sourceCode bash"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> /absolute/path/to/tlang</span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="ex">positron</span> <span class="at">--install-extension</span> editors/vscode/t-lang-0.51.0.vsix</span></code></pre></div>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="ex">positron</span> <span class="at">--install-extension</span> editors/vscode/t-lang-<span class="op">&lt;</span>version<span class="op">&gt;</span>.vsix</span></code></pre></div>
 <h3 id="launch-vs-code-or-positron-correctly">Launch VS Code or Positron
 correctly</h3>
-<p>The most common beginner mistake is launching the editor from a
-normal desktop shortcut. That often means the editor cannot find
-<code>t-lsp</code>.</p>
-<p>Do this instead:</p>
+<p>New projects scaffolded with <code>t init</code> already contain an
+<code>.envrc</code> (<code>use flake</code>) and a <code>.vscode/</code>
+folder recommending the T and direnv extensions. With the direnv
+extension installed, run <code>direnv allow</code> once in the project
+root — the editor then picks up the flake environment automatically,
+including <code>t-lsp</code> and the project R/Python interpreters.</p>
+<p>Without direnv, launch the editor from inside
+<code>nix develop</code> instead (the most common beginner mistake is
+launching from a normal desktop shortcut, which means the editor cannot
+find <code>t-lsp</code>):</p>
 <div class="sourceCode" id="cb10"><pre
 class="sourceCode bash"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> /absolute/path/to/your-t-project</span>
 <span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="ex">nix</span> develop</span>

@@ -2,6 +2,10 @@
 
 ## [0.55.4] - 2026-09-28
 
+### New features
+
+- **Automatic editor setup in new projects**: `t init` now writes an `.envrc` (`use flake`) and a `.vscode/` folder recommending the T and direnv extensions, so Positron and VS Code pick up the flake environment — including `t-lsp` and the project R/Python interpreters — after one `direnv allow`. Direnv state (`.direnv/`) is git-ignored in new projects and packages.
+
 ### Fixes
 
 - **Positron Python interpreter startup**: Project Python environments (`py-env` in generated `flake.nix`) are now wrapped with `LD_LIBRARY_PATH` containing C/C++ runtime libraries (`pkgs.stdenv.cc.cc.lib` and `pkgs.zlib`). This allows Positron's bundled language server and IPyKernel dependencies (specifically `pyzmq`, which requires `libstdc++.so.6`) to start up successfully when selecting the project Python interpreter on Linux.
