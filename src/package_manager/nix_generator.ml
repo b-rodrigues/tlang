@@ -372,7 +372,7 @@ let generate_project_flake
     ) py_deps;
     Buffer.add_string buf "        ])).override {\n";
     Buffer.add_string buf "          makeWrapperArgs = [\n";
-    Buffer.add_string buf "            \"--prefix\" \"LD_LIBRARY_PATH\" \":\" \"${pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib pkgs.zlib pkgs.openblas pkgs.gfortran.cc.lib ]}\"\n";
+    Buffer.add_string buf "            \"--prefix\" \"LD_LIBRARY_PATH\" \":\" \"${pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib pkgs.zlib ]}\"\n";
     Buffer.add_string buf "          ];\n";
     Buffer.add_string buf "        };\n";
   end;
@@ -423,7 +423,14 @@ let generate_project_flake
     Buffer.add_string buf ":''${T_PACKAGE_PATH:-}\"\n"
   end;
   Printf.bprintf buf "            export PYTHONPATH=\"${t-lang.packages.${system}.default}/share/tlang/py-package/src:''${PYTHONPATH:-}\"\n";
-  Buffer.add_string buf "            export LD_LIBRARY_PATH=\"${pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib pkgs.zlib pkgs.openblas pkgs.gfortran.cc.lib ]}:''${LD_LIBRARY_PATH:-}\"\n";
+  Buffer.add_string buf "            export LD_LIBRARY_PATH=\"${pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib pkgs.zlib ]}:''${LD_LIBRARY_PATH:-}\"\n";
+  (* UV venvs (mkVirtualEnv) need system BLAS/Fortran at run time. Nixpkgs
+     shells must stay pristine: foreign BLAS breaks scipy and seaborn there
+     just as in node builds. *)
+  if use_uv then begin
+    Buffer.add_string buf "            # UV Python venvs need system BLAS/Fortran at run time (e.g. numpy).\n";
+    Buffer.add_string buf "            export LD_LIBRARY_PATH=\"${pkgs.lib.makeLibraryPath [ pkgs.openblas pkgs.gfortran.cc.lib ]}:''${LD_LIBRARY_PATH:-}\"\n";
+  end;
   Printf.bprintf buf "            export JULIA_LOAD_PATH=\":${t-lang.packages.${system}.tlang-julia-path}:''${JULIA_LOAD_PATH:-}\"\n";
   Buffer.add_string buf "            # Export R library paths for editors that bypass the r-env wrapper (e.g. Positron).\n";
   Buffer.add_string buf "            # The r-env binary wrapper sets R_LIBS_SITE internally. Positron reads R_HOME_DIR\n";

@@ -130,6 +130,32 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
    | _ ->
        incr fail_count; Printf.printf "  ✗ sh node Nix emission failed\n");
 
+  (* Regression: pipeline_copy() writes pipeline-output/ at project root.
+     It must stay out of `sources`, or every copy changes the source hash
+     and all nodes rebuild on the next run. *)
+  (match v_sh_nix with
+   | Ast.VPipeline p ->
+       let nix = Nix_emit_pipeline.emit_pipeline p in
+       if contains_substring nix "pipeline-output" then
+         begin incr pass_count; Printf.printf "  ✓ pipeline sources exclude pipeline-output/\n" end
+       else
+         begin incr fail_count; Printf.printf "  ✗ pipeline sources missing pipeline-output exclusion\n" end
+   | _ ->
+       incr fail_count; Printf.printf "  ✗ pipeline sources exclusion check failed\n");
+
+  (* Regression: UV nodes need system BLAS/Fortran, nixpkgs nodes must stay
+     pristine (foreign BLAS breaks scipy/seaborn). The node derivation picks
+     the libs only when the project resolver is uv. *)
+  (match v_sh_nix with
+   | Ast.VPipeline p ->
+       let nix = Nix_emit_pipeline.emit_pipeline p in
+       if contains_substring nix "pyResolver" && contains_substring nix "openblas" then
+         begin incr pass_count; Printf.printf "  ✓ node LD_LIBRARY_PATH is uv-conditional\n" end
+       else
+         begin incr fail_count; Printf.printf "  ✗ node LD_LIBRARY_PATH missing uv conditional\n" end
+   | _ ->
+       incr fail_count; Printf.printf "  ✗ node LD_LIBRARY_PATH check failed\n");
+
   (* Test: shell mode emission *)
   let (v_sh_shell_nix, _) = eval_string_env
     {|pipeline {

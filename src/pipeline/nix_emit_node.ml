@@ -2876,6 +2876,15 @@ EOF
     | _ -> "t run --unsafe --mode repl node_script.t"
   in
 
+  (* UV workspaces (mkVirtualEnv) need system BLAS/Fortran at run time, but
+     nixpkgs withPackages nodes must stay pristine: injecting foreign BLAS
+     breaks scipy (MemoryError) and seaborn (segfault). Custom-flake nodes
+     resolve their own env, so they stay pristine too. *)
+  let ld_extra =
+    match flake_env_name with
+    | None -> "${if pyResolver == \"uv\" then \":${pkgs.openblas}/lib:${pkgs.gfortran.cc.lib}/lib\" else \"\"}"
+    | Some _ -> ""
+  in
   let output = Printf.sprintf {|
   %s = stdenv.mkDerivation {
     name = "%s";
@@ -2885,7 +2894,7 @@ EOF
     JULIA_COPY_STACKS = "1";
     MPLCONFIGDIR = ".";
     HOME = ".";
-    LD_LIBRARY_PATH = "${pkgs.gcc.cc.lib}/lib:${pkgs.avahi}/lib:${pkgs.openblas}/lib:${pkgs.gfortran.cc.lib}/lib";
+    LD_LIBRARY_PATH = "${pkgs.gcc.cc.lib}/lib:${pkgs.avahi}/lib%s";
     PYTHONPATH = "${tBin}/share/tlang/py-package/src";
     JULIA_LOAD_PATH = ":${tlangJl}";
 %s
@@ -2917,7 +2926,7 @@ EOF
       %s
     '';
   };
- |} name name deps_inputs src_block env_var_block deps_nix_attrs deps_exports ext runtime_base_packages error_injection visualization_injection json_injection csv_injection ipc_injection parquet_injection pmml_injection onnx_injection pickle_injection imports_echo source_files hoisted_imports deps_script_lines quarto_read_node_substitutions assign_script_lines run_cmd
+ |} name name deps_inputs ld_extra src_block env_var_block deps_nix_attrs deps_exports ext runtime_base_packages error_injection visualization_injection json_injection csv_injection ipc_injection parquet_injection pmml_injection onnx_injection pickle_injection imports_echo source_files hoisted_imports deps_script_lines quarto_read_node_substitutions assign_script_lines run_cmd
   in
   match flake_env_name with
   | None -> output

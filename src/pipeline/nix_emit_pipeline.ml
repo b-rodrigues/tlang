@@ -255,11 +255,14 @@ let
   juliaPkg = projectJuliaPkg;
   tlangJl = projectTlangJl;
 
-  # Filter out _pipeline/, .git/, and other non-source directories
+  # Filter out _pipeline/, .git/, and other non-source directories.
+  # pipeline-output/ is the default target of pipeline_copy(): it must stay
+  # out of `sources`, otherwise each copy changes the source hash and every
+  # node rebuilds on the next run.
   sources = builtins.filterSource
     (path: type:
       let baseName = builtins.baseNameOf path;
-      in !(baseName == "_pipeline" || baseName == ".git" || baseName == ".direnv" || baseName == "_build"))
+      in !(baseName == "_pipeline" || baseName == ".git" || baseName == ".direnv" || baseName == "_build" || baseName == "pipeline-output"))
     %s/.;
 
   toml = if builtins.pathExists %s/tproject.toml then builtins.fromTOML (builtins.readFile %s/tproject.toml) else {};
