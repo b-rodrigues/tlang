@@ -1753,7 +1753,9 @@ workspace = "python"
     && has "LD_LIBRARY_PATH"
     && has "export PYTHONPATH=\"${t-lang.packages.${system}.default}/share/tlang/py-package/src:''${PYTHONPATH:-}\""
     && has "export LD_LIBRARY_PATH=\"${pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib pkgs.zlib ]}:''${LD_LIBRARY_PATH:-}\""
-    && has "export JULIA_LOAD_PATH=\":${t-lang.packages.${system}.tlang-julia-path}:''${JULIA_LOAD_PATH:-}\"");
+    && has "export JULIA_LOAD_PATH=\":${t-lang.packages.${system}.tlang-julia-path}:''${JULIA_LOAD_PATH:-}\""
+    && has "export R_LIBS_SITE="
+    && has "R --slave --no-restore");
 
   test_pm "generate project flake with uv Python resolver" (fun () ->
     let flake = Nix_generator.generate_project_flake

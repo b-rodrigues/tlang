@@ -64,7 +64,7 @@
             MASS
             forcats
             car
-          ];
+          ] ++ [ tlang-r ];
         };
 
         python-with-packages = pkgs.python314.withPackages (p: with p; [
@@ -505,6 +505,13 @@ chmod +x $out/bin/bisect-ppx-report
             # Make local companion language packages importable in nix develop
             export PYTHONPATH="$TLANG_REPO_ROOT/py-package/src''${PYTHONPATH:+:$PYTHONPATH}"
             export JULIA_LOAD_PATH="$TLANG_REPO_ROOT/jl-package:''${JULIA_LOAD_PATH:-@}"
+
+            # Export R library paths for editors that bypass the R wrapper (e.g. Positron).
+            # The wrapper sets R_LIBS_SITE internally. Positron may start base R directly,
+            # so re-export here for direnv and editor processes.
+            if command -v R >/dev/null 2>&1; then
+              export R_LIBS_SITE="$(R --slave --no-restore -e 'cat(Sys.getenv("R_LIBS_SITE"))'):''${R_LIBS_SITE:-}"
+            fi
 
             # Create a local Julia depot directory for sandbox guards
             julia_depot_dir="$TLANG_REPO_ROOT/.t_julia_depot"

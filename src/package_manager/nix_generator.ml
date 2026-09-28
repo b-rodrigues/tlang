@@ -425,6 +425,12 @@ let generate_project_flake
   Printf.bprintf buf "            export PYTHONPATH=\"${t-lang.packages.${system}.default}/share/tlang/py-package/src:''${PYTHONPATH:-}\"\n";
   Buffer.add_string buf "            export LD_LIBRARY_PATH=\"${pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib pkgs.zlib ]}:''${LD_LIBRARY_PATH:-}\"\n";
   Printf.bprintf buf "            export JULIA_LOAD_PATH=\":${t-lang.packages.${system}.tlang-julia-path}:''${JULIA_LOAD_PATH:-}\"\n";
+  Buffer.add_string buf "            # Export R library paths for editors that bypass the r-env wrapper (e.g. Positron).\n";
+  Buffer.add_string buf "            # The r-env binary wrapper sets R_LIBS_SITE internally. Positron reads R_HOME_DIR\n";
+  Buffer.add_string buf "            # from the shim and then starts base R directly, so re-export here for direnv.\n";
+  Buffer.add_string buf "            if command -v R >/dev/null 2>&1; then\n";
+  Buffer.add_string buf "              export R_LIBS_SITE=\"$(R --slave --no-restore -e 'cat(Sys.getenv(\"R_LIBS_SITE\"))'):''${R_LIBS_SITE:-}\"\n";
+  Buffer.add_string buf "            fi\n";
   Buffer.add_string buf julia_depot_sandbox_hook;
   Buffer.add_string buf r_profile_sandbox_hook;
   Buffer.add_string buf python_guard_sandbox_hook;

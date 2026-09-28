@@ -191,7 +191,9 @@ Once the editor opens, open a `.t` file. Recommended entry points are:
 
 On Linux, the project R environment (`r-env` in the generated `flake.nix`)
 exposes a wrapper that Positron recognises, so the project R — with all
-`[r-dependencies]` packages — appears as an R interpreter.
+`[r-dependencies]` packages — appears as an R interpreter. The shell also
+exports `R_LIBS_SITE` from the wrapper, so Positron finds the packages even
+when it starts base R directly through direnv.
 
 Similarly, the project Python environment (`py-env`) is wrapped with `LD_LIBRARY_PATH`
 configured so that Positron's language server and IPyKernel components (such as Positron's
