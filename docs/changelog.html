@@ -45,6 +45,34 @@ runtime libraries (<code>pkgs.stdenv.cc.cc.lib</code> and
 and IPyKernel dependencies (specifically <code>pyzmq</code>, which
 requires <code>libstdc++.so.6</code>) to start up successfully when
 selecting the project Python interpreter on Linux.</li>
+<li><strong>Positron finds R packages</strong>: Project shells export
+<code>R_LIBS_SITE</code>, so Positron lists and loads all
+<code>[r-dependencies]</code> packages through direnv even when it
+starts base R directly instead of the project wrapper. The development
+shell R environment also includes the <code>tlang</code> companion
+package, so <code>library(tlang)</code> works from the terminal.</li>
+<li><strong>UV Python nodes import numpy/pandas</strong>: UV workspaces
+(<code>resolver = "uv"</code>) now provide system BLAS and Fortran
+libraries at run time, so <code>import numpy</code> no longer fails with
+a missing <code>libblas.so.3</code>. The libraries apply to UV nodes and
+shells only; <code>nixpkgs</code> Python nodes (such as
+<code>scipy</code> and <code>seaborn</code>) keep their own tested
+libraries.</li>
+<li><strong><code>pipeline_copy()</code> no longer forces full
+rebuilds</strong>: The default <code>pipeline-output/</code> directory
+is excluded from pipeline sources, so copying artifacts at the end of a
+pipeline does not change the source hash and does not invalidate the
+node cache on the next run.</li>
+<li><strong>Pipeline blocks respect local shadowing</strong>: A variable
+assigned inside a node command block now resolves to the local binding
+instead of an outer variable with the same name.</li>
+<li><strong>Piped quotations stay quoted</strong>:
+<code>to_expr(...) |&gt; f()</code> now forwards the expression like a
+normal call instead of evaluating the quoted code a second time.</li>
+<li><strong>R git sources are Nix-safe</strong>: Package names, URLs,
+revisions, and subdirectory paths from <code>tproject.toml</code> are
+escaped, so special characters cannot break generated flake
+evaluation.</li>
 </ul>
 <h2 id="section-1">[0.55.3] - 2026-09-26</h2>
 <h3 id="new-features">New features</h3>

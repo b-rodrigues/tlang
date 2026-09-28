@@ -329,7 +329,9 @@ in Positron</h3>
 <p>On Linux, the project R environment (<code>r-env</code> in the
 generated <code>flake.nix</code>) exposes a wrapper that Positron
 recognises, so the project R — with all <code>[r-dependencies]</code>
-packages — appears as an R interpreter.</p>
+packages — appears as an R interpreter. The shell also exports
+<code>R_LIBS_SITE</code> from the wrapper, so Positron finds the
+packages even when it starts base R directly through direnv.</p>
 <p>Similarly, the project Python environment (<code>py-env</code>) is
 wrapped with <code>LD_LIBRARY_PATH</code> configured so that Positron’s
 language server and IPyKernel components (such as Positron’s bundled

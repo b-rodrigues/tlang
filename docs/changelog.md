@@ -5,6 +5,12 @@
 ### Fixes
 
 - **Positron Python interpreter startup**: Project Python environments (`py-env` in generated `flake.nix`) are now wrapped with `LD_LIBRARY_PATH` containing C/C++ runtime libraries (`pkgs.stdenv.cc.cc.lib` and `pkgs.zlib`). This allows Positron's bundled language server and IPyKernel dependencies (specifically `pyzmq`, which requires `libstdc++.so.6`) to start up successfully when selecting the project Python interpreter on Linux.
+- **Positron finds R packages**: Project shells export `R_LIBS_SITE`, so Positron lists and loads all `[r-dependencies]` packages through direnv even when it starts base R directly instead of the project wrapper. The development shell R environment also includes the `tlang` companion package, so `library(tlang)` works from the terminal.
+- **UV Python nodes import numpy/pandas**: UV workspaces (`resolver = "uv"`) now provide system BLAS and Fortran libraries at run time, so `import numpy` no longer fails with a missing `libblas.so.3`. The libraries apply to UV nodes and shells only; `nixpkgs` Python nodes (such as `scipy` and `seaborn`) keep their own tested libraries.
+- **`pipeline_copy()` no longer forces full rebuilds**: The default `pipeline-output/` directory is excluded from pipeline sources, so copying artifacts at the end of a pipeline does not change the source hash and does not invalidate the node cache on the next run.
+- **Pipeline blocks respect local shadowing**: A variable assigned inside a node command block now resolves to the local binding instead of an outer variable with the same name.
+- **Piped quotations stay quoted**: `to_expr(...) |> f()` now forwards the expression like a normal call instead of evaluating the quoted code a second time.
+- **R git sources are Nix-safe**: Package names, URLs, revisions, and subdirectory paths from `tproject.toml` are escaped, so special characters cannot break generated flake evaluation.
 
 ## [0.55.3] - 2026-09-26
 
