@@ -130,9 +130,9 @@
               pkgs.makeWrapper
             ] ++ pkgs.lib.optionals withCoverage [
               ocamlVersion.bisect_ppx
-            ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
+            ] ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [
               pkgs.autoPatchelfHook
-            ] ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
+            ] ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isDarwin [
               pkgs.fixDarwinDylibNames
             ];
 
@@ -172,7 +172,7 @@
             buildPhase = ''
               export PKG_CONFIG_PATH="${pkgs.arrow-cpp}/lib/pkgconfig:${pkgs.glib.dev}/lib/pkgconfig:${pkgs.glib}/lib/pkgconfig:${pkgs.arrow-glib}/lib/pkgconfig:${pkgs.onnxruntime}/lib/pkgconfig:$PKG_CONFIG_PATH"
               export T_ARROW_CFLAGS="-I${pkgs.arrow-cpp}/include -I${pkgs.arrow-glib}/include -I${pkgs.glib.dev}/include -I${pkgs.glib.dev}/include/glib-2.0 -I${pkgs.glib.out}/lib/glib-2.0/include -I${pkgs.onnxruntime}/include"
-              export T_ARROW_LIBS="-L${pkgs.arrow-cpp}/lib -L${pkgs.arrow-glib}/lib -L${pkgs.glib.out}/lib -L${pkgs.onnxruntime}/lib -larrow -larrow-glib -lparquet -lparquet-glib -lglib-2.0 -lgobject-2.0 -lgio-2.0 -lonnxruntime ${if pkgs.stdenv.isDarwin then "-Wl,-rpath,${pkgs.arrow-cpp}/lib -Wl,-rpath,${pkgs.arrow-glib}/lib -Wl,-rpath,${pkgs.glib.out}/lib -Wl,-rpath,${pkgs.onnxruntime}/lib" else ""}"
+              export T_ARROW_LIBS="-L${pkgs.arrow-cpp}/lib -L${pkgs.arrow-glib}/lib -L${pkgs.glib.out}/lib -L${pkgs.onnxruntime}/lib -larrow -larrow-glib -lparquet -lparquet-glib -lglib-2.0 -lgobject-2.0 -lgio-2.0 -lonnxruntime ${if pkgs.stdenv.hostPlatform.isDarwin then "-Wl,-rpath,${pkgs.arrow-cpp}/lib -Wl,-rpath,${pkgs.arrow-glib}/lib -Wl,-rpath,${pkgs.glib.out}/lib -Wl,-rpath,${pkgs.onnxruntime}/lib" else ""}"
               dune build ${if withCoverage then "--instrument-with bisect_ppx" else ""} src/repl.exe src/lsp_server.exe
             '';
 
@@ -355,7 +355,7 @@ chmod +x $out/bin/bisect-ppx-report
               "-lparquet" "-lparquet-glib"
               "-lglib-2.0" "-lgobject-2.0" "-lgio-2.0"
               "-lonnxruntime"
-            ] ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
+            ] ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isDarwin [
               "-Wl,-rpath,${pkgs.arrow-cpp}/lib"
               "-Wl,-rpath,${pkgs.arrow-glib}/lib"
               "-Wl,-rpath,${pkgs.glib.out}/lib"
