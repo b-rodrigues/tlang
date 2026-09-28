@@ -10,6 +10,9 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
   test "pipe short-circuits on error"
     "double = \\(x) x * 2; error(\"boom\") |> double"
     {|Error(GenericError: "boom")|};
+  test "pipe preserves quotation"
+    "to_expr(1 + 2) |> type"
+    {|"Expression"|};
   print_newline ();
 
   Printf.printf "Maybe-Pipe Operator:\n";

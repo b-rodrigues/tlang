@@ -1796,14 +1796,28 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
           let inner_node_names = l.params @ node_names in
           Lambda { l with body = substitute_env_vars env inner_node_names l.body }
       | Block stmts ->
-          let stmts' = List.map (fun stmt ->
-            match stmt.node with
-            | Expression e -> { stmt with node = Expression (sub e) }
-            | Assignment a -> { stmt with node = Assignment { a with expr = sub a.expr } }
-            | Reassignment r -> { stmt with node = Reassignment { r with expr = sub r.expr } }
-            | _ -> stmt
-          ) stmts in
-          Block stmts'
+          (* Walk statements left to right, tracking locally assigned names
+             so later references resolve to the local binding instead of an
+             outer variable with the same name. Reassignment targets an
+             existing binding, so it adds no new name. *)
+          let rec walk names = function
+            | [] -> []
+            | stmt :: rest ->
+                (match stmt.node with
+                 | Expression e ->
+                     { stmt with node = Expression (substitute_env_vars env names e) }
+                     :: walk names rest
+                 | Assignment a ->
+                     let e' = substitute_env_vars env names a.expr in
+                     { stmt with node = Assignment { a with expr = e' } }
+                     :: walk (a.name :: names) rest
+                 | Reassignment r ->
+                     let e' = substitute_env_vars env names r.expr in
+                     { stmt with node = Reassignment { r with expr = e' } }
+                     :: walk names rest
+                 | _ -> stmt :: walk names rest)
+          in
+          Block (walk node_names stmts)
       | other -> other
     in
     { expr with node = new_node }
@@ -3482,6 +3496,10 @@ and eval_binop env_ref op left right =
   | Pipe ->
       let lval_raw = eval_expr env_ref left in
       let lval = Utils.unwrap_value lval_raw in
+      (* NOTE: the piped value is already evaluated, so it is forwarded
+         wrapped in `Value`. Passing it through `vexpr` would strip
+         `VExpr`/`VQuo` quotations and `eval_call` would evaluate the
+         quoted code a second time, unlike a normal call. *)
       (match lval with
        | VError _ as e ->
            (match lval_raw with
@@ -3496,11 +3514,11 @@ and eval_binop env_ref op left right =
          | Call { fn; args } ->
              (* Insert pipe value as first argument *)
              let fn_val = eval_expr env_ref fn in
-             eval_call env_ref fn_val ((None, vexpr lval) :: args)
+             eval_call env_ref fn_val ((None, Ast.mk_expr (Value lval)) :: args)
          | _ ->
              (* RHS is a bare function name or expression *)
              let fn_val = eval_expr env_ref right in
-             eval_call env_ref fn_val [(None, vexpr lval)]
+             eval_call env_ref fn_val [(None, Ast.mk_expr (Value lval))]
       )
   | MaybePipe ->
       let lval = eval_expr env_ref left in
@@ -3508,10 +3526,10 @@ and eval_binop env_ref op left right =
       (match right.node with
        | Call { fn; args } ->
            let fn_val = eval_expr env_ref fn in
-           eval_call env_ref fn_val ((None, vexpr lval) :: args)
+           eval_call env_ref fn_val ((None, Ast.mk_expr (Value lval)) :: args)
        | _ ->
            let fn_val = eval_expr env_ref right in
-           eval_call env_ref fn_val [(None, vexpr lval)]
+           eval_call env_ref fn_val [(None, Ast.mk_expr (Value lval))]
       )
 
   (* Logical (Short-circuiting) *)

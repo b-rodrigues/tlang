@@ -156,17 +156,17 @@ let emit_pipeline ?(rel_root="..") ?(r_git_pkgs : Package_types.r_git_dependency
         in
         let source_root =
           match g.rgd_subdir with
-          | Some s -> Printf.sprintf "\n      sourceRoot = %S;" ("source/" ^ s)
+          | Some s -> Printf.sprintf "\n      sourceRoot = %s;" (Nix_utils.nix_double_quote ("source/" ^ s))
           | None -> ""
         in
         Printf.sprintf {|    %s = projectPkgs.rPackages.buildRPackage {
-      pname = %S;
-      name = %S;
+      pname = %s;
+      name = %s;
       src = builtins.fetchGit {
-        url = %S;
-        rev = %S;
+        url = %s;
+        rev = %s;
       };%s%s
-    };|} (nixify_r_pkg_name g.rgd_name) g.rgd_name g.rgd_name g.rgd_git_url g.rgd_rev source_root build_inputs
+    };|} (nixify_r_pkg_name g.rgd_name) (Nix_utils.nix_double_quote g.rgd_name) (Nix_utils.nix_double_quote g.rgd_name) (Nix_utils.nix_double_quote g.rgd_git_url) (Nix_utils.nix_double_quote g.rgd_rev) source_root build_inputs
       ) r_git_pkgs in
       "  rGitPkgSet = rec {\n" ^ String.concat "\n" entries ^ "\n  };"
   in

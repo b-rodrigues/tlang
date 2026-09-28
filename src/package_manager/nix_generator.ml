@@ -300,18 +300,18 @@ let generate_project_flake
       in
       let source_root =
         match g.rgd_subdir with
-        | Some s -> Printf.sprintf "            sourceRoot = %S;\n" ("source/" ^ s)
+        | Some s -> Printf.sprintf "            sourceRoot = %s;\n" (Nix_utils.nix_double_quote ("source/" ^ s))
         | None -> ""
       in
       Printf.bprintf buf {|          %s = pkgs.rPackages.buildRPackage {
-            pname = %S;
-            name = %S;
+            pname = %s;
+            name = %s;
             src = builtins.fetchGit {
-              url = %S;
-              rev = %S;
+              url = %s;
+              rev = %s;
             };
 %s%s          };
-|}        (nixify_r_pkg_name g.rgd_name) g.rgd_name g.rgd_name g.rgd_git_url g.rgd_rev source_root inputs_str
+|}        (nixify_r_pkg_name g.rgd_name) (Nix_utils.nix_double_quote g.rgd_name) (Nix_utils.nix_double_quote g.rgd_name) (Nix_utils.nix_double_quote g.rgd_git_url) (Nix_utils.nix_double_quote g.rgd_rev) source_root inputs_str
     ) r_git_deps;
     Buffer.add_string buf "        };\n";
     Buffer.add_string buf "        rGitPkgs = builtins.attrValues rGitPkgSet;\n";

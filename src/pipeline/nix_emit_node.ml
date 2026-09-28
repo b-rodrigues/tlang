@@ -365,6 +365,8 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
   let env_var_block =
     env_vars
     |> List.filter_map (fun (key, value) ->
+      if not (is_valid_env_var_name key) then None
+      else
       match env_value_to_string value with
       | Some s -> Some (Printf.sprintf "    %s = %s;" (nix_double_quote key) (nix_double_quote s))
       | None -> None

@@ -336,6 +336,17 @@ packages = []
     && Test_helpers.contains nix "rGitPkgs = builtins.attrValues rGitPkgSet;"
     && Test_helpers.contains nix "] ++ rGitPkgs;");
 
+  test_pm "nix_generator escapes Nix interpolation in git R dep strings" (fun () ->
+    let evil = "${builtins.abort \"pwned\"}" in
+    let pkg : Package_types.r_git_dependency =
+      { rgd_name = "evilPkg"; rgd_git_url = "https://example.com/" ^ evil; rgd_rev = "abc1234def5678"; rgd_cran_inputs = []; rgd_git_inputs = []; rgd_subdir = None }
+    in
+    let nix = Nix_generator.generate_project_flake
+      ~project_name:"test" ~nixpkgs_date:"2024-01-01" ~t_version:"0.54.0"
+      ~uv2nix_commit:"dummy" ~deps:[] ~r_git_deps:[pkg] () in
+    Test_helpers.contains nix "\\${builtins.abort"
+    && not (Test_helpers.contains nix evil));
+
   test_pm "nix_generator deduplicates duplicate git R deps by name" (fun () ->
     let pkg1 : Package_types.r_git_dependency =
       { rgd_name = "myPkg"; rgd_git_url = "https://github.com/user/myPkg"; rgd_rev = "abc1234def5678"; rgd_cran_inputs = []; rgd_git_inputs = []; rgd_subdir = None }
