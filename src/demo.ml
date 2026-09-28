@@ -3,6 +3,11 @@
 
 open Ast
 
+(* Raised instead of calling `exit` so test runners can catch a demo
+   failure as a normal exception. The `t demo` entry point in repl.ml
+   converts it back to exit code 1. *)
+exception Demo_failed of string
+
 let color_reset = "\027[0m"
 let color_bold = "\027[1m"
 let color_cyan = "\027[1;36m"
@@ -50,7 +55,7 @@ let eval_snippet env code =
   match v with
   | VError _ ->
       Printf.eprintf "\n%sError during demo evaluation:%s %s\n" color_magenta color_reset (Utils.value_to_string v);
-      exit 1
+      raise (Demo_failed (Utils.value_to_string v))
   | _ -> (v, env')
 
 let run ?(headless = false) ?start_repl env =

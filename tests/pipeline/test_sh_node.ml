@@ -132,11 +132,12 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
 
   (* Regression: pipeline_copy() writes pipeline-output/ at project root.
      It must stay out of `sources`, or every copy changes the source hash
-     and all nodes rebuild on the next run. *)
+     and all nodes rebuild on the next run. Match the actual filter clause,
+     not the explanatory comment (which also names the directory). *)
   (match v_sh_nix with
    | Ast.VPipeline p ->
        let nix = Nix_emit_pipeline.emit_pipeline p in
-       if contains_substring nix "pipeline-output" then
+       if contains_substring nix "baseName == \"pipeline-output\"" then
          begin incr pass_count; Printf.printf "  ✓ pipeline sources exclude pipeline-output/\n" end
        else
          begin incr fail_count; Printf.printf "  ✗ pipeline sources missing pipeline-output exclusion\n" end
@@ -145,11 +146,12 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
 
   (* Regression: UV nodes need system BLAS/Fortran, nixpkgs nodes must stay
      pristine (foreign BLAS breaks scipy/seaborn). The node derivation picks
-     the libs only when the project resolver is uv. *)
+     the libs only when the project resolver is uv. This fixture has no
+     custom flake, so it goes through the ld_extra branch. *)
   (match v_sh_nix with
    | Ast.VPipeline p ->
        let nix = Nix_emit_pipeline.emit_pipeline p in
-       if contains_substring nix "pyResolver" && contains_substring nix "openblas" then
+       if contains_substring nix "if pyResolver == \"uv\" then" && contains_substring nix "pkgs.openblas" then
          begin incr pass_count; Printf.printf "  ✓ node LD_LIBRARY_PATH is uv-conditional\n" end
        else
          begin incr fail_count; Printf.printf "  ✗ node LD_LIBRARY_PATH missing uv conditional\n" end

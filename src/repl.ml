@@ -2019,7 +2019,10 @@ let () =
   | _ :: "repl" :: _ -> cmd_repl ~failfast mode_parse.mode env
   | _ :: "demo" :: rest ->
       let headless = List.mem "--headless" rest in
-      Demo.run ~headless ~start_repl:(cmd_repl ~failfast:false mode_parse.mode) env
+      (try Demo.run ~headless ~start_repl:(cmd_repl ~failfast:false mode_parse.mode) env
+       with Demo.Demo_failed msg ->
+         Printf.eprintf "t demo failed: %s\n" msg;
+         exit 1)
   | _ :: "explain" :: rest -> cmd_explain ~failfast mode_parse.mode rest env
   | _ :: "init" :: "--package" :: rest -> cmd_init_package rest
   | _ :: "init" :: "--project" :: rest -> cmd_init_project rest
