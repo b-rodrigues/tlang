@@ -187,13 +187,17 @@ Once the editor opens, open a `.t` file. Recommended entry points are:
 - Select several lines and press the same shortcut to send the selection.
 - Save files with the `.t` extension so the editor knows to activate T support.
 
-### R interpreter in Positron
+### R and Python interpreters in Positron
 
 On Linux, the project R environment (`r-env` in the generated `flake.nix`)
 exposes a wrapper that Positron recognises, so the project R — with all
-`[r-dependencies]` packages — appears as an R interpreter. After changing R
-dependencies, run `t update`, re-enter `nix develop`, and launch Positron from
-that shell:
+`[r-dependencies]` packages — appears as an R interpreter.
+
+Similarly, the project Python environment (`py-env`) is wrapped with `LD_LIBRARY_PATH`
+configured so that Positron's language server and IPyKernel components (such as Positron's
+bundled `pyzmq`, which requires `libstdc++.so.6`) launch seamlessly when selecting the Python
+interpreter in Positron. After changing dependencies, run `t update`, re-enter `nix develop`
+(or allow direnv), and launch Positron:
 
 ```bash
 cd /absolute/path/to/your-t-project

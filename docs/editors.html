@@ -324,13 +324,19 @@ selection.</li>
 <li>Save files with the <code>.t</code> extension so the editor knows to
 activate T support.</li>
 </ul>
-<h3 id="r-interpreter-in-positron">R interpreter in Positron</h3>
+<h3 id="r-and-python-interpreters-in-positron">R and Python interpreters
+in Positron</h3>
 <p>On Linux, the project R environment (<code>r-env</code> in the
 generated <code>flake.nix</code>) exposes a wrapper that Positron
 recognises, so the project R — with all <code>[r-dependencies]</code>
-packages — appears as an R interpreter. After changing R dependencies,
-run <code>t update</code>, re-enter <code>nix develop</code>, and launch
-Positron from that shell:</p>
+packages — appears as an R interpreter.</p>
+<p>Similarly, the project Python environment (<code>py-env</code>) is
+wrapped with <code>LD_LIBRARY_PATH</code> configured so that Positron’s
+language server and IPyKernel components (such as Positron’s bundled
+<code>pyzmq</code>, which requires <code>libstdc++.so.6</code>) launch
+seamlessly when selecting the Python interpreter in Positron. After
+changing dependencies, run <code>t update</code>, re-enter
+<code>nix develop</code> (or allow direnv), and launch Positron:</p>
 <div class="sourceCode" id="cb12"><pre
 class="sourceCode bash"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> /absolute/path/to/your-t-project</span>
 <span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> update</span>

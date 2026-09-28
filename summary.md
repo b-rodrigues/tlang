@@ -417,7 +417,7 @@ Source-level documentation uses `--#` comments. The generated reference lives in
 
 - The language server is `t-lsp`.
 - It is expected to be launched from inside `nix develop` (or via `direnv use flake`).
-- Supported editor integrations are documented for VS Code/Positron, Vim/Neovim, Emacs, and Quarto workflows.
+- Supported editor integrations are documented for VS Code/Positron, Vim/Neovim, Emacs, and Quarto workflows. On Linux, project `flake.nix` exports R and Python wrappers/library paths compatible with Positron interpreter discovery and startup.
 - A shared tree-sitter grammar now lives in `editors/tree-sitter-t` for Neovim, Emacs 29+, and other tree-sitter-based editors; only source files are committed and generated parser artifacts are built locally. *(Contributors: When adding builtins, remember to update highlights in `editors/tree-sitter-t/queries/highlights.scm` as detailed in AGENTS.md)*
 
 ## Standard Packages and Signature Index

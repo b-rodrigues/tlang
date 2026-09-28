@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.55.4] - 2026-09-28
+
+### Fixes
+
+- **Positron Python interpreter startup**: Project Python environments (`py-env` in generated `flake.nix`) are now wrapped with `LD_LIBRARY_PATH` containing C/C++ runtime libraries (`pkgs.stdenv.cc.cc.lib` and `pkgs.zlib`). This allows Positron's bundled language server and IPyKernel dependencies (specifically `pyzmq`, which requires `libstdc++.so.6`) to start up successfully when selecting the project Python interpreter on Linux.
+
 ## [0.55.3] - 2026-09-26
 
 ### New features

@@ -365,12 +365,16 @@ let generate_project_flake
     Printf.bprintf buf "        pySet = (pkgs.callPackage pyproject-nix.build.packages { python = pkgs.%s; }).overrideScope (pkgs.lib.composeManyExtensions [ pyOverlay pyproject-build-systems.overlays.default ]);\n" py_version;
     Buffer.add_string buf "        py-env = pySet.mkVirtualEnv \"t-python-uv-env\" pyWorkspace.deps.default;\n";
   end else begin
-    Printf.bprintf buf "        py-env = pkgs.%s.withPackages (python-pkgs: with python-pkgs; [\n" py_version;
+    Printf.bprintf buf "        py-env = (pkgs.%s.withPackages (python-pkgs: with python-pkgs; [\n" py_version;
     Buffer.add_string buf "          deepdiff\n";
     List.iter (fun dep ->
       Printf.bprintf buf "          %s\n" dep
     ) py_deps;
-    Buffer.add_string buf "        ]);\n";
+    Buffer.add_string buf "        ])).override {\n";
+    Buffer.add_string buf "          makeWrapperArgs = [\n";
+    Buffer.add_string buf "            \"--prefix\" \"LD_LIBRARY_PATH\" \":\" \"${pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib pkgs.zlib ]}\"\n";
+    Buffer.add_string buf "          ];\n";
+    Buffer.add_string buf "        };\n";
   end;
   Buffer.add_string buf "\n";
   Buffer.add_string buf "        # Julia environment\n";
@@ -419,6 +423,7 @@ let generate_project_flake
     Buffer.add_string buf ":''${T_PACKAGE_PATH:-}\"\n"
   end;
   Printf.bprintf buf "            export PYTHONPATH=\"${t-lang.packages.${system}.default}/share/tlang/py-package/src:''${PYTHONPATH:-}\"\n";
+  Buffer.add_string buf "            export LD_LIBRARY_PATH=\"${pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib pkgs.zlib ]}:''${LD_LIBRARY_PATH:-}\"\n";
   Printf.bprintf buf "            export JULIA_LOAD_PATH=\":${t-lang.packages.${system}.tlang-julia-path}:''${JULIA_LOAD_PATH:-}\"\n";
   Buffer.add_string buf julia_depot_sandbox_hook;
   Buffer.add_string buf r_profile_sandbox_hook;
