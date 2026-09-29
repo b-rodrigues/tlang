@@ -115,13 +115,37 @@ def main():
     width = int(width_chars * adv + pad * 2 + 90)
     height = len(lines) * lh + pad * 2
     chip_fill = {"julia": "#a371f7", "python": "#79c0ff", "r": "#7ee787"}
+    # Background bands around foreign blocks, drawn under the text.
+    bands = []
+    i = 0
+    while i < len(lines):
+        if i in chips:
+            j = i
+            while j < len(lines) and "}>" not in lines[j]:
+                j += 1
+            end = min(j, len(lines) - 1)
+            bands.append((i, end, chips[i]))
+            i = end + 1
+        else:
+            i += 1
     out = [
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" '
         f'height="{height}" viewBox="0 0 {width} {height}" role="img">',
         f"<rect width=\"100%\" height=\"100%\" fill=\"{BG}\" rx=\"6\"/>",
-        f"<g font-family=\"ui-monospace,SFMono-Regular,Menlo,Consolas,monospace\" "
-        f"font-size=\"{fs}\">",
     ]
+    for start, end, lang in bands:
+        y = pad + start * lh - 4
+        h = (end - start + 1) * lh + 2
+        c = chip_fill[lang]
+        out.append(
+            f'<rect x="{pad - 8}" y="{y}" width="{width - 2 * (pad - 8)}" '
+            f'height="{h}" rx="6" fill="{c}" fill-opacity="0.07" '
+            f'stroke="{c}" stroke-opacity="0.45"/>'
+        )
+    out.append(
+        f"<g font-family=\"ui-monospace,SFMono-Regular,Menlo,Consolas,monospace\" "
+        f"font-size=\"{fs}\">"
+    )
     for idx, (line, spans) in enumerate(zip(lines, rows)):
         y = pad + idx * lh + 14
         parts = "".join(
