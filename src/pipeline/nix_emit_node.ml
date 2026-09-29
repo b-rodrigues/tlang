@@ -2161,10 +2161,10 @@ Base.setproperty!(ns::TlangNamespace, sym::Symbol, val) = (getfield(ns, :dict)[s
         let strategy = Nix_unparse.expr_to_string strategy_expr in
 
         let read_fns = match runtime with
-          | "R" -> [ "json", "r_read_json"; "ipc", "r_read_ipc"; "parquet", "r_read_parquet"; "pmml", "r_read_pmml"; "onnx", "r_read_onnx"; "csv", "r_read_csv"; ]
-          | "Python" -> [ "json", "py_read_json"; "ipc", "py_read_ipc"; "parquet", "py_read_parquet"; "pmml", "py_read_pmml"; "onnx", "py_read_onnx"; "csv", "py_read_csv"; ]
-          | "Julia" -> [ "json", "jl_read_json"; "ipc", "jl_read_ipc"; "parquet", "jl_read_parquet"; "pmml", "jl_read_pmml"; "onnx", "jl_read_onnx"; "csv", "jl_read_csv"; ]
-          | _ -> [ "json", "t_read_json"; "ipc", "read_ipc"; "parquet", "read_parquet"; "pmml", "t_read_pmml"; "onnx", "t_read_onnx"; "csv", "read_csv"; ]
+          | "R" -> [ "json", "r_read_json"; "ipc", "r_read_ipc"; "parquet", "r_read_parquet"; "pmml", "r_read_pmml"; "onnx", "r_read_onnx"; "csv", "r_read_csv"; "default", "readRDS"; ]
+          | "Python" -> [ "json", "py_read_json"; "ipc", "py_read_ipc"; "parquet", "py_read_parquet"; "pmml", "py_read_pmml"; "onnx", "py_read_onnx"; "csv", "py_read_csv"; "default", "deserialize"; ]
+          | "Julia" -> [ "json", "jl_read_json"; "ipc", "jl_read_ipc"; "parquet", "jl_read_parquet"; "pmml", "jl_read_pmml"; "onnx", "jl_read_onnx"; "csv", "jl_read_csv"; "default", "deserialize"; ]
+          | _ -> [ "json", "t_read_json"; "ipc", "read_ipc"; "parquet", "read_parquet"; "pmml", "t_read_pmml"; "onnx", "t_read_onnx"; "csv", "read_csv"; "default", "deserialize"; ]
         in
         let des_node_val = eval_expr_safe strategy_expr in
         let des_fn = match get_format des_node_val with
@@ -2333,13 +2333,13 @@ EOF|} k (Nix_utils.nix_escape_indented_code expr_str)
 
   let expr_s = Nix_unparse.unparse_expr expr in
   let ser_s = Nix_unparse.expr_to_string serializer in
-  let uses_default_serializer = ser_s = "default" in
+  let uses_default_serializer = ser_s = "default" || ser_fmt = Some "default" in
   let ser_call =
     let write_fns = match runtime with
-      | "R" -> [ "json", "r_write_json"; "ipc", "r_write_ipc"; "parquet", "r_write_parquet"; "pmml", "r_write_pmml"; "onnx", "r_write_onnx"; "csv", "r_write_csv"; ]
-      | "Python" -> [ "json", "py_write_json"; "ipc", "py_write_ipc"; "parquet", "py_write_parquet"; "pmml", "py_write_pmml"; "onnx", "py_write_onnx"; "csv", "py_write_csv"; ]
-      | "Julia" -> [ "json", "jl_write_json"; "ipc", "jl_write_ipc"; "parquet", "jl_write_parquet"; "pmml", "jl_write_pmml"; "onnx", "jl_write_onnx"; "csv", "jl_write_csv"; ]
-      | _ -> [ "json", "t_write_json"; "ipc", "write_ipc"; "parquet", "write_parquet"; "pmml", "t_write_pmml"; "onnx", "t_write_onnx"; "csv", "write_csv"; "text", "write_text"; ]
+      | "R" -> [ "json", "r_write_json"; "ipc", "r_write_ipc"; "parquet", "r_write_parquet"; "pmml", "r_write_pmml"; "onnx", "r_write_onnx"; "csv", "r_write_csv"; "default", "saveRDS"; ]
+      | "Python" -> [ "json", "py_write_json"; "ipc", "py_write_ipc"; "parquet", "py_write_parquet"; "pmml", "py_write_pmml"; "onnx", "py_write_onnx"; "csv", "py_write_csv"; "default", "serialize"; ]
+      | "Julia" -> [ "json", "jl_write_json"; "ipc", "jl_write_ipc"; "parquet", "jl_write_parquet"; "pmml", "jl_write_pmml"; "onnx", "jl_write_onnx"; "csv", "jl_write_csv"; "default", "jl_serialize"; ]
+      | _ -> [ "json", "t_write_json"; "ipc", "write_ipc"; "parquet", "write_parquet"; "pmml", "t_write_pmml"; "onnx", "t_write_onnx"; "csv", "write_csv"; "text", "write_text"; "default", "serialize"; ]
     in
     match get_format ser_val with
     | Some fmt ->

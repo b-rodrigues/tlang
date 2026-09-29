@@ -1533,12 +1533,16 @@ workspace = "python"
           let ic = open_in gi_path in
           let content = really_input_string ic (in_channel_length ic) in
           close_in ic;
-          let needle = ".t_r_pkg_cache/" in
-          let n = String.length content and m = String.length needle in
-          m <= n &&
-          (let rec loop i =
-             i <= n - m && (String.sub content i m = needle || loop (i + 1))
-           in loop 0)
+          let has needle =
+            let n = String.length content and m = String.length needle in
+            m <= n &&
+            (let rec loop i =
+               i <= n - m && (String.sub content i m = needle || loop (i + 1))
+             in loop 0)
+          in
+          has ".t_r_pkg_cache/"
+          && has ".t_python_guard/"
+          && has ".t_r_profile/"
         end
       | Error _ -> false
     in

@@ -442,6 +442,10 @@ result
 *.exe
 /.t_julia_depot/
 
+# Shell guard dirs (created on every `nix develop` entry; machine-local)
+.t_python_guard/
+.t_r_profile/
+
 # direnv state (machine-local; .envrc itself is shared)
 .direnv/
 
@@ -632,6 +636,10 @@ _build/
 result
 *.exe
 /.t_julia_depot/
+
+# Shell guard dirs (created on every `nix develop` entry; machine-local)
+.t_python_guard/
+.t_r_profile/
 
 # R package fetch cache (shallow git clones for DESCRIPTION auto-detection)
 .t_r_pkg_cache/

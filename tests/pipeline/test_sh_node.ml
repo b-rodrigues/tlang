@@ -144,6 +144,27 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
    | _ ->
        incr fail_count; Printf.printf "  ✗ pipeline sources exclusion check failed\n");
 
+  (* Regression: default/^default serializers must emit real reader/writer
+     calls. The emitter used to fall back to the raw string "default",
+     producing `= default(...)` calls in node scripts — but no `default`
+     builtin exists, and calling the bare symbol spun forever (CI timeout).
+     Assert the dep read uses deserialize and no bare default call remains. *)
+  (let (v_def_nix, _) = eval_string_env
+    {|pipeline {
+      a = node(command = 1)
+      b = node(command = a + 1, deserializer = ^default, serializer = ^default)
+    }|}
+    (Packages.init_env ()) in
+  match v_def_nix with
+  | Ast.VPipeline p ->
+      let nix = Nix_emit_pipeline.emit_pipeline p in
+      if contains_substring nix "__dep_a = deserialize("
+         && not (contains_substring nix "= default(") then
+        begin incr pass_count; Printf.printf "  ✓ default serializer emits real reader/writer calls\n" end
+      else
+        begin incr fail_count; Printf.printf "  ✗ default serializer emission wrong (bare default call or missing deserialize)\n" end
+  | _ ->
+      incr fail_count; Printf.printf "  ✗ default serializer fixture failed\n");
   (* Regression: UV nodes need system BLAS/Fortran, nixpkgs nodes must stay
      pristine (foreign BLAS breaks scipy/seaborn). The node derivation picks
      the libs only when the project resolver is uv. This fixture has no

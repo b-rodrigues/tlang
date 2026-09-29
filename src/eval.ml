@@ -3504,6 +3504,12 @@ and eval_call env_ref fn_val raw_args =
   | VSymbol s ->
       (* Try to look up the symbol in the env — might be a function name *)
       (match Env.find_opt s !env_ref with
+       | Some (VSymbol _) ->
+           (* Known symbols (R, default, ...) are bound to themselves so they
+              can be used as bare-word arguments. Calling one would resolve to
+              the same symbol at every step and spin in eval_call forever at
+              100% CPU with no output. Fail fast with an explicit error. *)
+           Error.type_error (Printf.sprintf "`%s` is a symbol, not a function, and cannot be called." s)
        | Some fn -> eval_call env_ref fn raw_args
        | None ->
            (* Special case: symbols starting with $ are column references.
