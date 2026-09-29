@@ -185,6 +185,27 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
    | other ->
        incr fail_count; Printf.printf "  ✗ captured-outer reassignment not rejected: %s\n"
          (Ast.Utils.value_to_string other));
+  (* Quoted code is exempt: it runs later, at runtime, so reassigning inside
+     to_expr must not fail construction (variable_vice_t pattern). *)
+  let (v_quoted, _) = eval_string_env
+    {|pipeline { a = node(command = { r = eval(to_expr({ print := 99 })); [out: r] }) }|}
+    (Packages.init_env ()) in
+  (match v_quoted with
+   | Ast.VPipeline _ ->
+       incr pass_count; Printf.printf "  ✓ reassignment inside to_expr passes construction\n"
+   | other ->
+       incr fail_count; Printf.printf "  ✗ quoted reassignment wrongly rejected: %s\n"
+         (Ast.Utils.value_to_string other));
+  (* Builtins are exempt: runtime owns the reserved-keyword error. *)
+  let (v_builtin, _) = eval_string_env
+    {|pipeline { a = node(command = { print := 99 }) }|}
+    (Packages.init_env ()) in
+  (match v_builtin with
+   | Ast.VPipeline _ ->
+       incr pass_count; Printf.printf "  ✓ builtin reassignment passes construction\n"
+   | other ->
+       incr fail_count; Printf.printf "  ✗ builtin reassignment wrongly rejected: %s\n"
+         (Ast.Utils.value_to_string other));
   (* Reassignment of a block-local name is fine and stays local. The sentinel
      outer binding proves no leakage: shadowing (x = 1) plus reassignment
      must keep every later read local, so the emitted script contains the

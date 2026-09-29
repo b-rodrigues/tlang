@@ -1828,6 +1828,11 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
       match expr.node with
       | Block stmts -> scan_stmts names stmts
       | Lambda l -> scan (l.params @ names) l.body
+      (* Quoted code runs later, at runtime, so construction-time
+         reassignment rules do not apply inside it. *)
+      | Call { fn; _ }
+        when (match fn.node with Var ("to_expr" | "quo") -> true | _ -> false) ->
+          None
       | _ -> List.find_map (scan names) (child_exprs expr)
     and scan_stmts names = function
       | [] -> None
@@ -1844,7 +1849,13 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
                     if List.mem r.name names || not (Env.mem r.name env) then
                       scan_stmts (r.name :: names) rest
                     else
-                      Some r.name)
+                      (* Functions, builtins, and symbols resolve at runtime
+                         (closures, reserved-keyword checks); only
+                         stale-inlined data needs the construction error. *)
+                      (match Env.find_opt r.name env with
+                       | Some (VLambda _ | VBuiltin _ | VSymbol _) ->
+                           scan_stmts (r.name :: names) rest
+                       | _ -> Some r.name))
            | Expression e ->
                (match scan names e with
                 | Some _ as e -> e
