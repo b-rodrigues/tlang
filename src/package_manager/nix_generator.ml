@@ -19,6 +19,38 @@ let r_libs_site_hook =
   "              unset _t_r_libs\n" ^
   "            fi\n"
 
+(* Nix snippet wrapping a uv venv derivation so its binaries carry
+   LD_LIBRARY_PATH. [venv_var] is the Nix expression for the raw venv
+   (e.g. [py-venv]). mkVirtualEnv carries no wrapper (unlike withPackages,
+   makeWrapperArgs would be silently ignored), so wrap the venv binaries
+   explicitly. The wrapper scopes LD_LIBRARY_PATH to Python processes only:
+   a global shell export would leak the project's libstdc++ onto t, R, and
+   Julia. Sourced activate files are skipped — wrapping them would break
+   `source activate`. C/C++ runtimes cover editor tooling (e.g. pyzmq),
+   BLAS/Fortran covers numpy. Node builds keep the raw venv and scope their
+   libs per-derivation instead (see ld_extra). *)
+let uv_venv_wrapper_nix venv_var =
+  "        py-env = pkgs.symlinkJoin {\n" ^
+  "          name = \"t-python-uv-env\";\n" ^
+  "          paths = [ " ^ venv_var ^ " ];\n" ^
+  "          nativeBuildInputs = [ pkgs.makeWrapper ];\n" ^
+  "          postBuild = ''\n" ^
+  (* The lib list is Linux-only: LD_LIBRARY_PATH is a no-op on macOS, so
+     skip wrapping there instead of building openblas/gfortran into py-env
+     just to set an empty variable. The -n guard keeps macOS shells working
+     even if the list ever evaluates empty. *)
+  "            libs=\"${pkgs.lib.makeLibraryPath (pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.stdenv.cc.cc.lib pkgs.zlib pkgs.openblas pkgs.gfortran.cc.lib ])}\"\n" ^
+  "            for f in $out/bin/*; do\n" ^
+  "              case \"$(basename \"$f\")\" in\n" ^
+  "                activate* | Activate*) continue ;;\n" ^
+  "              esac\n" ^
+  "              if [ -f \"$f\" ] && [ -n \"$libs\" ]; then\n" ^
+  "                wrapProgram \"$f\" --prefix LD_LIBRARY_PATH : \"$libs\"\n" ^
+  "              fi\n" ^
+  "            done\n" ^
+  "          '';\n" ^
+  "        };\n"
+
 
 let julia_depot_sandbox_hook =
   "            # Create a local Julia depot directory for sandbox guards\n\
@@ -379,35 +411,8 @@ let generate_project_flake
     Printf.bprintf buf "        pyWorkspace = uv2nix.lib.workspace.loadWorkspace { workspaceRoot = ./. + \"/%s\"; };\n" py_workspace;
     Buffer.add_string buf "        pyOverlay = pyWorkspace.mkPyprojectOverlay { sourcePreference = \"wheel\"; };\n";
     Printf.bprintf buf "        pySet = (pkgs.callPackage pyproject-nix.build.packages { python = pkgs.%s; }).overrideScope (pkgs.lib.composeManyExtensions [ pyOverlay pyproject-build-systems.overlays.default ]);\n" py_version;
-    (* mkVirtualEnv carries no wrapper (unlike withPackages, makeWrapperArgs
-       would be silently ignored), so wrap the venv binaries explicitly.
-       The wrapper scopes LD_LIBRARY_PATH to Python processes only: a global
-       shell export would leak the project's libstdc++ onto t, R, and Julia.
-       Sourced files such as activate are skipped — wrapping them would break
-       `source activate`. C/C++ runtimes cover editor tooling (e.g. pyzmq),
-       BLAS/Fortran covers numpy. Node builds keep the raw venv and scope
-       their libs per-derivation instead (see ld_extra). *)
     Buffer.add_string buf "        py-venv = pySet.mkVirtualEnv \"t-python-uv-env\" pyWorkspace.deps.default;\n";
-    Buffer.add_string buf "        py-env = pkgs.symlinkJoin {\n";
-    Buffer.add_string buf "          name = \"t-python-uv-env\";\n";
-    Buffer.add_string buf "          paths = [ py-venv ];\n";
-    Buffer.add_string buf "          nativeBuildInputs = [ pkgs.makeWrapper ];\n";
-    Buffer.add_string buf "          postBuild = ''\n";
-    (* The lib list is Linux-only: LD_LIBRARY_PATH is a no-op on macOS, so
-       skip wrapping there instead of building openblas/gfortran into py-env
-       just to set an empty variable. The -n guard keeps macOS shells
-       working even if the list ever evaluates empty. *)
-    Buffer.add_string buf "            libs=\"${pkgs.lib.makeLibraryPath (pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.stdenv.cc.cc.lib pkgs.zlib pkgs.openblas pkgs.gfortran.cc.lib ])}\"\n";
-    Buffer.add_string buf "            for f in $out/bin/*; do\n";
-    Buffer.add_string buf "              case \"$(basename \"$f\")\" in\n";
-    Buffer.add_string buf "                activate* | Activate*) continue ;;\n";
-    Buffer.add_string buf "              esac\n";
-    Buffer.add_string buf "              if [ -f \"$f\" ] && [ -n \"$libs\" ]; then\n";
-    Buffer.add_string buf "                wrapProgram \"$f\" --prefix LD_LIBRARY_PATH : \"$libs\"\n";
-    Buffer.add_string buf "              fi\n";
-    Buffer.add_string buf "            done\n";
-    Buffer.add_string buf "          '';\n";
-    Buffer.add_string buf "        };\n";
+    Buffer.add_string buf (uv_venv_wrapper_nix "py-venv");
   end else begin
     Printf.bprintf buf "        py-env = (pkgs.%s.withPackages (python-pkgs: with python-pkgs; [\n" py_version;
     Buffer.add_string buf "          deepdiff\n";

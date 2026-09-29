@@ -185,10 +185,11 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
    | other ->
        incr fail_count; Printf.printf "  ✗ captured-outer reassignment not rejected: %s\n"
          (Ast.Utils.value_to_string other));
-  (* Reassignment of a block-local name is fine and stays local. The outer
-     x = 100 proves no leakage: shadowing (x = 1) plus reassignment must keep
-     every later read local, so the emitted script contains no 100. *)
-  let (_, env_reassign) = eval_string_env "x = 100" (Packages.init_env ()) in
+  (* Reassignment of a block-local name is fine and stays local. The sentinel
+     outer binding proves no leakage: shadowing (x = 1) plus reassignment
+     must keep every later read local, so the emitted script contains the
+     exact local block and never the sentinel digits. *)
+  let (_, env_reassign) = eval_string_env "x = 424242" (Packages.init_env ()) in
   let (v_reassign, _) = eval_string_env
     {|pipeline { a = node(command = { x = 1; x := x + 1; x }) }|}
     env_reassign in
@@ -197,7 +198,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
        let nix = Nix_emit_pipeline.emit_pipeline p in
        let has s = try ignore (Str.search_forward (Str.regexp_string s) nix 0); true
                    with Not_found -> false in
-       if has "{ x = 1; x := (x + 1); x }" && not (has "100") then
+       if has "{ x = 1; x := (x + 1); x }" && not (has "424242") then
          begin incr pass_count; Printf.printf "  ✓ block-local reassignment stays local\n" end
        else
          begin incr fail_count; Printf.printf "  ✗ block-local reassignment script unexpected\n" end

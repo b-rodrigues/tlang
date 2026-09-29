@@ -1763,13 +1763,14 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
     Error.make_error NameError
       (Printf.sprintf "Duplicate node name `%s` in pipeline." dup_name)
   | None ->
-  (* Direct child expressions of each AST form. Shared by the substitution
-     walk below and the reassignment check: a new expression form is listed
-     in exactly one place. This match is deliberately exhaustive (no wildcard)
-     so that adding a constructor to Ast.expr_node breaks the build here until
-     both traversals account for it. Binder forms (Block, Lambda) return []
-     because the callers thread scope themselves; leaf and nested-pipeline
-     forms return [] because substitution leaves them untouched. *)
+  (* Direct child expressions of each AST form, shared by the substitution
+     walk and the reassignment check below: a new expression form is listed
+     in exactly one place per function. Both matches are deliberately
+     exhaustive (no wildcard) so that adding a constructor to Ast.expr_node
+     breaks the build here until both traversals account for it. Binder forms
+     (Block, Lambda) return [] because the callers thread scope themselves;
+     leaf and nested-pipeline forms return [] because substitution leaves
+     them untouched. *)
   let child_exprs expr =
     match expr.node with
     | Call { fn; args } -> fn :: List.map snd args
@@ -1783,6 +1784,37 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
     | Unquote e | UnquoteSplice e -> [ e ]
     | Value _ | Var _ | ColumnRef _ | Lambda _ | Block _
     | RawCode _ | PipelineDef _ | PipelineOfDef _ | IntentDef _ | ShellExpr _ -> []
+  in
+
+  (* Rebuild an expression with each direct child transformed by [f].
+     Companion to [child_exprs]: same case list, same exhaustiveness guard,
+     so the two cannot drift apart. *)
+  let map_children f expr =
+    match expr.node with
+    | Call { fn; args } ->
+        { expr with node = Call { fn = f fn; args = List.map (fun (n, e) -> (n, f e)) args } }
+    | ListLit items ->
+        { expr with node = ListLit (List.map (fun (n, e) -> (n, f e)) items) }
+    | DictLit pairs ->
+        { expr with node = DictLit (List.map (fun (k, v) -> (k, f v)) pairs) }
+    | BinOp b ->
+        { expr with node = BinOp { b with left = f b.left; right = f b.right } }
+    | BroadcastOp b ->
+        { expr with node = BroadcastOp { b with left = f b.left; right = f b.right } }
+    | UnOp u ->
+        { expr with node = UnOp { u with operand = f u.operand } }
+    | DotAccess d ->
+        { expr with node = DotAccess { d with target = f d.target } }
+    | IfElse c ->
+        { expr with node = IfElse { cond = f c.cond; then_ = f c.then_; else_ = f c.else_ } }
+    | Match m ->
+        { expr with node = Match { scrutinee = f m.scrutinee; cases = List.map (fun (pat, body) -> (pat, f body)) m.cases } }
+    | Unquote e ->
+        { expr with node = Unquote (f e) }
+    | UnquoteSplice e ->
+        { expr with node = UnquoteSplice (f e) }
+    | Value _ | Var _ | ColumnRef _ | Lambda _ | Block _
+    | RawCode _ | PipelineDef _ | PipelineOfDef _ | IntentDef _ | ShellExpr _ -> expr
   in
 
   (* Reject reassignment of captured outer variables inside node command
@@ -1824,66 +1856,48 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
 
   let rec substitute_env_vars env node_names expr =
     let sub = substitute_env_vars env node_names in
-    let new_node = match expr.node with
-      | Var name ->
-          if not (List.mem name node_names) && Env.mem name env then
-            let v = Env.find name env in
-            match v with
-            | VLambda _ | VBuiltin _ -> Var name
-            | _ -> Value v
-          else
-            Var name
-      | Call { fn; args } ->
-          Call { fn = sub fn; args = List.map (fun (n, e) -> (n, sub e)) args }
-      | ListLit items ->
-          ListLit (List.map (fun (n, e) -> (n, sub e)) items)
-      | DictLit items ->
-          DictLit (List.map (fun (n, e) -> (n, sub e)) items)
-      | BinOp { op; left; right } ->
-          BinOp { op; left = sub left; right = sub right }
-      | BroadcastOp { op; left; right } ->
-          BroadcastOp { op; left = sub left; right = sub right }
-      | UnOp { op; operand } ->
-          UnOp { op; operand = sub operand }
-      | DotAccess { target; field } ->
-          DotAccess { target = sub target; field }
-      | IfElse { cond; then_; else_ } ->
-          IfElse { cond = sub cond; then_ = sub then_; else_ = sub else_ }
-      | Match { scrutinee; cases } ->
-          Match { scrutinee = sub scrutinee; cases = List.map (fun (pat, body) -> (pat, sub body)) cases }
-      | Lambda l ->
-          let inner_node_names = l.params @ node_names in
-          Lambda { l with body = substitute_env_vars env inner_node_names l.body }
-      | Block stmts ->
-          (* Walk statements left to right, tracking locally assigned names
-             so later references resolve to the local binding instead of an
-             outer variable with the same name. Reassignment also binds from
-             that point on (a reassigned sibling/local name stays local, so a
-             trailing read can never inline a stale outer value).
-             Reassigning a captured outer variable is rejected at construction
-             time (see block_reassign_error), so it cannot reach this walk
-             through a valid pipeline. *)
-          let rec walk names = function
-            | [] -> []
-            | stmt :: rest ->
-                (match stmt.node with
-                 | Expression e ->
-                     { stmt with node = Expression (substitute_env_vars env names e) }
-                     :: walk names rest
-                 | Assignment a ->
-                     let e' = substitute_env_vars env names a.expr in
-                     { stmt with node = Assignment { a with expr = e' } }
-                     :: walk (a.name :: names) rest
-                 | Reassignment r ->
-                     let e' = substitute_env_vars env names r.expr in
-                     { stmt with node = Reassignment { r with expr = e' } }
-                     :: walk (r.name :: names) rest
-                 | _ -> stmt :: walk names rest)
-          in
-          Block (walk node_names stmts)
-      | other -> other
-    in
-    { expr with node = new_node }
+    match expr.node with
+    | Var name ->
+        if not (List.mem name node_names) && Env.mem name env then
+          let v = Env.find name env in
+          (match v with
+           | VLambda _ | VBuiltin _ -> expr
+           | _ -> { expr with node = Value v })
+        else
+          expr
+    | Lambda l ->
+        let inner_node_names = l.params @ node_names in
+        { expr with node = Lambda { l with body = substitute_env_vars env inner_node_names l.body } }
+    | Block stmts ->
+        (* Walk statements left to right, tracking locally assigned names
+           so later references resolve to the local binding instead of an
+           outer variable with the same name. Reassignment also binds from
+           that point on (a reassigned sibling/local name stays local, so a
+           trailing read can never inline a stale outer value).
+           Reassigning a captured outer variable is rejected at construction
+           time (see block_reassign_error), so it cannot reach this walk
+           through a valid pipeline. *)
+        let rec walk names = function
+          | [] -> []
+          | stmt :: rest ->
+              (match stmt.node with
+               | Expression e ->
+                   { stmt with node = Expression (substitute_env_vars env names e) }
+                   :: walk names rest
+               | Assignment a ->
+                   let e' = substitute_env_vars env names a.expr in
+                   { stmt with node = Assignment { a with expr = e' } }
+                   :: walk (a.name :: names) rest
+               | Reassignment r ->
+                   let e' = substitute_env_vars env names r.expr in
+                   { stmt with node = Reassignment { r with expr = e' } }
+                   :: walk (r.name :: names) rest
+               | _ -> stmt :: walk names rest)
+        in
+        { expr with node = Block (walk node_names stmts) }
+    (* All remaining forms are pure child maps; [map_children] keeps this arm
+       and [child_exprs] in lockstep (both exhaustive, no wildcard). *)
+    | _ -> map_children sub expr
   in
 
   let default_un expr = {

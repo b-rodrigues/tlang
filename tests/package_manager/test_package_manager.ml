@@ -1837,6 +1837,77 @@ workspace = "python"
     && has "gfortran"
     && not (has "export LD_LIBRARY_PATH="));
 
+  (* Opt-in real build of the exact wrapper Nix the emitter produces (see
+     Nix_generator.uv_venv_wrapper_nix). Off by default: needs nix-build, a
+     store daemon, and a resolvable <nixpkgs>. Enable with
+     TLANG_TEST_UV_WRAPPER=1. A mock venv stands in for mkVirtualEnv output
+     (same layout: bin/python binaries, console scripts, sourced activate
+     files, pyvenv.cfg); the wrapper snippet under test is the emitter's own
+     text, so emitter/wrapper drift fails loudly instead of silently. *)
+  test_pm "uv venv wrapper builds and scopes libs (opt-in real nix build)" (fun () ->
+    let enabled = match Sys.getenv_opt "TLANG_TEST_UV_WRAPPER" with
+      | Some ("1" | "true" | "yes") -> true | _ -> false in
+    let skip reason =
+      Printf.printf "  ○ uv wrapper build skipped (%s)\n" reason; true in
+    if not enabled then skip "set TLANG_TEST_UV_WRAPPER=1 to run"
+    else if Sys.command "command -v nix-build >/dev/null 2>&1" <> 0 then
+      skip "no nix-build"
+    else if Sys.command "test \"$(uname -s)\" = Linux" <> 0 then
+      skip "Linux-only (wrapper lib list is Linux-scoped)"
+    else if Sys.command "nix-instantiate --eval -E 'builtins.toFile \"t-uv-probe\" \"y\"' >/dev/null 2>&1" <> 0 then
+      skip "no Nix store daemon"
+    else if Sys.command "nix-instantiate --eval -E '<nixpkgs>' >/dev/null 2>&1" <> 0 then
+      skip "no resolvable <nixpkgs>"
+    else begin
+      let dir = Filename.temp_dir "t-uv-wrap-" "" in
+      let nix_file = Filename.concat dir "wrap.nix" in
+      let wrapper = Nix_generator.uv_venv_wrapper_nix "mockVenv" in
+      let content = Printf.sprintf {|let
+  pkgs = import <nixpkgs> {};
+in with pkgs;
+let
+  mockVenv = runCommand "mock-venv" {} ''
+    mkdir -p $out/bin $out/lib/python3.12/site-packages
+    printf '#!/bin/sh\necho "MOCK_MARKER LD=$LD_LIBRARY_PATH"\n' > $out/bin/python
+    chmod +x $out/bin/python
+    for b in python3 python3.12; do cp $out/bin/python $out/bin/$b; chmod +x $out/bin/$b; done
+    printf '#!/bin/sh\necho "TOOL_LD=$LD_LIBRARY_PATH"\n' > $out/bin/tool
+    chmod +x $out/bin/tool
+    printf '# mock activate (must stay sourcable)\nMOCK_WRAP_ACTIVATE=1\n' > $out/bin/activate
+    echo "home = /unused" > $out/pyvenv.cfg
+    touch $out/lib/python3.12/site-packages/marker
+  '';
+%s
+in runCommand "uv-wrapper-check" { buildInputs = [ py-env ]; } ''
+  set -e
+  for b in python python3 python3.12; do
+    got=$(${py-env}/bin/$b)
+    echo "$got" | grep -q MOCK_MARKER || (echo "missing marker for $b" >&2; exit 1)
+    echo "$got" | grep -q "LD=/nix/store" || (echo "no store libs for $b" >&2; exit 1)
+  done
+  [ -d ${py-env}/lib/python3.12/site-packages ] || (echo "site-packages missing" >&2; exit 1)
+  [ -f ${py-env}/pyvenv.cfg ] || (echo "pyvenv.cfg missing" >&2; exit 1)
+  ${py-env}/bin/tool | grep -q "TOOL_LD=/nix/store" || (echo "tool did not inherit libs" >&2; exit 1)
+  grep -q MOCK_WRAP_ACTIVATE ${py-env}/bin/activate || (echo "activate altered" >&2; exit 1)
+  ( . ${py-env}/bin/activate && [ "$MOCK_WRAP_ACTIVATE" = "1" ] ) || (echo "activate not sourcable" >&2; exit 1)
+  touch $out
+''
+|} wrapper in
+      let oc = open_out nix_file in
+      output_string oc content;
+      close_out oc;
+      let log_file = Filename.concat dir "build.log" in
+      let ok = Sys.command (Printf.sprintf "nix-build %s --no-out-link >%s 2>&1" (Filename.quote nix_file) (Filename.quote log_file)) = 0 in
+      (if not ok then
+         match (try Some (open_in log_file) with _ -> None) with
+         | None -> ()
+         | Some ic ->
+             (try while true do Printf.eprintf "%s\n" (input_line ic) done
+              with End_of_file -> close_in ic));
+      ignore (Sys.command (Printf.sprintf "rm -rf %s" (Filename.quote dir)));
+      ok
+    end);
+
   print_newline ();
 
   (* ===================================================== *)
