@@ -159,6 +159,56 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
     | _ -> get_format des_val = Some f
   in
 
+  (* Single per-runtime table mapping a format to its (writer, reader).
+     Readers and writers share it so the two directions cannot disagree:
+     a missing entry once made the emitter fall back to the raw format
+     string, producing bare default(...) calls in node scripts that spun
+     forever (no such builtin exists). *)
+  let io_fns = match runtime with
+    | "R" ->
+        [ "json", ("r_write_json", "r_read_json");
+          "ipc", ("r_write_ipc", "r_read_ipc");
+          "parquet", ("r_write_parquet", "r_read_parquet");
+          "pmml", ("r_write_pmml", "r_read_pmml");
+          "onnx", ("r_write_onnx", "r_read_onnx");
+          "csv", ("r_write_csv", "r_read_csv");
+          "default", ("saveRDS", "readRDS"); ]
+    | "Python" ->
+        [ "json", ("py_write_json", "py_read_json");
+          "ipc", ("py_write_ipc", "py_read_ipc");
+          "parquet", ("py_write_parquet", "py_read_parquet");
+          "pmml", ("py_write_pmml", "py_read_pmml");
+          "onnx", ("py_write_onnx", "py_read_onnx");
+          "csv", ("py_write_csv", "py_read_csv");
+          "default", ("serialize", "deserialize"); ]
+    | "Julia" ->
+        [ "json", ("jl_write_json", "jl_read_json");
+          "ipc", ("jl_write_ipc", "jl_read_ipc");
+          "parquet", ("jl_write_parquet", "jl_read_parquet");
+          "pmml", ("jl_write_pmml", "jl_read_pmml");
+          "onnx", ("jl_write_onnx", "jl_read_onnx");
+          "csv", ("jl_write_csv", "jl_read_csv");
+          "default", ("jl_serialize", "deserialize"); ]
+    | _ ->
+        [ "json", ("t_write_json", "t_read_json");
+          "ipc", ("write_ipc", "read_ipc");
+          "parquet", ("write_parquet", "read_parquet");
+          "pmml", ("t_write_pmml", "t_read_pmml");
+          "onnx", ("t_write_onnx", "t_read_onnx");
+          "csv", ("write_csv", "read_csv");
+          (* Asymmetric by necessity: raw bytes go out via write_text and
+             come back via read_file (no read_text builtin exists; the old
+             fallback emitted a bare text(...) call to nothing). *)
+          "text", ("write_text", "read_file");
+          "default", ("serialize", "deserialize"); ]
+  in
+  let lookup_writer fmt =
+    match List.assoc_opt fmt io_fns with Some (w, _) -> Some w | None -> None
+  in
+  let lookup_reader fmt =
+    match List.assoc_opt fmt io_fns with Some (_, r) -> Some r | None -> None
+  in
+
   let ext, extra_input = match runtime with
     | "R" -> 
         "R", "r-env"
@@ -2160,18 +2210,12 @@ Base.setproperty!(ns::TlangNamespace, sym::Symbol, val) = (getfield(ns, :dict)[s
         in
         let strategy = Nix_unparse.expr_to_string strategy_expr in
 
-        let read_fns = match runtime with
-          | "R" -> [ "json", "r_read_json"; "ipc", "r_read_ipc"; "parquet", "r_read_parquet"; "pmml", "r_read_pmml"; "onnx", "r_read_onnx"; "csv", "r_read_csv"; "default", "readRDS"; ]
-          | "Python" -> [ "json", "py_read_json"; "ipc", "py_read_ipc"; "parquet", "py_read_parquet"; "pmml", "py_read_pmml"; "onnx", "py_read_onnx"; "csv", "py_read_csv"; "default", "deserialize"; ]
-          | "Julia" -> [ "json", "jl_read_json"; "ipc", "jl_read_ipc"; "parquet", "jl_read_parquet"; "pmml", "jl_read_pmml"; "onnx", "jl_read_onnx"; "csv", "jl_read_csv"; "default", "deserialize"; ]
-          | _ -> [ "json", "t_read_json"; "ipc", "read_ipc"; "parquet", "read_parquet"; "pmml", "t_read_pmml"; "onnx", "t_read_onnx"; "csv", "read_csv"; "default", "deserialize"; ]
-        in
         let des_node_val = eval_expr_safe strategy_expr in
         let des_fn = match get_format des_node_val with
           | Some fmt ->
               (match get_polyglot_snippet ~lang:runtime ~kind:"reader" des_node_val with
                | Some snippet -> snippet
-               | None -> List.assoc_opt fmt read_fns |> Option.value ~default:fmt)
+               | None -> lookup_reader fmt |> Option.value ~default:fmt)
           | None ->
             if strategy = "default" then
               (if runtime = "R" then "readRDS" else if runtime = "Python" then "deserialize" else if runtime = "Julia" then "deserialize" else "deserialize")
@@ -2335,17 +2379,11 @@ EOF|} k (Nix_utils.nix_escape_indented_code expr_str)
   let ser_s = Nix_unparse.expr_to_string serializer in
   let uses_default_serializer = ser_s = "default" || ser_fmt = Some "default" in
   let ser_call =
-    let write_fns = match runtime with
-      | "R" -> [ "json", "r_write_json"; "ipc", "r_write_ipc"; "parquet", "r_write_parquet"; "pmml", "r_write_pmml"; "onnx", "r_write_onnx"; "csv", "r_write_csv"; "default", "saveRDS"; ]
-      | "Python" -> [ "json", "py_write_json"; "ipc", "py_write_ipc"; "parquet", "py_write_parquet"; "pmml", "py_write_pmml"; "onnx", "py_write_onnx"; "csv", "py_write_csv"; "default", "serialize"; ]
-      | "Julia" -> [ "json", "jl_write_json"; "ipc", "jl_write_ipc"; "parquet", "jl_write_parquet"; "pmml", "jl_write_pmml"; "onnx", "jl_write_onnx"; "csv", "jl_write_csv"; "default", "jl_serialize"; ]
-      | _ -> [ "json", "t_write_json"; "ipc", "write_ipc"; "parquet", "write_parquet"; "pmml", "t_write_pmml"; "onnx", "t_write_onnx"; "csv", "write_csv"; "text", "write_text"; "default", "serialize"; ]
-    in
     match get_format ser_val with
     | Some fmt ->
         (match get_polyglot_snippet ~lang:runtime ~kind:"writer" ser_val with
          | Some snippet -> snippet
-         | None -> List.assoc_opt fmt write_fns |> Option.value ~default:fmt)
+         | None -> lookup_writer fmt |> Option.value ~default:fmt)
     | None ->
         if ser_s = "default" then
           (if runtime = "R" then "saveRDS" else if runtime = "Python" then "serialize" else if runtime = "Julia" then "jl_serialize" else "serialize")

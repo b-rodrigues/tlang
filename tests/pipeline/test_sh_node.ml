@@ -165,6 +165,24 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
         begin incr fail_count; Printf.printf "  ✗ default serializer emission wrong (bare default call or missing deserialize)\n" end
   | _ ->
       incr fail_count; Printf.printf "  ✗ default serializer fixture failed\n");
+  (* text has no read_text builtin: the reader must be read_file, never a
+     bare text(...) call to nothing (same hang class as default). *)
+  (let (v_text_nix, _) = eval_string_env
+    {|pipeline {
+      a = node(command = "hi")
+      b = node(command = a, deserializer = ^text)
+    }|}
+    (Packages.init_env ()) in
+  match v_text_nix with
+  | Ast.VPipeline p ->
+      let nix = Nix_emit_pipeline.emit_pipeline p in
+      if contains_substring nix "__dep_a = read_file("
+         && not (contains_substring nix "= text(") then
+        begin incr pass_count; Printf.printf "  ✓ text deserializer emits read_file\n" end
+      else
+        begin incr fail_count; Printf.printf "  ✗ text deserializer emission wrong\n" end
+  | _ ->
+      incr fail_count; Printf.printf "  ✗ text deserializer fixture failed\n");
   (* Regression: UV nodes need system BLAS/Fortran, nixpkgs nodes must stay
      pristine (foreign BLAS breaks scipy/seaborn). The node derivation picks
      the libs only when the project resolver is uv. This fixture has no

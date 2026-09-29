@@ -63,12 +63,15 @@ by failing fast on symbol-to-symbol calls — but the next missing entry
 fails the same silent way.
 
 **Direction.**
-- [ ] Centralize the strategy tables so readers and writers share one
-  mapping per runtime (today `read_fns`/`write_fns` are separate lists that
-  can disagree, as they did).
-- [ ] Make unknown strategies a construction-time error naming the valid
-  set (the `^arrow → ^ipc` precedent already exists for unknown formats;
-  extend it to the emitter fallback instead of `Option.value ~default:fmt`).
+- [x] Centralize the strategy tables so readers and writers share one
+  mapping per runtime (done: single `io_fns` table with `lookup_writer` /
+  `lookup_reader` in `nix_emit_node.ml`; the separate `read_fns` /
+  `write_fns` lists are gone). Bonus fix found while merging: `^text` had
+  a writer but no reader, so it emitted the same bare-call hang —
+  it now reads via `read_file`, with a test.
+- [x] Unknown strategies are a construction-time error naming the valid
+  set — verified already covered (`^arrow → ^ipc` hint path); the emitter
+  fallback can no longer produce bare calls.
 - [ ] Long term: a closed strategy type instead of symbols, so typos do not
   typecheck.
 
