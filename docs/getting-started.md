@@ -64,14 +64,20 @@ with how Nix manages environments.
 
 When initializing a project, T supports two pipeline templates:
 
-- **`minimal`**: (Default) Generates a simple, barebones pipeline inside
+- **`minimal`**: Generates a simple, barebones pipeline inside
   `src/pipeline.t` so you can start writing code from scratch immediately.
-- **`full`**: Generates a rich, comprehensive archetypical pipeline cheatsheet
+- **`full`**: (Default) Generates a rich, comprehensive archetypical pipeline cheatsheet
   inside `src/pipeline.t`. This acts as a complete guide that demonstrates
   polyglot node integration (Python, R, Julia, Shell, Quarto), data
   serialization/deserialization, environment variables, exit handling, and
   metadata retrieval functions (e.g., `read_node`, `read_pipeline`,
   `pipeline_to_frame`, `pipeline_copy`).
+
+This scaffolds a complete, reproducible analysis project. By default, it sets up:
+- A runnable `src/pipeline.t` template demonstrating polyglot pipeline nodes.
+- A declarative `tproject.toml` tracking your language packages and runtimes.
+- A hermetic `flake.nix` that locks dependencies across Linux and macOS.
+- Built-in AI agent context files (`AGENTS.md` and `T-LANGUAGE-REFERENCE.md`) so coding assistants like Claude Code, Cursor, and Copilot understand T syntax immediately.
 
 #### Workspace Layout
 
@@ -79,16 +85,18 @@ The generated project has the following directory structure:
 
 ```text
 my_analysis/
-├── tproject.toml       # Project configuration and dependencies
-├── flake.nix           # Reproducible environment definition
-├── README.md           # Project overview
-├── AGENTS.md           # Onboarding guide for AI Agents
-├── T-LANGUAGE-REFERENCE.md # Tiered language reference for LLMs (git-ignored)
+├── tproject.toml           # Project configuration and package dependencies
+├── flake.nix               # Pinned Nix environment definition
+├── README.md               # Project documentation
+├── AGENTS.md               # Context and rules for AI coding assistants
+├── T-LANGUAGE-REFERENCE.md # Language reference guide (git-ignored)
+├── .envrc                  # direnv entry: loads the flake environment (`direnv allow` once)
+├── .vscode/                # Recommended extensions (T, direnv) and workspace settings
 ├── src/
-│   └── pipeline.t      # Your main analysis script (minimal or full template)
-├── data/               # Place your raw data files here
-├── outputs/            # Output directory for results
-└── tests/              # Unit tests for your analysis
+│   └── pipeline.t          # Your main analysis pipeline (minimal or full template)
+├── data/                   # Place raw input datasets here
+├── outputs/                # Output directory for results
+└── tests/                  # Pipeline and unit assertions
 ```
 
 ### AI Agent Onboarding

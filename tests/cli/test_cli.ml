@@ -525,6 +525,16 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
          && contains msg "plotsjl"
          && contains msg "makie"
      | Ok _ -> false);
+  (* render_nix_expression must Nix-escape paths: a ${...} sequence in a
+     project path must not survive as a live interpolation (same injection
+     class as the git-URL fix in nix_generator). *)
+  let nasty_root = "/tmp/a${evil}b\"c\\d" in
+  let nix_expr = Show_plot.render_nix_expression
+    ~project_root:nasty_root ~runtime:"Python" ~script_name:"render_plot.py"
+    ~script_content:"pass" ~artifact_path:"/tmp/art" in
+  test_message "show_plot render Nix expression escapes paths"
+    (contains nix_expr "\\${evil}"
+     && not (contains nix_expr "\"${evil}\""));
   test "show_plot with a mermaid string returns an html path"
     "path_ext(show_plot('graph TD\n  a --> b'))"
     {|".html"|};

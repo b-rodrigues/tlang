@@ -130,6 +130,59 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
    | _ ->
        incr fail_count; Printf.printf "  ✗ sh node Nix emission failed\n");
 
+  (* Regression: pipeline_copy() writes pipeline-output/ at project root.
+     It must stay out of `sources`, or every copy changes the source hash
+     and all nodes rebuild on the next run. Match the actual filter clause,
+     not the explanatory comment (which also names the directory). *)
+  (match v_sh_nix with
+   | Ast.VPipeline p ->
+       let nix = Nix_emit_pipeline.emit_pipeline p in
+       if contains_substring nix "baseName == \"pipeline-output\"" then
+         begin incr pass_count; Printf.printf "  ✓ pipeline sources exclude pipeline-output/\n" end
+       else
+         begin incr fail_count; Printf.printf "  ✗ pipeline sources missing pipeline-output exclusion\n" end
+   | _ ->
+       incr fail_count; Printf.printf "  ✗ pipeline sources exclusion check failed\n");
+
+  (* Regression: default/^default serializers must emit real reader/writer
+     calls. The emitter used to fall back to the raw string "default",
+     producing `= default(...)` calls in node scripts — but no `default`
+     builtin exists, and calling the bare symbol spun forever (CI timeout).
+     Assert the dep read uses deserialize and no bare default call remains. *)
+  (let (v_def_nix, _) = eval_string_env
+    {|pipeline {
+      a = node(command = 1)
+      b = node(command = a + 1, deserializer = ^default, serializer = ^default)
+    }|}
+    (Packages.init_env ()) in
+  match v_def_nix with
+  | Ast.VPipeline p ->
+      let nix = Nix_emit_pipeline.emit_pipeline p in
+      if contains_substring nix "__dep_a = deserialize("
+         && not (contains_substring nix "= default(") then
+        begin incr pass_count; Printf.printf "  ✓ default serializer emits real reader/writer calls\n" end
+      else
+        begin incr fail_count; Printf.printf "  ✗ default serializer emission wrong (bare default call or missing deserialize)\n" end
+  | _ ->
+      incr fail_count; Printf.printf "  ✗ default serializer fixture failed\n");
+  (* Regression: UV nodes need system BLAS/Fortran, nixpkgs nodes must stay
+     pristine (foreign BLAS breaks scipy/seaborn). The node derivation picks
+     the libs only when the project resolver is uv. This fixture has no
+     custom flake, so it goes through the ld_extra branch.
+     Assert the exact LD_LIBRARY_PATH line so ld_extra/src_block %s slots
+     cannot silently swap (all args share one type, OCaml cannot catch it). *)
+  (match v_sh_nix with
+   | Ast.VPipeline p ->
+       let nix = Nix_emit_pipeline.emit_pipeline p in
+       let exact_line = "LD_LIBRARY_PATH = \"${pkgs.gcc.cc.lib}/lib:${pkgs.avahi}/lib${if pyResolver == \"uv\" then \":${pkgs.openblas}/lib:${pkgs.gfortran.cc.lib}/lib\" else \"\"}\";" in
+       if contains_substring nix "if pyResolver == \"uv\" then" && contains_substring nix "pkgs.openblas"
+          && contains_substring nix exact_line then
+         begin incr pass_count; Printf.printf "  ✓ node LD_LIBRARY_PATH is uv-conditional\n" end
+       else
+         begin incr fail_count; Printf.printf "  ✗ node LD_LIBRARY_PATH missing uv conditional or exact line\n" end
+   | _ ->
+       incr fail_count; Printf.printf "  ✗ node LD_LIBRARY_PATH check failed\n");
+
   (* Test: shell mode emission *)
   let (v_sh_shell_nix, _) = eval_string_env
     {|pipeline {

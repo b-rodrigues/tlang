@@ -6,7 +6,7 @@ Tree-sitter grammar for the T programming language.
 
 - `grammar.js` for generating the parser
 - `queries/highlights.scm` for syntax highlighting
-- `queries/injections.scm` for shell/R/Python block injection in editor integrations
+- `queries/injections.scm` for shell/R/Python/Julia block injection in editor integrations
 - `queries/locals.scm` for local-variable scopes
 - `test/corpus/` for grammar tests
 

@@ -410,9 +410,9 @@ let render_nix_expression ~project_root ~runtime ~script_name ~script_content ~a
     {|
 { system ? builtins.currentSystem }:
 let
-  flake = builtins.getFlake (toString %S);
+  flake = builtins.getFlake (toString %s);
   pkgs = flake.inputs.nixpkgs.legacyPackages.${system};
-  toml = if builtins.pathExists %S then builtins.fromTOML (builtins.readFile %S) else {};
+  toml = if builtins.pathExists %s then builtins.fromTOML (builtins.readFile %s) else {};
   rPackagesList = (toml.r-dependencies or {}).packages or [];
   r-env = pkgs.rWrapper.override {
     packages = builtins.map (p: pkgs.rPackages.${p}) rPackagesList;
@@ -427,7 +427,7 @@ let
   juliaBase = pkgs.${juliaPackageName};
   juliaPackagesList = juliaDeps.packages or [];
   juliaPkg = if juliaPackagesList == [] then juliaBase else juliaBase.withPackages juliaPackagesList;
-  artifact = builtins.path { name = "plot-artifact"; path = %S; };
+  artifact = builtins.path { name = "plot-artifact"; path = %s; };
 in
 pkgs.stdenv.mkDerivation {
   name = "show-plot-render";
@@ -446,10 +446,10 @@ EOF
   '';
 }
 |}
-    project_root
-    tproject_path
-    tproject_path
-    artifact_path
+    (Nix_utils.nix_double_quote project_root)
+    (Nix_utils.nix_double_quote tproject_path)
+    (Nix_utils.nix_double_quote tproject_path)
+    (Nix_utils.nix_double_quote artifact_path)
     (if runtime = "R" then "r-env" else if runtime = "Python" then "py-env" else "juliaPkg")
     script_name
     script_content

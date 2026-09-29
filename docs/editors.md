@@ -123,17 +123,19 @@ You do **not** need to build the tree-sitter grammar for the normal VS Code/Posi
 
 ### Option A: Download the `.vsix` file (recommended)
 
-1. Download the latest release: [`t-lang-0.51.0.vsix`](https://github.com/b-rodrigues/tlang/raw/main/editors/vscode/t-lang-0.51.0.vsix) (or download from the repository assets).
+1. Download the latest release asset (`t-lang-<version>.vsix`) from the
+   [GitHub releases page](https://github.com/b-rodrigues/tlang/releases),
+   or use the copy bundled with the repository under `editors/vscode/`.
 2. Install the extension from the command line:
 
    ```bash
-   code --install-extension /path/to/downloaded/t-lang-0.51.0.vsix
+   code --install-extension /path/to/downloaded/t-lang-<version>.vsix
    ```
 
    In Positron, use the equivalent `positron` command if it is available:
 
    ```bash
-   positron --install-extension /path/to/downloaded/t-lang-0.51.0.vsix
+   positron --install-extension /path/to/downloaded/t-lang-<version>.vsix
    ```
 
    If the command-line launcher is not available, open the editor, go to the Extensions view, click the `...` menu, and choose **Install from VSIX...**.
@@ -144,21 +146,27 @@ If you have already cloned the T repository locally:
 
 ```bash
 cd /absolute/path/to/tlang
-code --install-extension editors/vscode/t-lang-0.51.0.vsix
+code --install-extension editors/vscode/t-lang-<version>.vsix
 ```
 
 For Positron, replace `code` with `positron` if that command exists:
 
 ```bash
 cd /absolute/path/to/tlang
-positron --install-extension editors/vscode/t-lang-0.51.0.vsix
+positron --install-extension editors/vscode/t-lang-<version>.vsix
 ```
 
 ### Launch VS Code or Positron correctly
 
-The most common beginner mistake is launching the editor from a normal desktop shortcut. That often means the editor cannot find `t-lsp`.
+New projects scaffolded with `t init` already contain an `.envrc` (`use flake`)
+and a `.vscode/` folder recommending the T and direnv extensions. With the
+direnv extension installed, run `direnv allow` once in the project root — the
+editor then picks up the flake environment automatically, including `t-lsp`
+and the project R/Python interpreters.
 
-Do this instead:
+Without direnv, launch the editor from inside `nix develop` instead (the most
+common beginner mistake is launching from a normal desktop shortcut, which
+means the editor cannot find `t-lsp`):
 
 ```bash
 cd /absolute/path/to/your-t-project
@@ -187,13 +195,19 @@ Once the editor opens, open a `.t` file. Recommended entry points are:
 - Select several lines and press the same shortcut to send the selection.
 - Save files with the `.t` extension so the editor knows to activate T support.
 
-### R interpreter in Positron
+### R and Python interpreters in Positron
 
 On Linux, the project R environment (`r-env` in the generated `flake.nix`)
 exposes a wrapper that Positron recognises, so the project R — with all
-`[r-dependencies]` packages — appears as an R interpreter. After changing R
-dependencies, run `t update`, re-enter `nix develop`, and launch Positron from
-that shell:
+`[r-dependencies]` packages — appears as an R interpreter. The shell also
+exports `R_LIBS_SITE` from the wrapper, so Positron finds the packages even
+when it starts base R directly through direnv.
+
+Similarly, the project Python environment (`py-env`) is wrapped with `LD_LIBRARY_PATH`
+configured so that Positron's language server and IPyKernel components (such as Positron's
+bundled `pyzmq`, which requires `libstdc++.so.6`) launch seamlessly when selecting the Python
+interpreter in Positron. After changing dependencies, run `t update`, re-enter `nix develop`
+(or allow direnv), and launch Positron:
 
 ```bash
 cd /absolute/path/to/your-t-project

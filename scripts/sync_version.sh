@@ -30,4 +30,14 @@ sed -i "s/min_version = \"[0-9.]*\"/min_version = \"$VERSION\"/g" docs/project_d
 sed -i "s/tlang\/v[0-9.]*/tlang\/$TAG/g" docs/reproducibility.md
 sed -i "s/t_version: \"[0-9.]*\"/t_version: \"$VERSION\"/g" docs/reproducibility.md
 
+# VS Code/Positron extension version (used for the next .vsix build).
+# `npm version` updates both package.json and package-lock.json offline —
+# no network, no dependency resolution.
+if command -v npm >/dev/null 2>&1; then
+  (cd editors/vscode/extensions/t-lang && npm version "$VERSION" --no-git-tag-version --allow-same-version >/dev/null 2>&1) \
+    || echo "Warning: npm version failed; update package.json / package-lock.json by hand."
+else
+  echo "Warning: npm not found; update editors/vscode/extensions/t-lang/package.json and package-lock.json by hand."
+fi
+
 echo "Done. Please review changes and commit."

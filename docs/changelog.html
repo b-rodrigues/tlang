@@ -34,8 +34,130 @@
 </nav>
 <div class="container">
 <h1 id="changelog">Changelog</h1>
-<h2 id="section">[0.55.3] - 2026-09-26</h2>
+<h2 id="section">[0.55.4] - 2026-09-29</h2>
 <h3 id="new-features">New features</h3>
+<ul>
+<li><strong>Automatic editor setup in new projects</strong>:
+<code>t init</code> now writes an <code>.envrc</code>
+(<code>use flake</code>) and a <code>.vscode/</code> folder recommending
+the T and direnv extensions, so Positron and VS Code pick up the flake
+environment — including <code>t-lsp</code> and the project R/Python
+interpreters — after one <code>direnv allow</code>. Direnv state
+(<code>.direnv/</code>) is git-ignored in new projects and
+packages.</li>
+</ul>
+<h3 id="fixes">Fixes</h3>
+<ul>
+<li><p><strong>Default serializers no longer hang node builds</strong>:
+<code>default</code>/<code>^default</code> serializer/deserializer in T
+(and R/Python/Julia) nodes now resolve to the real reader/writer instead
+of emitting a call to a nonexistent <code>default</code> function.
+Calling a bare symbol is now an explicit <code>TypeError</code> instead
+of spinning at 100% CPU forever — this hung
+<code>model_capabilities_demo_t</code> on CI, where every
+<code>^default</code> model consumer sat until the job timed
+out.</p></li>
+<li><p><strong>Scaffolded <code>.gitignore</code> covers shell guard
+dirs</strong>: <code>.t_python_guard/</code> and
+<code>.t_r_profile/</code>, created on every <code>nix develop</code>
+entry, are now ignored in new projects and packages, so
+<code>t update</code>’s clean-tree check passes on fresh
+scaffolds.</p></li>
+<li><p><strong>Plot render paths are Nix-escaped</strong>:
+<code>show_plot</code> now quotes project, config, and artifact paths
+with <code>nix_double_quote</code> instead of OCaml <code>%S</code>,
+closing the same <code>${...}</code> interpolation gap already fixed for
+git strings. Verified no other Nix emitters still use
+<code>%S</code>.</p></li>
+<li><p><strong>Reassigning a captured outer data variable inside a node
+block is now an error</strong>: <code>{ y = 1; x := y + 1; x }</code>
+where <code>x</code> comes from outside the pipeline used to build, then
+return the stale outer value (or fail in the sandbox, where the outer
+binding does not exist). Pipeline construction now rejects this with a
+<code>NameError</code> telling you to bind the name locally first.
+Quoted code (<code>to_expr</code>/<code>quo</code>) and function or
+builtin names follow runtime rules instead. Reassigning a sibling node
+name, a block-local name, or a lambda parameter still works, and later
+reads stay local.</p></li>
+<li><p><strong>Project shells stay pristine on the <code>nixpkgs</code>
+Python resolver</strong>: the C/C++ runtime libraries
+(<code>pkgs.stdenv.cc.cc.lib</code>, <code>pkgs.zlib</code>) now come
+only from the <code>py-env</code> wrapper, as before. The shell-wide
+<code>LD_LIBRARY_PATH</code> export (which also exposed <code>t</code>,
+R, and Julia to the project’s <code>libstdc++</code>) is gone for
+<code>nixpkgs</code> projects, avoiding <code>GLIBCXX_* not found</code>
+mismatches when the project’s <code>nixpkgs</code> pin differs from the
+one <code>t</code> was built against.</p></li>
+<li><p><strong>UV project shells wrap the venv instead of exporting
+globally</strong>: <code>mkVirtualEnv</code> output cannot carry
+<code>makeWrapperArgs</code> (it would be silently ignored), so
+<code>py-env</code> is now a <code>symlinkJoin</code> wrapper around a
+raw <code>py-venv</code> binding, prefixing <code>LD_LIBRARY_PATH</code>
+(C/C++ runtimes for editor tooling such as <code>pyzmq</code>,
+BLAS/Fortran for <code>numpy</code>) on every venv binary except sourced
+<code>activate</code> files. Verified end to end:
+<code>import numpy</code> works in the shell, the wrapper
+<code>LD_LIBRARY_PATH</code> is visible only to Python processes, and
+the shell itself carries no project libraries. Node builds are unchanged
+(raw venv, per-derivation libs).</p></li>
+<li><p><strong><code>R_LIBS_SITE</code> re-export handles empty
+output</strong>: when <code>R</code> prints nothing, the shell no longer
+prepends a stray leading <code>:</code> to the variable, <code>R</code>
+stderr is silenced, and project/site init files
+(<code>--no-init-file --no-site-file</code>) no longer run on every
+shell entry.</p></li>
+<li><p><strong><code>t demo</code> no longer writes into the current
+project</strong>: the demo builds inside a fresh temporary directory
+instead of writing <code>_pipeline/</code> state into wherever it was
+launched, and the caching narration no longer claims a cache hit
+unconditionally. The temp dir is removed on exit, including via the REPL
+handoff.</p></li>
+<li><p><strong><code>sync_version.sh</code> bumps the extension
+offline</strong>: a single <code>npm version</code> call updates both
+<code>package.json</code> and <code>package-lock.json</code> with no
+network access, so the two files cannot drift after a release.</p></li>
+<li><p><strong>Positron Python interpreter startup</strong>: Project
+Python environments (<code>py-env</code> in generated
+<code>flake.nix</code>) are now wrapped with
+<code>LD_LIBRARY_PATH</code> containing C/C++ runtime libraries
+(<code>pkgs.stdenv.cc.cc.lib</code> and <code>pkgs.zlib</code>). This
+allows Positron’s bundled language server and IPyKernel dependencies
+(specifically <code>pyzmq</code>, which requires
+<code>libstdc++.so.6</code>) to start up successfully when selecting the
+project Python interpreter on Linux.</p></li>
+<li><p><strong>Positron finds R packages</strong>: Project shells export
+<code>R_LIBS_SITE</code>, so Positron lists and loads all
+<code>[r-dependencies]</code> packages through direnv even when it
+starts base R directly instead of the project wrapper. The development
+shell R environment also includes the <code>tlang</code> companion
+package, so <code>library(tlang)</code> works from the
+terminal.</p></li>
+<li><p><strong>UV Python nodes import numpy/pandas</strong>: UV
+workspaces (<code>resolver = "uv"</code>) now provide system BLAS and
+Fortran libraries at run time, so <code>import numpy</code> no longer
+fails with a missing <code>libblas.so.3</code>. The libraries apply to
+UV nodes and shells only; <code>nixpkgs</code> Python nodes (such as
+<code>scipy</code> and <code>seaborn</code>) keep their own tested
+libraries.</p></li>
+<li><p><strong><code>pipeline_copy()</code> no longer forces full
+rebuilds</strong>: The default <code>pipeline-output/</code> directory
+is excluded from pipeline sources, so copying artifacts at the end of a
+pipeline does not change the source hash and does not invalidate the
+node cache on the next run.</p></li>
+<li><p><strong>Pipeline blocks respect local shadowing</strong>: A
+variable assigned inside a node command block now resolves to the local
+binding instead of an outer variable with the same name.</p></li>
+<li><p><strong>Piped quotations stay quoted</strong>:
+<code>to_expr(...) |&gt; f()</code> now forwards the expression like a
+normal call instead of evaluating the quoted code a second
+time.</p></li>
+<li><p><strong>R git sources are Nix-safe</strong>: Package names, URLs,
+revisions, and subdirectory paths from <code>tproject.toml</code> are
+escaped, so special characters cannot break generated flake
+evaluation.</p></li>
+</ul>
+<h2 id="section-1">[0.55.3] - 2026-09-26</h2>
+<h3 id="new-features-1">New features</h3>
 <ul>
 <li><strong><code>renv+toml</code> R resolver (union mode)</strong>: Set
 <code>[r-dependencies] resolver = "renv+toml"</code> to use the union of
@@ -55,8 +177,8 @@ or switch to <code>renv+toml</code>. Caution: <code>renv+toml</code>
 ends single-source truth. Impure install commands (such as
 <code>R -e 'renv::install(...)'</code>) are never suggested.</li>
 </ul>
-<h2 id="section-1">[0.55.2] - 2026-09-26</h2>
-<h3 id="fixes">Fixes</h3>
+<h2 id="section-2">[0.55.2] - 2026-09-26</h2>
+<h3 id="fixes-1">Fixes</h3>
 <ul>
 <li><strong>Pipelines with R Git packages build again</strong>: R code
 that loads a package from Git — via <code>renv.lock</code> or via
@@ -74,8 +196,8 @@ dependency prompts now cover <code>requireNamespace()</code> and
 <code>require()</code>, and <code>pkg::</code>. Names inside string
 literals and <code>#</code> comments cause no prompt.</li>
 </ul>
-<h2 id="section-2">[0.55.1] - 2026-09-23</h2>
-<h3 id="new-features-1">New features</h3>
+<h2 id="section-3">[0.55.1] - 2026-09-23</h2>
+<h3 id="new-features-2">New features</h3>
 <ul>
 <li><strong><code>tlang</code> Quarto extension highlights T
 code</strong>: <code>{t}</code> chunks now render with syntax
@@ -108,7 +230,7 @@ Vectorized.</li>
 matches CLI <code>t test</code> flags. <code>verbose = true</code>
 prints per-file error details.</li>
 </ul>
-<h3 id="fixes-1">Fixes</h3>
+<h3 id="fixes-2">Fixes</h3>
 <ul>
 <li><strong>Positron R interpreter discovery</strong>: Project R
 environments (<code>r-env</code> in generated <code>flake.nix</code>)
@@ -216,7 +338,7 @@ from roxygen <code>@import</code>/<code>@importFrom</code> tags,
 Base packages are excluded. Discovery installs packages; code must still
 attach them (issue 473).</li>
 </ul>
-<h2 id="section-3">[0.55.0] - 2026-08-11</h2>
+<h2 id="section-4">[0.55.0] - 2026-08-11</h2>
 <h3 id="breaking-changes">Breaking Changes</h3>
 <ul>
 <li><strong>Arrow IPC serializer renamed <code>^arrow</code> →
@@ -641,7 +763,7 @@ value.</li>
 very negative <code>Datetime</code> counterexamples shrink correctly
 instead of overflowing a 32-bit intermediate.</li>
 </ul>
-<h2 id="section-4">[0.54.3] - 2026-08-01</h2>
+<h2 id="section-5">[0.54.3] - 2026-08-01</h2>
 <h3 id="pipeline-validation-fixes">Pipeline Validation Fixes</h3>
 <ul>
 <li><strong><code>text</code> is now treated as format-agnostic raw
@@ -773,7 +895,7 @@ guarantees.</li>
 error</strong> and returns the pipeline unchanged when valid, for
 guard-style use in pipeline chains.</li>
 </ul>
-<h2 id="section-5">[0.54.2] - 2026-07-29</h2>
+<h2 id="section-6">[0.54.2] - 2026-07-29</h2>
 <h3 id="testcraft-testing-package"><code>testcraft</code> — Testing
 Package</h3>
 <ul>
@@ -875,7 +997,7 @@ fix</strong>: Coverage cleaning and discovery now check both the project
 directory and the current working directory for <code>.coverage</code>
 files.</li>
 </ul>
-<h2 id="section-6">[0.54.1] - 2026-07-20</h2>
+<h2 id="section-7">[0.54.1] - 2026-07-20</h2>
 <h3 id="type-system-annotations-and-inference">Type System: Annotations
 and Inference</h3>
 <ul>
@@ -1105,7 +1227,7 @@ commands.</li>
 <li><strong><code>write_parquet(data, path)</code></strong>: Write a
 DataFrame to a Parquet file via Arrow.</li>
 </ul>
-<h2 id="section-7">[0.54.0] - 2026-07-08</h2>
+<h2 id="section-8">[0.54.0] - 2026-07-08</h2>
 <h3 id="pipeline-diagnostics">Pipeline &amp; Diagnostics</h3>
 <ul>
 <li><strong>SoftFailed Node Classification</strong>: Fixed
@@ -1279,7 +1401,7 @@ returns its SHA-256 hash, usable as the <code>sha256</code> argument to
 <code>fetchurl</code>. Enables a two-step workflow: compute the hash
 upfront, then pin it in a pipeline for reproducible builds.</li>
 </ul>
-<h2 id="section-8">[0.53.3] - 2026-06-26</h2>
+<h2 id="section-9">[0.53.3] - 2026-06-26</h2>
 <h3 id="toolchain-ci-updates">Toolchain &amp; CI Updates</h3>
 <ul>
 <li><strong>Nixpkgs Snapshot &amp; Package Updates</strong>: Updated the
@@ -1332,7 +1454,7 @@ distribution quantile, via binary search on <code>pchisq</code>.</li>
 <li>Enables power analysis and exact p-value thresholds natively in T
 without calling R.</li>
 </ul>
-<h2 id="section-9">[0.53.2] - 2026-06-24</h2>
+<h2 id="section-10">[0.53.2] - 2026-06-24</h2>
 <h3 id="hotfix">Hotfix</h3>
 <ul>
 <li><strong>Nix Flake Update / Maven Dependency Parity</strong>: Fixed
@@ -1341,7 +1463,7 @@ for the <code>jpmml-evaluator</code> library (used for PMML model
 scoring). The nixpkgs fetch source hash has been updated to restore
 local build compatibility.</li>
 </ul>
-<h2 id="section-10">[0.53.1] - 2026-06-24</h2>
+<h2 id="section-11">[0.53.1] - 2026-06-24</h2>
 <h3 id="hotfix-1">Hotfix</h3>
 <p>Fix for https://github.com/b-rodrigues/tlang/issues/434</p>
 <p>jpmm-statsmodels PR is not yet merged into NixOS/nixpkgs master
@@ -1394,7 +1516,7 @@ Fixes</h3>
 before the global environment, enabling dynamic column name
 resolution.</li>
 </ul>
-<h2 id="section-11">[0.53.0] - 2026-06-22</h2>
+<h2 id="section-12">[0.53.0] - 2026-06-22</h2>
 <p>This release:</p>
 <ul>
 <li><strong>Atelier TUI IDE Integration</strong>: This release
@@ -1496,7 +1618,7 @@ inside assignment/reassignment statements. The error is bound to the
 variable and propagated correctly, enabling robust recovery patterns via
 subsequent <code>match</code> blocks.</li>
 </ul>
-<h2 id="section-12">[0.52.3] - 2026-06-12</h2>
+<h2 id="section-13">[0.52.3] - 2026-06-12</h2>
 <p>This release:</p>
 <ul>
 <li>introduces a new meta-pipeline composition feature
@@ -1845,7 +1967,7 @@ code.</li>
 Checklist to <code>AGENTS.md</code> as a permanent reference for future
 contributions.</li>
 </ul>
-<h2 id="section-13">[0.52.2] - 2026-05-31</h2>
+<h2 id="section-14">[0.52.2] - 2026-05-31</h2>
 <p>This release introduces interactive pipeline node debugging via
 <code>debug_node</code>, native Nix orchestration features for granular
 rebuild control, job parallelisation, Cachix binary caching, and
@@ -2068,7 +2190,7 @@ values containing non-ASCII characters (accented letters, symbols like
 <code>explain()</code> tree output, instead of being shown as raw byte
 sequences such as <code>\226\134\146</code>.</li>
 </ul>
-<h2 id="section-14">[0.52.1] - 2026-05-22</h2>
+<h2 id="section-15">[0.52.1] - 2026-05-22</h2>
 <p>This release finalizes end-to-end Julia ONNX serialization support,
 fixes pipeline compiler strategy dictionary parsing issues, strengthens
 runtime safety by protecting reserved keywords, and completes the
@@ -2422,7 +2544,7 @@ better reflect its purpose of appending model-level diagnostics
 names and remove deprecated aliases.</li>
 </ul></li>
 </ul>
-<h2 id="section-15">[0.51.5] - 2026-05-08</h2>
+<h2 id="section-16">[0.51.5] - 2026-05-08</h2>
 <p>The focus of this release was to improve language ergonomics for data
 guardrails, enhance package manager feedback, and increase test coverage
 across all packages.</p>
@@ -2651,7 +2773,7 @@ process.</li>
 streamline local reporting workflows.</li>
 </ul></li>
 </ul>
-<h2 id="section-16">[0.51.4] - 2026-04-30</h2>
+<h2 id="section-17">[0.51.4] - 2026-04-30</h2>
 <p><strong>Status</strong>: Beta</p>
 <h3 id="ai-agent-onboarding-context-tiering">AI Agent Onboarding &amp;
 Context Tiering</h3>
@@ -2914,7 +3036,7 @@ Dictionaries. The system now correctly restores the native
 <code>Error</code> type across node boundaries, even when using modern
 JSON interchange.</li>
 </ul>
-<h2 id="section-17">[0.51.3] - 2026-04-12</h2>
+<h2 id="section-18">[0.51.3] - 2026-04-12</h2>
 <p><strong>Status</strong>: Beta</p>
 <h3 id="pipeline-infrastructure-observability">Pipeline Infrastructure
 &amp; Observability</h3>
@@ -3211,7 +3333,7 @@ sweep to remove legacy version strings and hardcoded formatting in
 installation and project guides.</li>
 </ul>
 <p>Version history and roadmap for the T programming language.</p>
-<h2 id="section-18">[0.51.1] - 2026-03-21</h2>
+<h2 id="section-19">[0.51.1] - 2026-03-21</h2>
 <p><strong>Status</strong>: Beta <strong>Release Date</strong>: 21st of
 March 2026</p>
 <h3 id="features-cli">Features &amp; CLI</h3>

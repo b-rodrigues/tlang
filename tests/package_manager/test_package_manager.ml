@@ -336,6 +336,17 @@ packages = []
     && Test_helpers.contains nix "rGitPkgs = builtins.attrValues rGitPkgSet;"
     && Test_helpers.contains nix "] ++ rGitPkgs;");
 
+  test_pm "nix_generator escapes Nix interpolation in git R dep strings" (fun () ->
+    let evil = "${builtins.abort \"pwned\"}" in
+    let pkg : Package_types.r_git_dependency =
+      { rgd_name = "evilPkg"; rgd_git_url = "https://example.com/" ^ evil; rgd_rev = "abc1234def5678"; rgd_cran_inputs = []; rgd_git_inputs = []; rgd_subdir = None }
+    in
+    let nix = Nix_generator.generate_project_flake
+      ~project_name:"test" ~nixpkgs_date:"2024-01-01" ~t_version:"0.54.0"
+      ~uv2nix_commit:"dummy" ~deps:[] ~r_git_deps:[pkg] () in
+    Test_helpers.contains nix "\\${builtins.abort"
+    && not (Test_helpers.contains nix evil));
+
   test_pm "nix_generator deduplicates duplicate git R deps by name" (fun () ->
     let pkg1 : Package_types.r_git_dependency =
       { rgd_name = "myPkg"; rgd_git_url = "https://github.com/user/myPkg"; rgd_rev = "abc1234def5678"; rgd_cran_inputs = []; rgd_git_inputs = []; rgd_subdir = None }
@@ -1454,6 +1465,8 @@ workspace = "python"
         && Sys.file_exists (Filename.concat dir "README.md")
         && Sys.file_exists (Filename.concat dir "LICENSE")
         && Sys.file_exists (Filename.concat dir "src/main.t")
+        && Sys.file_exists (Filename.concat dir ".envrc")
+        && Sys.file_exists (Filename.concat dir ".vscode/extensions.json")
         && Sys.file_exists (Filename.concat dir (Printf.sprintf "tests/test-%s.t" (Filename.basename dir)))
         && Sys.is_directory (Filename.concat dir "tests")
         && Sys.is_directory (Filename.concat dir "examples")
@@ -1491,6 +1504,9 @@ workspace = "python"
         && Sys.file_exists (Filename.concat dir "flake.nix")
         && Sys.file_exists (Filename.concat dir "LICENSE")
         && Sys.file_exists (Filename.concat dir "src/pipeline.t")
+        && Sys.file_exists (Filename.concat dir ".envrc")
+        && Sys.file_exists (Filename.concat dir ".vscode/extensions.json")
+        && Sys.file_exists (Filename.concat dir ".vscode/settings.json")
         && Sys.is_directory (Filename.concat dir "data")
         && Sys.is_directory (Filename.concat dir "outputs")
         && not (Sys.file_exists (Filename.concat dir "tests"))
@@ -1517,13 +1533,45 @@ workspace = "python"
           let ic = open_in gi_path in
           let content = really_input_string ic (in_channel_length ic) in
           close_in ic;
-          let needle = ".t_r_pkg_cache/" in
-          let n = String.length content and m = String.length needle in
-          m <= n &&
-          (let rec loop i =
-             i <= n - m && (String.sub content i m = needle || loop (i + 1))
-           in loop 0)
+          let has needle =
+            let n = String.length content and m = String.length needle in
+            m <= n &&
+            (let rec loop i =
+               i <= n - m && (String.sub content i m = needle || loop (i + 1))
+             in loop 0)
+          in
+          has ".t_r_pkg_cache/"
+          && has ".t_python_guard/"
+          && has ".t_r_profile/"
         end
+      | Error _ -> false
+    in
+    ignore (Sys.command (Printf.sprintf "rm -rf %s" (Filename.quote dir)));
+    ok);
+
+  test_pm "scaffolded .envrc loads the flake and recommends T + direnv extensions" (fun () ->
+    let dir = temp_dir () in
+    let opts = { (Package_types.default_options dir) with
+                 target_name = Filename.basename dir;
+                 no_git = true } in
+    let old_cwd = Sys.getcwd () in
+    Sys.chdir (Filename.dirname dir);
+    let result = Scaffold.scaffold_project opts in
+    Sys.chdir old_cwd;
+    let read_all path =
+      let ic = open_in path in
+      let content = really_input_string ic (in_channel_length ic) in
+      close_in ic;
+      content
+    in
+    let ok = match result with
+      | Ok () ->
+        Sys.file_exists (Filename.concat dir ".envrc")
+        && read_all (Filename.concat dir ".envrc") = "use flake\n"
+        && Test_helpers.contains
+             (read_all (Filename.concat dir ".vscode/extensions.json")) "t-lang.t-lang"
+        && Test_helpers.contains
+             (read_all (Filename.concat dir ".vscode/extensions.json")) "mkhl.direnv"
       | Error _ -> false
     in
     ignore (Sys.command (Printf.sprintf "rm -rf %s" (Filename.quote dir)));
@@ -1748,10 +1796,19 @@ workspace = "python"
     && has "R_HOME_DIR="
     && has ".R-elf"
     && not (has "modifiedRWrapper =")
-    && not (has "packages = []")
-    && has "py-env = pkgs.python314.withPackages"
+    && has "py-env = (pkgs.python314.withPackages"
+    && has "makeWrapperArgs = ["
+    && has "LD_LIBRARY_PATH"
     && has "export PYTHONPATH=\"${t-lang.packages.${system}.default}/share/tlang/py-package/src:''${PYTHONPATH:-}\""
-    && has "export JULIA_LOAD_PATH=\":${t-lang.packages.${system}.tlang-julia-path}:''${JULIA_LOAD_PATH:-}\"");
+    (* nixpkgs resolver: py-env wrapper carries cc/zlib; the shell stays
+       pristine (no global LD_LIBRARY_PATH, no openblas) so t/R/Julia keep
+       their own libstdc++ (b23fa59). *)
+    && not (has "export LD_LIBRARY_PATH=")
+    && not (has "openblas")
+    && has "export JULIA_LOAD_PATH=\":${t-lang.packages.${system}.tlang-julia-path}:''${JULIA_LOAD_PATH:-}\""
+    && has "export R_LIBS_SITE="
+    && has "_t_r_libs="
+    && has "R --no-init-file --no-site-file --slave --no-restore");
 
   test_pm "generate project flake with uv Python resolver" (fun () ->
     let flake = Nix_generator.generate_project_flake
@@ -1769,8 +1826,91 @@ workspace = "python"
     && has "pyproject-build-systems.url = \"github:pyproject-nix/build-system-pkgs\""
     && has "pyWorkspace = uv2nix.lib.workspace.loadWorkspace"
     && has "workspaceRoot = ./. + \"/python\""
-    && has "py-env = pySet.mkVirtualEnv \"t-python-uv-env\" pyWorkspace.deps.default"
-    && not (has "pkgs.python314.withPackages"));
+    && has "py-venv = pySet.mkVirtualEnv \"t-python-uv-env\" pyWorkspace.deps.default"
+    && not (has "pkgs.python314.withPackages")
+    (* uv resolver: mkVirtualEnv carries no wrapper, so py-env wraps the venv
+       binaries explicitly (sourced activate files excluded). No global shell
+       export: libs stay scoped to Python processes, t/R/Julia keep theirs. *)
+    && has "py-env = pkgs.symlinkJoin {"
+    && has "paths = [ py-venv ]"
+    && has "nativeBuildInputs = [ pkgs.makeWrapper ]"
+    && has "activate* | Activate*) continue ;;"
+    && has "libs=\"${pkgs.lib.makeLibraryPath (pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.stdenv.cc.cc.lib pkgs.zlib pkgs.openblas pkgs.gfortran.cc.lib ])}\""
+    && has "wrapProgram \"$f\" --prefix LD_LIBRARY_PATH : \"$libs\""
+    && has "pkgs.openblas"
+    && has "gfortran"
+    && not (has "export LD_LIBRARY_PATH="));
+
+  (* Opt-in real build of the exact wrapper Nix the emitter produces (see
+     Nix_generator.uv_venv_wrapper_nix). Off by default: needs nix-build, a
+     store daemon, and a resolvable <nixpkgs>. Enable with
+     TLANG_TEST_UV_WRAPPER=1. A mock venv stands in for mkVirtualEnv output
+     (same layout: bin/python binaries, console scripts, sourced activate
+     files, pyvenv.cfg); the wrapper snippet under test is the emitter's own
+     text, so emitter/wrapper drift fails loudly instead of silently. *)
+  test_pm "uv venv wrapper builds and scopes libs (opt-in real nix build)" (fun () ->
+    let enabled = match Sys.getenv_opt "TLANG_TEST_UV_WRAPPER" with
+      | Some ("1" | "true" | "yes") -> true | _ -> false in
+    let skip reason =
+      Printf.printf "  ○ uv wrapper build skipped (%s)\n" reason; true in
+    if not enabled then skip "set TLANG_TEST_UV_WRAPPER=1 to run"
+    else if Sys.command "command -v nix-build >/dev/null 2>&1" <> 0 then
+      skip "no nix-build"
+    else if Sys.command "test \"$(uname -s)\" = Linux" <> 0 then
+      skip "Linux-only (wrapper lib list is Linux-scoped)"
+    else if Sys.command "nix-instantiate --eval -E 'builtins.toFile \"t-uv-probe\" \"y\"' >/dev/null 2>&1" <> 0 then
+      skip "no Nix store daemon"
+    else if Sys.command "nix-instantiate --eval -E '<nixpkgs>' >/dev/null 2>&1" <> 0 then
+      skip "no resolvable <nixpkgs>"
+    else begin
+      let dir = Filename.temp_dir "t-uv-wrap-" "" in
+      let nix_file = Filename.concat dir "wrap.nix" in
+      let wrapper = Nix_generator.uv_venv_wrapper_nix "mockVenv" in
+      let content = Printf.sprintf {|let
+  pkgs = import <nixpkgs> {};
+in with pkgs;
+let
+  mockVenv = runCommand "mock-venv" {} ''
+    mkdir -p $out/bin $out/lib/python3.12/site-packages
+    printf '#!/bin/sh\necho "MOCK_MARKER LD=$LD_LIBRARY_PATH"\n' > $out/bin/python
+    chmod +x $out/bin/python
+    for b in python3 python3.12; do cp $out/bin/python $out/bin/$b; chmod +x $out/bin/$b; done
+    printf '#!/bin/sh\necho "TOOL_LD=$LD_LIBRARY_PATH"\n' > $out/bin/tool
+    chmod +x $out/bin/tool
+    printf '# mock activate (must stay sourcable)\nMOCK_WRAP_ACTIVATE=1\n' > $out/bin/activate
+    echo "home = /unused" > $out/pyvenv.cfg
+    touch $out/lib/python3.12/site-packages/marker
+  '';
+%s
+in runCommand "uv-wrapper-check" { buildInputs = [ py-env ]; } ''
+  set -e
+  for b in python python3 python3.12; do
+    got=$(${py-env}/bin/$b)
+    echo "$got" | grep -q MOCK_MARKER || (echo "missing marker for $b" >&2; exit 1)
+    echo "$got" | grep -q "LD=/nix/store" || (echo "no store libs for $b" >&2; exit 1)
+  done
+  [ -d ${py-env}/lib/python3.12/site-packages ] || (echo "site-packages missing" >&2; exit 1)
+  [ -f ${py-env}/pyvenv.cfg ] || (echo "pyvenv.cfg missing" >&2; exit 1)
+  ${py-env}/bin/tool | grep -q "TOOL_LD=/nix/store" || (echo "tool did not inherit libs" >&2; exit 1)
+  grep -q MOCK_WRAP_ACTIVATE ${py-env}/bin/activate || (echo "activate altered" >&2; exit 1)
+  ( . ${py-env}/bin/activate && [ "$MOCK_WRAP_ACTIVATE" = "1" ] ) || (echo "activate not sourcable" >&2; exit 1)
+  touch $out
+''
+|} wrapper in
+      let oc = open_out nix_file in
+      output_string oc content;
+      close_out oc;
+      let log_file = Filename.concat dir "build.log" in
+      let ok = Sys.command (Printf.sprintf "nix-build %s --no-out-link >%s 2>&1" (Filename.quote nix_file) (Filename.quote log_file)) = 0 in
+      (if not ok then
+         match (try Some (open_in log_file) with _ -> None) with
+         | None -> ()
+         | Some ic ->
+             (try while true do Printf.eprintf "%s\n" (input_line ic) done
+              with End_of_file -> close_in ic));
+      ignore (Sys.command (Printf.sprintf "rm -rf %s" (Filename.quote dir)));
+      ok
+    end);
 
   print_newline ();
 

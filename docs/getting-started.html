@@ -155,31 +155,41 @@ are already familiar with how Nix manages environments.</p>
 <h4 id="pipeline-templates">Pipeline Templates</h4>
 <p>When initializing a project, T supports two pipeline templates:</p>
 <ul>
-<li><strong><code>minimal</code></strong>: (Default) Generates a simple,
-barebones pipeline inside <code>src/pipeline.t</code> so you can start
-writing code from scratch immediately.</li>
-<li><strong><code>full</code></strong>: Generates a rich, comprehensive
-archetypical pipeline cheatsheet inside <code>src/pipeline.t</code>.
-This acts as a complete guide that demonstrates polyglot node
-integration (Python, R, Julia, Shell, Quarto), data
-serialization/deserialization, environment variables, exit handling, and
-metadata retrieval functions (e.g., <code>read_node</code>,
-<code>read_pipeline</code>, <code>pipeline_to_frame</code>,
-<code>pipeline_copy</code>).</li>
+<li><strong><code>minimal</code></strong>: Generates a simple, barebones
+pipeline inside <code>src/pipeline.t</code> so you can start writing
+code from scratch immediately.</li>
+<li><strong><code>full</code></strong>: (Default) Generates a rich,
+comprehensive archetypical pipeline cheatsheet inside
+<code>src/pipeline.t</code>. This acts as a complete guide that
+demonstrates polyglot node integration (Python, R, Julia, Shell,
+Quarto), data serialization/deserialization, environment variables, exit
+handling, and metadata retrieval functions (e.g.,
+<code>read_node</code>, <code>read_pipeline</code>,
+<code>pipeline_to_frame</code>, <code>pipeline_copy</code>).</li>
 </ul>
+<p>This scaffolds a complete, reproducible analysis project. By default,
+it sets up: - A runnable <code>src/pipeline.t</code> template
+demonstrating polyglot pipeline nodes. - A declarative
+<code>tproject.toml</code> tracking your language packages and runtimes.
+- A hermetic <code>flake.nix</code> that locks dependencies across Linux
+and macOS. - Built-in AI agent context files (<code>AGENTS.md</code> and
+<code>T-LANGUAGE-REFERENCE.md</code>) so coding assistants like Claude
+Code, Cursor, and Copilot understand T syntax immediately.</p>
 <h4 id="workspace-layout">Workspace Layout</h4>
 <p>The generated project has the following directory structure:</p>
 <pre class="text"><code>my_analysis/
-├── tproject.toml       # Project configuration and dependencies
-├── flake.nix           # Reproducible environment definition
-├── README.md           # Project overview
-├── AGENTS.md           # Onboarding guide for AI Agents
-├── T-LANGUAGE-REFERENCE.md # Tiered language reference for LLMs (git-ignored)
+├── tproject.toml           # Project configuration and package dependencies
+├── flake.nix               # Pinned Nix environment definition
+├── README.md               # Project documentation
+├── AGENTS.md               # Context and rules for AI coding assistants
+├── T-LANGUAGE-REFERENCE.md # Language reference guide (git-ignored)
+├── .envrc                  # direnv entry: loads the flake environment (`direnv allow` once)
+├── .vscode/                # Recommended extensions (T, direnv) and workspace settings
 ├── src/
-│   └── pipeline.t      # Your main analysis script (minimal or full template)
-├── data/               # Place your raw data files here
-├── outputs/            # Output directory for results
-└── tests/              # Unit tests for your analysis</code></pre>
+│   └── pipeline.t          # Your main analysis pipeline (minimal or full template)
+├── data/                   # Place raw input datasets here
+├── outputs/                # Output directory for results
+└── tests/                  # Pipeline and unit assertions</code></pre>
 <h3 id="ai-agent-onboarding">AI Agent Onboarding</h3>
 <p>T is designed to be highly compatible with AI-assisted development.
 When you run <code>t init</code>, the tool will prompt you for an

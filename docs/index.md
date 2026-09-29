@@ -1,98 +1,144 @@
-# T — The Orchestration Engine for Polyglot Data Science
+# T — Reproducible Pipelines for Polyglot Data Science
 
-T is a reproducibility-first domain-specific language (DSL) for polyglot data
-science. It provides a functional, immutable language for constructing
-composable *micropipelines*: first-class, introspectable computation graphs
-that coordinate R, Python, Julia, Quarto, and Shell execution within a unified
-system. Pipelines in T are not configuration artifacts but executable program
-structures with explicit dataflow, typed nodes, and content-addressed outputs.
-Artifacts are automatically serialized and exchanged across language boundaries,
-allowing polyglot workflows to compose without manual I/O glue code.
+**Use Julia, Python, and R for what they’re really good at — whatever that is for you. T orchestrates them.**
 
-Built on Nix, T integrates declarative environment management and deterministic
-builds at the language level, enabling reproducible execution across machines
-and operating systems. Workflow structure, dependency resolution, environment
-specification, and provenance tracking are intrinsic properties of the language
-rather than concerns delegated to external tooling. As a result, T is designed
-so that reproducible workflows are the default: reproducibility of your projects
-is not an afterthought anymore.
+Simulations in Julia, ML in Python, statistics in R — or the exact opposite. It doesn't matter how you divide the labor: the hard part of polyglot data science was never the languages, it was the fragile seam between them.
 
-T also includes a growing collection of data manipulation verbs inspired by the
-R tidyverse ecosystem, particularly packages such as dplyr, stringr, and
-lubridate. This makes it possible to perform exploratory data analysis directly
-from the T REPL before promoting computations into reproducible pipelines.
+A language for the LLM era, T is designed to be piloted by both humans and AI models. It gives you one hermetic dependency graph where your tools communicate without glue and execute consistently through space and time: on your laptop today, on a cluster tomorrow, and five years from now without bitrot.
 
-**Status:** Version 0.55.3 "L'Ultime combat".
+**Status:** Version 0.55.4 "L'Ultime combat".
 
 ---
 
-## The Polyglot Pipeline
+### Quick Setup (For People in a Hurry)
 
-T's core strength is its **mandatory pipeline architecture**. To execute code in
-T, you typically define it as a series of nodes in a directed acyclic graph
-(DAG). T handles the "glue":
+1. **[Install Nix](nix-installation.html)** (installs Nix and configures the `rstats-on-nix` cache in one step):
+   ```bash
+   curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | \
+     sh -s -- install --no-confirm --extra-conf "
+   trusted-users = root $USER
+   substituters = https://cache.nixos.org https://rstats-on-nix.cachix.org
+   trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= rstats-on-nix.cachix.org-1:vdiiVgocg6WeJrODIqdprZRUrhi1JzhBnXv7aWI6+F0="
+   ```
+2. **Try T immediately** in an ephemeral shell:
+   ```bash
+   nix shell --accept-flake-config github:b-rodrigues/tlang
+   ```
+3. **Scaffold a project** and enter its pinned environment:
+   ```bash
+   t init --project my_project && cd my_project && nix develop
+   ```
+*(See the [Nix Installation Guide](nix-installation.html) and [Getting Started Tutorial](getting-started.html) for full platform instructions).*
+
+---
+
+## Interactive Demo in 30 Seconds
+
+Run `t demo` right in your terminal to see pipeline introspection, hermetic Nix builds, Arrow in-memory inspection, caching, and first-class error handling in action:
+
+![T Interactive Demo](demo.gif)
+
+---
+
+## How It Looks in Practice
+
+A complete analysis that simulates non-linear data in Julia, fits a gradient-boosted regressor in Python, plots ground truth vs predictions in R, and compiles a Quarto report:
 
 ```t
--- A reproducible polyglot pipeline
 p = pipeline {
-  -- 1. Load data natively in T (CSV backend)
-  data = node(
-    command = read_csv("examples/sample_data.csv") |> filter($age > 25),
-    serializer = ^csv
+  -- 1. Simulate non-linear DGP in Julia (seeded)
+  sim_data = jln(
+    command = <{
+      using Random, DataFrames
+      Random.seed!(42)
+
+      t = 1:500
+      shock = cumsum(randn(500))
+      DataFrame(time = t, shock = shock, signal = sin.(t ./ 20) .+ shock .* 0.2)
+    }>,
+    serializer = ^ipc
   )
 
-  -- 2. Train a statistical model in R (using the rn() wrapper)
-  model_r = rn(
-    command = <{ lm(score ~ age, data = data) }>,
-    serializer = ^pmml,
-    deserializer = ^csv
+  -- 2. Train non-linear model & predict in Python (scikit-learn)
+  predictions = pyn(
+    command = <{
+from sklearn.ensemble import HistGradientBoostingRegressor
+
+X = sim_data[['time', 'shock']]
+y = sim_data['signal']
+model = HistGradientBoostingRegressor(random_state=42).fit(X, y)
+sim_data['pred'] = model.predict(X)
+sim_data
+    }>,
+    deserializer = [sim_data: ^ipc],
+    serializer = ^ipc
   )
 
-  -- 3. Predict natively in T (no R/Python runtime needed for evaluation!)
-  predictions = node(
-    command = data |> mutate($pred = predict(data, model_r)),
-    deserializer = ^pmml
+  -- 3. Publication figure in R (ggplot2)
+  plot = rn(
+    command = <{
+      library(ggplot2)
+
+      ggplot(predictions, aes(x = time)) +
+        geom_point(aes(y = signal), alpha = 0.3, color = "#7f8c8d") +
+        geom_line(aes(y = pred), color = "#e74c3c", linewidth = 1) +
+        labs(title = "Julia Simulation + Python ML Predictions", y = "Value") +
+        theme_minimal()
+    }>,
+    deserializer = [predictions: ^ipc]
   )
 
-  -- 4. Generate a shell report
-  report = shn(command = <{
-    printf 'R model results cached at: %s\n' "$T_NODE_model_r/artifact"
-  }>)
+  -- 4. Render reproducible Quarto report
+  report = node(script = "src/report.qmd", runtime = Quarto)
 }
 
--- Build the pipeline into reproducible Nix artifacts
 build_pipeline(p)
 ```
 
-Pipelines are not mandatory in the T REPL. This is a deliberate design choice
-intended to support exploratory data analysis and rapid experimentation before
-computations are promoted into reproducible pipelines. Users can also launch
-R, Python, or Julia REPLs directly from within a T project, inheriting the
-same pinned environments and project dependencies. This allows exploratory
-work to take place in familiar ecosystems while remaining integrated with T's
-reproducibility model.
+- **Zero manual I/O:** R returns the `ggplot` object directly; T's runner automatically renders and caches the visual artifact without `ggsave()`. DataFrames pass between nodes via Apache Arrow IPC (`^ipc`) without `read.csv()` or `to_csv()` glue.
+- **No vendor lock-in (use standalone scripts):** You don't have to embed code in `<{ ... }>` blocks. Nodes accept external script files directly (`jln(script = "sim.jl")`, `pyn(script = "train.py")`, `rn(script = "plot.R")`). Your Julia, Python, and R scripts remain ordinary standalone files that your team can run or reuse anywhere with standard tooling.
+- **First-class polyglot errors (no pipeline crashes):** If an error or exception occurs inside a node—whether in Python (`raise`), R (`stop()`), Julia (`error()`), or T (`error()`)—it does not crash the entire pipeline build. T captures the error at the sandbox boundary, serializes a structured `VError` artifact, and allows independent branches to complete. Downstream nodes can inspect the error with `read_node()` or `explain()`, or recover programmatically.
+- **Literate reporting:** The Quarto node compiles `src/report.qmd` into an HTML or PDF report inside the Nix sandbox, directly embedding upstream metrics and figures.
+- **Hermetic sandboxes:** Every node executes in an isolated Nix sandbox with pinned runtimes.
+- **Seeded & cached:** Julia and Python draws are explicitly seeded. Unchanged nodes resolve instantly from the content-addressed store.
 
 ---
 
-## T in relation to the big three data science languages
+## Why Polyglot Pipelines Break (And How T Fixes Them)
 
-T is not designed to replace your existing tools; it is designed to
-**orchestrate** them. It addresses the "dependency drift" and "works on my
-machine" syndrome by making **Nix mandatory**.
+Most modern quantitative projects in research, central banks, official statistics, and regulated industries are polyglot by necessity:
+- **Julia** is unmatched for raw numerical simulation, ODEs, and heavy optimization loops.
+- **Python** is the standard for modern machine learning and deep learning tooling.
+- **R** remains the gold standard for survey statistics, econometrics, and publication-ready reporting.
 
-- **Orchestration, Not Invention**: Use R for its statistics, Python for its
-  machine learning, and T to ensure they always talk to each other correctly via
-  high-performance formats like Apache Arrow.
-- **Strictly Functional & Immutable**: T eliminates side effects and mutable
-  state. If `a = 1 / 0`, then `a` is an `Error` value, not an exception. Logic
-  is auditable and predictable.
-- **Mandatory Reproducibility**: Every node in a T pipeline runs in its own
-  sandboxed Nix environment. T automatically detects dependencies and ensures
-  that if a node's inputs haven't changed, its results are pulled from the
-  cache.
-- **AI-Native Design**: Through features like `intent` blocks and structured
-  metadata, T is built for a future where humans and AI collaborate on complex
-  data workflows.
+Connecting them today forces you to choose between three bad options:
+
+| The Status Quo | The Failure Mode |
+|---|---|
+| **In-process FFI (`reticulate`, `PyCall`, `RCall`)** | Shared memory between multiple runtimes with competing garbage collectors and conflicting OpenMP/BLAS threads causes unexplained segfaults. Upgrading one runtime breaks the other. |
+| **Ad-hoc Bash scripts & CSVs** | No caching: tweaking a title in an R ggplot re-runs your 3-hour Julia simulation. Column types and missing values silently mutate during CSV export. |
+| **Chained Docker containers** | Huge container images, slow local development, impossible for an analyst to inspect or debug interactively on a laptop. |
+
+### How T handles the seam:
+
+1. **Process-level isolation:** Each foreign language node runs in its own isolated process. Julia's memory cannot corrupt R; Python's C-extensions cannot conflict with Julia's OpenMP threads.
+2. **First-class data exchange:** Data passes between nodes using Apache Arrow IPC (`^ipc`) and standard model serialization (`^onnx`, `^pmml`, `^csv`). No custom serialization glue scripts.
+3. **One pinned environment:** Under the hood, Nix locks your R packages, Python wheels, Julia depot, and underlying system C/Fortran libraries in one declarative manifest. When paired with seeded execution, your pipeline builds and executes deterministically across machines.
+4. **Polyglot soft-failures:** In conventional workflow engines, an uncaught exception in a single script aborts the entire DAG run. In T, errors are first-class values across all runtimes: failing nodes capture full tracebacks into structured `VError` artifacts while independent parallel branches continue uninterrupted.
+
+---
+
+## How T Compares
+
+| Feature | {targets} | {rixpress} | Snakemake | Docker (packaging only) | **T** |
+|---|:---:|:---:|:---:|:---:|:---:|
+| **Interface & Engine** | R package (`_targets.R`), host environment | R package API, Nix engine | Python / CLI DSL, Conda/host | Container image, Docker daemon | **Dedicated pipeline language, Nix engine** |
+| **Cross-language seam** | R-native (polyglot is bolted on) | R-native (Python nodes via `rixpress` helpers) | Shell scripts & CLI wrappers | Manual entrypoints & volume mounts | **Process-isolated IPC across R, Python, and Julia** |
+| **Intermediate I/O** | Automatic | Automatic | Manual file paths | Manual volumes & files | **Automatic (zero-boilerplate boundary transfer)** |
+| **Node caching** | Content-addressed (R) | Content-addressed (R) | Timestamp / file hash | Docker build layer cache | **Content-addressed (all nodes)** |
+| **System library locking** | ❌ (Delegates to host) | ✅ (Hermetic Nix) | ⚠️ (Optional Conda) | ✅ (Per image) | ✅ (Hermetic per-node Nix sandbox) |
+| **Interactive inspection** | ✅ (`tar_read()`) | ✅ (`read_node()`) | ⚠️ (File inspect only) | ❌ (Container attach) | ✅ (`read_node()`, `explain()`) |
+| **Error resilience** | ❌ (Aborts run) | ❌ (Aborts run) | ❌ (Aborts run) | ❌ (Container exits) | ✅ (First-class polyglot soft-failures) |
 
 ---
 
@@ -120,12 +166,7 @@ environment:
 | `json` | `Dict` / `List` | JSON parser |
 | `pmml` | `Model` | Native T model evaluator |
 
-### Looking into the "Entrails"
-
-If a node's serializer is not supported for automatic deserialization,
-`read_node()` returns the **Computed Node object** itself. This object contains
-all the metadata necessary to load the artifact manually or inspect its
-provenance.
+### Inspecting Built Nodes with `explain()`
 
 You can use `explain()` to look inside a built node:
 
@@ -144,14 +185,8 @@ You can use `explain()` to look inside a built node:
 }
 ```
 
-The `path` field is the "escape hatch": it gives you the absolute path to the
-node's output in the Nix store. You can use this to start an external
-interpreter and inspect the file directly, or pass it to a custom loader like
-`read_parquet(model_node.path)`.
-
-For a more streamlined experience, you can use our **[External Helper
-Packages](external-packages.html)** for R, Python, and Julia, which automate log
-resolution and deserialization from within those environments.
+The `path` field is the escape hatch: it gives you the absolute path to the
+node's output in the Nix store. You can inspect the artifact directly or pass it to external tools.
 
 ---
 
@@ -192,6 +227,7 @@ resolution and deserialization from within those environments.
 - [External Helper Packages](external-packages.html) — reading T artifacts from R, Python, and Julia
 
 ### Advanced Topics
+- [Technical Presentation](technical-presentation.html) — DSL design, formal semantics, Arrow IPC, and Nix sandboxing architecture
 - [Reproducibility Guide](reproducibility.html) — Nix integration and reproducible workflows
 - [LLM Collaboration](llm-collaboration.html) — intent blocks and AI-assisted development
 - [Quotation & Metaprogramming](quotation.html) — capturing and generating code

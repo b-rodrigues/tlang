@@ -151,6 +151,83 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     "not been built yet";
   print_newline ();
 
+  Printf.printf "Phase 3 — Block shadowing in node commands:\n";
+  (* A block-local assignment shadows an outer env var: later references must
+     stay local instead of inlining the outer value (substitute_env_vars walks
+     statements left to right; reassignment adds no new name). Assert on the
+     emitted node script so no Nix build is needed. *)
+  let (_, env_shadow) = eval_string_env "x = 100" (Packages.init_env ()) in
+  let (v_shadow, _) = eval_string_env
+    {|pipeline { a = node(command = { x = 1; x + 1 }) }|}
+    env_shadow in
+  (match v_shadow with
+   | Ast.VPipeline p ->
+       let nix = Nix_emit_pipeline.emit_pipeline p in
+       let has s = try ignore (Str.search_forward (Str.regexp_string s) nix 0); true
+                   with Not_found -> false in
+       if has "x = 1" && has "x + 1" && not (has "100 + 1") then
+         begin incr pass_count; Printf.printf "  ✓ block-local assignment shadows outer env var\n" end
+       else
+         begin incr fail_count; Printf.printf "  ✗ block shadowing leaked outer value into node script\n" end
+   | other ->
+       incr fail_count; Printf.printf "  ✗ block shadowing fixture failed: %s\n"
+         (Ast.Utils.value_to_string other));
+  (* Reassigning a captured outer variable is rejected at construction: the
+     node script runs in a fresh environment, so the target would dangle and
+     a trailing read would inline the stale outer value (100 instead of 2). *)
+  let (v_reassign_err, _) = eval_string_env
+    "x = 100; pipeline { a = node(command = { y = 1; x := y + 1; x }) }"
+    (Packages.init_env ()) in
+  (match v_reassign_err with
+   | Ast.VError err when (try ignore (Str.search_forward (Str.regexp_string "Cannot reassign variable `x`") err.message 0); true
+                         with Not_found -> false) ->
+       incr pass_count; Printf.printf "  ✓ reassigning a captured outer variable is rejected\n"
+   | other ->
+       incr fail_count; Printf.printf "  ✗ captured-outer reassignment not rejected: %s\n"
+         (Ast.Utils.value_to_string other));
+  (* Quoted code is exempt: it runs later, at runtime, so reassigning inside
+     to_expr must not fail construction (variable_vice_t pattern). *)
+  let (v_quoted, _) = eval_string_env
+    {|pipeline { a = node(command = { r = eval(to_expr({ print := 99 })); [out: r] }) }|}
+    (Packages.init_env ()) in
+  (match v_quoted with
+   | Ast.VPipeline _ ->
+       incr pass_count; Printf.printf "  ✓ reassignment inside to_expr passes construction\n"
+   | other ->
+       incr fail_count; Printf.printf "  ✗ quoted reassignment wrongly rejected: %s\n"
+         (Ast.Utils.value_to_string other));
+  (* Builtins are exempt: runtime owns the reserved-keyword error. *)
+  let (v_builtin, _) = eval_string_env
+    {|pipeline { a = node(command = { print := 99 }) }|}
+    (Packages.init_env ()) in
+  (match v_builtin with
+   | Ast.VPipeline _ ->
+       incr pass_count; Printf.printf "  ✓ builtin reassignment passes construction\n"
+   | other ->
+       incr fail_count; Printf.printf "  ✗ builtin reassignment wrongly rejected: %s\n"
+         (Ast.Utils.value_to_string other));
+  (* Reassignment of a block-local name is fine and stays local. The sentinel
+     outer binding proves no leakage: shadowing (x = 1) plus reassignment
+     must keep every later read local, so the emitted script contains the
+     exact local block and never the sentinel digits. *)
+  let (_, env_reassign) = eval_string_env "x = 424242" (Packages.init_env ()) in
+  let (v_reassign, _) = eval_string_env
+    {|pipeline { a = node(command = { x = 1; x := x + 1; x }) }|}
+    env_reassign in
+  (match v_reassign with
+   | Ast.VPipeline p ->
+       let nix = Nix_emit_pipeline.emit_pipeline p in
+       let has s = try ignore (Str.search_forward (Str.regexp_string s) nix 0); true
+                   with Not_found -> false in
+       if has "{ x = 1; x := (x + 1); x }" && not (has "424242") then
+         begin incr pass_count; Printf.printf "  ✓ block-local reassignment stays local\n" end
+       else
+         begin incr fail_count; Printf.printf "  ✗ block-local reassignment script unexpected\n" end
+   | other ->
+       incr fail_count; Printf.printf "  ✗ block-local reassignment fixture failed: %s\n"
+         (Ast.Utils.value_to_string other));
+  print_newline ();
+
   Printf.printf "Phase 3 — Pipeline Introspection:\n";
   let (v, _) = eval_string_env "pipeline_nodes(p)" env_p3 in
   let result = Ast.Utils.value_to_string v in

@@ -81,6 +81,11 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
   (* Safety net: only include actual nodes in this pipeline as Nix buildInputs.
      The evaluator already filters p_deps, but this guards against any edge cases. *)
   let deps = List.filter (fun d -> List.mem d all_pipeline_node_names) deps in
+  (* Invalid env var names cannot reach this emitter through the normal path:
+     eval.ml `lookup_env_vars` rejects them with a TypeError at pipeline
+     construction time. The filters below are defense-in-depth for direct
+     emitter callers: unknown shapes (non-stringable values) and invalid
+     names are dropped rather than emitting broken Nix. *)
   let is_valid_env_var_name key =
     let is_initial = function
       | 'A' .. 'Z' | 'a' .. 'z' | '_' -> true
@@ -365,6 +370,8 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
   let env_var_block =
     env_vars
     |> List.filter_map (fun (key, value) ->
+      if not (is_valid_env_var_name key) then None
+      else
       match env_value_to_string value with
       | Some s -> Some (Printf.sprintf "    %s = %s;" (nix_double_quote key) (nix_double_quote s))
       | None -> None
@@ -2154,10 +2161,10 @@ Base.setproperty!(ns::TlangNamespace, sym::Symbol, val) = (getfield(ns, :dict)[s
         let strategy = Nix_unparse.expr_to_string strategy_expr in
 
         let read_fns = match runtime with
-          | "R" -> [ "json", "r_read_json"; "ipc", "r_read_ipc"; "parquet", "r_read_parquet"; "pmml", "r_read_pmml"; "onnx", "r_read_onnx"; "csv", "r_read_csv"; ]
-          | "Python" -> [ "json", "py_read_json"; "ipc", "py_read_ipc"; "parquet", "py_read_parquet"; "pmml", "py_read_pmml"; "onnx", "py_read_onnx"; "csv", "py_read_csv"; ]
-          | "Julia" -> [ "json", "jl_read_json"; "ipc", "jl_read_ipc"; "parquet", "jl_read_parquet"; "pmml", "jl_read_pmml"; "onnx", "jl_read_onnx"; "csv", "jl_read_csv"; ]
-          | _ -> [ "json", "t_read_json"; "ipc", "read_ipc"; "parquet", "read_parquet"; "pmml", "t_read_pmml"; "onnx", "t_read_onnx"; "csv", "read_csv"; ]
+          | "R" -> [ "json", "r_read_json"; "ipc", "r_read_ipc"; "parquet", "r_read_parquet"; "pmml", "r_read_pmml"; "onnx", "r_read_onnx"; "csv", "r_read_csv"; "default", "readRDS"; ]
+          | "Python" -> [ "json", "py_read_json"; "ipc", "py_read_ipc"; "parquet", "py_read_parquet"; "pmml", "py_read_pmml"; "onnx", "py_read_onnx"; "csv", "py_read_csv"; "default", "deserialize"; ]
+          | "Julia" -> [ "json", "jl_read_json"; "ipc", "jl_read_ipc"; "parquet", "jl_read_parquet"; "pmml", "jl_read_pmml"; "onnx", "jl_read_onnx"; "csv", "jl_read_csv"; "default", "deserialize"; ]
+          | _ -> [ "json", "t_read_json"; "ipc", "read_ipc"; "parquet", "read_parquet"; "pmml", "t_read_pmml"; "onnx", "t_read_onnx"; "csv", "read_csv"; "default", "deserialize"; ]
         in
         let des_node_val = eval_expr_safe strategy_expr in
         let des_fn = match get_format des_node_val with
@@ -2326,13 +2333,13 @@ EOF|} k (Nix_utils.nix_escape_indented_code expr_str)
 
   let expr_s = Nix_unparse.unparse_expr expr in
   let ser_s = Nix_unparse.expr_to_string serializer in
-  let uses_default_serializer = ser_s = "default" in
+  let uses_default_serializer = ser_s = "default" || ser_fmt = Some "default" in
   let ser_call =
     let write_fns = match runtime with
-      | "R" -> [ "json", "r_write_json"; "ipc", "r_write_ipc"; "parquet", "r_write_parquet"; "pmml", "r_write_pmml"; "onnx", "r_write_onnx"; "csv", "r_write_csv"; ]
-      | "Python" -> [ "json", "py_write_json"; "ipc", "py_write_ipc"; "parquet", "py_write_parquet"; "pmml", "py_write_pmml"; "onnx", "py_write_onnx"; "csv", "py_write_csv"; ]
-      | "Julia" -> [ "json", "jl_write_json"; "ipc", "jl_write_ipc"; "parquet", "jl_write_parquet"; "pmml", "jl_write_pmml"; "onnx", "jl_write_onnx"; "csv", "jl_write_csv"; ]
-      | _ -> [ "json", "t_write_json"; "ipc", "write_ipc"; "parquet", "write_parquet"; "pmml", "t_write_pmml"; "onnx", "t_write_onnx"; "csv", "write_csv"; "text", "write_text"; ]
+      | "R" -> [ "json", "r_write_json"; "ipc", "r_write_ipc"; "parquet", "r_write_parquet"; "pmml", "r_write_pmml"; "onnx", "r_write_onnx"; "csv", "r_write_csv"; "default", "saveRDS"; ]
+      | "Python" -> [ "json", "py_write_json"; "ipc", "py_write_ipc"; "parquet", "py_write_parquet"; "pmml", "py_write_pmml"; "onnx", "py_write_onnx"; "csv", "py_write_csv"; "default", "serialize"; ]
+      | "Julia" -> [ "json", "jl_write_json"; "ipc", "jl_write_ipc"; "parquet", "jl_write_parquet"; "pmml", "jl_write_pmml"; "onnx", "jl_write_onnx"; "csv", "jl_write_csv"; "default", "jl_serialize"; ]
+      | _ -> [ "json", "t_write_json"; "ipc", "write_ipc"; "parquet", "write_parquet"; "pmml", "t_write_pmml"; "onnx", "t_write_onnx"; "csv", "write_csv"; "text", "write_text"; "default", "serialize"; ]
     in
     match get_format ser_val with
     | Some fmt ->
@@ -2876,6 +2883,15 @@ EOF
     | _ -> "t run --unsafe --mode repl node_script.t"
   in
 
+  (* UV workspaces (mkVirtualEnv) need system BLAS/Fortran at run time, but
+     nixpkgs withPackages nodes must stay pristine: injecting foreign BLAS
+     breaks scipy (MemoryError) and seaborn (segfault). Custom-flake nodes
+     resolve their own env, so they stay pristine too. *)
+  let ld_extra =
+    match flake_env_name with
+    | None -> "${if pyResolver == \"uv\" then \":${pkgs.openblas}/lib:${pkgs.gfortran.cc.lib}/lib\" else \"\"}"
+    | Some _ -> ""
+  in
   let output = Printf.sprintf {|
   %s = stdenv.mkDerivation {
     name = "%s";
@@ -2885,7 +2901,7 @@ EOF
     JULIA_COPY_STACKS = "1";
     MPLCONFIGDIR = ".";
     HOME = ".";
-    LD_LIBRARY_PATH = "${pkgs.gcc.cc.lib}/lib:${pkgs.avahi}/lib";
+    LD_LIBRARY_PATH = "${pkgs.gcc.cc.lib}/lib:${pkgs.avahi}/lib%s";
     PYTHONPATH = "${tBin}/share/tlang/py-package/src";
     JULIA_LOAD_PATH = ":${tlangJl}";
 %s
@@ -2917,7 +2933,7 @@ EOF
       %s
     '';
   };
- |} name name deps_inputs src_block env_var_block deps_nix_attrs deps_exports ext runtime_base_packages error_injection visualization_injection json_injection csv_injection ipc_injection parquet_injection pmml_injection onnx_injection pickle_injection imports_echo source_files hoisted_imports deps_script_lines quarto_read_node_substitutions assign_script_lines run_cmd
+ |} name name deps_inputs ld_extra src_block env_var_block deps_nix_attrs deps_exports ext runtime_base_packages error_injection visualization_injection json_injection csv_injection ipc_injection parquet_injection pmml_injection onnx_injection pickle_injection imports_echo source_files hoisted_imports deps_script_lines quarto_read_node_substitutions assign_script_lines run_cmd
   in
   match flake_env_name with
   | None -> output

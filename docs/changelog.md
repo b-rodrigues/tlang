@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.55.4] - 2026-09-29
+
+### New features
+
+- **Automatic editor setup in new projects**: `t init` now writes an `.envrc` (`use flake`) and a `.vscode/` folder recommending the T and direnv extensions, so Positron and VS Code pick up the flake environment — including `t-lsp` and the project R/Python interpreters — after one `direnv allow`. Direnv state (`.direnv/`) is git-ignored in new projects and packages.
+
+### Fixes
+
+- **Default serializers no longer hang node builds**: `default`/`^default` serializer/deserializer in T (and R/Python/Julia) nodes now resolve to the real reader/writer instead of emitting a call to a nonexistent `default` function. Calling a bare symbol is now an explicit `TypeError` instead of spinning at 100% CPU forever — this hung `model_capabilities_demo_t` on CI, where every `^default` model consumer sat until the job timed out.
+- **Scaffolded `.gitignore` covers shell guard dirs**: `.t_python_guard/` and `.t_r_profile/`, created on every `nix develop` entry, are now ignored in new projects and packages, so `t update`'s clean-tree check passes on fresh scaffolds.
+- **Plot render paths are Nix-escaped**: `show_plot` now quotes project, config, and artifact paths with `nix_double_quote` instead of OCaml `%S`, closing the same `${...}` interpolation gap already fixed for git strings. Verified no other Nix emitters still use `%S`.
+- **Reassigning a captured outer data variable inside a node block is now an error**: `{ y = 1; x := y + 1; x }` where `x` comes from outside the pipeline used to build, then return the stale outer value (or fail in the sandbox, where the outer binding does not exist). Pipeline construction now rejects this with a `NameError` telling you to bind the name locally first. Quoted code (`to_expr`/`quo`) and function or builtin names follow runtime rules instead. Reassigning a sibling node name, a block-local name, or a lambda parameter still works, and later reads stay local.
+- **Project shells stay pristine on the `nixpkgs` Python resolver**: the C/C++ runtime libraries (`pkgs.stdenv.cc.cc.lib`, `pkgs.zlib`) now come only from the `py-env` wrapper, as before. The shell-wide `LD_LIBRARY_PATH` export (which also exposed `t`, R, and Julia to the project's `libstdc++`) is gone for `nixpkgs` projects, avoiding `GLIBCXX_* not found` mismatches when the project's `nixpkgs` pin differs from the one `t` was built against.
+- **UV project shells wrap the venv instead of exporting globally**: `mkVirtualEnv` output cannot carry `makeWrapperArgs` (it would be silently ignored), so `py-env` is now a `symlinkJoin` wrapper around a raw `py-venv` binding, prefixing `LD_LIBRARY_PATH` (C/C++ runtimes for editor tooling such as `pyzmq`, BLAS/Fortran for `numpy`) on every venv binary except sourced `activate` files. Verified end to end: `import numpy` works in the shell, the wrapper `LD_LIBRARY_PATH` is visible only to Python processes, and the shell itself carries no project libraries. Node builds are unchanged (raw venv, per-derivation libs).
+- **`R_LIBS_SITE` re-export handles empty output**: when `R` prints nothing, the shell no longer prepends a stray leading `:` to the variable, `R` stderr is silenced, and project/site init files (`--no-init-file --no-site-file`) no longer run on every shell entry.
+- **`t demo` no longer writes into the current project**: the demo builds inside a fresh temporary directory instead of writing `_pipeline/` state into wherever it was launched, and the caching narration no longer claims a cache hit unconditionally. The temp dir is removed on exit, including via the REPL handoff.
+
+- **`sync_version.sh` bumps the extension offline**: a single `npm version` call updates both `package.json` and `package-lock.json` with no network access, so the two files cannot drift after a release.
+
+- **Positron Python interpreter startup**: Project Python environments (`py-env` in generated `flake.nix`) are now wrapped with `LD_LIBRARY_PATH` containing C/C++ runtime libraries (`pkgs.stdenv.cc.cc.lib` and `pkgs.zlib`). This allows Positron's bundled language server and IPyKernel dependencies (specifically `pyzmq`, which requires `libstdc++.so.6`) to start up successfully when selecting the project Python interpreter on Linux.
+- **Positron finds R packages**: Project shells export `R_LIBS_SITE`, so Positron lists and loads all `[r-dependencies]` packages through direnv even when it starts base R directly instead of the project wrapper. The development shell R environment also includes the `tlang` companion package, so `library(tlang)` works from the terminal.
+- **UV Python nodes import numpy/pandas**: UV workspaces (`resolver = "uv"`) now provide system BLAS and Fortran libraries at run time, so `import numpy` no longer fails with a missing `libblas.so.3`. The libraries apply to UV nodes and shells only; `nixpkgs` Python nodes (such as `scipy` and `seaborn`) keep their own tested libraries.
+- **`pipeline_copy()` no longer forces full rebuilds**: The default `pipeline-output/` directory is excluded from pipeline sources, so copying artifacts at the end of a pipeline does not change the source hash and does not invalidate the node cache on the next run.
+- **Pipeline blocks respect local shadowing**: A variable assigned inside a node command block now resolves to the local binding instead of an outer variable with the same name.
+- **Piped quotations stay quoted**: `to_expr(...) |> f()` now forwards the expression like a normal call instead of evaluating the quoted code a second time.
+- **R git sources are Nix-safe**: Package names, URLs, revisions, and subdirectory paths from `tproject.toml` are escaped, so special characters cannot break generated flake evaluation.
+
 ## [0.55.3] - 2026-09-26
 
 ### New features

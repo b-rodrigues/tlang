@@ -3,6 +3,54 @@
 
 open Package_types
 
+(* Shared shellHook fragment: re-export R_LIBS_SITE for editors (e.g. Positron)
+   that bypass the r-env wrapper and start base R directly. The wrapper sets
+   R_LIBS_SITE internally; direnv shells re-export it here. Empty R output
+   leaves any existing value untouched (no leading `:`), stderr is silenced. *)
+let r_libs_site_hook =
+  "            # Export R library paths for editors that bypass the r-env wrapper (e.g. Positron).\n" ^
+  "            # The r-env binary wrapper sets R_LIBS_SITE internally. Positron reads R_HOME_DIR\n" ^
+  "            # from the shim and then starts base R directly, so re-export here for direnv.\n" ^
+  "            if command -v R >/dev/null 2>&1; then\n" ^
+  "              _t_r_libs=\"$(R --no-init-file --no-site-file --slave --no-restore -e 'cat(Sys.getenv(\"R_LIBS_SITE\"))' 2>/dev/null)\"\n" ^
+  "              if [ -n \"$_t_r_libs\" ]; then\n" ^
+  "                export R_LIBS_SITE=\"$_t_r_libs:''${R_LIBS_SITE:-}\"\n" ^
+  "              fi\n" ^
+  "              unset _t_r_libs\n" ^
+  "            fi\n"
+
+(* Nix snippet wrapping a uv venv derivation so its binaries carry
+   LD_LIBRARY_PATH. [venv_var] is the Nix expression for the raw venv
+   (e.g. [py-venv]). mkVirtualEnv carries no wrapper (unlike withPackages,
+   makeWrapperArgs would be silently ignored), so wrap the venv binaries
+   explicitly. The wrapper scopes LD_LIBRARY_PATH to Python processes only:
+   a global shell export would leak the project's libstdc++ onto t, R, and
+   Julia. Sourced activate files are skipped — wrapping them would break
+   `source activate`. C/C++ runtimes cover editor tooling (e.g. pyzmq),
+   BLAS/Fortran covers numpy. Node builds keep the raw venv and scope their
+   libs per-derivation instead (see ld_extra). *)
+let uv_venv_wrapper_nix venv_var =
+  "        py-env = pkgs.symlinkJoin {\n" ^
+  "          name = \"t-python-uv-env\";\n" ^
+  "          paths = [ " ^ venv_var ^ " ];\n" ^
+  "          nativeBuildInputs = [ pkgs.makeWrapper ];\n" ^
+  "          postBuild = ''\n" ^
+  (* The lib list is Linux-only: LD_LIBRARY_PATH is a no-op on macOS, so
+     skip wrapping there instead of building openblas/gfortran into py-env
+     just to set an empty variable. The -n guard keeps macOS shells working
+     even if the list ever evaluates empty. *)
+  "            libs=\"${pkgs.lib.makeLibraryPath (pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.stdenv.cc.cc.lib pkgs.zlib pkgs.openblas pkgs.gfortran.cc.lib ])}\"\n" ^
+  "            for f in $out/bin/*; do\n" ^
+  "              case \"$(basename \"$f\")\" in\n" ^
+  "                activate* | Activate*) continue ;;\n" ^
+  "              esac\n" ^
+  "              if [ -f \"$f\" ] && [ -n \"$libs\" ]; then\n" ^
+  "                wrapProgram \"$f\" --prefix LD_LIBRARY_PATH : \"$libs\"\n" ^
+  "              fi\n" ^
+  "            done\n" ^
+  "          '';\n" ^
+  "        };\n"
+
 
 let julia_depot_sandbox_hook =
   "            # Create a local Julia depot directory for sandbox guards\n\
@@ -300,18 +348,18 @@ let generate_project_flake
       in
       let source_root =
         match g.rgd_subdir with
-        | Some s -> Printf.sprintf "            sourceRoot = %S;\n" ("source/" ^ s)
+        | Some s -> Printf.sprintf "            sourceRoot = %s;\n" (Nix_utils.nix_double_quote ("source/" ^ s))
         | None -> ""
       in
       Printf.bprintf buf {|          %s = pkgs.rPackages.buildRPackage {
-            pname = %S;
-            name = %S;
+            pname = %s;
+            name = %s;
             src = builtins.fetchGit {
-              url = %S;
-              rev = %S;
+              url = %s;
+              rev = %s;
             };
 %s%s          };
-|}        (nixify_r_pkg_name g.rgd_name) g.rgd_name g.rgd_name g.rgd_git_url g.rgd_rev source_root inputs_str
+|}        (nixify_r_pkg_name g.rgd_name) (Nix_utils.nix_double_quote g.rgd_name) (Nix_utils.nix_double_quote g.rgd_name) (Nix_utils.nix_double_quote g.rgd_git_url) (Nix_utils.nix_double_quote g.rgd_rev) source_root inputs_str
     ) r_git_deps;
     Buffer.add_string buf "        };\n";
     Buffer.add_string buf "        rGitPkgs = builtins.attrValues rGitPkgSet;\n";
@@ -363,14 +411,19 @@ let generate_project_flake
     Printf.bprintf buf "        pyWorkspace = uv2nix.lib.workspace.loadWorkspace { workspaceRoot = ./. + \"/%s\"; };\n" py_workspace;
     Buffer.add_string buf "        pyOverlay = pyWorkspace.mkPyprojectOverlay { sourcePreference = \"wheel\"; };\n";
     Printf.bprintf buf "        pySet = (pkgs.callPackage pyproject-nix.build.packages { python = pkgs.%s; }).overrideScope (pkgs.lib.composeManyExtensions [ pyOverlay pyproject-build-systems.overlays.default ]);\n" py_version;
-    Buffer.add_string buf "        py-env = pySet.mkVirtualEnv \"t-python-uv-env\" pyWorkspace.deps.default;\n";
+    Buffer.add_string buf "        py-venv = pySet.mkVirtualEnv \"t-python-uv-env\" pyWorkspace.deps.default;\n";
+    Buffer.add_string buf (uv_venv_wrapper_nix "py-venv");
   end else begin
-    Printf.bprintf buf "        py-env = pkgs.%s.withPackages (python-pkgs: with python-pkgs; [\n" py_version;
+    Printf.bprintf buf "        py-env = (pkgs.%s.withPackages (python-pkgs: with python-pkgs; [\n" py_version;
     Buffer.add_string buf "          deepdiff\n";
     List.iter (fun dep ->
       Printf.bprintf buf "          %s\n" dep
     ) py_deps;
-    Buffer.add_string buf "        ]);\n";
+    Buffer.add_string buf "        ])).override {\n";
+    Buffer.add_string buf "          makeWrapperArgs = [\n";
+    Buffer.add_string buf "            \"--prefix\" \"LD_LIBRARY_PATH\" \":\" \"${pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib pkgs.zlib ]}\"\n";
+    Buffer.add_string buf "          ];\n";
+    Buffer.add_string buf "        };\n";
   end;
   Buffer.add_string buf "\n";
   Buffer.add_string buf "        # Julia environment\n";
@@ -419,7 +472,12 @@ let generate_project_flake
     Buffer.add_string buf ":''${T_PACKAGE_PATH:-}\"\n"
   end;
   Printf.bprintf buf "            export PYTHONPATH=\"${t-lang.packages.${system}.default}/share/tlang/py-package/src:''${PYTHONPATH:-}\"\n";
+  (* No global LD_LIBRARY_PATH for either resolver: the nixpkgs py-env wrapper
+     and the uv venv wrapper above scope the runtime libs to Python processes
+     only, so t, R, and Julia keep their own libstdc++ (b23fa59). Node builds
+     scope their libs per-derivation instead (see ld_extra). *)
   Printf.bprintf buf "            export JULIA_LOAD_PATH=\":${t-lang.packages.${system}.tlang-julia-path}:''${JULIA_LOAD_PATH:-}\"\n";
+  Buffer.add_string buf r_libs_site_hook;
   Buffer.add_string buf julia_depot_sandbox_hook;
   Buffer.add_string buf r_profile_sandbox_hook;
   Buffer.add_string buf python_guard_sandbox_hook;

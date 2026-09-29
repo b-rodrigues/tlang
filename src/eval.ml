@@ -1763,50 +1763,152 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
     Error.make_error NameError
       (Printf.sprintf "Duplicate node name `%s` in pipeline." dup_name)
   | None ->
+  (* Direct child expressions of each AST form, shared by the substitution
+     walk and the reassignment check below: a new expression form is listed
+     in exactly one place per function. Both matches are deliberately
+     exhaustive (no wildcard) so that adding a constructor to Ast.expr_node
+     breaks the build here until both traversals account for it. Binder forms
+     (Block, Lambda) return [] because the callers thread scope themselves;
+     leaf and nested-pipeline forms return [] because substitution leaves
+     them untouched. *)
+  let child_exprs expr =
+    match expr.node with
+    | Call { fn; args } -> fn :: List.map snd args
+    | ListLit items -> List.map snd items
+    | DictLit pairs -> List.map snd pairs
+    | BinOp { left; right; _ } | BroadcastOp { left; right; _ } -> [ left; right ]
+    | UnOp { operand; _ } -> [ operand ]
+    | DotAccess { target; _ } -> [ target ]
+    | IfElse { cond; then_; else_ } -> [ cond; then_; else_ ]
+    | Match { scrutinee; cases } -> scrutinee :: List.map snd cases
+    | Unquote e | UnquoteSplice e -> [ e ]
+    | Value _ | Var _ | ColumnRef _ | Lambda _ | Block _
+    | RawCode _ | PipelineDef _ | PipelineOfDef _ | IntentDef _ | ShellExpr _ -> []
+  in
+
+  (* Rebuild an expression with each direct child transformed by [f].
+     Companion to [child_exprs]: same case list, same exhaustiveness guard,
+     so the two cannot drift apart. *)
+  let map_children f expr =
+    match expr.node with
+    | Call { fn; args } ->
+        { expr with node = Call { fn = f fn; args = List.map (fun (n, e) -> (n, f e)) args } }
+    | ListLit items ->
+        { expr with node = ListLit (List.map (fun (n, e) -> (n, f e)) items) }
+    | DictLit pairs ->
+        { expr with node = DictLit (List.map (fun (k, v) -> (k, f v)) pairs) }
+    | BinOp b ->
+        { expr with node = BinOp { b with left = f b.left; right = f b.right } }
+    | BroadcastOp b ->
+        { expr with node = BroadcastOp { b with left = f b.left; right = f b.right } }
+    | UnOp u ->
+        { expr with node = UnOp { u with operand = f u.operand } }
+    | DotAccess d ->
+        { expr with node = DotAccess { d with target = f d.target } }
+    | IfElse c ->
+        { expr with node = IfElse { cond = f c.cond; then_ = f c.then_; else_ = f c.else_ } }
+    | Match m ->
+        { expr with node = Match { scrutinee = f m.scrutinee; cases = List.map (fun (pat, body) -> (pat, f body)) m.cases } }
+    | Unquote e ->
+        { expr with node = Unquote (f e) }
+    | UnquoteSplice e ->
+        { expr with node = UnquoteSplice (f e) }
+    | Value _ | Var _ | ColumnRef _ | Lambda _ | Block _
+    | RawCode _ | PipelineDef _ | PipelineOfDef _ | IntentDef _ | ShellExpr _ -> expr
+  in
+
+  (* Reject reassignment of captured outer variables inside node command
+     blocks. Node scripts run in a fresh environment (Nix sandbox), so a
+     `x := ...` whose `x` is neither a sibling node nor bound earlier in the
+     block would dangle: the target cannot be inlined, and later reads would
+     inline the stale outer value (returning e.g. 100 instead of 2).
+     Returns [Some name] for the first offending reassignment target. *)
+  let block_reassign_error env node_names expr =
+    let rec scan names expr =
+      match expr.node with
+      | Block stmts -> scan_stmts names stmts
+      | Lambda l -> scan (l.params @ names) l.body
+      (* Quoted code runs later, at runtime, so construction-time
+         reassignment rules do not apply inside it. *)
+      | Call { fn; _ }
+        when (match fn.node with Var ("to_expr" | "quo") -> true | _ -> false) ->
+          None
+      | _ -> List.find_map (scan names) (child_exprs expr)
+    and scan_stmts names = function
+      | [] -> None
+      | stmt :: rest ->
+          (match stmt.node with
+           | Assignment a ->
+               (match scan names a.expr with
+                | Some _ as e -> e
+                | None -> scan_stmts (a.name :: names) rest)
+           | Reassignment r ->
+               (match scan names r.expr with
+                | Some _ as e -> e
+                | None ->
+                    if List.mem r.name names || not (Env.mem r.name env) then
+                      scan_stmts (r.name :: names) rest
+                    else
+                      (* Functions, builtins, and symbols resolve at runtime
+                         (closures, reserved-keyword checks); only
+                         stale-inlined data needs the construction error. *)
+                      (match Env.find_opt r.name env with
+                       | Some (VLambda _ | VBuiltin _ | VSymbol _) ->
+                           scan_stmts (r.name :: names) rest
+                       | _ -> Some r.name))
+           | Expression e ->
+               (match scan names e with
+                | Some _ as e -> e
+                | None -> scan_stmts names rest)
+           | _ -> scan_stmts names rest)
+    in
+    scan node_names expr
+  in
+
   let rec substitute_env_vars env node_names expr =
     let sub = substitute_env_vars env node_names in
-    let new_node = match expr.node with
-      | Var name ->
-          if not (List.mem name node_names) && Env.mem name env then
-            let v = Env.find name env in
-            match v with
-            | VLambda _ | VBuiltin _ -> Var name
-            | _ -> Value v
-          else
-            Var name
-      | Call { fn; args } ->
-          Call { fn = sub fn; args = List.map (fun (n, e) -> (n, sub e)) args }
-      | ListLit items ->
-          ListLit (List.map (fun (n, e) -> (n, sub e)) items)
-      | DictLit items ->
-          DictLit (List.map (fun (n, e) -> (n, sub e)) items)
-      | BinOp { op; left; right } ->
-          BinOp { op; left = sub left; right = sub right }
-      | BroadcastOp { op; left; right } ->
-          BroadcastOp { op; left = sub left; right = sub right }
-      | UnOp { op; operand } ->
-          UnOp { op; operand = sub operand }
-      | DotAccess { target; field } ->
-          DotAccess { target = sub target; field }
-      | IfElse { cond; then_; else_ } ->
-          IfElse { cond = sub cond; then_ = sub then_; else_ = sub else_ }
-      | Match { scrutinee; cases } ->
-          Match { scrutinee = sub scrutinee; cases = List.map (fun (pat, body) -> (pat, sub body)) cases }
-      | Lambda l ->
-          let inner_node_names = l.params @ node_names in
-          Lambda { l with body = substitute_env_vars env inner_node_names l.body }
-      | Block stmts ->
-          let stmts' = List.map (fun stmt ->
-            match stmt.node with
-            | Expression e -> { stmt with node = Expression (sub e) }
-            | Assignment a -> { stmt with node = Assignment { a with expr = sub a.expr } }
-            | Reassignment r -> { stmt with node = Reassignment { r with expr = sub r.expr } }
-            | _ -> stmt
-          ) stmts in
-          Block stmts'
-      | other -> other
-    in
-    { expr with node = new_node }
+    match expr.node with
+    | Var name ->
+        if not (List.mem name node_names) && Env.mem name env then
+          let v = Env.find name env in
+          (match v with
+           | VLambda _ | VBuiltin _ -> expr
+           | _ -> { expr with node = Value v })
+        else
+          expr
+    | Lambda l ->
+        let inner_node_names = l.params @ node_names in
+        { expr with node = Lambda { l with body = substitute_env_vars env inner_node_names l.body } }
+    | Block stmts ->
+        (* Walk statements left to right, tracking locally assigned names
+           so later references resolve to the local binding instead of an
+           outer variable with the same name. Reassignment also binds from
+           that point on (a reassigned sibling/local name stays local, so a
+           trailing read can never inline a stale outer value).
+           Reassigning a captured outer variable is rejected at construction
+           time (see block_reassign_error), so it cannot reach this walk
+           through a valid pipeline. *)
+        let rec walk names = function
+          | [] -> []
+          | stmt :: rest ->
+              (match stmt.node with
+               | Expression e ->
+                   { stmt with node = Expression (substitute_env_vars env names e) }
+                   :: walk names rest
+               | Assignment a ->
+                   let e' = substitute_env_vars env names a.expr in
+                   { stmt with node = Assignment { a with expr = e' } }
+                   :: walk (a.name :: names) rest
+               | Reassignment r ->
+                   let e' = substitute_env_vars env names r.expr in
+                   { stmt with node = Reassignment { r with expr = e' } }
+                   :: walk (r.name :: names) rest
+               | _ -> stmt :: walk names rest)
+        in
+        { expr with node = Block (walk node_names stmts) }
+    (* All remaining forms are pure child maps; [map_children] keeps this arm
+       and [child_exprs] in lockstep (both exhaustive, no wildcard). *)
+    | _ -> map_children sub expr
   in
 
   let default_un expr = {
@@ -1913,7 +2015,16 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
   pipeline_construction_mode := true;
   let result = Fun.protect ~finally:(fun () ->
     pipeline_construction_mode := saved_pipeline_construction_mode)
-    (fun () -> desugar_all [] nodes)
+    (fun () ->
+       let all_names = List.map fst nodes in
+       match List.find_map (fun (n, e) ->
+         match block_reassign_error !env_ref all_names e with
+         | Some bad -> Some (n, bad)
+         | None -> None) nodes with
+       | Some (n, bad) ->
+           Error (Error.make_error NameError
+             (Printf.sprintf "Cannot reassign variable `%s` inside node `%s`: it is bound outside the pipeline, and node scripts run in a fresh environment. Bind it locally first (e.g. `%s = ...`)." bad n bad))
+       | None -> desugar_all [] nodes)
   in
   match result with
   | Error err -> err
@@ -3404,6 +3515,12 @@ and eval_call env_ref fn_val raw_args =
   | VSymbol s ->
       (* Try to look up the symbol in the env — might be a function name *)
       (match Env.find_opt s !env_ref with
+       | Some (VSymbol _) ->
+           (* Known symbols (R, default, ...) are bound to themselves so they
+              can be used as bare-word arguments. Calling one would resolve to
+              the same symbol at every step and spin in eval_call forever at
+              100% CPU with no output. Fail fast with an explicit error. *)
+           Error.type_error (Printf.sprintf "`%s` is a symbol, not a function, and cannot be called." s)
        | Some fn -> eval_call env_ref fn raw_args
        | None ->
            (* Special case: symbols starting with $ are column references.
@@ -3482,6 +3599,10 @@ and eval_binop env_ref op left right =
   | Pipe ->
       let lval_raw = eval_expr env_ref left in
       let lval = Utils.unwrap_value lval_raw in
+      (* NOTE: the piped value is already evaluated, so it is forwarded
+         wrapped in `Value`. Passing it through `vexpr` would strip
+         `VExpr`/`VQuo` quotations and `eval_call` would evaluate the
+         quoted code a second time, unlike a normal call. *)
       (match lval with
        | VError _ as e ->
            (match lval_raw with
@@ -3496,11 +3617,11 @@ and eval_binop env_ref op left right =
          | Call { fn; args } ->
              (* Insert pipe value as first argument *)
              let fn_val = eval_expr env_ref fn in
-             eval_call env_ref fn_val ((None, vexpr lval) :: args)
+             eval_call env_ref fn_val ((None, Ast.mk_expr (Value lval)) :: args)
          | _ ->
              (* RHS is a bare function name or expression *)
              let fn_val = eval_expr env_ref right in
-             eval_call env_ref fn_val [(None, vexpr lval)]
+             eval_call env_ref fn_val [(None, Ast.mk_expr (Value lval))]
       )
   | MaybePipe ->
       let lval = eval_expr env_ref left in
@@ -3508,10 +3629,10 @@ and eval_binop env_ref op left right =
       (match right.node with
        | Call { fn; args } ->
            let fn_val = eval_expr env_ref fn in
-           eval_call env_ref fn_val ((None, vexpr lval) :: args)
+           eval_call env_ref fn_val ((None, Ast.mk_expr (Value lval)) :: args)
        | _ ->
            let fn_val = eval_expr env_ref right in
-           eval_call env_ref fn_val [(None, vexpr lval)]
+           eval_call env_ref fn_val [(None, Ast.mk_expr (Value lval))]
       )
 
   (* Logical (Short-circuiting) *)

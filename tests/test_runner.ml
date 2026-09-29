@@ -208,6 +208,7 @@ let () =
   run "Test_broom_golden" Test_broom_golden.run_tests;
   run_with_env "Test_explain_tests" Test_explain_tests.run_tests;
   run "Test_cli" Test_cli.run_tests;
+  run "Test_demo" Test_demo.run_tests;
 
   (* Phase 8: Stabilization tests *)
   run_with_env "Test_golden" Test_golden.run_tests;

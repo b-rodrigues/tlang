@@ -64,7 +64,7 @@
             MASS
             forcats
             car
-          ];
+          ] ++ [ tlang-r ];
         };
 
         python-with-packages = pkgs.python314.withPackages (p: with p; [
@@ -130,9 +130,9 @@
               pkgs.makeWrapper
             ] ++ pkgs.lib.optionals withCoverage [
               ocamlVersion.bisect_ppx
-            ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
+            ] ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [
               pkgs.autoPatchelfHook
-            ] ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
+            ] ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isDarwin [
               pkgs.fixDarwinDylibNames
             ];
 
@@ -172,7 +172,7 @@
             buildPhase = ''
               export PKG_CONFIG_PATH="${pkgs.arrow-cpp}/lib/pkgconfig:${pkgs.glib.dev}/lib/pkgconfig:${pkgs.glib}/lib/pkgconfig:${pkgs.arrow-glib}/lib/pkgconfig:${pkgs.onnxruntime}/lib/pkgconfig:$PKG_CONFIG_PATH"
               export T_ARROW_CFLAGS="-I${pkgs.arrow-cpp}/include -I${pkgs.arrow-glib}/include -I${pkgs.glib.dev}/include -I${pkgs.glib.dev}/include/glib-2.0 -I${pkgs.glib.out}/lib/glib-2.0/include -I${pkgs.onnxruntime}/include"
-              export T_ARROW_LIBS="-L${pkgs.arrow-cpp}/lib -L${pkgs.arrow-glib}/lib -L${pkgs.glib.out}/lib -L${pkgs.onnxruntime}/lib -larrow -larrow-glib -lparquet -lparquet-glib -lglib-2.0 -lgobject-2.0 -lgio-2.0 -lonnxruntime ${if pkgs.stdenv.isDarwin then "-Wl,-rpath,${pkgs.arrow-cpp}/lib -Wl,-rpath,${pkgs.arrow-glib}/lib -Wl,-rpath,${pkgs.glib.out}/lib -Wl,-rpath,${pkgs.onnxruntime}/lib" else ""}"
+              export T_ARROW_LIBS="-L${pkgs.arrow-cpp}/lib -L${pkgs.arrow-glib}/lib -L${pkgs.glib.out}/lib -L${pkgs.onnxruntime}/lib -larrow -larrow-glib -lparquet -lparquet-glib -lglib-2.0 -lgobject-2.0 -lgio-2.0 -lonnxruntime ${if pkgs.stdenv.hostPlatform.isDarwin then "-Wl,-rpath,${pkgs.arrow-cpp}/lib -Wl,-rpath,${pkgs.arrow-glib}/lib -Wl,-rpath,${pkgs.glib.out}/lib -Wl,-rpath,${pkgs.onnxruntime}/lib" else ""}"
               dune build ${if withCoverage then "--instrument-with bisect_ppx" else ""} src/repl.exe src/lsp_server.exe
             '';
 
@@ -355,7 +355,7 @@ chmod +x $out/bin/bisect-ppx-report
               "-lparquet" "-lparquet-glib"
               "-lglib-2.0" "-lgobject-2.0" "-lgio-2.0"
               "-lonnxruntime"
-            ] ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
+            ] ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isDarwin [
               "-Wl,-rpath,${pkgs.arrow-cpp}/lib"
               "-Wl,-rpath,${pkgs.arrow-glib}/lib"
               "-Wl,-rpath,${pkgs.glib.out}/lib"
@@ -505,6 +505,20 @@ chmod +x $out/bin/bisect-ppx-report
             # Make local companion language packages importable in nix develop
             export PYTHONPATH="$TLANG_REPO_ROOT/py-package/src''${PYTHONPATH:+:$PYTHONPATH}"
             export JULIA_LOAD_PATH="$TLANG_REPO_ROOT/jl-package:''${JULIA_LOAD_PATH:-@}"
+
+            # Export R library paths for editors that bypass the R wrapper (e.g. Positron).
+            # The wrapper sets R_LIBS_SITE internally. Positron may start base R directly,
+            # so re-export here for direnv and editor processes.
+            # Empty R output leaves any existing value untouched (no leading `:`).
+            # --no-init-file/--no-site-file keep project .Rprofile (e.g. renv)
+            # and site code from running on every shell entry.
+            if command -v R >/dev/null 2>&1; then
+              _t_r_libs="$(R --no-init-file --no-site-file --slave --no-restore -e 'cat(Sys.getenv("R_LIBS_SITE"))' 2>/dev/null)"
+              if [ -n "$_t_r_libs" ]; then
+                export R_LIBS_SITE="$_t_r_libs:''${R_LIBS_SITE:-}"
+              fi
+              unset _t_r_libs
+            fi
 
             # Create a local Julia depot directory for sandbox guards
             julia_depot_dir="$TLANG_REPO_ROOT/.t_julia_depot"
