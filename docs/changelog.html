@@ -34,7 +34,7 @@
 </nav>
 <div class="container">
 <h1 id="changelog">Changelog</h1>
-<h2 id="section">[0.55.4] - 2026-09-28</h2>
+<h2 id="section">[0.55.4] - 2026-09-29</h2>
 <h3 id="new-features">New features</h3>
 <ul>
 <li><strong>Automatic editor setup in new projects</strong>:
@@ -48,42 +48,113 @@ packages.</li>
 </ul>
 <h3 id="fixes">Fixes</h3>
 <ul>
-<li><strong>Positron Python interpreter startup</strong>: Project Python
-environments (<code>py-env</code> in generated <code>flake.nix</code>)
-are now wrapped with <code>LD_LIBRARY_PATH</code> containing C/C++
-runtime libraries (<code>pkgs.stdenv.cc.cc.lib</code> and
-<code>pkgs.zlib</code>). This allows Positron’s bundled language server
-and IPyKernel dependencies (specifically <code>pyzmq</code>, which
-requires <code>libstdc++.so.6</code>) to start up successfully when
-selecting the project Python interpreter on Linux.</li>
-<li><strong>Positron finds R packages</strong>: Project shells export
+<li><p><strong>Default serializers no longer hang node builds</strong>:
+<code>default</code>/<code>^default</code> serializer/deserializer in T
+(and R/Python/Julia) nodes now resolve to the real reader/writer instead
+of emitting a call to a nonexistent <code>default</code> function.
+Calling a bare symbol is now an explicit <code>TypeError</code> instead
+of spinning at 100% CPU forever — this hung
+<code>model_capabilities_demo_t</code> on CI, where every
+<code>^default</code> model consumer sat until the job timed
+out.</p></li>
+<li><p><strong>Scaffolded <code>.gitignore</code> covers shell guard
+dirs</strong>: <code>.t_python_guard/</code> and
+<code>.t_r_profile/</code>, created on every <code>nix develop</code>
+entry, are now ignored in new projects and packages, so
+<code>t update</code>’s clean-tree check passes on fresh
+scaffolds.</p></li>
+<li><p><strong>Plot render paths are Nix-escaped</strong>:
+<code>show_plot</code> now quotes project, config, and artifact paths
+with <code>nix_double_quote</code> instead of OCaml <code>%S</code>,
+closing the same <code>${...}</code> interpolation gap already fixed for
+git strings. Verified no other Nix emitters still use
+<code>%S</code>.</p></li>
+<li><p><strong>Reassigning a captured outer data variable inside a node
+block is now an error</strong>: <code>{ y = 1; x := y + 1; x }</code>
+where <code>x</code> comes from outside the pipeline used to build, then
+return the stale outer value (or fail in the sandbox, where the outer
+binding does not exist). Pipeline construction now rejects this with a
+<code>NameError</code> telling you to bind the name locally first.
+Quoted code (<code>to_expr</code>/<code>quo</code>) and function or
+builtin names follow runtime rules instead. Reassigning a sibling node
+name, a block-local name, or a lambda parameter still works, and later
+reads stay local.</p></li>
+<li><p><strong>Project shells stay pristine on the <code>nixpkgs</code>
+Python resolver</strong>: the C/C++ runtime libraries
+(<code>pkgs.stdenv.cc.cc.lib</code>, <code>pkgs.zlib</code>) now come
+only from the <code>py-env</code> wrapper, as before. The shell-wide
+<code>LD_LIBRARY_PATH</code> export (which also exposed <code>t</code>,
+R, and Julia to the project’s <code>libstdc++</code>) is gone for
+<code>nixpkgs</code> projects, avoiding <code>GLIBCXX_* not found</code>
+mismatches when the project’s <code>nixpkgs</code> pin differs from the
+one <code>t</code> was built against.</p></li>
+<li><p><strong>UV project shells wrap the venv instead of exporting
+globally</strong>: <code>mkVirtualEnv</code> output cannot carry
+<code>makeWrapperArgs</code> (it would be silently ignored), so
+<code>py-env</code> is now a <code>symlinkJoin</code> wrapper around a
+raw <code>py-venv</code> binding, prefixing <code>LD_LIBRARY_PATH</code>
+(C/C++ runtimes for editor tooling such as <code>pyzmq</code>,
+BLAS/Fortran for <code>numpy</code>) on every venv binary except sourced
+<code>activate</code> files. Verified end to end:
+<code>import numpy</code> works in the shell, the wrapper
+<code>LD_LIBRARY_PATH</code> is visible only to Python processes, and
+the shell itself carries no project libraries. Node builds are unchanged
+(raw venv, per-derivation libs).</p></li>
+<li><p><strong><code>R_LIBS_SITE</code> re-export handles empty
+output</strong>: when <code>R</code> prints nothing, the shell no longer
+prepends a stray leading <code>:</code> to the variable, <code>R</code>
+stderr is silenced, and project/site init files
+(<code>--no-init-file --no-site-file</code>) no longer run on every
+shell entry.</p></li>
+<li><p><strong><code>t demo</code> no longer writes into the current
+project</strong>: the demo builds inside a fresh temporary directory
+instead of writing <code>_pipeline/</code> state into wherever it was
+launched, and the caching narration no longer claims a cache hit
+unconditionally. The temp dir is removed on exit, including via the REPL
+handoff.</p></li>
+<li><p><strong><code>sync_version.sh</code> bumps the extension
+offline</strong>: a single <code>npm version</code> call updates both
+<code>package.json</code> and <code>package-lock.json</code> with no
+network access, so the two files cannot drift after a release.</p></li>
+<li><p><strong>Positron Python interpreter startup</strong>: Project
+Python environments (<code>py-env</code> in generated
+<code>flake.nix</code>) are now wrapped with
+<code>LD_LIBRARY_PATH</code> containing C/C++ runtime libraries
+(<code>pkgs.stdenv.cc.cc.lib</code> and <code>pkgs.zlib</code>). This
+allows Positron’s bundled language server and IPyKernel dependencies
+(specifically <code>pyzmq</code>, which requires
+<code>libstdc++.so.6</code>) to start up successfully when selecting the
+project Python interpreter on Linux.</p></li>
+<li><p><strong>Positron finds R packages</strong>: Project shells export
 <code>R_LIBS_SITE</code>, so Positron lists and loads all
 <code>[r-dependencies]</code> packages through direnv even when it
 starts base R directly instead of the project wrapper. The development
 shell R environment also includes the <code>tlang</code> companion
-package, so <code>library(tlang)</code> works from the terminal.</li>
-<li><strong>UV Python nodes import numpy/pandas</strong>: UV workspaces
-(<code>resolver = "uv"</code>) now provide system BLAS and Fortran
-libraries at run time, so <code>import numpy</code> no longer fails with
-a missing <code>libblas.so.3</code>. The libraries apply to UV nodes and
-shells only; <code>nixpkgs</code> Python nodes (such as
+package, so <code>library(tlang)</code> works from the
+terminal.</p></li>
+<li><p><strong>UV Python nodes import numpy/pandas</strong>: UV
+workspaces (<code>resolver = "uv"</code>) now provide system BLAS and
+Fortran libraries at run time, so <code>import numpy</code> no longer
+fails with a missing <code>libblas.so.3</code>. The libraries apply to
+UV nodes and shells only; <code>nixpkgs</code> Python nodes (such as
 <code>scipy</code> and <code>seaborn</code>) keep their own tested
-libraries.</li>
-<li><strong><code>pipeline_copy()</code> no longer forces full
+libraries.</p></li>
+<li><p><strong><code>pipeline_copy()</code> no longer forces full
 rebuilds</strong>: The default <code>pipeline-output/</code> directory
 is excluded from pipeline sources, so copying artifacts at the end of a
 pipeline does not change the source hash and does not invalidate the
-node cache on the next run.</li>
-<li><strong>Pipeline blocks respect local shadowing</strong>: A variable
-assigned inside a node command block now resolves to the local binding
-instead of an outer variable with the same name.</li>
-<li><strong>Piped quotations stay quoted</strong>:
+node cache on the next run.</p></li>
+<li><p><strong>Pipeline blocks respect local shadowing</strong>: A
+variable assigned inside a node command block now resolves to the local
+binding instead of an outer variable with the same name.</p></li>
+<li><p><strong>Piped quotations stay quoted</strong>:
 <code>to_expr(...) |&gt; f()</code> now forwards the expression like a
-normal call instead of evaluating the quoted code a second time.</li>
-<li><strong>R git sources are Nix-safe</strong>: Package names, URLs,
+normal call instead of evaluating the quoted code a second
+time.</p></li>
+<li><p><strong>R git sources are Nix-safe</strong>: Package names, URLs,
 revisions, and subdirectory paths from <code>tproject.toml</code> are
 escaped, so special characters cannot break generated flake
-evaluation.</li>
+evaluation.</p></li>
 </ul>
 <h2 id="section-1">[0.55.3] - 2026-09-26</h2>
 <h3 id="new-features-1">New features</h3>
