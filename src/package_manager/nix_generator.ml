@@ -393,12 +393,17 @@ let generate_project_flake
     Buffer.add_string buf "          paths = [ py-venv ];\n";
     Buffer.add_string buf "          nativeBuildInputs = [ pkgs.makeWrapper ];\n";
     Buffer.add_string buf "          postBuild = ''\n";
+    (* The lib list is Linux-only: LD_LIBRARY_PATH is a no-op on macOS, so
+       skip wrapping there instead of building openblas/gfortran into py-env
+       just to set an empty variable. The -n guard keeps macOS shells
+       working even if the list ever evaluates empty. *)
+    Buffer.add_string buf "            libs=\"${pkgs.lib.makeLibraryPath (pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.stdenv.cc.cc.lib pkgs.zlib pkgs.openblas pkgs.gfortran.cc.lib ])}\"\n";
     Buffer.add_string buf "            for f in $out/bin/*; do\n";
     Buffer.add_string buf "              case \"$(basename \"$f\")\" in\n";
     Buffer.add_string buf "                activate* | Activate*) continue ;;\n";
     Buffer.add_string buf "              esac\n";
-    Buffer.add_string buf "              if [ -f \"$f\" ]; then\n";
-    Buffer.add_string buf "                wrapProgram \"$f\" --prefix LD_LIBRARY_PATH : \"${pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib pkgs.zlib pkgs.openblas pkgs.gfortran.cc.lib ]}\"\n";
+    Buffer.add_string buf "              if [ -f \"$f\" ] && [ -n \"$libs\" ]; then\n";
+    Buffer.add_string buf "                wrapProgram \"$f\" --prefix LD_LIBRARY_PATH : \"$libs\"\n";
     Buffer.add_string buf "              fi\n";
     Buffer.add_string buf "            done\n";
     Buffer.add_string buf "          '';\n";

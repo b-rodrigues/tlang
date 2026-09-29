@@ -1763,6 +1763,28 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
     Error.make_error NameError
       (Printf.sprintf "Duplicate node name `%s` in pipeline." dup_name)
   | None ->
+  (* Direct child expressions of each AST form. Shared by the substitution
+     walk below and the reassignment check: a new expression form is listed
+     in exactly one place. This match is deliberately exhaustive (no wildcard)
+     so that adding a constructor to Ast.expr_node breaks the build here until
+     both traversals account for it. Binder forms (Block, Lambda) return []
+     because the callers thread scope themselves; leaf and nested-pipeline
+     forms return [] because substitution leaves them untouched. *)
+  let child_exprs expr =
+    match expr.node with
+    | Call { fn; args } -> fn :: List.map snd args
+    | ListLit items -> List.map snd items
+    | DictLit pairs -> List.map snd pairs
+    | BinOp { left; right; _ } | BroadcastOp { left; right; _ } -> [ left; right ]
+    | UnOp { operand; _ } -> [ operand ]
+    | DotAccess { target; _ } -> [ target ]
+    | IfElse { cond; then_; else_ } -> [ cond; then_; else_ ]
+    | Match { scrutinee; cases } -> scrutinee :: List.map snd cases
+    | Unquote e | UnquoteSplice e -> [ e ]
+    | Value _ | Var _ | ColumnRef _ | Lambda _ | Block _
+    | RawCode _ | PipelineDef _ | PipelineOfDef _ | IntentDef _ | ShellExpr _ -> []
+  in
+
   (* Reject reassignment of captured outer variables inside node command
      blocks. Node scripts run in a fresh environment (Nix sandbox), so a
      `x := ...` whose `x` is neither a sibling node nor bound earlier in the
@@ -1774,31 +1796,7 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
       match expr.node with
       | Block stmts -> scan_stmts names stmts
       | Lambda l -> scan (l.params @ names) l.body
-      | Call { fn; args } ->
-          (match scan names fn with
-           | Some _ as e -> e
-           | None -> List.find_map (fun (_, e) -> scan names e) args)
-      | ListLit items -> List.find_map (fun (_, e) -> scan names e) items
-      | DictLit pairs -> List.find_map (fun (_, e) -> scan names e) pairs
-      | BinOp { left; right; _ } | BroadcastOp { left; right; _ } ->
-          (match scan names left with
-           | Some _ as e -> e
-           | None -> scan names right)
-      | UnOp { operand; _ } -> scan names operand
-      | DotAccess { target; _ } -> scan names target
-      | IfElse { cond; then_; else_ } ->
-          (match scan names cond with
-           | Some _ as e -> e
-           | None ->
-               (match scan names then_ with
-                | Some _ as e -> e
-                | None -> scan names else_))
-      | Match { scrutinee; cases } ->
-          (match scan names scrutinee with
-           | Some _ as e -> e
-           | None -> List.find_map (fun (_, body) -> scan names body) cases)
-      | Unquote e | UnquoteSplice e -> scan names e
-      | _ -> None
+      | _ -> List.find_map (scan names) (child_exprs expr)
     and scan_stmts names = function
       | [] -> None
       | stmt :: rest ->
