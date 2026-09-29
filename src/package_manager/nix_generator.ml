@@ -12,7 +12,7 @@ let r_libs_site_hook =
   "            # The r-env binary wrapper sets R_LIBS_SITE internally. Positron reads R_HOME_DIR\n" ^
   "            # from the shim and then starts base R directly, so re-export here for direnv.\n" ^
   "            if command -v R >/dev/null 2>&1; then\n" ^
-  "              _t_r_libs=\"$(R --slave --no-restore -e 'cat(Sys.getenv(\"R_LIBS_SITE\"))' 2>/dev/null)\"\n" ^
+  "              _t_r_libs=\"$(R --no-init-file --no-site-file --slave --no-restore -e 'cat(Sys.getenv(\"R_LIBS_SITE\"))' 2>/dev/null)\"\n" ^
   "              if [ -n \"$_t_r_libs\" ]; then\n" ^
   "                export R_LIBS_SITE=\"$_t_r_libs:''${R_LIBS_SITE:-}\"\n" ^
   "              fi\n" ^
@@ -379,7 +379,30 @@ let generate_project_flake
     Printf.bprintf buf "        pyWorkspace = uv2nix.lib.workspace.loadWorkspace { workspaceRoot = ./. + \"/%s\"; };\n" py_workspace;
     Buffer.add_string buf "        pyOverlay = pyWorkspace.mkPyprojectOverlay { sourcePreference = \"wheel\"; };\n";
     Printf.bprintf buf "        pySet = (pkgs.callPackage pyproject-nix.build.packages { python = pkgs.%s; }).overrideScope (pkgs.lib.composeManyExtensions [ pyOverlay pyproject-build-systems.overlays.default ]);\n" py_version;
-    Buffer.add_string buf "        py-env = pySet.mkVirtualEnv \"t-python-uv-env\" pyWorkspace.deps.default;\n";
+    (* mkVirtualEnv carries no wrapper (unlike withPackages, makeWrapperArgs
+       would be silently ignored), so wrap the venv binaries explicitly.
+       The wrapper scopes LD_LIBRARY_PATH to Python processes only: a global
+       shell export would leak the project's libstdc++ onto t, R, and Julia.
+       Sourced files such as activate are skipped — wrapping them would break
+       `source activate`. C/C++ runtimes cover editor tooling (e.g. pyzmq),
+       BLAS/Fortran covers numpy. Node builds keep the raw venv and scope
+       their libs per-derivation instead (see ld_extra). *)
+    Buffer.add_string buf "        py-venv = pySet.mkVirtualEnv \"t-python-uv-env\" pyWorkspace.deps.default;\n";
+    Buffer.add_string buf "        py-env = pkgs.symlinkJoin {\n";
+    Buffer.add_string buf "          name = \"t-python-uv-env\";\n";
+    Buffer.add_string buf "          paths = [ py-venv ];\n";
+    Buffer.add_string buf "          nativeBuildInputs = [ pkgs.makeWrapper ];\n";
+    Buffer.add_string buf "          postBuild = ''\n";
+    Buffer.add_string buf "            for f in $out/bin/*; do\n";
+    Buffer.add_string buf "              case \"$(basename \"$f\")\" in\n";
+    Buffer.add_string buf "                activate* | Activate*) continue ;;\n";
+    Buffer.add_string buf "              esac\n";
+    Buffer.add_string buf "              if [ -f \"$f\" ]; then\n";
+    Buffer.add_string buf "                wrapProgram \"$f\" --prefix LD_LIBRARY_PATH : \"${pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib pkgs.zlib pkgs.openblas pkgs.gfortran.cc.lib ]}\"\n";
+    Buffer.add_string buf "              fi\n";
+    Buffer.add_string buf "            done\n";
+    Buffer.add_string buf "          '';\n";
+    Buffer.add_string buf "        };\n";
   end else begin
     Printf.bprintf buf "        py-env = (pkgs.%s.withPackages (python-pkgs: with python-pkgs; [\n" py_version;
     Buffer.add_string buf "          deepdiff\n";
@@ -439,20 +462,10 @@ let generate_project_flake
     Buffer.add_string buf ":''${T_PACKAGE_PATH:-}\"\n"
   end;
   Printf.bprintf buf "            export PYTHONPATH=\"${t-lang.packages.${system}.default}/share/tlang/py-package/src:''${PYTHONPATH:-}\"\n";
-  (* The py-env wrapper (nixpkgs resolver) already prefixes cc/zlib via
-     makeWrapperArgs, so a global export would needlessly expose t, R, Julia
-     and everything else in the shell to the project's nixpkgs libstdc++
-     (GLIBCXX risk when t-lang's own nixpkgs pin differs). Emit the global
-     runtime libs only for uv venvs (mkVirtualEnv has no wrapper), Linux-only
-     (pointless on macOS), with nixpkgs nodes/shells staying pristine just as
-     in node builds (b23fa59). *)
-  if use_uv then begin
-    Buffer.add_string buf "            # UV Python venvs need system libs at run time (e.g. numpy, pyzmq); Linux only.\n";
-    Buffer.add_string buf "            if [ \"$(uname -s)\" = \"Linux\" ]; then\n";
-    Buffer.add_string buf "              export LD_LIBRARY_PATH=\"${pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib pkgs.zlib ]}:''${LD_LIBRARY_PATH:-}\"\n";
-    Buffer.add_string buf "              export LD_LIBRARY_PATH=\"${pkgs.lib.makeLibraryPath [ pkgs.openblas pkgs.gfortran.cc.lib ]}:''${LD_LIBRARY_PATH:-}\"\n";
-    Buffer.add_string buf "            fi\n";
-  end;
+  (* No global LD_LIBRARY_PATH for either resolver: the nixpkgs py-env wrapper
+     and the uv venv wrapper above scope the runtime libs to Python processes
+     only, so t, R, and Julia keep their own libstdc++ (b23fa59). Node builds
+     scope their libs per-derivation instead (see ld_extra). *)
   Printf.bprintf buf "            export JULIA_LOAD_PATH=\":${t-lang.packages.${system}.tlang-julia-path}:''${JULIA_LOAD_PATH:-}\"\n";
   Buffer.add_string buf r_libs_site_hook;
   Buffer.add_string buf julia_depot_sandbox_hook;

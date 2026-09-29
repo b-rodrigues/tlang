@@ -1763,6 +1763,67 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
     Error.make_error NameError
       (Printf.sprintf "Duplicate node name `%s` in pipeline." dup_name)
   | None ->
+  (* Reject reassignment of captured outer variables inside node command
+     blocks. Node scripts run in a fresh environment (Nix sandbox), so a
+     `x := ...` whose `x` is neither a sibling node nor bound earlier in the
+     block would dangle: the target cannot be inlined, and later reads would
+     inline the stale outer value (returning e.g. 100 instead of 2).
+     Returns [Some name] for the first offending reassignment target. *)
+  let block_reassign_error env node_names expr =
+    let rec scan names expr =
+      match expr.node with
+      | Block stmts -> scan_stmts names stmts
+      | Lambda l -> scan (l.params @ names) l.body
+      | Call { fn; args } ->
+          (match scan names fn with
+           | Some _ as e -> e
+           | None -> List.find_map (fun (_, e) -> scan names e) args)
+      | ListLit items -> List.find_map (fun (_, e) -> scan names e) items
+      | DictLit pairs -> List.find_map (fun (_, e) -> scan names e) pairs
+      | BinOp { left; right; _ } | BroadcastOp { left; right; _ } ->
+          (match scan names left with
+           | Some _ as e -> e
+           | None -> scan names right)
+      | UnOp { operand; _ } -> scan names operand
+      | DotAccess { target; _ } -> scan names target
+      | IfElse { cond; then_; else_ } ->
+          (match scan names cond with
+           | Some _ as e -> e
+           | None ->
+               (match scan names then_ with
+                | Some _ as e -> e
+                | None -> scan names else_))
+      | Match { scrutinee; cases } ->
+          (match scan names scrutinee with
+           | Some _ as e -> e
+           | None -> List.find_map (fun (_, body) -> scan names body) cases)
+      | Unquote e | UnquoteSplice e -> scan names e
+      | _ -> None
+    and scan_stmts names = function
+      | [] -> None
+      | stmt :: rest ->
+          (match stmt.node with
+           | Assignment a ->
+               (match scan names a.expr with
+                | Some _ as e -> e
+                | None -> scan_stmts (a.name :: names) rest)
+           | Reassignment r ->
+               (match scan names r.expr with
+                | Some _ as e -> e
+                | None ->
+                    if List.mem r.name names || not (Env.mem r.name env) then
+                      scan_stmts (r.name :: names) rest
+                    else
+                      Some r.name)
+           | Expression e ->
+               (match scan names e with
+                | Some _ as e -> e
+                | None -> scan_stmts names rest)
+           | _ -> scan_stmts names rest)
+    in
+    scan node_names expr
+  in
+
   let rec substitute_env_vars env node_names expr =
     let sub = substitute_env_vars env node_names in
     let new_node = match expr.node with
@@ -1798,8 +1859,12 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
       | Block stmts ->
           (* Walk statements left to right, tracking locally assigned names
              so later references resolve to the local binding instead of an
-             outer variable with the same name. Reassignment targets an
-             existing binding, so it adds no new name. *)
+             outer variable with the same name. Reassignment also binds from
+             that point on (a reassigned sibling/local name stays local, so a
+             trailing read can never inline a stale outer value).
+             Reassigning a captured outer variable is rejected at construction
+             time (see block_reassign_error), so it cannot reach this walk
+             through a valid pipeline. *)
           let rec walk names = function
             | [] -> []
             | stmt :: rest ->
@@ -1814,7 +1879,7 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
                  | Reassignment r ->
                      let e' = substitute_env_vars env names r.expr in
                      { stmt with node = Reassignment { r with expr = e' } }
-                     :: walk names rest
+                     :: walk (r.name :: names) rest
                  | _ -> stmt :: walk names rest)
           in
           Block (walk node_names stmts)
@@ -1927,7 +1992,16 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
   pipeline_construction_mode := true;
   let result = Fun.protect ~finally:(fun () ->
     pipeline_construction_mode := saved_pipeline_construction_mode)
-    (fun () -> desugar_all [] nodes)
+    (fun () ->
+       let all_names = List.map fst nodes in
+       match List.find_map (fun (n, e) ->
+         match block_reassign_error !env_ref all_names e with
+         | Some bad -> Some (n, bad)
+         | None -> None) nodes with
+       | Some (n, bad) ->
+           Error (Error.make_error NameError
+             (Printf.sprintf "Cannot reassign variable `%s` inside node `%s`: it is bound outside the pipeline, and node scripts run in a fresh environment. Bind it locally first (e.g. `%s = ...`)." bad n bad))
+       | None -> desugar_all [] nodes)
   in
   match result with
   | Error err -> err

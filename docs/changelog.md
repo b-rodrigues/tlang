@@ -4,13 +4,15 @@
 
 ### Fixes
 
-- **Project shells stay pristine on the `nixpkgs` Python resolver**: the C/C++ runtime libraries (`pkgs.stdenv.cc.cc.lib`, `pkgs.zlib`) now come only from the `py-env` wrapper, as before. The shell-wide `LD_LIBRARY_PATH` export (which also exposed `t`, R, and Julia to the project's `libstdc++`) is gone for `nixpkgs` projects, avoiding `GLIBCXX_* not found` mismatches when the project's `nixpkgs` pin differs from the one `t` was built against. UV projects still export both the C/C++ runtimes and BLAS/Fortran (`openblas`, `gfortran`) for their wrapper-less venvs, Linux-only (previously the export was unconditional, including on macOS).
-- **`R_LIBS_SITE` re-export handles empty output**: when `R` prints nothing, the shell no longer prepends a stray leading `:` to the variable, and `R` stderr is silenced during the probe.
-- **`t demo` no longer writes into the current project**: the demo builds inside a fresh temporary directory instead of writing `_pipeline/` state into wherever it was launched, and the caching narration no longer claims a cache hit unconditionally.
+- **Reassigning a captured outer variable inside a node block is now an error**: `{ y = 1; x := y + 1; x }` where `x` comes from outside the pipeline used to build, then return the stale outer value (or fail in the sandbox, where the outer binding does not exist). Pipeline construction now rejects this with a `NameError` telling you to bind the name locally first. Reassigning a sibling node name, a block-local name, or a lambda parameter still works, and later reads stay local.
+- **Project shells stay pristine on the `nixpkgs` Python resolver**: the C/C++ runtime libraries (`pkgs.stdenv.cc.cc.lib`, `pkgs.zlib`) now come only from the `py-env` wrapper, as before. The shell-wide `LD_LIBRARY_PATH` export (which also exposed `t`, R, and Julia to the project's `libstdc++`) is gone for `nixpkgs` projects, avoiding `GLIBCXX_* not found` mismatches when the project's `nixpkgs` pin differs from the one `t` was built against.
+- **UV project shells wrap the venv instead of exporting globally**: `mkVirtualEnv` output cannot carry `makeWrapperArgs` (it would be silently ignored), so `py-env` is now a `symlinkJoin` wrapper around a raw `py-venv` binding, prefixing `LD_LIBRARY_PATH` (C/C++ runtimes for editor tooling such as `pyzmq`, BLAS/Fortran for `numpy`) on every venv binary except sourced `activate` files. Verified end to end: `import numpy` works in the shell, the wrapper `LD_LIBRARY_PATH` is visible only to Python processes, and the shell itself carries no project libraries. Node builds are unchanged (raw venv, per-derivation libs).
+- **`R_LIBS_SITE` re-export handles empty output**: when `R` prints nothing, the shell no longer prepends a stray leading `:` to the variable, `R` stderr is silenced, and project/site init files (`--no-init-file --no-site-file`) no longer run on every shell entry.
+- **`t demo` no longer writes into the current project**: the demo builds inside a fresh temporary directory instead of writing `_pipeline/` state into wherever it was launched, and the caching narration no longer claims a cache hit unconditionally. The temp dir is removed on exit, including via the REPL handoff.
 
 ### Maintenance
 
-- **`sync_version.sh` keeps `package-lock.json` in sync** with the bumped extension `package.json`, so the two files cannot drift after a release.
+- **`sync_version.sh` bumps the extension offline**: a single `npm version` call updates both `package.json` and `package-lock.json` with no network access, so the two files cannot drift after a release.
 
 ## [0.55.4] - 2026-09-28
 

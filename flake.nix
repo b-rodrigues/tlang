@@ -510,8 +510,10 @@ chmod +x $out/bin/bisect-ppx-report
             # The wrapper sets R_LIBS_SITE internally. Positron may start base R directly,
             # so re-export here for direnv and editor processes.
             # Empty R output leaves any existing value untouched (no leading `:`).
+            # --no-init-file/--no-site-file keep project .Rprofile (e.g. renv)
+            # and site code from running on every shell entry.
             if command -v R >/dev/null 2>&1; then
-              _t_r_libs="$(R --slave --no-restore -e 'cat(Sys.getenv("R_LIBS_SITE"))' 2>/dev/null)"
+              _t_r_libs="$(R --no-init-file --no-site-file --slave --no-restore -e 'cat(Sys.getenv("R_LIBS_SITE"))' 2>/dev/null)"
               if [ -n "$_t_r_libs" ]; then
                 export R_LIBS_SITE="$_t_r_libs:''${R_LIBS_SITE:-}"
               fi

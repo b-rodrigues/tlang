@@ -172,24 +172,34 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
    | other ->
        incr fail_count; Printf.printf "  ✗ block shadowing fixture failed: %s\n"
          (Ast.Utils.value_to_string other));
-  (* Reassignment targets the existing (outer) binding, so the RHS still sees
-     outer names normally. *)
+  (* Reassigning a captured outer variable is rejected at construction: the
+     node script runs in a fresh environment, so the target would dangle and
+     a trailing read would inline the stale outer value (100 instead of 2). *)
+  let (v_reassign_err, _) = eval_string_env
+    "x = 100; pipeline { a = node(command = { y = 1; x := y + 1; x }) }"
+    (Packages.init_env ()) in
+  (match v_reassign_err with
+   | Ast.VError err when (try ignore (Str.search_forward (Str.regexp_string "Cannot reassign variable `x`") err.message 0); true
+                         with Not_found -> false) ->
+       incr pass_count; Printf.printf "  ✓ reassigning a captured outer variable is rejected\n"
+   | other ->
+       incr fail_count; Printf.printf "  ✗ captured-outer reassignment not rejected: %s\n"
+         (Ast.Utils.value_to_string other));
+  (* Reassignment of a block-local name is fine and stays local. *)
   let (v_reassign, _) = eval_string_env
-    {|pipeline { a = node(command = { y = 1; x := y + 1; x }) }|}
-    env_shadow in
+    {|pipeline { a = node(command = { x = 1; x := x + 1; x }) }|}
+    (Packages.init_env ()) in
   (match v_reassign with
    | Ast.VPipeline p ->
        let nix = Nix_emit_pipeline.emit_pipeline p in
        let has s = try ignore (Str.search_forward (Str.regexp_string s) nix 0); true
                    with Not_found -> false in
-       (* Reassignment adds no new name, so the trailing `x` still resolves to
-          the outer binding (inlined as 100), while local `y` stays local. *)
-       if has "y = 1" && has "x := (y + 1)" then
-         begin incr pass_count; Printf.printf "  ✓ block reassignment keeps outer binding target\n" end
+       if has "{ x = 1; x := (x + 1); x }" then
+         begin incr pass_count; Printf.printf "  ✓ block-local reassignment stays local\n" end
        else
-         begin incr fail_count; Printf.printf "  ✗ block reassignment script unexpected\n" end
+         begin incr fail_count; Printf.printf "  ✗ block-local reassignment script unexpected\n" end
    | other ->
-       incr fail_count; Printf.printf "  ✗ block reassignment fixture failed: %s\n"
+       incr fail_count; Printf.printf "  ✗ block-local reassignment fixture failed: %s\n"
          (Ast.Utils.value_to_string other));
   print_newline ();
 

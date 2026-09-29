@@ -60,9 +60,18 @@ let eval_snippet env code =
 
 let rec run ?(headless = false) ?start_repl env =
   (* Never clobber the caller's project: build_pipeline writes _pipeline/ and
-     related state relative to cwd. Run the whole demo in a fresh temp dir. *)
+     related state relative to cwd. Run the whole demo in a fresh temp dir.
+     Filename.temp_dir needs OCaml >= 5.1 (pinned toolchain is 5.4). *)
   let orig_dir = Sys.getcwd () in
   let tmp_dir = Filename.temp_dir "t-demo-" "" in
+  (* The REPL handoff runs inside the temp dir, and `q` exits via `exit`,
+     which skips Fun.protect — so cleanup is also registered with at_exit. *)
+  let cleanup () =
+    (try Unix.chdir orig_dir with _ -> ());
+    (try ignore (Sys.command (Printf.sprintf "rm -rf %s" (Filename.quote tmp_dir)))
+     with _ -> ())
+  in
+  at_exit cleanup;
   Unix.chdir tmp_dir;
   Fun.protect ~finally:(fun () -> (try Unix.chdir orig_dir with _ -> ())) (fun () ->
   run_in_tmp ~headless ?start_repl env)

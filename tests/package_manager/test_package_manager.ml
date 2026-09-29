@@ -1804,7 +1804,7 @@ workspace = "python"
     && has "export JULIA_LOAD_PATH=\":${t-lang.packages.${system}.tlang-julia-path}:''${JULIA_LOAD_PATH:-}\""
     && has "export R_LIBS_SITE="
     && has "_t_r_libs="
-    && has "R --slave --no-restore");
+    && has "R --no-init-file --no-site-file --slave --no-restore");
 
   test_pm "generate project flake with uv Python resolver" (fun () ->
     let flake = Nix_generator.generate_project_flake
@@ -1822,14 +1822,19 @@ workspace = "python"
     && has "pyproject-build-systems.url = \"github:pyproject-nix/build-system-pkgs\""
     && has "pyWorkspace = uv2nix.lib.workspace.loadWorkspace"
     && has "workspaceRoot = ./. + \"/python\""
-    && has "py-env = pySet.mkVirtualEnv \"t-python-uv-env\" pyWorkspace.deps.default"
+    && has "py-venv = pySet.mkVirtualEnv \"t-python-uv-env\" pyWorkspace.deps.default"
     && not (has "pkgs.python314.withPackages")
+    (* uv resolver: mkVirtualEnv carries no wrapper, so py-env wraps the venv
+       binaries explicitly (sourced activate files excluded). No global shell
+       export: libs stay scoped to Python processes, t/R/Julia keep theirs. *)
+    && has "py-env = pkgs.symlinkJoin {"
+    && has "paths = [ py-venv ]"
+    && has "nativeBuildInputs = [ pkgs.makeWrapper ]"
+    && has "activate* | Activate*) continue ;;"
+    && has "wrapProgram \"$f\" --prefix LD_LIBRARY_PATH : \"${pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib pkgs.zlib pkgs.openblas pkgs.gfortran.cc.lib ]}\""
     && has "pkgs.openblas"
     && has "gfortran"
-    (* uv resolver: venv has no wrapper, so the shell exports both lib sets,
-       Linux-guarded (pointless on macOS). *)
-    && has "export LD_LIBRARY_PATH=\"${pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib pkgs.zlib ]}:''${LD_LIBRARY_PATH:-}\""
-    && has "if [ \"$(uname -s)\" = \"Linux\" ]");
+    && not (has "export LD_LIBRARY_PATH="));
 
   print_newline ();
 

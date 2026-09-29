@@ -17,9 +17,11 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
      Skip (without failing) inside sandboxes such as `nix flake check`,
      on boxes with the binary but no daemon/network, or when explicitly
      disabled via TLANG_SKIP_DEMO=1. *)
+  (* `builtins.toFile` writes to the store, so it fails with no daemon —
+     unlike a pure-eval probe such as `1 + 1`, which passes regardless. *)
   let daemon_ok =
     try
-      Sys.command "nix-instantiate --eval -E '1 + 1' >/dev/null 2>&1" = 0
+      Sys.command "nix-instantiate --eval -E 'builtins.toFile \"t-demo-probe\" \"y\"' >/dev/null 2>&1" = 0
     with _ -> false
   in
   let explicitly_skipped =
