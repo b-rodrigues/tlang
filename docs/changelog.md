@@ -1,6 +1,10 @@
 # Changelog
 
-## [Unreleased]
+## [0.55.4] - 2026-09-29
+
+### New features
+
+- **Automatic editor setup in new projects**: `t init` now writes an `.envrc` (`use flake`) and a `.vscode/` folder recommending the T and direnv extensions, so Positron and VS Code pick up the flake environment — including `t-lsp` and the project R/Python interpreters — after one `direnv allow`. Direnv state (`.direnv/`) is git-ignored in new projects and packages.
 
 ### Fixes
 
@@ -11,17 +15,7 @@
 - **`R_LIBS_SITE` re-export handles empty output**: when `R` prints nothing, the shell no longer prepends a stray leading `:` to the variable, `R` stderr is silenced, and project/site init files (`--no-init-file --no-site-file`) no longer run on every shell entry.
 - **`t demo` no longer writes into the current project**: the demo builds inside a fresh temporary directory instead of writing `_pipeline/` state into wherever it was launched, and the caching narration no longer claims a cache hit unconditionally. The temp dir is removed on exit, including via the REPL handoff.
 
-### Maintenance
-
 - **`sync_version.sh` bumps the extension offline**: a single `npm version` call updates both `package.json` and `package-lock.json` with no network access, so the two files cannot drift after a release.
-
-## [0.55.4] - 2026-09-28
-
-### New features
-
-- **Automatic editor setup in new projects**: `t init` now writes an `.envrc` (`use flake`) and a `.vscode/` folder recommending the T and direnv extensions, so Positron and VS Code pick up the flake environment — including `t-lsp` and the project R/Python interpreters — after one `direnv allow`. Direnv state (`.direnv/`) is git-ignored in new projects and packages.
-
-### Fixes
 
 - **Positron Python interpreter startup**: Project Python environments (`py-env` in generated `flake.nix`) are now wrapped with `LD_LIBRARY_PATH` containing C/C++ runtime libraries (`pkgs.stdenv.cc.cc.lib` and `pkgs.zlib`). This allows Positron's bundled language server and IPyKernel dependencies (specifically `pyzmq`, which requires `libstdc++.so.6`) to start up successfully when selecting the project Python interpreter on Linux.
 - **Positron finds R packages**: Project shells export `R_LIBS_SITE`, so Positron lists and loads all `[r-dependencies]` packages through direnv even when it starts base R directly instead of the project wrapper. The development shell R environment also includes the `tlang` companion package, so `library(tlang)` works from the terminal.
