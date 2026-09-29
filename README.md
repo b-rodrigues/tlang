@@ -50,6 +50,13 @@ Run `t demo` right in your terminal to see pipeline introspection, hermetic Nix 
 
 A complete analysis that simulates non-linear data in Julia, fits a gradient-boosted regressor in Python, plots ground truth vs predictions in R, and compiles a Quarto report:
 
+![T pipeline with Julia, Python, and R code blocks, each with its own colors](demo-polyglot.svg)
+
+*Colors show each runtime: the `jln` block is Julia, `pyn` is Python, `rn` is R.*
+
+<details>
+<summary>Show full code (copy and paste)</summary>
+
 ```t
 p = pipeline {
   -- 1. Simulate non-linear DGP in Julia (seeded)
@@ -100,6 +107,8 @@ sim_data
 
 build_pipeline(p)
 ```
+
+</details>
 
 - **Zero manual I/O:** R returns the `ggplot` object directly; T's runner automatically renders and caches the visual artifact without `ggsave()`. DataFrames pass between nodes via Apache Arrow IPC (`^ipc`) without `read.csv()` or `to_csv()` glue.
 - **No vendor lock-in (use standalone scripts):** You don't have to embed code in `<{ ... }>` blocks. Nodes accept external script files directly (`jln(script = "sim.jl")`, `pyn(script = "train.py")`, `rn(script = "plot.R")`). Your Julia, Python, and R scripts remain ordinary standalone files that your team can run or reuse anywhere with standard tooling.
