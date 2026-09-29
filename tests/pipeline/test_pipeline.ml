@@ -151,6 +151,48 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     "not been built yet";
   print_newline ();
 
+  Printf.printf "Phase 3 — Block shadowing in node commands:\n";
+  (* A block-local assignment shadows an outer env var: later references must
+     stay local instead of inlining the outer value (substitute_env_vars walks
+     statements left to right; reassignment adds no new name). Assert on the
+     emitted node script so no Nix build is needed. *)
+  let (_, env_shadow) = eval_string_env "x = 100" (Packages.init_env ()) in
+  let (v_shadow, _) = eval_string_env
+    {|pipeline { a = node(command = { x = 1; x + 1 }) }|}
+    env_shadow in
+  (match v_shadow with
+   | Ast.VPipeline p ->
+       let nix = Nix_emit_pipeline.emit_pipeline p in
+       let has s = try ignore (Str.search_forward (Str.regexp_string s) nix 0); true
+                   with Not_found -> false in
+       if has "x = 1" && has "x + 1" && not (has "100 + 1") then
+         begin incr pass_count; Printf.printf "  ✓ block-local assignment shadows outer env var\n" end
+       else
+         begin incr fail_count; Printf.printf "  ✗ block shadowing leaked outer value into node script\n" end
+   | other ->
+       incr fail_count; Printf.printf "  ✗ block shadowing fixture failed: %s\n"
+         (Ast.Utils.value_to_string other));
+  (* Reassignment targets the existing (outer) binding, so the RHS still sees
+     outer names normally. *)
+  let (v_reassign, _) = eval_string_env
+    {|pipeline { a = node(command = { y = 1; x := y + 1; x }) }|}
+    env_shadow in
+  (match v_reassign with
+   | Ast.VPipeline p ->
+       let nix = Nix_emit_pipeline.emit_pipeline p in
+       let has s = try ignore (Str.search_forward (Str.regexp_string s) nix 0); true
+                   with Not_found -> false in
+       (* Reassignment adds no new name, so the trailing `x` still resolves to
+          the outer binding (inlined as 100), while local `y` stays local. *)
+       if has "y = 1" && has "x := (y + 1)" then
+         begin incr pass_count; Printf.printf "  ✓ block reassignment keeps outer binding target\n" end
+       else
+         begin incr fail_count; Printf.printf "  ✗ block reassignment script unexpected\n" end
+   | other ->
+       incr fail_count; Printf.printf "  ✗ block reassignment fixture failed: %s\n"
+         (Ast.Utils.value_to_string other));
+  print_newline ();
+
   Printf.printf "Phase 3 — Pipeline Introspection:\n";
   let (v, _) = eval_string_env "pipeline_nodes(p)" env_p3 in
   let result = Ast.Utils.value_to_string v in

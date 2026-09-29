@@ -147,14 +147,18 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   (* Regression: UV nodes need system BLAS/Fortran, nixpkgs nodes must stay
      pristine (foreign BLAS breaks scipy/seaborn). The node derivation picks
      the libs only when the project resolver is uv. This fixture has no
-     custom flake, so it goes through the ld_extra branch. *)
+     custom flake, so it goes through the ld_extra branch.
+     Assert the exact LD_LIBRARY_PATH line so ld_extra/src_block %s slots
+     cannot silently swap (all args share one type, OCaml cannot catch it). *)
   (match v_sh_nix with
    | Ast.VPipeline p ->
        let nix = Nix_emit_pipeline.emit_pipeline p in
-       if contains_substring nix "if pyResolver == \"uv\" then" && contains_substring nix "pkgs.openblas" then
+       let exact_line = "LD_LIBRARY_PATH = \"${pkgs.gcc.cc.lib}/lib:${pkgs.avahi}/lib${if pyResolver == \"uv\" then \":${pkgs.openblas}/lib:${pkgs.gfortran.cc.lib}/lib\" else \"\"}\";" in
+       if contains_substring nix "if pyResolver == \"uv\" then" && contains_substring nix "pkgs.openblas"
+          && contains_substring nix exact_line then
          begin incr pass_count; Printf.printf "  ✓ node LD_LIBRARY_PATH is uv-conditional\n" end
        else
-         begin incr fail_count; Printf.printf "  ✗ node LD_LIBRARY_PATH missing uv conditional\n" end
+         begin incr fail_count; Printf.printf "  ✗ node LD_LIBRARY_PATH missing uv conditional or exact line\n" end
    | _ ->
        incr fail_count; Printf.printf "  ✗ node LD_LIBRARY_PATH check failed\n");
 

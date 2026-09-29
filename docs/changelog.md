@@ -1,5 +1,17 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixes
+
+- **Project shells stay pristine on the `nixpkgs` Python resolver**: the C/C++ runtime libraries (`pkgs.stdenv.cc.cc.lib`, `pkgs.zlib`) now come only from the `py-env` wrapper, as before. The shell-wide `LD_LIBRARY_PATH` export (which also exposed `t`, R, and Julia to the project's `libstdc++`) is gone for `nixpkgs` projects, avoiding `GLIBCXX_* not found` mismatches when the project's `nixpkgs` pin differs from the one `t` was built against. UV projects still export both the C/C++ runtimes and BLAS/Fortran (`openblas`, `gfortran`) for their wrapper-less venvs, Linux-only (previously the export was unconditional, including on macOS).
+- **`R_LIBS_SITE` re-export handles empty output**: when `R` prints nothing, the shell no longer prepends a stray leading `:` to the variable, and `R` stderr is silenced during the probe.
+- **`t demo` no longer writes into the current project**: the demo builds inside a fresh temporary directory instead of writing `_pipeline/` state into wherever it was launched, and the caching narration no longer claims a cache hit unconditionally.
+
+### Maintenance
+
+- **`sync_version.sh` keeps `package-lock.json` in sync** with the bumped extension `package.json`, so the two files cannot drift after a release.
+
 ## [0.55.4] - 2026-09-28
 
 ### New features

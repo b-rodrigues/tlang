@@ -509,8 +509,13 @@ chmod +x $out/bin/bisect-ppx-report
             # Export R library paths for editors that bypass the R wrapper (e.g. Positron).
             # The wrapper sets R_LIBS_SITE internally. Positron may start base R directly,
             # so re-export here for direnv and editor processes.
+            # Empty R output leaves any existing value untouched (no leading `:`).
             if command -v R >/dev/null 2>&1; then
-              export R_LIBS_SITE="$(R --slave --no-restore -e 'cat(Sys.getenv("R_LIBS_SITE"))'):''${R_LIBS_SITE:-}"
+              _t_r_libs="$(R --slave --no-restore -e 'cat(Sys.getenv("R_LIBS_SITE"))' 2>/dev/null)"
+              if [ -n "$_t_r_libs" ]; then
+                export R_LIBS_SITE="$_t_r_libs:''${R_LIBS_SITE:-}"
+              fi
+              unset _t_r_libs
             fi
 
             # Create a local Julia depot directory for sandbox guards

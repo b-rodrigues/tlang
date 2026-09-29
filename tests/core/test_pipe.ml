@@ -31,6 +31,9 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
   test "maybe-pipe to builtin"
     "42 ?|> type"
     {|"Int"|};
+  test "maybe-pipe preserves quotation"
+    "to_expr(1 + 2) ?|> type"
+    {|"Expression"|};
   test "maybe-pipe error to is_error"
     "error(\"test\") ?|> is_error"
     "true";

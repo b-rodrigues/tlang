@@ -851,6 +851,7 @@ let scaffold_package (opts : scaffold_options) : (unit, string) result =
         Ok ()
       with Sys_error msg ->
         Error ("System file error during scaffolding: " ^ msg)
+(* ================================================================ *)
 (* Interactive Prompts                                              *)
 (* ================================================================ *)
 

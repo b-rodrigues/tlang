@@ -33,4 +33,13 @@ sed -i "s/t_version: \"[0-9.]*\"/t_version: \"$VERSION\"/g" docs/reproducibility
 # VS Code/Positron extension version (used for the next .vsix build)
 sed -i "s/\"version\": \"[0-9.]*\"/\"version\": \"$VERSION\"/" editors/vscode/extensions/t-lang/package.json
 
+# Keep package-lock.json in sync so the two files cannot drift (the lockfile
+# stores the same version in its top-level "version" field).
+if command -v npm >/dev/null 2>&1; then
+  (cd editors/vscode/extensions/t-lang && npm install --package-lock-only --ignore-scripts >/dev/null 2>&1) \
+    || echo "Warning: npm install --package-lock-only failed; update package-lock.json by hand."
+else
+  echo "Warning: npm not found; update editors/vscode/extensions/t-lang/package-lock.json by hand."
+fi
+
 echo "Done. Please review changes and commit."

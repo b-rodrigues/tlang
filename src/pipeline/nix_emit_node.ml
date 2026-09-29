@@ -81,6 +81,11 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
   (* Safety net: only include actual nodes in this pipeline as Nix buildInputs.
      The evaluator already filters p_deps, but this guards against any edge cases. *)
   let deps = List.filter (fun d -> List.mem d all_pipeline_node_names) deps in
+  (* Invalid env var names cannot reach this emitter through the normal path:
+     eval.ml `lookup_env_vars` rejects them with a TypeError at pipeline
+     construction time. The filters below are defense-in-depth for direct
+     emitter callers: unknown shapes (non-stringable values) and invalid
+     names are dropped rather than emitting broken Nix. *)
   let is_valid_env_var_name key =
     let is_initial = function
       | 'A' .. 'Z' | 'a' .. 'z' | '_' -> true

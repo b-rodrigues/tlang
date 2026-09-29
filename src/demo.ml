@@ -58,7 +58,16 @@ let eval_snippet env code =
       raise (Demo_failed (Utils.value_to_string v))
   | _ -> (v, env')
 
-let run ?(headless = false) ?start_repl env =
+let rec run ?(headless = false) ?start_repl env =
+  (* Never clobber the caller's project: build_pipeline writes _pipeline/ and
+     related state relative to cwd. Run the whole demo in a fresh temp dir. *)
+  let orig_dir = Sys.getcwd () in
+  let tmp_dir = Filename.temp_dir "t-demo-" "" in
+  Unix.chdir tmp_dir;
+  Fun.protect ~finally:(fun () -> (try Unix.chdir orig_dir with _ -> ())) (fun () ->
+  run_in_tmp ~headless ?start_repl env)
+
+and run_in_tmp ?(headless = false) ?start_repl env =
   clear_screen ~headless;
   banner "T Interactive Demo: Reproducible Pipelines in Action";
   Printf.printf "Welcome to the T interactive demo! We will demonstrate:\n";
@@ -165,8 +174,8 @@ let run ?(headless = false) ?start_repl env =
 
   let (_, env) = eval_snippet env "build_pipeline(p)" in
 
-  Printf.printf "\n%sCaching in action:%s Node `raw` was %s(cached)%s. Only `filtered` was computed!\n"
-    color_bold color_reset color_green color_reset;
+  Printf.printf "\n%sCaching in action:%s unchanged nodes (like `raw`) are reused from /nix/store\nwhen their content hash matches — only new work (here `filtered`) is computed.\n(This run rebuilds `raw` on a cold cache; warm caches skip it.)\n"
+    color_bold color_reset;
 
   wait_step ~headless "[Press Enter to see first-class error handling in pipelines...]";
 

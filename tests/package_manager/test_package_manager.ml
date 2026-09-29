@@ -1796,10 +1796,14 @@ workspace = "python"
     && has "makeWrapperArgs = ["
     && has "LD_LIBRARY_PATH"
     && has "export PYTHONPATH=\"${t-lang.packages.${system}.default}/share/tlang/py-package/src:''${PYTHONPATH:-}\""
-    && has "export LD_LIBRARY_PATH=\"${pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib pkgs.zlib ]}:''${LD_LIBRARY_PATH:-}\""
+    (* nixpkgs resolver: py-env wrapper carries cc/zlib; the shell stays
+       pristine (no global LD_LIBRARY_PATH, no openblas) so t/R/Julia keep
+       their own libstdc++ (b23fa59). *)
+    && not (has "export LD_LIBRARY_PATH=")
     && not (has "openblas")
     && has "export JULIA_LOAD_PATH=\":${t-lang.packages.${system}.tlang-julia-path}:''${JULIA_LOAD_PATH:-}\""
     && has "export R_LIBS_SITE="
+    && has "_t_r_libs="
     && has "R --slave --no-restore");
 
   test_pm "generate project flake with uv Python resolver" (fun () ->
@@ -1821,7 +1825,11 @@ workspace = "python"
     && has "py-env = pySet.mkVirtualEnv \"t-python-uv-env\" pyWorkspace.deps.default"
     && not (has "pkgs.python314.withPackages")
     && has "pkgs.openblas"
-    && has "gfortran");
+    && has "gfortran"
+    (* uv resolver: venv has no wrapper, so the shell exports both lib sets,
+       Linux-guarded (pointless on macOS). *)
+    && has "export LD_LIBRARY_PATH=\"${pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib pkgs.zlib ]}:''${LD_LIBRARY_PATH:-}\""
+    && has "if [ \"$(uname -s)\" = \"Linux\" ]");
 
   print_newline ();
 

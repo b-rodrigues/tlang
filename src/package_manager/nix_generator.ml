@@ -3,6 +3,22 @@
 
 open Package_types
 
+(* Shared shellHook fragment: re-export R_LIBS_SITE for editors (e.g. Positron)
+   that bypass the r-env wrapper and start base R directly. The wrapper sets
+   R_LIBS_SITE internally; direnv shells re-export it here. Empty R output
+   leaves any existing value untouched (no leading `:`), stderr is silenced. *)
+let r_libs_site_hook =
+  "            # Export R library paths for editors that bypass the r-env wrapper (e.g. Positron).\n" ^
+  "            # The r-env binary wrapper sets R_LIBS_SITE internally. Positron reads R_HOME_DIR\n" ^
+  "            # from the shim and then starts base R directly, so re-export here for direnv.\n" ^
+  "            if command -v R >/dev/null 2>&1; then\n" ^
+  "              _t_r_libs=\"$(R --slave --no-restore -e 'cat(Sys.getenv(\"R_LIBS_SITE\"))' 2>/dev/null)\"\n" ^
+  "              if [ -n \"$_t_r_libs\" ]; then\n" ^
+  "                export R_LIBS_SITE=\"$_t_r_libs:''${R_LIBS_SITE:-}\"\n" ^
+  "              fi\n" ^
+  "              unset _t_r_libs\n" ^
+  "            fi\n"
+
 
 let julia_depot_sandbox_hook =
   "            # Create a local Julia depot directory for sandbox guards\n\
@@ -423,21 +439,22 @@ let generate_project_flake
     Buffer.add_string buf ":''${T_PACKAGE_PATH:-}\"\n"
   end;
   Printf.bprintf buf "            export PYTHONPATH=\"${t-lang.packages.${system}.default}/share/tlang/py-package/src:''${PYTHONPATH:-}\"\n";
-  Buffer.add_string buf "            export LD_LIBRARY_PATH=\"${pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib pkgs.zlib ]}:''${LD_LIBRARY_PATH:-}\"\n";
-  (* UV venvs (mkVirtualEnv) need system BLAS/Fortran at run time. Nixpkgs
-     shells must stay pristine: foreign BLAS breaks scipy and seaborn there
-     just as in node builds. *)
+  (* The py-env wrapper (nixpkgs resolver) already prefixes cc/zlib via
+     makeWrapperArgs, so a global export would needlessly expose t, R, Julia
+     and everything else in the shell to the project's nixpkgs libstdc++
+     (GLIBCXX risk when t-lang's own nixpkgs pin differs). Emit the global
+     runtime libs only for uv venvs (mkVirtualEnv has no wrapper), Linux-only
+     (pointless on macOS), with nixpkgs nodes/shells staying pristine just as
+     in node builds (b23fa59). *)
   if use_uv then begin
-    Buffer.add_string buf "            # UV Python venvs need system BLAS/Fortran at run time (e.g. numpy).\n";
-    Buffer.add_string buf "            export LD_LIBRARY_PATH=\"${pkgs.lib.makeLibraryPath [ pkgs.openblas pkgs.gfortran.cc.lib ]}:''${LD_LIBRARY_PATH:-}\"\n";
+    Buffer.add_string buf "            # UV Python venvs need system libs at run time (e.g. numpy, pyzmq); Linux only.\n";
+    Buffer.add_string buf "            if [ \"$(uname -s)\" = \"Linux\" ]; then\n";
+    Buffer.add_string buf "              export LD_LIBRARY_PATH=\"${pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib pkgs.zlib ]}:''${LD_LIBRARY_PATH:-}\"\n";
+    Buffer.add_string buf "              export LD_LIBRARY_PATH=\"${pkgs.lib.makeLibraryPath [ pkgs.openblas pkgs.gfortran.cc.lib ]}:''${LD_LIBRARY_PATH:-}\"\n";
+    Buffer.add_string buf "            fi\n";
   end;
   Printf.bprintf buf "            export JULIA_LOAD_PATH=\":${t-lang.packages.${system}.tlang-julia-path}:''${JULIA_LOAD_PATH:-}\"\n";
-  Buffer.add_string buf "            # Export R library paths for editors that bypass the r-env wrapper (e.g. Positron).\n";
-  Buffer.add_string buf "            # The r-env binary wrapper sets R_LIBS_SITE internally. Positron reads R_HOME_DIR\n";
-  Buffer.add_string buf "            # from the shim and then starts base R directly, so re-export here for direnv.\n";
-  Buffer.add_string buf "            if command -v R >/dev/null 2>&1; then\n";
-  Buffer.add_string buf "              export R_LIBS_SITE=\"$(R --slave --no-restore -e 'cat(Sys.getenv(\"R_LIBS_SITE\"))'):''${R_LIBS_SITE:-}\"\n";
-  Buffer.add_string buf "            fi\n";
+  Buffer.add_string buf r_libs_site_hook;
   Buffer.add_string buf julia_depot_sandbox_hook;
   Buffer.add_string buf r_profile_sandbox_hook;
   Buffer.add_string buf python_guard_sandbox_hook;
