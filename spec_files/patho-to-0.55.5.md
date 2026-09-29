@@ -26,13 +26,19 @@ crosses the boundary.
 
 **Direction.** Make capture visible instead of silent. Options, cheapest
 first:
-- [ ] Document the exact capture rule in one place (`docs/` + docstring):
-  which bindings inline, which stay symbolic (lambdas, builtins), what is
-  unavailable (fresh env), with a small example per case.
-- [ ] Emit a warning when construction inlines an outer data binding into a
-  node command, naming the variable and the node.
-- [ ] Long term: an explicit capture list on nodes (in the spirit of
-  `functions`/`include`), so crossing the boundary is always deliberate.
+- [x] Document the exact capture rule in one place (done: `node` docstring
+  in `node_docs.ml` + mirrored `docs/reference/node.md`): frozen data,
+  local shadowing, symbolic functions/builtins, deferred quoted code,
+  construction error on captured-data reassignment. Verified each claim
+  against the implementation and a live build before writing.
+- [x] Pin the rule with unit tests (done: frozen-literal, lambda-symbolic,
+  shadowing, rejection, quoted/builtin exemptions in `test_pipeline.ml`).
+- [x] Cover it with a demo (done: `t_demos/capture_transparency_t` with
+  passing asserts, verified end to end on a real `populate_pipeline`
+  build).
+- [ ] Consider a construction warning for inlining (deferred: capture is
+  the normal mechanism and T values are immutable, so a warning would fire
+  on all ordinary use — documentation plus tests carry this for now).
 
 **Acceptance.**
 - [ ] The documented rule matches the implemented `substitute_env_vars`

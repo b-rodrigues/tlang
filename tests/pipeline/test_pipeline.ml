@@ -154,8 +154,9 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   Printf.printf "Phase 3 — Block shadowing in node commands:\n";
   (* A block-local assignment shadows an outer env var: later references must
      stay local instead of inlining the outer value (substitute_env_vars walks
-     statements left to right; reassignment adds no new name). Assert on the
-     emitted node script so no Nix build is needed. *)
+     statements left to right; reassignment binds from that point on, while
+     reassigning a captured outer data variable is rejected, see below).
+     Assert on the emitted node script so no Nix build is needed. *)
   let (_, env_shadow) = eval_string_env "x = 100" (Packages.init_env ()) in
   let (v_shadow, _) = eval_string_env
     {|pipeline { a = node(command = { x = 1; x + 1 }) }|}
@@ -172,6 +173,41 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
    | other ->
        incr fail_count; Printf.printf "  ✗ block shadowing fixture failed: %s\n"
          (Ast.Utils.value_to_string other));
+  (* Outer data inlines as a frozen literal; outer lambdas stay symbolic
+     (share code via functions, not bare references). *)
+  let (_, env_cap) = eval_string_env "x = 41" (Packages.init_env ()) in
+  let (v_frozen, _) = eval_string_env
+    {|pipeline { a = node(command = x + 1) }|}
+    env_cap in
+  (match v_frozen with
+   | Ast.VPipeline p ->
+       let nix = Nix_emit_pipeline.emit_pipeline p in
+       let has s = try ignore (Str.search_forward (Str.regexp_string s) nix 0); true
+                   with Not_found -> false in
+       if has "(41 + 1)" then
+         begin incr pass_count; Printf.printf "  ✓ outer data inlines as frozen literal\n" end
+       else
+         begin incr fail_count; Printf.printf "  ✗ outer data not inlined\n" end
+   | other ->
+       incr fail_count; Printf.printf "  ✗ frozen fixture failed: %s\n"
+         (Ast.Utils.value_to_string other));
+  let (_, env_lam) = eval_string_env "f = \\(n: Int -> Int) n + 1" (Packages.init_env ()) in
+  let (v_lam, _) = eval_string_env
+    {|pipeline { a = node(command = f(41)) }|}
+    env_lam in
+  (match v_lam with
+   | Ast.VPipeline p ->
+       let nix = Nix_emit_pipeline.emit_pipeline p in
+       let has s = try ignore (Str.search_forward (Str.regexp_string s) nix 0); true
+                   with Not_found -> false in
+       if has "f(41)" && not (has "n + 1") then
+         begin incr pass_count; Printf.printf "  ✓ outer lambda stays symbolic\n" end
+       else
+         begin incr fail_count; Printf.printf "  ✗ outer lambda not symbolic\n" end
+   | other ->
+       incr fail_count; Printf.printf "  ✗ lambda fixture failed: %s\n"
+         (Ast.Utils.value_to_string other));
+  print_newline ();
   (* Reassigning a captured outer variable is rejected at construction: the
      node script runs in a fresh environment, so the target would dangle and
      a trailing read would inline the stale outer value (100 instead of 2). *)
