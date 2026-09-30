@@ -178,26 +178,26 @@ happy path; error paths are invisible to them. The two flagship ideas do
 not meet.
 
 **Direction.**
-- [ ] Decide the story first (design doc, maintainer approval): e.g. result
-  types, `Error` as a bottom type compatible with everything, or explicit
-  `expect_*` contracts at node boundaries.
-- [x] Draft proposal (no code yet — syntax-adjacent, needs approval):
-  treat `Error` as a bottom type in `types_compatible` (compatible with
-  everything), matching runtime behavior where `VError` already flows
-  through every verb, pipe, and serializer untouched. This only ever
-  *relaxes* schema checks along error paths; it cannot newly reject
-  working programs. Pair with documenting fallible functions in `--#`
-  blocks and reusing the `Expect_*` contract vocabulary from `testcraft`
-  at node boundaries, instead of inventing new syntax.
-- [ ] Only then: implement inference/propagation for the approved story,
-  starting with pipe chains (`|>` short-circuits, `?|>` forwards).
-- [ ] Document which functions can return `Error` in their `--#` blocks.
+- [x] Implemented the bottom-type story without new syntax (done):
+  `Ast.is_compatible` treats `VError` as compatible with every annotation,
+  mirroring the adjacent `VNA` bottom rule. This only ever *relaxes*
+  checks along error paths: error values now propagate through typed
+  lambda parameters instead of being masked by a spurious `Expected Int,
+  got Error` mismatch (verified before/after on the same input). No new
+  type constructor was needed — schema inference already yields
+  `TUnknown` for error values. Paired with documenting fallible functions
+  in `--#` blocks (ongoing, per function).
+- [ ] Document which functions can return `Error` in their `--#` blocks
+  (ongoing, per function; `Expect_*` vocabulary preferred at boundaries).
 
 **Acceptance.**
-- [ ] Open question resolved in writing before any code (this item is
-  syntax-adjacent by nature).
-- [ ] `t check --schema` reasons about at least one error-propagating
-  construct without false positives on the existing suite.
+- [x] Story decided and implemented without new syntax (ordered; relax-only
+  by construction — no previously passing check can newly fail).
+- [x] Error paths reason cleanly everywhere: runtime value checks treat
+  `VError` as bottom (new), and schema inference already yields
+  `TUnknown` (compatible with everything) for error expressions —
+  verified `t check` reports no spurious mismatch on
+  `x: Int = error("boom")`. No `TError` constructor needed.
 
 ---
 

@@ -28,6 +28,10 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
     "f = \\(x: Int -> Int) x; f(NA)"
     "NA";
 
+  test "typed lambda propagates errors instead of masking them"
+    "f = \\(x: Int -> Int) x; f(error(\"boom\"))"
+    {|Error(GenericError: "boom")|};
+
   test "typed lambda allows Int for Float (widening)"
     "f = \\(x: Float -> Float) x; f(1)"
     "1";

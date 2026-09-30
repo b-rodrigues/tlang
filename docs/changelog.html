@@ -48,6 +48,13 @@ packages.</li>
 </ul>
 <h3 id="fixes">Fixes</h3>
 <ul>
+<li><p><strong>Error values no longer trip type checks</strong>:
+<code>VError</code> is now compatible with every annotation (bottom
+value, like <code>NA</code>), so errors propagate through typed
+positions instead of being masked — <code>f(error("boom"))</code> into
+<code>\(x: Int -&gt; Int)</code> returns the original error, not a
+spurious <code>Expected Int</code> mismatch. Schema inference already
+treated error paths as unknown; no new type syntax was needed.</p></li>
 <li><p><strong>Unattended builds never wait on stdin</strong>: the
 missing-dependency prompt no longer reads from non-terminal stdin (where
 a held-open pipe would block forever) and gains a

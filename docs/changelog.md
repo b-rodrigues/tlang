@@ -8,6 +8,7 @@
 
 ### Fixes
 
+- **Error values no longer trip type checks**: `VError` is now compatible with every annotation (bottom value, like `NA`), so errors propagate through typed positions instead of being masked — `f(error("boom"))` into `\(x: Int -> Int)` returns the original error, not a spurious `Expected Int` mismatch. Schema inference already treated error paths as unknown; no new type syntax was needed.
 - **Unattended builds never wait on stdin**: the missing-dependency prompt no longer reads from non-terminal stdin (where a held-open pipe would block forever) and gains a `TLANG_NO_PROMPT=1` opt-out that declines before any prompt. Scripts and CI fail fast with the actionable fix instead.
 - **Foreign locals no longer wire phantom dependencies**: dependency inference now subtracts names bound by the foreign block itself (R `<-`/`=`/`->`/loop variables, Python assignments/`for`/`def` with suite tracking, Julia assignments/named definitions with scope tracking, shell `name=`/`for`). A shadowed sibling name no longer creates a false edge (or false cycle); genuinely used siblings, keyword arguments, and `read_node("name")` literals still register.
 - **Slim shells for projects without runtime dependencies**: node builds use `pipeline.nix` environments, so a project that declares no R/Python/Julia packages now gets bare interpreters instead of locally building wrapper and depot derivations — a pure-T shell drops from 10 local builds to 1. Declaring any dependency restores the full environment on the next `t update`.

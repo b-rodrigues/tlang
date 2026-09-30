@@ -1955,6 +1955,7 @@ let rec is_compatible (v : value) (t : typ) : bool =
   | VRawCode _, TString -> true
   | VNA _, TCustom "NA" -> true
   | VNA _, _ -> true (* NA is compatible with any type (it's a special bottom/missing value) *)
+  | VError _, _ -> true (* Errors flow through every type (bottom value), like NA: they propagate instead of raising spurious mismatches *)
   
   | VList _, TList None -> true
   | VList items, TList (Some et) ->
