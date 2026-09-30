@@ -85,7 +85,11 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
     ~present:["read_node"; "data"; "other"; "r"] ~absent:[];
 
   (* Test 2b: block-local bindings per runtime. check_bind asserts the exact
-     sorted binding set so both over- and under-collection fail. *)
+     sorted binding set of extract_local_bindings — every unconditional
+     binding the scan spots, including ones the dependency filter later
+     keeps (read-before, right-hand-side self-reads). check_shadowed below
+     asserts the subtracted subset, so the two functions diverge by design
+     and each has its own tests. *)
   let check_bind name runtime text expected =
     let got = Ast.extract_local_bindings ~runtime text in
     let ok = got = List.sort_uniq String.compare expected in
@@ -127,11 +131,17 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
     "function g(x)\n  tmp = x\n  tmp\nend\ng" ["g"];
   check_bind "Julia for never binds (loop scope)" "Julia"
     "for i in 1:3\n  i\nend\ni" [];
+  check_bind "Julia comprehension leaks no frame" "Julia"
+    "[x for x in xs if x > 0]\ny = 1\ny" ["y"];
+  check_bind "Julia try/catch/finally stays balanced" "Julia"
+    "try\n  x = 1\ncatch e\n  y = 2\nfinally\n  z = 3\nend\nw = 4\nw" ["w"; "x"; "z"];
   check_bind "sh stmt-start binds" "sh" "x=1\necho $x" ["x"];
   check_bind "sh arg is not a binding" "sh" "echo x=1" [];
   check_bind "sh for binds" "sh" "for i in a b; do echo $i; done" ["i"];
   check_bind "sh local never binds" "sh" "f() {\n  local x=1\n  echo $x\n}" [];
   check_bind "other runtimes bind nothing" "Quarto" "x = 1\nx" [];
+  check_bind "R branch body is conditional" "R" "if (c) x <- 1\nx" [];
+  check_bind "Python branch suite is conditional" "Python" "if c:\n  x = 1\nx" [];
 
   (* Pure-shadow filter: only names with no read before their binding and
      none inside their own right-hand side subtract. *)

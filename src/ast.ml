@@ -1101,8 +1101,8 @@ let scan_raw_bindings ~runtime text =
           while/catch bodies are conditional (may never execute);
           begin/try/finally bodies count. *)
        let jl_stack = ref [] in
-       let jl_in_scope () = List.exists (fun (s, _, _) -> s) !jl_stack in
-       let jl_in_cond () = List.exists (fun (_, c, _) -> c) !jl_stack in
+       let jl_in_scope () = List.exists (fun (_, s, _, _) -> s) !jl_stack in
+       let jl_in_cond () = List.exists (fun (_, _, c, _) -> c) !jl_stack in
        (* Python suite maps: per-position flags for lines inside a def/class
           suite (function-locals, invisible outside) or a conditional suite
           (`if`/`elif`/`else`/`for`/`while`/`except`: may never execute).
@@ -1301,6 +1301,15 @@ let scan_raw_bindings ~runtime text =
                   end
                 end
             | JuliaLang ->
+                (* Frames carry their keyword so `end` handling stays
+                   balanced: `catch`/`finally` pop a pending `try`/`catch`
+                   frame first (one `end` closes the whole chain), and
+                   branch keywords only push at depth 0 — `for`/`if` inside
+                   comprehensions or generators (`[x for x in xs]`) have no
+                   `end` and must not leak a frame that disables later
+                   subtraction. `do` and named definitions always push:
+                   they live inside call parens by nature yet always pair
+                   with `end`. *)
                 if word = "function" || word = "macro" || word = "struct"
                    || word = "module" then begin
                   (* Named scope definitions bind in the enclosing scope;
@@ -1312,17 +1321,27 @@ let scan_raw_bindings ~runtime text =
                       if member_guarded j then record nm j e2 e2
                     end
                   end;
-                  jl_stack := (true, false, depth.(pos)) :: !jl_stack
+                  jl_stack := (word, true, false, depth.(pos)) :: !jl_stack
                 end else if word = "let" || word = "quote" || word = "do" then
-                  jl_stack := (true, false, depth.(pos)) :: !jl_stack
-                else if word = "if" || word = "for" || word = "while"
-                        || word = "catch" then
-                  jl_stack := (false, true, depth.(pos)) :: !jl_stack
-                else if word = "begin" || word = "try" || word = "finally" then
-                  jl_stack := (false, false, depth.(pos)) :: !jl_stack
-                else if word = "end" then begin
+                  jl_stack := (word, true, false, depth.(pos)) :: !jl_stack
+                else if (word = "if" || word = "for" || word = "while"
+                         || word = "catch" || word = "finally"
+                         || word = "begin" || word = "try")
+                        && depth.(pos) = 0 then begin
+                  (match word with
+                   | "catch" | "finally" ->
+                       (match !jl_stack with
+                        | (k, _, _, d) :: rest
+                          when (k = "try" || k = "catch") && d = depth.(pos) ->
+                            jl_stack := rest
+                        | _ -> ())
+                   | _ -> ());
+                  let cond = word = "if" || word = "for" || word = "while"
+                             || word = "catch" in
+                  jl_stack := (word, false, cond, depth.(pos)) :: !jl_stack
+                end else if word = "end" then begin
                   (match !jl_stack with
-                   | (_, _, d) :: rest when d = depth.(pos) -> jl_stack := rest
+                   | (_, _, _, d) :: rest when d = depth.(pos) -> jl_stack := rest
                    | _ -> ())
                 end else if not (jl_in_scope ()) && not (jl_in_cond ())
                             && depth.(pos) = 0
