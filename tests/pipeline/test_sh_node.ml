@@ -194,7 +194,10 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     match eval_string_env code (Packages.init_env ()) with
     | (Ast.VPipeline p, _) ->
         let nix = Nix_emit_pipeline.emit_pipeline p in
-        if contains_substring nix (writer ^ "(")
+        (* Space-prefixed `" writer("`: R/Julia writers sit at line start
+           (`  saveRDS(`), T/Python after `=` (`res1 = serialize(`); the
+           space rules out matching inside `deserialize(`. *)
+        if contains_substring nix (" " ^ writer ^ "(")
            && not (contains_substring nix "= default(") then
           begin incr pass_count; Printf.printf "  ✓ %s maps default to %s\n" label writer end
         else
@@ -204,12 +207,14 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   ) [("T", "T", "a + 1", "serialize"); ("R", "R", "<{ a + 1 }>", "saveRDS");
      ("Python", "Python", "<{ a + 1 }>", "serialize");
      ("Julia", "Julia", "<{ a + 1 }>", "jl_serialize")];
-  (* Known-but-unmapped formats fail loud at emission instead of emitting a
-     bare call to a nonexistent function (the silent-hang class): ^bin is
-     only valid for fetchurl nodes, so an R node with ^bin has no reader.
-     (The ^text spelling resolves through the serializer registry to a
-     real readLines and keeps working.) Custom function names still pass
-     through for resolution against `functions` files at build time. *)
+  (* The emitter must never silently emit a bare call for a known
+     format: `^bin` is only valid for fetchurl nodes, so an R node with a
+     `^bin` deserializer has no reader mapping. Expect a loud failure
+     naming the format (`bin`), the role, and the runtime — not a
+     `bin(...)` call that would hang at build time. (Contrast `^text`,
+     which resolves through the serializer registry to a real `readLines`
+     reader and keeps working.) Custom function names still pass through
+     for resolution against `functions` files at build time. *)
   (let (v_text_r, _) = eval_string_env
     {|pipeline {
       a = rn(command = <{ 1 }>)
@@ -221,7 +226,9 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
       (match (try let _ = Nix_emit_pipeline.emit_pipeline p in None
               with Invalid_argument msg -> Some msg) with
        | Some msg
-         when contains_substring msg "text" && contains_substring msg "R" ->
+         when contains_substring msg "bin"
+              && contains_substring msg "reader"
+              && contains_substring msg "R" ->
            incr pass_count; Printf.printf "  ✓ unmapped known format fails loud with valid set\n"
        | Some msg ->
            incr fail_count; Printf.printf "  ✗ loud failure missing format/runtime: %s\n" msg
