@@ -45,17 +45,17 @@ environment — including <code>t-lsp</code> and the project R/Python
 interpreters — after one <code>direnv allow</code>. Direnv state
 (<code>.direnv/</code>) is git-ignored in new projects and
 packages.</li>
-</ul>
-<h3 id="fixes">Fixes</h3>
-<ul>
-<li><p><strong>Richer static types</strong>: collection types
+<li><strong>Richer static types</strong>: collection types
 (<code>List[X]</code>, <code>Vector[X]</code>, <code>Dict[K, V]</code>),
 nominal domain types (<code>Model</code>, <code>Pipeline</code>,
 <code>Date</code>, …), and top-level <code>A | B</code> unions now flow
 from docstrings into inference, with structural compatibility and nested
 widening. A coverage audit with a ratcheting floor tracks precision
 (308/532 fully precise); generic calls reject inconsistent
-instantiations instead of passing silently.</p></li>
+instantiations instead of passing silently.</li>
+</ul>
+<h3 id="fixes">Fixes</h3>
+<ul>
 <li><p><strong>Reassignment respects annotations in
 <code>t check</code></strong>: <code>x: Int = 1</code> followed by
 <code>x := "hello"</code> now warns once, on the offending line
@@ -73,7 +73,11 @@ treated error paths as unknown; no new type syntax was needed.</p></li>
 missing-dependency prompt no longer reads from non-terminal stdin (where
 a held-open pipe would block forever) and gains a
 <code>TLANG_NO_PROMPT=1</code> opt-out that declines before any prompt.
-Scripts and CI fail fast with the actionable fix instead.</p></li>
+A new <code>TLANG_ASSUME_YES=1</code> counterpart answers yes (updating
+<code>tproject.toml</code>, like an interactive <code>y</code>) for
+scripts that previously piped one in — note that piping <code>y</code>
+into a build no longer works, since stdin is never read. Scripts and CI
+fail fast with the actionable fix instead.</p></li>
 <li><p><strong>Foreign locals no longer wire phantom
 dependencies</strong>: dependency inference now subtracts names bound by
 the foreign block itself (R

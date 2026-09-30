@@ -1,7 +1,7 @@
 # Type System: What Is Missing for a Full System (0.55.5)
 
 Status of T's type system as of 0.55.4, what is missing, and in what order
-to build it. Companion to `patho-to-0.55.5.md` item 6 (error-aware types,
+to build it. Companion to `path-to-0.55.5.md` item 6 (error-aware types,
 done separately): this file covers the structural gaps.
 
 Status convention: `- [ ]` open, `- [x]` done.

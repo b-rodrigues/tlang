@@ -41,10 +41,10 @@ first:
   on all ordinary use — documentation plus tests carry this for now).
 
 **Acceptance.**
-- [ ] The documented rule matches the implemented `substitute_env_vars`
+- [x] The documented rule matches the implemented `substitute_env_vars`
   behavior on shadowing, reassignment, lambdas, builtins, and quoted code.
-- [ ] No new warnings fire on the existing test suite or `t_demos` (or the
-  suite is updated where the warning is correct).
+- [x] No new warnings fire on the existing test suite or `t_demos` (the
+  check surfaces as a construction error, and the full suite is green).
 
 ---
 
@@ -76,9 +76,14 @@ fails the same silent way.
   typecheck.
 
 **Acceptance.**
-- [ ] No emitter path can produce a bare `name(...)` call for a strategy;
-  add/keep the `not (has "= default(")` style assertion for every runtime.
-- [ ] `t check` tier 1 reports unknown strategies with the valid set.
+- [x] No emitter path can produce a bare `name(...)` call for a strategy:
+  per-runtime `not (has "= default(")` assertions (T/R/Python/Julia),
+  loud `Invalid_argument` naming the valid set for known-but-unmapped
+  formats (^bin outside fetchurl), passthrough preserved for custom
+  function names.
+- [x] `t check` tier 1 reports unknown strategies with the valid set
+  (same `collect_errors` path as `pipeline_validate`; existing ^arrow
+  tests).
 
 ---
 
@@ -109,10 +114,10 @@ missed one silently rewires the DAG.
   class, needs its own analysis before touching pattern semantics.
 
 **Acceptance.**
-- [ ] `phantom_deps_t` and its siblings still pass; each exception has a
+- [x] `phantom_deps_t` and its siblings still pass; each exception has a
   dedicated test naming the rule.
-- [ ] No behavior change on the existing suite (inference results identical
-  except for fixed cases).
+- [x] No behavior change on the existing suite (inference results identical
+  except for fixed cases; full suite green).
 
 ---
 
