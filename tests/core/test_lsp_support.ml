@@ -405,8 +405,8 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
       let program = Parser.program Lexer.token lexbuf in
       let scope = Symbol_table.create_scope () in
       Symbol_table.register_keywords scope;
-      let _ = Analyzer.analyze program scope in
-      Check_utils.annotation_diagnostics program scope filename
+      let analysis = Analyzer.analyze program scope in
+      Check_utils.annotation_diagnostics program analysis.Analyzer.stmt_types filename
     with _ -> []);
   let cr = Check_utils.run_check Typecheck.Strict tmp_file env in
   let diags = Diagnostics.check_result_entries cr in
@@ -444,8 +444,8 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
       let program = Parser.program Lexer.token lexbuf in
       let scope = Symbol_table.create_scope () in
       Symbol_table.register_keywords scope;
-      let _ = Analyzer.analyze program scope in
-      Check_utils.annotation_diagnostics program scope filename
+      let analysis = Analyzer.analyze program scope in
+      Check_utils.annotation_diagnostics program analysis.Analyzer.stmt_types filename
     with _ -> []);
   let cr3 = Check_utils.run_check Typecheck.Strict tmp_file2 env in
   let diags3 = Diagnostics.check_result_entries cr3 in
@@ -464,5 +464,40 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
          with Not_found -> false));
   Check_utils.extra_diagnostics_hook := (fun _ -> []);
   Sys.remove tmp_file2;
+
+  (* Each reassignment is judged on its own right-hand side: a later
+     compatible reassignment does not silence an earlier violation, and a
+     bad binding line still warns even when a later reassignment fixes it.
+     Both cases were silent under the old post-analysis-scope lookup. *)
+  let tmp_file3 = Filename.temp_file "tlang_reassign_multi" ".t" in
+  let oc3 = open_out tmp_file3 in
+  output_string oc3 "a: Int = 1\na := \"x\"\na := 3\nb: Int = \"oops\"\nb := 2\n";
+  close_out oc3;
+  Check_utils.extra_diagnostics_hook := (fun filename ->
+    try
+      let ch = open_in filename in
+      let content = really_input_string ch (in_channel_length ch) in
+      close_in ch;
+      let lexbuf = Lexing.from_string content in
+      lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = filename };
+      let program = Parser.program Lexer.token lexbuf in
+      let scope = Symbol_table.create_scope () in
+      Symbol_table.register_keywords scope;
+      let analysis = Analyzer.analyze program scope in
+      Check_utils.annotation_diagnostics program analysis.Analyzer.stmt_types filename
+    with _ -> []);
+  let cr4 = Check_utils.run_check Typecheck.Strict tmp_file3 env in
+  let diags4 = Diagnostics.check_result_entries cr4 in
+  let warn_lines : int option list =
+    diags4
+    |> List.filter (fun d ->
+        d.Diagnostics.diag_severity = Warning
+        && (let s = d.Diagnostics.diag_message in
+            String.length s > 10 && String.sub s 0 10 = "Variable `"))
+    |> List.map (fun d -> d.Diagnostics.diag_line) in
+  test_message "two-reassignment chain warns on lines 2 and 4 only"
+    (List.sort compare warn_lines = [Some 2; Some 4]);
+  Check_utils.extra_diagnostics_hook := (fun _ -> []);
+  Sys.remove tmp_file3;
 
   print_newline ()

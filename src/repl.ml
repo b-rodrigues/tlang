@@ -707,8 +707,8 @@ let check_type_annotations filename =
     let program = Parser.program Lexer.token lexbuf in
     let scope = Symbol_table.create_scope () in
     Symbol_table.register_keywords scope;
-    let _ = Analyzer.analyze program scope in
-    Check_utils.annotation_diagnostics program scope filename
+    let analysis = Analyzer.analyze program scope in
+    Check_utils.annotation_diagnostics program analysis.Analyzer.stmt_types filename
   with
   | Lexer.SyntaxError _ ->
     (* Parse/syntax errors are already reported by check_utils normal flow. *)

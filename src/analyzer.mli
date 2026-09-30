@@ -6,6 +6,7 @@ module Definition_map : Map.S with type key = String.t
 
 type analysis_result = {
   definitions : Ast.source_location Definition_map.t;
+  stmt_types : (int, Semantic_type.t) Hashtbl.t;
 }
 
 val infer_type : Symbol_table.scope -> Ast.expr -> Semantic_type.t

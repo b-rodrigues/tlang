@@ -106,27 +106,17 @@ let extra_diagnostics_hook : (string -> Diagnostics.diagnostic list) ref = ref (
     and `:=` is checked against the standing contract. Only top-level
     statements participate, so nested scopes can never produce a false
     warning. `rm(...)` drops contracts for its literal and bare-word
-    targets. Inferred types come from the post-analysis scope; a contract
-    mismatch therefore reports even though the scope was already
-    overwritten, which is exactly the violation. *)
-let annotation_diagnostics program scope filename =
+    targets. Inferred types come from per-statement recordings taken
+    during analysis in visit order, so each line is judged on the type it
+    actually had — later reassignments cannot shift blame to the wrong
+    line. *)
+let annotation_diagnostics program stmt_types filename =
   let declared : (string, Ast.typ) Hashtbl.t = Hashtbl.create 16 in
-  (* Names reassigned later at top level: the Assignment warning would use
-     the post-analysis (already overwritten) type and blame the wrong line,
-     so those lines stay silent and the Reassignment warning below reports
-     at the right place instead. *)
-  let reassigned_later =
-    let rec collect acc = function
-      | [] -> acc
-      | stmt :: rest ->
-          (match stmt.node with
-           | Ast.Reassignment { name; _ } -> collect (name :: acc) rest
-           | _ -> collect acc rest)
-    in
-    collect [] program
-  in
   let diags = ref [] in
-  let warn name annotation inferred loc =
+  (* Single constructor for both diagnostic shapes below: [kind] selects
+     the message ("expression infers to" for the binding line,
+     "reassignment infers to" for `:=` lines). *)
+  let mk_diag ~kind name annotation inferred loc =
     let expected = Ast.Utils.typ_to_string annotation in
     let actual = Ast.Utils.typ_to_string inferred in
     let line = match loc with
@@ -137,8 +127,7 @@ let annotation_diagnostics program scope filename =
       | Some l -> Some l.Ast.column
       | None -> None
     in
-    diags := {
-      Diagnostics.diag_id = Diagnostics.gen_id ();
+    { Diagnostics.diag_id = Diagnostics.gen_id ();
       Diagnostics.diag_error_class = Diagnostics.Type_error;
       Diagnostics.diag_severity = Warning;
       Diagnostics.diag_phase = Schema;
@@ -150,65 +139,37 @@ let annotation_diagnostics program scope filename =
       Diagnostics.diag_end_line = None;
       Diagnostics.diag_end_column = None;
       Diagnostics.diag_message = Printf.sprintf
-        "Variable `%s` annotated as %s, but reassignment infers to %s."
-        name expected actual;
+        "Variable `%s` annotated as %s, but %s infers to %s."
+        name expected kind actual;
       Diagnostics.diag_expected = Some expected;
       Diagnostics.diag_actual = Some actual;
       Diagnostics.diag_caused_by = [];
       Diagnostics.diag_suggested_fix = Diagnostics.no_fix;
-    } :: !diags
+    }
   in
-  let inferred_of name =
-    match Symbol_table.lookup scope name with
-    | Some { Symbol_table.typ = Some st; _ } -> Semantic_type.to_ast_typ st
+  (* Type this statement actually had: recorded during analysis in visit
+     order, before later reassignments overwrite the scope. Falls back to
+     `Any` (silent) when absent. *)
+  let stmt_ty i =
+    match Hashtbl.find_opt stmt_types i with
+    | Some st -> Semantic_type.to_ast_typ st
     | _ -> Ast.TCustom "Any"
   in
-  List.iter (fun (stmt : Ast.stmt) ->
+  List.iteri (fun i (stmt : Ast.stmt) ->
     match stmt.node with
     | Ast.Assignment { name; typ = Some annotation; _ } ->
-        let inferred_ast = inferred_of name in
-        if not (Ast.types_compatible inferred_ast annotation)
-           && not (List.mem name reassigned_later) then begin
-          let expected = Ast.Utils.typ_to_string annotation in
-          let actual = Ast.Utils.typ_to_string inferred_ast in
-          let line = match stmt.loc with
-            | Some l -> Some l.Ast.line
-            | None -> None
-          in
-          let col = match stmt.loc with
-            | Some l -> Some l.Ast.column
-            | None -> None
-          in
-          diags := {
-            Diagnostics.diag_id = Diagnostics.gen_id ();
-            Diagnostics.diag_error_class = Diagnostics.Type_error;
-            Diagnostics.diag_severity = Warning;
-            Diagnostics.diag_phase = Schema;
-            Diagnostics.diag_node_id = None;
-            Diagnostics.diag_node_lang = None;
-            Diagnostics.diag_file = Some filename;
-            Diagnostics.diag_line = line;
-            Diagnostics.diag_column = col;
-            Diagnostics.diag_end_line = None;
-            Diagnostics.diag_end_column = None;
-            Diagnostics.diag_message = Printf.sprintf
-              "Variable `%s` annotated as %s, but expression infers to %s."
-              name expected actual;
-            Diagnostics.diag_expected = Some expected;
-            Diagnostics.diag_actual = Some actual;
-            Diagnostics.diag_caused_by = [];
-            Diagnostics.diag_suggested_fix = Diagnostics.no_fix;
-          } :: !diags
-        end;
+        let inferred_ast = stmt_ty i in
+        if not (Ast.types_compatible inferred_ast annotation) then
+          diags := mk_diag ~kind:"expression" name annotation inferred_ast stmt.loc :: !diags;
         Hashtbl.replace declared name annotation
     | Ast.Assignment { name; typ = None; _ } ->
         Hashtbl.remove declared name
     | Ast.Reassignment { name; _ } ->
         (match Hashtbl.find_opt declared name with
          | Some annotation ->
-             let inferred_ast = inferred_of name in
+             let inferred_ast = stmt_ty i in
              if not (Ast.types_compatible inferred_ast annotation) then
-               warn name annotation inferred_ast stmt.loc
+               diags := mk_diag ~kind:"reassignment" name annotation inferred_ast stmt.loc :: !diags
          | None -> ())
     | Expression e ->
         (match e.node with
