@@ -30,17 +30,23 @@ silently.
 - [x] Runtime use-site consistency (done): a type variable occurring in
   several parameter positions must receive the same *kind* of value.
   Compared by type head only (constructors, payloads ignored), so the
-  check is order-independent and can never reject two values of the same
-  kind. `Any`-reified positions (including `NA` and errors) stay
-  flexible. Nested type variables (e.g. inside `List[T]`) are not
-  unified. The static analyzer has no call checking to extend, so
-  runtime is the only layer changed.
+  check can never reject two values of the same kind; custom types
+  compare by name (`Model` vs `Pipeline` differ). Flexible positions
+  (`Any`, including reified `NA` and error values) neither bind nor
+  constrain: the first *solid* value wins, so `(NA, 1, "s")` and
+  `(1, "s", NA)` agree. Nested type variables (e.g. inside `List[T]`)
+  are not unified. The static analyzer has no call checking to extend,
+  so runtime is the only layer changed. Note: `Int` vs `Float` counts
+  as inconsistent here even though `types_compatible` widens — widening
+  answers "does this fit", consistency asks "are these identical", and
+  silent numeric merging would be the wrong default.
 - [ ] Definition-site checking (body vs declared generic return) stays
   future work; the analyzer records parameter types as unknown today.
 
 **Acceptance.**
 - [x] `const(1, "s")` and `const("s", 1)` fail with the inconsistent-types
-  error; consistent, single-use, and `NA` calls pass; full suite green
+  error; consistent, single-use, `NA`-first, and `NA`-middle calls pass;
+  `const(1, 2.5)` fails (documented strictness); full suite green
   with no new rejections on existing programs.
 
 ## 2. User-defined types

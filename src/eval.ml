@@ -2055,14 +2055,15 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
                  compute_deps ((name, explicit) :: acc) rest
          | None ->
              let fv = free_vars un.un_command in
-             (* For foreign blocks, subtract names bound by the block itself
-                (Ast.extract_local_bindings) before matching siblings, so a
+             (* For foreign blocks, subtract only purely shadowed names
+                (Ast.extract_shadowed_locals) before matching siblings, so a
                 local that shadows a sibling name cannot wire a phantom edge
-                (which could surface as a false dependency cycle). Uses inside
-                those locals still count via the identifiers pass, and
-                read_node("name") literals are always kept (the Quarto
-                emitter rewrites them). Script-file nodes carry no text, so
-                they keep the previous behavior. *)
+                (which could surface as a false dependency cycle). Names read
+                before (or inside the right-hand side of) their binding keep
+                a real edge. Uses inside those locals still count via the
+                identifiers pass, and read_node("name") literals are always
+                kept (the Quarto emitter rewrites them). Script-file nodes
+                carry no text, so they keep the previous behavior. *)
              let fv =
                match un.un_command.node with
                | RawCode { raw_text; _ } when raw_text <> "" ->
