@@ -125,7 +125,13 @@ statically. Sound (never wrong) but toothless.
   returns, 0 without docs**. Skips gracefully outside a source
   checkout. Parsing runs inside registry save/restore so entries never
   leak into other tests (this caught a real pollution failure against
-  the pre-docs `args` fallback test).
+  the pre-docs `args` fallback test). Per-package doc-side breakdown
+  prints with the audit so the remainder has a visible queue.
+- [x] `DataFrame` spelling (done): `from_string` accepted `to_dataframe`
+  and `table` but not `dataframe` itself, so nearly every DataFrame
+  signature parsed to `TUnknown`. One-line fix maps all three spellings
+  to `TDataFrame`. Coverage moved 308/532 (389 returns) to **372/532
+  (447 returns)** with zero new rejections on the full suite.
 - [x] Nominal domain types (done): `Pipeline`, `Model`, `NDArray`,
   `Symbol`, `Date`, `Datetime`, `Formula`, `Lens`, `Expect`,
   `ComputedNode`, `NodeDef`, `Period`, `Duration`, `Interval` map to

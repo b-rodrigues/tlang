@@ -91,7 +91,7 @@ let rec from_string str =
   | "string" | "text" -> TString
   | "bool" | "boolean" | "logical" -> TBool
   | "float" | "double" | "number" | "numeric" -> TFloat
-  | "to_dataframe" | "table" -> TDataFrame []
+  | "to_dataframe" | "table" | "dataframe" -> TDataFrame []
   | "any" | "value" | "all" | "mixed" | "..." -> TAny
   (* Nominal domain types, canonicalized to the annotation spelling
      (annotations preserve case, so `Model` must stay `Model`). These only

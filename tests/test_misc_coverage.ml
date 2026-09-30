@@ -244,6 +244,9 @@ export let helper = 1
       Semantic_type.TFunction ([ ("data", Semantic_type.TDataFrame []) ], Semantic_type.TBool)
     in
     Semantic_type.from_string "numeric" = Semantic_type.TFloat
+    && Semantic_type.from_string "dataframe" = Semantic_type.TDataFrame []
+    && Semantic_type.from_string "DataFrame" = Semantic_type.TDataFrame []
+    && Semantic_type.from_string "DATAFRAME" = Semantic_type.TDataFrame []
     && Semantic_type.from_string "vector[int]" = Semantic_type.TVector Semantic_type.TInt
     && Semantic_type.from_string "list[string]" = Semantic_type.TList Semantic_type.TString
     && Semantic_type.from_string "dict[string, int]" = Semantic_type.TDict (Semantic_type.TString, Semantic_type.TInt)
