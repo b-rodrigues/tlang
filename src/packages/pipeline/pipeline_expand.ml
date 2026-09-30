@@ -51,7 +51,7 @@ let slice_value (v : value) (index : int) : value =
       else VNA NAGeneric
   | _ -> v
 
-let value_to_literal (v : value) : string =
+let value_to_literal ~runtime (v : value) : string =
   match v with
   | VInt n -> string_of_int n
   | VFloat f ->
@@ -62,6 +62,15 @@ let value_to_literal (v : value) : string =
   | VString s -> "\"" ^ String.escaped s ^ "\""
   | VSymbol s -> s
   | VNA _ -> "NA"
+  | VRecord r when runtime <> "T" ->
+      invalid_arg (Printf.sprintf
+        "expand_pipeline: record `%s` cannot be inlined as %s code text; records are T-side contracts. Pass plain data across the boundary instead."
+        r.rec_type runtime)
+  | VTypeDef t when runtime <> "T" ->
+      invalid_arg (Printf.sprintf
+        "expand_pipeline: type `%s` itself cannot be inlined as %s code text." t.td_name runtime)
+  (* T-runtime raw blocks are T code, so constructor text (`Point(x = 1.)`)
+     re-parses to the same value — no boundary is crossed. *)
   | other -> Utils.value_to_string other
 
 (** Runtime of a node for raw-block scope analysis during expansion.
@@ -130,7 +139,7 @@ let rec substitute_vars_in_expr
       in
       let new_text = List.fold_left (fun text (dep_name, dep_value) ->
         if List.mem dep_name raw_identifiers then
-          let literal_str = value_to_literal (slice_value dep_value index) in
+          let literal_str = value_to_literal ~runtime (slice_value dep_value index) in
           match Ast.dep_substitution_spans ~runtime text dep_name with
           | None ->
               Str.global_replace
@@ -191,20 +200,55 @@ let resolve_map_deps
         VVector (Array.of_list (List.map (fun b -> VSymbol b) branches))
     | None -> resolve_dep_value p env dep_name
   ) dep_names in
-  let has_missing = List.exists (fun v -> match v with VNA _ -> true | _ -> false) dep_values in
-  if has_missing then
-    Error (Error.type_error (Printf.sprintf "expand_pipeline: dependency value not found for node '%s'." name))
-  else
-    let lengths = List.map value_length dep_values in
-    let branch_count = match lengths with h :: _ -> h | [] -> 0 in
-    let lengths_match = List.for_all (fun l -> l = branch_count) lengths in
-    if not lengths_match then
-      let details = String.concat ", " (List.map2 (fun d l -> d ^ "=" ^ string_of_int l) dep_names lengths) in
-      Error (Error.type_error (Printf.sprintf "expand_pipeline: dependencies for node '%s' have mismatched lengths (%s)." name details))
-    else if branch_count = 0 then
-      Error (Error.type_error (Printf.sprintf "expand_pipeline: dependencies for node '%s' have zero length." name))
-    else
-      Ok (dep_values, branch_count)
+  (* Records are T-side contracts: they cannot be inlined as foreign code
+     text during pattern expansion. Slices take list/vector elements and
+     whole dict values, so the check covers one level down — anything
+     deeper trips the loud `invalid_arg` backstop in `value_to_literal`
+     instead of silently emitting constructor text. T-runtime nodes never
+     hit this gate with raw text (their substitutions stay values). The
+     wildcard below is the rule itself: any other value shape carries no
+     record at this level by construction. *)
+  let record_name_of = function
+    | VRecord r -> Some r.rec_type
+    | VTypeDef t -> Some ("type " ^ t.td_name)
+    | VList items ->
+        List.find_map (fun (_, v) ->
+          match v with VRecord r -> Some r.rec_type | VTypeDef t -> Some ("type " ^ t.td_name) | _ -> None
+        ) items
+    | VVector arr ->
+        Array.to_seq arr |> Seq.find_map (fun v ->
+          match v with VRecord r -> Some r.rec_type | VTypeDef t -> Some ("type " ^ t.td_name) | _ -> None)
+    | VDict pairs ->
+        List.find_map (fun (_, v) ->
+          match v with VRecord r -> Some r.rec_type | VTypeDef t -> Some ("type " ^ t.td_name) | _ -> None
+        ) pairs
+    | _ -> None
+  in
+  let record_hit =
+    List.find_map (fun (d, v) ->
+      match record_name_of v with Some r -> Some (d, r) | None -> None
+    ) (List.combine dep_names dep_values)
+  in
+  (match record_hit with
+   | Some (d, r) when runtime_of_node p name <> "T" ->
+       Error (Error.value_error
+         (Printf.sprintf "expand_pipeline: dependency `%s` of node `%s` carries %s, which cannot cross into %s code. Pass plain data across the boundary instead."
+            d name r (runtime_of_node p name)))
+   | _ ->
+       let has_missing = List.exists (fun v -> match v with VNA _ -> true | _ -> false) dep_values in
+       if has_missing then
+         Error (Error.type_error (Printf.sprintf "expand_pipeline: dependency value not found for node '%s'." name))
+       else
+         let lengths = List.map value_length dep_values in
+         let branch_count = match lengths with h :: _ -> h | [] -> 0 in
+         let lengths_match = List.for_all (fun l -> l = branch_count) lengths in
+         if not lengths_match then
+           let details = String.concat ", " (List.map2 (fun d l -> d ^ "=" ^ string_of_int l) dep_names lengths) in
+           Error (Error.type_error (Printf.sprintf "expand_pipeline: dependencies for node '%s' have mismatched lengths (%s)." name details))
+         else if branch_count = 0 then
+           Error (Error.type_error (Printf.sprintf "expand_pipeline: dependencies for node '%s' have zero length." name))
+         else
+           Ok (dep_values, branch_count))
 
 let make_branch (name : string) (orig_name : string) (i : int) (value_idx : int) (dep_indices : (string * int) list) (command_expr : Ast.expr) : branch_info =
   let branch_name = name ^ "_branch_" ^ string_of_int (i + 1) in

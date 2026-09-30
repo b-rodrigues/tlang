@@ -55,10 +55,21 @@ silently.
 travels as unshaped `Dict`s. Users cannot name their domain types.
 
 **Direction.**
-- [ ] Design doc first (maintainer approval — new syntax by nature):
-  minimal shape that covers tagged unions for `match` (item 3) and named
-  records for DataFrame-adjacent data.
-- [ ] No code before the design is approved.
+- [x] Records (done, nominal + closed): `type Point = { x: Float, y: Float }`
+  declares the shape; `Point(...)` constructs positionally or fully named
+  (never mixed); unknown/missing/mistyped fields fail naming the valid
+  set; annotations enforce the name at runtime (`Expected Point, got
+  Pair`); `t check` needs no new rule (construction errors surface
+  through normal evaluation). Records are T-side contracts: pattern
+  expansion rejects record-carrying dependencies for foreign runtimes,
+  serializers and emitters fail loudly instead of emitting constructor
+  text, and T-runtime raw blocks round-trip constructor text honestly.
+- [ ] Tagged unions for `match` (next): named cases with per-case arms
+  plus per-case exhaustiveness warnings.
+- [ ] Design approved by maintainer (nominal, closed, T-side contracts,
+  io_fns-owned strategy list, no grandfathering, warn-only generics):
+  remaining steps ship in order — unions, closed strategies, generic
+  body checks — each with tests and docs.
 
 **Acceptance.**
 - [ ] Approved design doc; implementation tracked separately.

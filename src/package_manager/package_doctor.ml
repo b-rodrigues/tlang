@@ -414,6 +414,8 @@ and pipeline_defs_in_program program =
          | Ast.Expression expr
          | Ast.Assignment { expr; _ }
          | Ast.Reassignment { expr; _ } -> pipeline_defs_in_expr expr
+         (* Static type declarations define no pipelines. *)
+         | Ast.TypeDecl _ -> []
          | Ast.Import _
          | Ast.ImportPackage _
          | Ast.ImportFrom _
@@ -472,6 +474,7 @@ let parse_program path =
       | Parser.Error -> Result.error (Printf.sprintf "Could not parse %s" path)
       | Ast.Mixed_bracket_form -> Result.error (Printf.sprintf "Could not parse %s: Mixed bracket literal (found both single elements and key-value pairs)" path)
       | Ast.Invalid_match_pattern msg -> Result.error (Printf.sprintf "Could not parse %s: %s" path msg)
+      | Ast.Invalid_type_declaration msg -> Result.error (Printf.sprintf "Could not parse %s: %s" path msg)
 
 let doctor_issue_for_package ~section ~runtime pkg =
   {

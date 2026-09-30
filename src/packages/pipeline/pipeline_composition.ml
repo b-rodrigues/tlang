@@ -103,6 +103,9 @@ and rewrite_stmt sub_name local_names (stmt : Ast.stmt) : Ast.stmt =
         Assignment { name; typ; expr = rewrite_expr sub_name local_names expr }
     | Reassignment { name; expr } ->
         Reassignment { name; expr = rewrite_expr sub_name local_names expr }
+    (* Type declarations carry no runtime expressions (field types are
+       static annotations), so there is nothing to rewrite. *)
+    | TypeDecl _ as decl -> decl
     | Import _ | ImportPackage _ | ImportFrom _ | ImportFileFrom _ as imp -> imp
   in
   Ast.mk_stmt ?loc node
@@ -167,6 +170,8 @@ and find_dot_access_targets_stmt (stmt : Ast.stmt) : string list =
   | Expression e -> find_dot_access_targets e
   | Assignment { expr; _ } -> find_dot_access_targets expr
   | Reassignment { expr; _ } -> find_dot_access_targets expr
+  (* Type declarations hold static annotations only; no runtime targets. *)
+  | TypeDecl _ -> []
   | Import _ | ImportPackage _ | ImportFrom _ | ImportFileFrom _ -> []
 
 let rec flatten_meta (v : value) : value =

@@ -65,6 +65,18 @@ T supports the following value types:
 | `Expression`| `to_expr(1 + 2)`            | Captured code (for metaprogramming) |
 | `Intent`    | `intent { ... }`         | LLM-friendly metadata block         |
 
+### User-Defined Record Types
+
+T supports nominal, closed record types for naming domain shapes. A record is never a `Dict` and never another record type, even with an identical field shape — the type name is identity.
+
+```t
+type Point = { x: Float, y: Float }
+p = Point(x = 1.0, y = 2.0)
+p.x -- 1.0
+```
+
+Construction takes all-positional or all-named arguments (never a mix). Unknown, missing, or mistyped fields fail with an error naming the field and the valid set. Annotations accept record names (`\(p: Point -> Point) p`), enforced at runtime like all annotations. Records match `_` and variable arms in `match`. Records are T-side contracts: they cannot cross into foreign node code or serializers — use plain data across the boundary instead. The leading word `type` is contextual, so the `type()` builtin keeps working.
+
 ### Variables and Assignment
 
 ```t

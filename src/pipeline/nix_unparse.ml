@@ -134,6 +134,10 @@ and unparse_stmt stmt =
   | Expression e -> unparse_expr e
   | Assignment { name; expr; _ } -> name ^ " = " ^ unparse_expr expr
   | Reassignment { name; expr } -> name ^ " := " ^ unparse_expr expr
+  | TypeDecl { tname; tdef = Ast.RecordDef { rd_fields } } ->
+      "type " ^ tname ^ " = { "
+      ^ String.concat ", " (List.map (fun (n, t) -> n ^ ": " ^ Ast.Utils.typ_to_string t) rd_fields)
+      ^ " }"
   | Import filename -> Printf.sprintf "import \"%s\"" filename
   | ImportPackage pkg -> Printf.sprintf "import %s" pkg
   | ImportFrom { package; names } -> 

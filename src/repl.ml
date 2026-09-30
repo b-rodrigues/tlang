@@ -58,6 +58,8 @@ and stmt_has_build_pipeline = function
   | { Ast.node = Ast.Expression e; _ } -> expr_has_build_pipeline e
   | { Ast.node = Ast.Assignment { expr; _ }; _ } -> expr_has_build_pipeline expr
   | { Ast.node = Ast.Reassignment { expr; _ }; _ } -> expr_has_build_pipeline expr
+  (* Static type declarations never build pipelines. *)
+  | { Ast.node = Ast.TypeDecl _; _ } -> false
   | { Ast.node = Ast.Import _ | Ast.ImportPackage _ | Ast.ImportFrom _ | Ast.ImportFileFrom _; _ } -> false
 
 let program_has_build_pipeline (program : Ast.program) =
@@ -250,6 +252,10 @@ let rec value_summary v =
        | Some (Ast.VString mt), _, _ -> mt
        | Some (Ast.VSymbol s), _, _ -> s
        | _ -> Printf.sprintf "{%d keys}" (List.length pairs))
+  | Ast.VRecord r ->
+      Printf.sprintf "%s(%d field%s)" r.rec_type
+        (List.length r.rec_fields) (if List.length r.rec_fields = 1 then "" else "s")
+  | Ast.VTypeDef t -> Printf.sprintf "Type(%s)" t.td_name
   | Ast.VLambda { params; autoquote_params; _ } ->
       "\\(" ^ String.concat ", " (Ast.Utils.display_params params autoquote_params) ^ ") -> ..."
   | Ast.VBuiltin { b_name; _ } ->
@@ -532,6 +538,9 @@ let parse_program_from_file filename =
         let pos = Lexing.lexeme_start_p lexbuf in
         Error (make_located_error ~file:filename Ast.SyntaxError "Mixed bracket literal (found both single elements and key-value pairs)" pos)
     | Ast.Invalid_match_pattern msg ->
+        let pos = Lexing.lexeme_start_p lexbuf in
+        Error (make_located_error ~file:filename Ast.SyntaxError msg pos)
+    | Ast.Invalid_type_declaration msg ->
         let pos = Lexing.lexeme_start_p lexbuf in
         Error (make_located_error ~file:filename Ast.SyntaxError msg pos)
     | Sys.Break ->
@@ -1648,6 +1657,9 @@ let () =
                    let pos = Lexing.lexeme_start_p lexbuf in
                    make_located_error ~file:filename Ast.SyntaxError "Mixed bracket literal (found both single elements and key-value pairs)" pos
                | Ast.Invalid_match_pattern msg ->
+                   let pos = Lexing.lexeme_start_p lexbuf in
+                   make_located_error ~file:filename Ast.SyntaxError msg pos
+               | Ast.Invalid_type_declaration msg ->
                    let pos = Lexing.lexeme_start_p lexbuf in
                    make_located_error ~file:filename Ast.SyntaxError msg pos
                | Sys.Break ->

@@ -76,6 +76,9 @@ let parse_and_eval ?filename ?(failfast=false) mode env input =
   | Invalid_match_pattern msg ->
       let pos = Lexing.lexeme_start_p lexbuf in
       (make_located_error ?file:filename SyntaxError msg pos, env)
+  | Invalid_type_declaration msg ->
+      let pos = Lexing.lexeme_start_p lexbuf in
+      (make_located_error ?file:filename SyntaxError msg pos, env)
   | Sys.Break ->
       (interrupt_error (), env)
 
@@ -272,6 +275,8 @@ and sites_in_stmt (s : Ast.stmt) : match_site list =
   | Ast.Expression e -> sites_in_expr e
   | Ast.Assignment { expr = e; _ } -> sites_in_expr e
   | Ast.Reassignment { expr = e; _ } -> sites_in_expr e
+  (* Type declarations hold static annotations only; no match sites. *)
+  | Ast.TypeDecl _ -> []
   | Ast.Import _ | Ast.ImportPackage _ | Ast.ImportFrom _ | Ast.ImportFileFrom _ -> []
 
 let match_exhaustiveness_diagnostics program filename =

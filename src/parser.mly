@@ -169,7 +169,26 @@ statement:
   | IMPORT id = any_ident LBRACK skip_sep names = import_name_list RBRACK
     { with_stmt_loc (ImportFrom { package = id; names }) $startpos }
   | IMPORT id = any_ident { with_stmt_loc (ImportPackage id) $startpos }
+  | kw = any_ident name = any_ident EQUALS LBRACE skip_sep fields = record_type_fields rbrace
+    (* Contextual `type` declaration: `type Point = { x: Float }`. Only the
+       leading word `type` takes this path — anything else (`foo Bar = ...`)
+       was a syntax error before and stays one. In particular the `type()`
+       builtin keeps parsing as an ordinary call. *)
+    { if kw <> "type" then raise (Ast.Invalid_type_declaration
+        (Printf.sprintf "Invalid declaration `%s %s`. Only `type Name = { ... }` declarations may start with two identifiers." kw name))
+      else with_stmt_loc (TypeDecl { tname = name; tdef = RecordDef { rd_fields = fields } }) $startpos }
   | e = expr { with_stmt_loc (Expression e) $startpos }
+  ;
+
+record_type_fields:
+  | { [] }
+  | f = record_type_field { [f] }
+  | f = record_type_field COMMA skip_sep rest = record_type_fields { f :: rest }
+  | f = record_type_field seps rest = record_type_fields { f :: rest }
+  ;
+
+record_type_field:
+  | name = any_ident COLON t = typ { (name, t) }
   ;
 
 import_name_list:

@@ -294,6 +294,13 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
     | Ast.VBool true -> Some "true"
     | Ast.VBool false -> Some "false"
     | Ast.(VNA NAGeneric) -> None
+    | Ast.VRecord r ->
+        invalid_arg (Printf.sprintf
+          "Nix emitter: record `%s` cannot cross into node environment/arguments; records are T-side contracts. Pass plain data across the boundary instead."
+          r.rec_type)
+    | Ast.VTypeDef t ->
+        invalid_arg (Printf.sprintf
+          "Nix emitter: type `%s` itself cannot cross into node environment/arguments." t.td_name)
     | _ -> None
   in
   let arg_value_to_strings = function

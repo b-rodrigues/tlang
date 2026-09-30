@@ -53,6 +53,8 @@ and desugar_nse_stmt stmt =
   | Expression e -> Ast.mk_stmt ?loc (Expression (desugar_nse_expr e))
   | Assignment { name; typ; expr } -> Ast.mk_stmt ?loc (Assignment { name; typ; expr = desugar_nse_expr expr })
   | Reassignment { name; expr } -> Ast.mk_stmt ?loc (Reassignment { name; expr = desugar_nse_expr expr })
+  (* Type declarations hold static annotations only; nothing to desugar. *)
+  | TypeDecl _ -> stmt
   | Import _ | ImportPackage _ | ImportFrom _ | ImportFileFrom _ -> stmt
 
 let rec expr_uses_named_scope_fields fields (expr : Ast.expr) : bool =
@@ -84,6 +86,8 @@ let rec expr_uses_named_scope_fields fields (expr : Ast.expr) : bool =
         | Expression e -> expr_uses_named_scope_fields fields e
         | Assignment { expr; _ } | Reassignment { expr; _ } ->
             expr_uses_named_scope_fields fields expr
+        (* Static annotations never reference row scopes. *)
+        | TypeDecl _ -> false
         | Import _ | ImportPackage _ | ImportFrom _ | ImportFileFrom _ -> false
       ) stmts
   | Lambda _ | Value _ | RawCode _ | ShellExpr _ -> false
@@ -185,6 +189,8 @@ let rec desugar_named_scope_expr ~root ~fields (expr : Ast.expr) : Ast.expr =
                          name;
                          expr = desugar_named_scope_expr ~root ~fields expr;
                        })
+                (* Static annotations need no scope rewrite. *)
+                | TypeDecl _ -> stmt
                 | Import _ | ImportPackage _ | ImportFrom _ | ImportFileFrom _ -> stmt)
               stmts))
   | Unquote e ->
@@ -480,6 +486,8 @@ and uses_nse_stmt stmt =
   | Expression e -> uses_nse e
   | Assignment { expr; _ } -> uses_nse expr
   | Reassignment { expr; _ } -> uses_nse expr
+  (* Static annotations contain no column references. *)
+  | TypeDecl _ -> false
   | Import _ | ImportPackage _ | ImportFrom _ | ImportFileFrom _ -> false
 
 let is_standard_package = function
@@ -1675,6 +1683,8 @@ and free_vars (expr : Ast.expr) : string list =
         let fv = collect false bound expr in
         (fv, name :: bound)
     | { node = Reassignment { expr; _ }; _ } -> (collect false bound expr, bound)
+    (* A type declaration binds its name with no free variables. *)
+    | { node = TypeDecl { tname; _ }; _ } -> ([], tname :: bound)
     | { node = Import _ | ImportPackage _ | ImportFrom _ | ImportFileFrom _; _ } -> ([], bound)
   in
   let vars = collect false [] expr in
@@ -2953,6 +2963,16 @@ and eval_dot_access_val env_ref target_val field =
     List.exists (fun (n, _) -> String.starts_with ~prefix:pfx n) p.p_exprs
   in
   match target_val with
+  | VRecord r ->
+      (* Closed record: exactly the declared fields exist. Anything else
+         names the valid set instead of guessing. *)
+      (match List.assoc_opt field r.rec_fields with
+       | Some v -> v
+       | None ->
+           Error.make_error KeyError
+             (Printf.sprintf "Field `%s` not found in `%s`. Valid fields: %s."
+                field r.rec_type
+                (String.concat ", " (List.map fst r.rec_fields))))
   | VDict pairs ->
       (match List.assoc_opt field pairs with
       | Some v -> v
@@ -3173,6 +3193,8 @@ and expand_autoquoted_unquotes (env_ref : environment ref) (expr : Ast.expr) : A
     | Expression e -> Ast.mk_stmt ?loc:stmt_loc (Expression (expand e))
     | Assignment { name; typ; expr = e } -> Ast.mk_stmt ?loc:stmt_loc (Assignment { name; typ; expr = expand e })
     | Reassignment { name; expr = e } -> Ast.mk_stmt ?loc:stmt_loc (Reassignment { name; expr = expand e })
+    (* Type declarations hold static annotations only; nothing to expand. *)
+    | TypeDecl _ -> stmt
     | Import _ | ImportPackage _ | ImportFrom _ | ImportFileFrom _ -> stmt
   in
   match expr.node with
@@ -3213,6 +3235,61 @@ and expand_autoquoted_unquotes (env_ref : environment ref) (expr : Ast.expr) : A
   | Block stmts ->
       Ast.mk_expr ?loc (Block (List.map expand_stmt stmts))
   | Value _ | Var _ | ColumnRef _ | RawCode _ | ShellExpr _ -> expr
+
+(** Construct a nominal closed record from evaluated call arguments.
+    Either every argument is positional (matched in field order) or every
+    argument is named (matched by field name) — mixing the two is an
+    explicit arity error, since a half-named call hides which field each
+    position fills. Unknown or missing fields name the valid set. *)
+and construct_record tname fields (named_args : (string option * Ast.value) list) : Ast.value =
+  let field_names = List.map fst fields in
+  let want_list = String.concat ", " field_names in
+  let all_positional = List.for_all (fun (n, _) -> n = None) named_args in
+  let all_named = List.for_all (fun (n, _) -> n <> None) named_args in
+  if not (all_positional || all_named) then
+    Error.make_error Ast.ArityError
+      (Printf.sprintf "Type `%s` takes either all positional or all named arguments, not a mix. Fields: %s."
+         tname want_list)
+  else if all_positional then
+    if List.length named_args <> List.length fields then
+      Error.make_error Ast.ArityError
+        (Printf.sprintf "Type `%s` expects %d argument(s) (fields: %s), got %d."
+           tname (List.length fields) want_list (List.length named_args))
+    else
+      let vals = List.map snd named_args in
+      (match List.find_opt (fun ((_, ftyp), v) -> not (Ast.is_compatible v ftyp))
+               (List.combine fields vals) with
+       | Some ((fname, ftyp), v) ->
+           Error.type_error
+             (Printf.sprintf "Expected %s for field `%s` of `%s`, got %s"
+                (Ast.Utils.typ_to_string ftyp) fname tname (Ast.Utils.type_name v))
+       | None ->
+           Ast.VRecord { rec_type = tname;
+                         rec_fields = List.combine field_names vals })
+  else
+    let given =
+      List.filter_map (fun (n, v) -> match n with Some s -> Some (s, v) | None -> None) named_args
+    in
+    (match List.find_opt (fun (n, _) -> not (List.mem n field_names)) given with
+     | Some (n, _) ->
+         Error.make_error Ast.ArityError
+           (Printf.sprintf "Unknown field `%s` for type `%s`. Valid fields: %s." n tname want_list)
+     | None ->
+         (match List.find_opt (fun n -> not (List.mem_assoc n given)) field_names with
+          | Some n ->
+              Error.make_error Ast.ArityError
+                (Printf.sprintf "Missing field `%s` for type `%s`. Valid fields: %s." n tname want_list)
+          | None ->
+              (match List.find_opt (fun (fname, ftyp) ->
+                        not (Ast.is_compatible (List.assoc fname given) ftyp)) fields with
+               | Some (fname, ftyp) ->
+                   Error.type_error
+                     (Printf.sprintf "Expected %s for field `%s` of `%s`, got %s"
+                        (Ast.Utils.typ_to_string ftyp) fname tname
+                        (Ast.Utils.type_name (List.assoc fname given)))
+               | None ->
+                   Ast.VRecord { rec_type = tname;
+                                 rec_fields = List.map (fun n -> (n, List.assoc n given)) field_names })))
 
 and eval_call env_ref fn_val raw_args =
   let current_builtin_name =
@@ -3654,6 +3731,8 @@ and eval_call env_ref fn_val raw_args =
       eval_expr env_to_use q_expr
   | VError _ as e -> e
   | VNA _ -> Error.type_error "Cannot call NA as a function."
+  | VTypeDef { td_name; td_def = Ast.RecordDef { rd_fields } } ->
+      construct_record td_name rd_fields named_args
   | _ -> Error.not_callable_error (Utils.type_name fn_val)
   end
 
@@ -3869,7 +3948,27 @@ and eval_statement (env : environment) (stmt : stmt) : value * environment =
             (match v with
              | VError _ -> (v, new_env)
              | _ -> ((VNA NAGeneric), new_env))
-     | Import filename ->
+     | TypeDecl { tname; tdef } ->
+        if Env.mem tname env then
+          let msg = Printf.sprintf "Type `%s` is already defined and cannot be redefined." tname in
+          (make_error NameError msg, env)
+        else
+          (match tdef with
+           | RecordDef { rd_fields } ->
+               let names = List.map fst rd_fields in
+               let dup =
+                 List.find_opt (fun n ->
+                   List.length (List.filter (( = ) n) names) > 1
+                 ) names
+               in
+               (match dup with
+                | Some n ->
+                    (Error.value_error
+                       (Printf.sprintf "Duplicate field `%s` in type `%s`." n tname), env)
+                | None ->
+                    let new_env = Env.add tname (VTypeDef { td_name = tname; td_def = tdef }) env in
+                    ((VNA NAGeneric), new_env)))
+    | Import filename ->
         (try
           let ch = open_in filename in
           let content = really_input_string ch (in_channel_length ch) in
@@ -3904,6 +4003,13 @@ and eval_statement (env : environment) (stmt : stmt) : value * environment =
                  "Mixed bracket literal (found both single elements and key-value pairs)",
                env)
           | Ast.Invalid_match_pattern msg ->
+              let pos = Lexing.lexeme_start_p lexbuf in
+              (make_error
+                 ~location:(source_location ~file:filename pos)
+                 SyntaxError
+                 msg,
+               env)
+          | Ast.Invalid_type_declaration msg ->
               let pos = Lexing.lexeme_start_p lexbuf in
               (make_error
                  ~location:(source_location ~file:filename pos)
@@ -3990,6 +4096,13 @@ and eval_statement (env : environment) (stmt : stmt) : value * environment =
                  "Mixed bracket literal (found both single elements and key-value pairs)",
                env)
           | Ast.Invalid_match_pattern msg ->
+              let pos = Lexing.lexeme_start_p lexbuf in
+              (make_error
+                 ~location:(source_location ~file:filename pos)
+                 SyntaxError
+                 msg,
+               env)
+          | Ast.Invalid_type_declaration msg ->
               let pos = Lexing.lexeme_start_p lexbuf in
               (make_error
                  ~location:(source_location ~file:filename pos)

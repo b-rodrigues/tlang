@@ -10,6 +10,7 @@ module String_set = Set.Make(String)
 exception TLangSyntaxError of string
 exception Mixed_bracket_form
 exception Invalid_match_pattern of string
+exception Invalid_type_declaration of string
 
 type symbol = string
 
@@ -311,6 +312,12 @@ and value =
   | VDataFrame of dataframe
   | VPipeline of pipeline_result
   | VMetaPipeline of meta_pipeline
+  (* User-defined record value: nominal (the type name is identity) and
+     closed (exactly the declared fields, no more, no fewer). *)
+  | VRecord of { rec_type : string; rec_fields : (string * value) list }
+  (* User-defined type declaration as a first-class value, so type names
+     follow normal scoping and `Point(...)` construction is just a call. *)
+  | VTypeDef of { td_name : string; td_def : type_def }
 
   | VLens of lens
   (* Functional Types *)
@@ -378,6 +385,11 @@ and match_pattern =
   | PList of match_pattern list * symbol option
   | PError of symbol option
 
+(** User-defined type definitions. Records only for now; tagged unions
+    arrive as a separate step with their own `match` arms. *)
+and type_def =
+  | RecordDef of { rd_fields : (string * typ) list }
+
 and expr = expr_node located
 
 and expr_node =
@@ -410,6 +422,7 @@ and stmt_node =
   | Expression of expr
   | Assignment of { name : symbol; typ : typ option; expr : expr }
   | Reassignment of { name : symbol; expr : expr }
+  | TypeDecl of { tname : symbol; tdef : type_def }
   | Import of string
   | ImportPackage of string
   | ImportFrom of { package: string; names: import_spec list }
@@ -1802,6 +1815,8 @@ module Utils = struct
     | VBool _ -> "Bool" | VString _ -> "String" | VRawCode _ -> "Code"
     | VSymbol _ -> "Symbol" | VDate _ -> "Date" | VDatetime _ -> "Datetime"
     | VList _ -> "List" | VDict _ -> "Dict"
+    | VRecord r -> r.rec_type
+    | VTypeDef _ -> "Type"
     | VVector _ -> "Vector" | VNDArray _ -> "NDArray" | VDataFrame _ -> "DataFrame"
     | VPipeline _ -> "Pipeline" | VMetaPipeline _ -> "MetaPipeline" | VLens _ -> "Lens"
     | VLambda _ -> "Function" | VBuiltin _ -> "BuiltinFunction"
@@ -1927,6 +1942,10 @@ module Utils = struct
     | Expression e -> unparse_expr e
     | Assignment { name; expr; _ } -> name ^ " = " ^ unparse_expr expr
     | Reassignment { name; expr } -> name ^ " := " ^ unparse_expr expr
+    | TypeDecl { tname; tdef = RecordDef { rd_fields } } ->
+        "type " ^ tname ^ " = { "
+        ^ String.concat ", " (List.map (fun (n, t) -> n ^ ": " ^ typ_to_string t) rd_fields)
+        ^ " }"
     | Import s -> "import \"" ^ s ^ "\""
     | ImportPackage s -> "import " ^ s
     | ImportFrom { package; names } -> 
@@ -2025,6 +2044,11 @@ module Utils = struct
         in
         let pair_to_string (k, v) = "`" ^ k ^ "`: " ^ value_to_string v in
         "{" ^ (visible_pairs |> List.map pair_to_string |> String.concat ", ") ^ "}"
+    | VRecord r ->
+        let field_to_string (k, v) = k ^ " = " ^ value_to_string v in
+        r.rec_type ^ "(" ^ (r.rec_fields |> List.map field_to_string |> String.concat ", ") ^ ")"
+    | VTypeDef t ->
+        "Type(" ^ t.td_name ^ ")"
     | VVector arr ->
         let items = Array.to_list arr |> List.map value_to_string in
         "Vector[" ^ String.concat ", " items ^ "]"
@@ -2452,6 +2476,10 @@ let rec is_compatible (v : value) (t : typ) : bool =
   | VBuiltin _, TCustom "Function" -> true
   | VLambda _, TArrow _ -> true
   | VBuiltin _, TArrow _ -> true
+
+  (* Nominal records: the type name is identity. A record is never a Dict
+     and never another record type, even with an identical field shape. *)
+  | VRecord r, TCustom name -> r.rec_type = name
 
   (* Relaxed numeric matching: Int can often be used where Float is expected in T *)
   | VInt _, TFloat -> true
