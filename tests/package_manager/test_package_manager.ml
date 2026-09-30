@@ -873,6 +873,142 @@ packages = []
               | Error _ -> false)
          | _ -> false));
 
+  (* TLANG_ASSUME_YES takes the same update path as an interactive `y`,
+     including through the non-interactive gate (which never reaches the
+     prompt). stdin state is irrelevant either way. *)
+  test_pm "assume-yes updates tproject without prompting" (fun () ->
+    Random.self_init ();
+    let base_dir =
+      Filename.concat
+        (Filename.get_temp_dir_name ())
+        (Printf.sprintf "tlang-pipeline-assume-yes-%d-%06d" (Unix.getpid ()) (Random.int 1_000_000))
+    in
+    let old_cwd = Sys.getcwd () in
+    let old_yes = Sys.getenv_opt "TLANG_ASSUME_YES" in
+    let old_no = Sys.getenv_opt "TLANG_NO_PROMPT" in
+    let old_auto = Sys.getenv_opt "TLANG_AUTO_ADD_PIPELINE_DEPS" in
+    let restore_env () =
+      (match old_yes with
+       | Some v -> Unix.putenv "TLANG_ASSUME_YES" v
+       | None -> Unix.putenv "TLANG_ASSUME_YES" "");
+      (match old_no with
+       | Some v -> Unix.putenv "TLANG_NO_PROMPT" v
+       | None -> Unix.putenv "TLANG_NO_PROMPT" "");
+      (match old_auto with
+       | Some v -> Unix.putenv "TLANG_AUTO_ADD_PIPELINE_DEPS" v
+       | None -> Unix.putenv "TLANG_AUTO_ADD_PIPELINE_DEPS" "")
+    in
+    let cleanup () =
+      restore_env ();
+      Sys.chdir old_cwd;
+      let rec remove_path path =
+        if Sys.file_exists path then
+          if Sys.is_directory path then begin
+            Sys.readdir path |> Array.iter (fun name -> remove_path (Filename.concat path name));
+            Unix.rmdir path
+          end else
+            Sys.remove path
+      in
+      remove_path base_dir
+    in
+    Fun.protect
+      ~finally:cleanup
+      (fun () ->
+        Unix.mkdir base_dir 0o755;
+        let tproject_path = Filename.concat base_dir "tproject.toml" in
+        let oc = open_out tproject_path in
+        output_string oc (Toml_parser.serialize_tproject_toml (Package_types.default_project_config "assume-yes-proj"));
+        close_out oc;
+        Sys.chdir base_dir;
+        Unix.putenv "TLANG_ASSUME_YES" "1";
+        Unix.putenv "TLANG_NO_PROMPT" "";
+        Unix.putenv "TLANG_AUTO_ADD_PIPELINE_DEPS" "";
+        match fst (eval_string_env {|
+          p = pipeline {
+            model = node(command = <{ 1 }>, runtime = Python, serializer = ^onnx)
+          }
+          populate_pipeline(p)
+        |} (Packages.init_env ())) with
+         | Ast.VError { code = StructuralError; message; _ } ->
+             (match Toml_parser.parse_tproject_toml
+                      (let ic = open_in tproject_path in
+                      Fun.protect ~finally:(fun () -> close_in_noerr ic)
+                        (fun () -> really_input_string ic (in_channel_length ic))) with
+             | Ok cfg ->
+                 let contains sub =
+                   try ignore (Str.search_forward (Str.regexp_string sub) message 0); true
+                   with Not_found -> false
+                 in
+                 cfg.proj_py_dependencies = ["onnxruntime"; "skl2onnx"]
+                 && contains "Updated "
+                 && contains "leave the current shell"
+              | Error _ -> false)
+         | _ -> false));
+
+  (* When both flags are set, the explicit decline wins: nothing is
+     written, even though ASSUME_YES would otherwise update. *)
+  test_pm "TLANG_NO_PROMPT wins over TLANG_ASSUME_YES" (fun () ->
+    Random.self_init ();
+    let base_dir =
+      Filename.concat
+        (Filename.get_temp_dir_name ())
+        (Printf.sprintf "tlang-pipeline-no-prompt-wins-%d-%06d" (Unix.getpid ()) (Random.int 1_000_000))
+    in
+    let old_cwd = Sys.getcwd () in
+    let old_yes = Sys.getenv_opt "TLANG_ASSUME_YES" in
+    let old_no = Sys.getenv_opt "TLANG_NO_PROMPT" in
+    let restore_env () =
+      (match old_yes with
+       | Some v -> Unix.putenv "TLANG_ASSUME_YES" v
+       | None -> Unix.putenv "TLANG_ASSUME_YES" "");
+      (match old_no with
+       | Some v -> Unix.putenv "TLANG_NO_PROMPT" v
+       | None -> Unix.putenv "TLANG_NO_PROMPT" "")
+    in
+    let cleanup () =
+      restore_env ();
+      Sys.chdir old_cwd;
+      let rec remove_path path =
+        if Sys.file_exists path then
+          if Sys.is_directory path then begin
+            Sys.readdir path |> Array.iter (fun name -> remove_path (Filename.concat path name));
+            Unix.rmdir path
+          end else
+            Sys.remove path
+      in
+      remove_path base_dir
+    in
+    Fun.protect
+      ~finally:cleanup
+      (fun () ->
+        Unix.mkdir base_dir 0o755;
+        let tproject_path = Filename.concat base_dir "tproject.toml" in
+        let before = Toml_parser.serialize_tproject_toml (Package_types.default_project_config "no-prompt-wins-proj") in
+        let oc = open_out tproject_path in
+        output_string oc before;
+        close_out oc;
+        Sys.chdir base_dir;
+        Unix.putenv "TLANG_ASSUME_YES" "1";
+        Unix.putenv "TLANG_NO_PROMPT" "1";
+        let declined =
+          match fst (eval_string_env {|
+            p = pipeline {
+              model = node(command = <{ 1 }>, runtime = Python, serializer = ^onnx)
+            }
+            populate_pipeline(p)
+          |} (Packages.init_env ())) with
+           | Ast.VError { code = StructuralError; message; _ } ->
+               (try ignore (Str.search_forward (Str.regexp_string "TLANG_NO_PROMPT") message 0); true
+                with Not_found -> false)
+           | _ -> false
+        in
+        let ic = open_in tproject_path in
+        let after =
+          Fun.protect ~finally:(fun () -> close_in_noerr ic)
+            (fun () -> really_input_string ic (in_channel_length ic))
+        in
+        declined && after = before));
+
   test_pm "interactive pipeline dependency prompt reads from tty" (fun () ->
     let tty_path = Filename.temp_file "tlang-prompt-answer" ".txt" in
     Fun.protect

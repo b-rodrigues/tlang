@@ -694,7 +694,13 @@ let ensure_project_requirements (p : Ast.pipeline_result) =
              let analysis = analyze_missing_requirements p cfg in
              if analysis_is_empty analysis then
                Ok ()
-             else if env_flag "TLANG_AUTO_ADD_PIPELINE_DEPS" then
+             else if no_prompt_env () then
+               (* Explicit decline wins over every auto-answer below,
+                  including `TLANG_ASSUME_YES`. *)
+               Error
+                  (format_analysis analysis
+                   ^ "\n\nUnattended mode (`TLANG_NO_PROMPT` is set); leaving `tproject.toml` unchanged.")
+             else if env_flag "TLANG_AUTO_ADD_PIPELINE_DEPS" || assume_yes_env () then
                let updated_cfg = update_config_with_missing_requirements cfg analysis in
                let updated_content = Toml_parser.serialize_tproject_toml updated_cfg in
                (match write_file tproject_path updated_content with
@@ -704,7 +710,7 @@ let ensure_project_requirements (p : Ast.pipeline_result) =
                Error
                   (format_analysis analysis
                   ^ "\n\nThis session is non-interactive, so T cannot update `tproject.toml` automatically."
-                  ^ "\nSet `TLANG_AUTO_ADD_PIPELINE_DEPS=1` to auto-add the missing entries in CI or other unattended environments.")
+                  ^ "\nSet `TLANG_AUTO_ADD_PIPELINE_DEPS=1` or `TLANG_ASSUME_YES=1` to auto-add the missing entries in CI or other unattended environments.")
              else if not (prompt_to_update ~tproject_path analysis) then
                Error
                   (format_analysis analysis
