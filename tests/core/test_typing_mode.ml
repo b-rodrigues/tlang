@@ -109,7 +109,7 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
      map to a concrete semantic type (not Any/Unknown). The floor below
      ratchets: it must never drop (new builtins without types do not fail
      it, but removing types does). Re-measure with this same test. *)
-  let coverage_floor = 273 in
+  let coverage_floor = 308 in
   (* The registry fills from --# source comments (same as `t doc
      --parse`); without it every builtin falls back to all-Any and the
      audit would measure nothing. Skip gracefully outside a checkout. *)

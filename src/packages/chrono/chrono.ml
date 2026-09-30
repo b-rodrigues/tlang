@@ -1295,10 +1295,141 @@ let register env =
       | [v] -> VBool (pred v)
       | _ -> Error.arity_error_named name 1 (List.length args))) env
   in
+  (*
+  --# Parse year-month-day dates
+  --#
+  --# Parses strings in YMD order to Date values. Vectorized over
+  --# vectors. Unparseable inputs become NA.
+  --#
+  --# @name ymd
+  --# @param value :: String | Vector The date string(s) to parse.
+  --# @return :: Date | Vector The parsed date(s).
+  --# @example
+  --#   ymd("2024-01-15")
+  --# @family chrono
+  --# @export
+  --# *)
+  (*
+  --# Parse month-day-year dates
+  --#
+  --# Parses strings in MDY order to Date values. Vectorized over
+  --# vectors. Unparseable inputs become NA.
+  --#
+  --# @name mdy
+  --# @param value :: String | Vector The date string(s) to parse.
+  --# @return :: Date | Vector The parsed date(s).
+  --# @example
+  --#   mdy("01-15-2024")
+  --# @family chrono
+  --# @export
+  --# *)
+  (*
+  --# Parse day-month-year dates
+  --#
+  --# Parses strings in DMY order to Date values. Vectorized over
+  --# vectors. Unparseable inputs become NA.
+  --#
+  --# @name dmy
+  --# @param value :: String | Vector The date string(s) to parse.
+  --# @return :: Date | Vector The parsed date(s).
+  --# @example
+  --#   dmy("15-01-2024")
+  --# @family chrono
+  --# @export
+  --# *)
+  (*
+  --# Parse year-day-month dates
+  --#
+  --# Parses strings in YDM order to Date values. Vectorized over
+  --# vectors. Unparseable inputs become NA.
+  --#
+  --# @name ydm
+  --# @param value :: String | Vector The date string(s) to parse.
+  --# @return :: Date | Vector The parsed date(s).
+  --# @example
+  --#   ydm("2024-15-01")
+  --# @family chrono
+  --# @export
+  --# *)
   let env = add_simple_parser env "ymd" `YMD in
   let env = add_simple_parser env "mdy" `MDY in
   let env = add_simple_parser env "dmy" `DMY in
   let env = add_simple_parser env "ydm" `YDM in
+  (*
+  --# Parse datetimes with hour precision
+  --#
+  --# Parses strings to Datetime values, reading year through hour.
+  --# Vectorized over vectors. Unparseable inputs become NA.
+  --#
+  --# @name ymd_h
+  --# @param value :: String | Vector The datetime string(s) to parse.
+  --# @param tz :: String (Optional) Timezone label.
+  --# @return :: Datetime | Vector The parsed datetime(s).
+  --# @example
+  --#   ymd_h("2024-01-15 10")
+  --# @family chrono
+  --# @export
+  --# *)
+  (*
+  --# Parse datetimes with minute precision
+  --#
+  --# Parses strings to Datetime values, reading year through minute.
+  --# Vectorized over vectors. Unparseable inputs become NA.
+  --#
+  --# @name ymd_hm
+  --# @param value :: String | Vector The datetime string(s) to parse.
+  --# @param tz :: String (Optional) Timezone label.
+  --# @return :: Datetime | Vector The parsed datetime(s).
+  --# @example
+  --#   ymd_hm("2024-01-15 10:30")
+  --# @family chrono
+  --# @export
+  --# *)
+  (*
+  --# Parse datetimes with second precision
+  --#
+  --# Parses strings to Datetime values, reading year through second.
+  --# Vectorized over vectors. Unparseable inputs become NA.
+  --#
+  --# @name ymd_hms
+  --# @param value :: String | Vector The datetime string(s) to parse.
+  --# @param tz :: String (Optional) Timezone label.
+  --# @return :: Datetime | Vector The parsed datetime(s).
+  --# @example
+  --#   ymd_hms("2024-01-15 10:30:45")
+  --# @family chrono
+  --# @export
+  --# *)
+  (*
+  --# Parse month-first datetimes with second precision
+  --#
+  --# Parses MDY-ordered strings to Datetime values. Vectorized over
+  --# vectors. Unparseable inputs become NA.
+  --#
+  --# @name mdy_hms
+  --# @param value :: String | Vector The datetime string(s) to parse.
+  --# @param tz :: String (Optional) Timezone label.
+  --# @return :: Datetime | Vector The parsed datetime(s).
+  --# @example
+  --#   mdy_hms("01-15-2024 10:30:45")
+  --# @family chrono
+  --# @export
+  --# *)
+  (*
+  --# Parse day-first datetimes with second precision
+  --#
+  --# Parses DMY-ordered strings to Datetime values. Vectorized over
+  --# vectors. Unparseable inputs become NA.
+  --#
+  --# @name dmy_hms
+  --# @param value :: String | Vector The datetime string(s) to parse.
+  --# @param tz :: String (Optional) Timezone label.
+  --# @return :: Datetime | Vector The parsed datetime(s).
+  --# @example
+  --#   dmy_hms("15-01-2024 10:30:45")
+  --# @family chrono
+  --# @export
+  --# *)
   let env = add_datetime_parser env "ymd_h" `YMD 4 in
   let env = add_datetime_parser env "ymd_hm" `YMD 5 in
   let env = add_datetime_parser env "ymd_hms" `YMD 6 in
@@ -1453,6 +1584,140 @@ let register env =
            | _ -> None))
       env
   in
+  (*
+  --# Build a year period
+  --#
+  --# Constructs a Period value spanning the given number of years.
+  --#
+  --# @name years
+  --# @param n :: Int The number of years.
+  --# @return :: Period The period value.
+  --# @example
+  --#   years(2)
+  --# @family chrono
+  --# @export
+  --# *)
+  (*
+  --# Build a month period
+  --#
+  --# Constructs a Period value spanning the given number of months.
+  --#
+  --# @name months
+  --# @param n :: Int The number of months.
+  --# @return :: Period The period value.
+  --# @example
+  --#   months(3)
+  --# @family chrono
+  --# @export
+  --# *)
+  (*
+  --# Build a week period
+  --#
+  --# Constructs a Period value spanning the given number of weeks
+  --# (stored as seven days each).
+  --#
+  --# @name weeks
+  --# @param n :: Int The number of weeks.
+  --# @return :: Period The period value.
+  --# @example
+  --#   weeks(1)
+  --# @family chrono
+  --# @export
+  --# *)
+  (*
+  --# Build a day period
+  --#
+  --# Constructs a Period value spanning the given number of days.
+  --#
+  --# @name days
+  --# @param n :: Int The number of days.
+  --# @return :: Period The period value.
+  --# @example
+  --#   days(7)
+  --# @family chrono
+  --# @export
+  --# *)
+  (*
+  --# Build an hour period
+  --#
+  --# Constructs a Period value spanning the given number of hours.
+  --#
+  --# @name hours
+  --# @param n :: Int The number of hours.
+  --# @return :: Period The period value.
+  --# @example
+  --#   hours(12)
+  --# @family chrono
+  --# @export
+  --# *)
+  (*
+  --# Build a minute period
+  --#
+  --# Constructs a Period value spanning the given number of minutes.
+  --#
+  --# @name minutes
+  --# @param n :: Int The number of minutes.
+  --# @return :: Period The period value.
+  --# @example
+  --#   minutes(30)
+  --# @family chrono
+  --# @export
+  --# *)
+  (*
+  --# Build a second period
+  --#
+  --# Constructs a Period value spanning the given number of seconds.
+  --#
+  --# @name seconds
+  --# @param n :: Int The number of seconds.
+  --# @return :: Period The period value.
+  --# @example
+  --#   seconds(45)
+  --# @family chrono
+  --# @export
+  --# *)
+  (*
+  --# Build a millisecond period
+  --#
+  --# Constructs a Period value spanning the given number of
+  --# milliseconds.
+  --#
+  --# @name milliseconds
+  --# @param n :: Int The number of milliseconds.
+  --# @return :: Period The period value.
+  --# @example
+  --#   milliseconds(500)
+  --# @family chrono
+  --# @export
+  --# *)
+  (*
+  --# Build a microsecond period
+  --#
+  --# Constructs a Period value spanning the given number of
+  --# microseconds.
+  --#
+  --# @name microseconds
+  --# @param n :: Int The number of microseconds.
+  --# @return :: Period The period value.
+  --# @example
+  --#   microseconds(1500)
+  --# @family chrono
+  --# @export
+  --# *)
+  (*
+  --# Build a nanosecond period
+  --#
+  --# Constructs a Period value spanning the given number of
+  --# nanoseconds (stored at microsecond resolution).
+  --#
+  --# @name nanoseconds
+  --# @param n :: Int The number of nanoseconds.
+  --# @return :: Period The period value.
+  --# @example
+  --#   nanoseconds(2000)
+  --# @family chrono
+  --# @export
+  --# *)
   let env = add_period_ctor env "years" (fun n -> { empty_period with p_years = n }) in
   let env = add_period_ctor env "months" (fun n -> { empty_period with p_months = n }) in
   let env = add_period_ctor env "weeks" (fun n -> { empty_period with p_days = n * 7 }) in
@@ -1501,6 +1766,84 @@ let register env =
          | Error err -> err))
       env
   in
+  (*
+  --# Years component of a period
+  --#
+  --# Extracts the years field of a Period value.
+  --#
+  --# @name period_years
+  --# @param p :: Period The period value.
+  --# @return :: Int The years field.
+  --# @example
+  --#   period_years(years(2))
+  --# @family chrono
+  --# @export
+  --# *)
+  (*
+  --# Months component of a period
+  --#
+  --# Extracts the months field of a Period value.
+  --#
+  --# @name period_months
+  --# @param p :: Period The period value.
+  --# @return :: Int The months field.
+  --# @example
+  --#   period_months(months(3))
+  --# @family chrono
+  --# @export
+  --# *)
+  (*
+  --# Days component of a period
+  --#
+  --# Extracts the days field of a Period value.
+  --#
+  --# @name period_days
+  --# @param p :: Period The period value.
+  --# @return :: Int The days field.
+  --# @example
+  --#   period_days(days(7))
+  --# @family chrono
+  --# @export
+  --# *)
+  (*
+  --# Hours component of a period
+  --#
+  --# Extracts the hours field of a Period value.
+  --#
+  --# @name period_hours
+  --# @param p :: Period The period value.
+  --# @return :: Int The hours field.
+  --# @example
+  --#   period_hours(hours(12))
+  --# @family chrono
+  --# @export
+  --# *)
+  (*
+  --# Minutes component of a period
+  --#
+  --# Extracts the minutes field of a Period value.
+  --#
+  --# @name period_minutes
+  --# @param p :: Period The period value.
+  --# @return :: Int The minutes field.
+  --# @example
+  --#   period_minutes(minutes(30))
+  --# @family chrono
+  --# @export
+  --# *)
+  (*
+  --# Seconds component of a period
+  --#
+  --# Extracts the seconds field of a Period value.
+  --#
+  --# @name period_seconds
+  --# @param p :: Period The period value.
+  --# @return :: Int The seconds field.
+  --# @example
+  --#   period_seconds(seconds(45))
+  --# @family chrono
+  --# @export
+  --# *)
   let env =
     List.fold_left (fun env (name, getter) ->
       Env.add name (make_builtin ~name 1 (fun args _env ->
@@ -1598,6 +1941,69 @@ let register env =
          | [VList items] -> VVector (Array.map (to_datetime_scalar origin_days tz) (Array.of_list (List.map snd items)))
          | [v] -> to_datetime_scalar origin_days tz v
          | values -> Error.arity_error_named "to_datetime" 1 (List.length values)))) env in
+  (*
+  --# Test for Date values
+  --#
+  --# Returns true for Date values, false for anything else.
+  --#
+  --# @name is_date
+  --# @param x :: Any The value to test.
+  --# @return :: Bool True for Date values.
+  --# @example
+  --#   is_date(ymd("2024-01-15"))
+  --# @family chrono
+  --# @export
+  --# *)
+  (*
+  --# Test for Datetime values
+  --#
+  --# Returns true for Datetime values, false for anything else.
+  --#
+  --# @name is_datetime
+  --# @param x :: Any The value to test.
+  --# @return :: Bool True for Datetime values.
+  --# @example
+  --#   is_datetime(ymd_hms("2024-01-15 10:30:45"))
+  --# @family chrono
+  --# @export
+  --# *)
+  (*
+  --# Test for Period values
+  --#
+  --# Returns true for Period values, false for anything else.
+  --#
+  --# @name is_period
+  --# @param x :: Any The value to test.
+  --# @return :: Bool True for Period values.
+  --# @example
+  --#   is_period(days(7))
+  --# @family chrono
+  --# @export
+  --# *)
+  (*
+  --# Test for Duration values
+  --#
+  --# Returns true for Duration values, false for anything else.
+  --#
+  --# @name is_duration
+  --# @param x :: Any The value to test.
+  --# @return :: Bool True for Duration values.
+  --# @family chrono
+  --# @export
+  --# *)
+  (*
+  --# Test for Interval values
+  --#
+  --# Returns true for Interval values, false for anything else.
+  --#
+  --# @name is_interval
+  --# @param x :: Any The value to test.
+  --# @return :: Bool True for Interval values.
+  --# @example
+  --#   is_interval(interval(ymd("2024-01-01"), ymd("2024-02-01")))
+  --# @family chrono
+  --# @export
+  --# *)
   let env = add_predicate env "is_date" (function VDate _ -> true | _ -> false) in
   let env = add_predicate env "is_datetime" (function VDatetime _ -> true | _ -> false) in
   let env = add_predicate env "is_period" (function VPeriod _ -> true | _ -> false) in

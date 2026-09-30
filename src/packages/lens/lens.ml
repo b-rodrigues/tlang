@@ -836,6 +836,19 @@ let node_meta_lens_impl ~eval_call:_ args _env =
   | [(_, VString node_name); (_, VString field)] -> VLens (NodeMetaLens (node_name, field))
   | _ -> Error.type_error "node_meta_lens expects a node name and a field name (Strings)"
 
+(*
+--# Environment variable lens for a node
+--#
+--# Builds a lens focusing an environment variable inside a node's
+--# execution environment.
+--#
+--# @name env_var_lens
+--# @param node_name :: String The name of the node.
+--# @param var_name :: String The environment variable name.
+--# @return :: Lens A lens for the specified environment variable.
+--# @family lens
+--# @export
+--# *)
 let env_var_lens_impl ~eval_call:_ args _env =
   match args with
   | [(_, VString node_name); (_, VString var_name)] -> VLens (EnvVarLens (node_name, var_name))
