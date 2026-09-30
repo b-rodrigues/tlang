@@ -133,7 +133,39 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
   check_bind "sh local never binds" "sh" "f() {\n  local x=1\n  echo $x\n}" [];
   check_bind "other runtimes bind nothing" "Quarto" "x = 1\nx" [];
 
-  (* Test 3: pipeline-level repro — bar/baz/qux must not depend on foo. *)  let code3 = {|
+  (* Pure-shadow filter: only names with no read before their binding and
+     none inside their own right-hand side subtract. *)
+  let check_shadowed name runtime text expected =
+    let got = Ast.extract_shadowed_locals ~runtime text in
+    let ok = got = List.sort_uniq String.compare expected in
+    if ok then begin
+      incr pass_count;
+      Printf.printf "  ✓ %s\n" name
+    end else begin
+      incr fail_count;
+      let msg = Printf.sprintf "  ✗ Error: %s (got [%s], want [%s])\n" name
+        (String.concat "; " got) (String.concat "; " expected) in
+      failures := msg :: !failures;
+      Printf.printf "%s" msg
+    end
+  in
+  check_shadowed "R pure shadow subtracts" "R" "src <- 99; src + 1" ["src"];
+  check_shadowed "R transform-in-place keeps edge" "R" "raw <- raw + 1" [];
+  check_shadowed "R read-before keeps edge" "R" "print(src); src <- 99" [];
+  check_shadowed "R conditional keeps edge" "R" "if (flag) src <- 99; use(src)" [];
+  check_shadowed "R multi-line conditional keeps edge" "R" "if (flag) {\n  src <- 99\n}\nuse(src)" [];
+  check_shadowed "Python transform-in-place keeps edge" "Python" "df = df.dropna()" [];
+  check_shadowed "Python read-before keeps edge" "Python" "print(src)\nsrc = 99" [];
+  check_shadowed "Python pure shadow subtracts" "Python" "src = 99\nsrc + 1" ["src"];
+  check_shadowed "Python conditional suite keeps edge" "Python" "if flag:\n  src = 99\nuse(src)" [];
+  check_shadowed "sh pure shadow subtracts" "sh" "src=99\necho $src" ["src"];
+  check_shadowed "sh conditional body keeps edge" "sh" "if true; then src=99; fi\necho $src" [];
+  check_shadowed "sh transform-in-place keeps edge" "sh" "x=$x" [];
+  check_shadowed "Julia pure shadow subtracts" "Julia" "x = 1\nx + 1" ["x"];
+  check_shadowed "Julia transform-in-place keeps edge" "Julia" "x = x + 1" [];
+
+  (* Test 3: pipeline-level repro — bar/baz/qux must not depend on foo. *)
+  let code3 = {|
     p = pipeline {
       foo = rn(command = <{ library(arrow); foo <- data.frame(a = 1:3) }>, serializer = ^ipc)
       bar = rn(command = <{ library(arrow); x <- data.frame(x = 1:3)  # independent of the foo node; x }>, serializer = ^ipc)
@@ -235,5 +267,38 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
       src = rn(command = <{ 1 }>)
       out = rn(command = <{ src <- 99; read_node("src") }>)
     }|} "out" ["src"];
+
+  (* Test 5: transform-in-place and conditional bindings keep the edge.
+     A name read before (or inside the right-hand side of) its own binding
+     is a genuine dependency: dropping it would silently under-build. *)
+  check_deps "R transform-in-place keeps edge"
+    {|p = pipeline {
+      raw = rn(command = <{ 1 }>)
+      clean = rn(command = <{ raw <- raw[!is.na(raw$x), ]; raw }>)
+    }|} "clean" ["raw"];
+  check_deps "Python transform-in-place keeps edge"
+    {|p = pipeline {
+      df = pyn(command = <{ 1 }>)
+      out = pyn(command = <{ df = df.dropna(); df }>)
+    }|} "out" ["df"];
+  check_deps "R read-then-assign keeps edge"
+    {|p = pipeline {
+      src = rn(command = <{ 1 }>)
+      out = rn(command = <{ print(src); src <- 99; src }>)
+    }|} "out" ["src"];
+  check_deps "R conditional binding keeps edge"
+    {|p = pipeline {
+      src = rn(command = <{ 1 }>)
+      out = rn(command = <{ if (flag) src <- 99; use(src) }>)
+    }|} "out" ["src"];
+  check_deps "Python conditional binding keeps edge"
+    {|p = pipeline {
+      src = pyn(command = <{ 1 }>)
+      out = pyn(command = <{ if flag: src = 99
+      use(src) }>)
+    }|} "out" ["src"];
+  (* sh string commands carry no RawCode text, so dependency edges from
+     sh bodies are out of scope here; sh shadowing is pinned at the
+     binding level in Test 2b instead. *)
 
   print_newline ()

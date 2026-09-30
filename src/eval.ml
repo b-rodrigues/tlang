@@ -2067,12 +2067,12 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
                match un.un_command.node with
                | RawCode { raw_text; _ } when raw_text <> "" ->
                    let code = Ast.extract_code_identifiers raw_text in
-                   let locals =
-                     Ast.extract_local_bindings ~runtime:un.un_runtime raw_text
+                   let shadowed =
+                     Ast.extract_shadowed_locals ~runtime:un.un_runtime raw_text
                    in
                    let rnn = Ast.extract_read_node_names raw_text in
                    List.sort_uniq String.compare
-                     (List.filter (fun v -> not (List.mem v locals)) code @ rnn)
+                     (List.filter (fun v -> not (List.mem v shadowed)) code @ rnn)
                | _ -> fv
              in
              let is_raw = match un.un_command.node with RawCode _ -> true | _ -> false in
