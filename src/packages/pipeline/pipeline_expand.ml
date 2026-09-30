@@ -64,12 +64,19 @@ let value_to_literal (v : value) : string =
   | VNA _ -> "NA"
   | other -> Utils.value_to_string other
 
+(** Runtime of a node for raw-block scope analysis during expansion.
+    Unknown runtimes fall back to ["T"], for which no bindings are ever
+    spotted, preserving the legacy whole-text substitution. *)
+let runtime_of_node (p : Ast.pipeline_result) name =
+  match List.assoc_opt name p.Ast.p_runtimes with Some r -> r | None -> "T"
+
 let rec substitute_vars_in_expr
+    ~runtime
     (substs : (string * value) list)
     (index : int)
     (expr : Ast.expr)
     : Ast.expr =
-  let subst = substitute_vars_in_expr substs index in
+  let subst = substitute_vars_in_expr ~runtime substs index in
   match expr.node with
   | Var s ->
       (match List.find_opt (fun (name, _) -> name = s) substs with
@@ -103,14 +110,33 @@ let rec substitute_vars_in_expr
       (* Runtime-agnostic: identifier substitution via raw_identifiers list and
          \bname\b word-boundary regex is safe across all runtimes (R, Python,
          Julia, sh, etc.) — only identifiers explicitly detected by the parser
-         are replaced. *)
+         are replaced. When the block binds the name itself, only occurrences
+         resolving to the dependency are replaced (before shadowing, plus the
+         binding's own right-hand side); binders and later local reads stay
+         untouched. Positions are recomputed per dependency on the current
+         text, mirroring the legacy sequential fold. *)
+      let splice_spans text spans literal_str =
+        let buf = Buffer.create (String.length text + 32) in
+        let rec go pos = function
+          | [] ->
+              Buffer.add_substring buf text pos (String.length text - pos)
+          | (s, len) :: rest ->
+              Buffer.add_substring buf text pos (s - pos);
+              Buffer.add_string buf literal_str;
+              go (s + len) rest
+        in
+        go 0 spans;
+        Buffer.contents buf
+      in
       let new_text = List.fold_left (fun text (dep_name, dep_value) ->
         if List.mem dep_name raw_identifiers then
           let literal_str = value_to_literal (slice_value dep_value index) in
-          Str.global_replace
-            (Str.regexp ("\\b" ^ Str.quote dep_name ^ "\\b"))
-            literal_str
-            text
+          match Ast.dep_substitution_spans ~runtime text dep_name with
+          | None ->
+              Str.global_replace
+                (Str.regexp ("\\b" ^ Str.quote dep_name ^ "\\b"))
+                literal_str text
+          | Some spans -> splice_spans text spans literal_str
         else text
       ) raw_text substs in
       Ast.mk_expr (Ast.RawCode { raw_text = new_text; raw_identifiers })
@@ -214,7 +240,7 @@ let process_map
           let substs = List.combine dep_names dep_values in
           Ok (List.init branch_count (fun i ->
             let dep_indices = List.map (fun d -> (d, i)) dep_names in
-            let substituted_command = substitute_vars_in_expr substs i command_expr in
+            let substituted_command = substitute_vars_in_expr ~runtime:(runtime_of_node p name) substs i command_expr in
             make_branch name name i i dep_indices substituted_command
           ))
       | None -> Error (Error.type_error (Printf.sprintf "expand_pipeline: node '%s' not found in pipeline." name))
@@ -270,7 +296,7 @@ let process_cross
             let dep_indices = List.concat (List.map2 (fun (dep_names, _, _) elem_idx ->
               List.map (fun dep_name -> (dep_name, elem_idx)) dep_names
             ) resolved_subs indices) in
-            let substituted_command = substitute_vars_in_expr substs 0 command_expr in
+            let substituted_command = substitute_vars_in_expr ~runtime:(runtime_of_node p name) substs 0 command_expr in
             make_branch name name i i dep_indices substituted_command
           ))
 
@@ -290,7 +316,7 @@ let process_slice
         (match get_node_command p name with
          | Some command_expr ->
              Ok (List.mapi (fun branch_idx value_idx ->
-                 let substituted_command = substitute_vars_in_expr [(dep, dep_value)] value_idx command_expr in
+                 let substituted_command = substitute_vars_in_expr ~runtime:(runtime_of_node p name) [(dep, dep_value)] value_idx command_expr in
                  make_branch name name branch_idx value_idx [(dep, value_idx)] substituted_command
                ) indices)
          | None -> Error (Error.type_error (Printf.sprintf "expand_pipeline: node '%s' not found in pipeline." name)))
@@ -307,7 +333,7 @@ let process_head
       (match get_node_command p name with
        | Some command_expr ->
              Ok (List.init actual_n (fun i ->
-               let substituted_command = substitute_vars_in_expr [(dep, dep_value)] i command_expr in
+               let substituted_command = substitute_vars_in_expr ~runtime:(runtime_of_node p name) [(dep, dep_value)] i command_expr in
                make_branch name name i i [(dep, i)] substituted_command
              ))
         | None -> Error (Error.type_error (Printf.sprintf "expand_pipeline: node '%s' not found in pipeline." name)))
@@ -326,7 +352,7 @@ let process_tail
        | Some command_expr ->
             Ok (List.init actual_n (fun i ->
               let value_idx = start + i in
-               let substituted_command = substitute_vars_in_expr [(dep, dep_value)] value_idx command_expr in
+               let substituted_command = substitute_vars_in_expr ~runtime:(runtime_of_node p name) [(dep, dep_value)] value_idx command_expr in
                make_branch name name i value_idx [(dep, value_idx)] substituted_command
              ))
         | None -> Error (Error.type_error (Printf.sprintf "expand_pipeline: node '%s' not found in pipeline." name)))
@@ -350,7 +376,7 @@ let process_sample
       (match get_node_command p name with
        | Some command_expr ->
              Ok (List.mapi (fun branch_idx value_idx ->
-               let substituted_command = substitute_vars_in_expr [(dep, dep_value)] value_idx command_expr in
+               let substituted_command = substitute_vars_in_expr ~runtime:(runtime_of_node p name) [(dep, dep_value)] value_idx command_expr in
                make_branch name name branch_idx value_idx [(dep, value_idx)] substituted_command
              ) chosen)
                | None -> Error (Error.type_error (Printf.sprintf "expand_pipeline: node '%s' not found in pipeline." name)))

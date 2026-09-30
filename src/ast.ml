@@ -727,7 +727,7 @@ type raw_binding = { b_name : string; b_pos : int; b_rhs_start : int; b_rhs_end 
 
 let scan_raw_bindings ~runtime text =
   (match lang_of_runtime runtime with
-   | OtherLang -> (strip_noncode_spans text, [])
+   | OtherLang -> (strip_noncode_spans text, [], [])
    | lang ->
        let stripped = strip_noncode_spans text in
        let n = String.length stripped in
@@ -1088,11 +1088,19 @@ let scan_raw_bindings ~runtime text =
          scan from
        in
        let found = ref [] in
+       (* Every syntactic binder spotted, including conditional ones that
+          [record] below filters out: binder positions must never be
+          substituted (see [dep_substitution_spans]), even when the
+          binding itself is conditional. *)
+       let all_binders = ref [] in
        let record ?(is_loopvar=false) name bpos rs re =
          if name = "" then ()
-         else if in_cond_region bpos then ()
-         else if line_guarded ~include_for:(not is_loopvar) bpos then ()
-         else found := { b_name = name; b_pos = bpos; b_rhs_start = rs; b_rhs_end = re } :: !found
+         else begin
+           all_binders := (name, bpos) :: !all_binders;
+           if in_cond_region bpos then ()
+           else if line_guarded ~include_for:(not is_loopvar) bpos then ()
+           else found := { b_name = name; b_pos = bpos; b_rhs_start = rs; b_rhs_end = re } :: !found
+         end
        in
        (* Python suite tracking is line-oriented and lives inside scan_python
           below. *)
@@ -1374,14 +1382,14 @@ let scan_raw_bindings ~runtime text =
            i := max !advanced_to epos
          end
        done;
-       (stripped, !found))
+       (stripped, !found, !all_binders))
 
 (** All recorded bindings (names only), preserving the historical
     behavior of [extract_local_bindings]: every unconditional binding
     the scan spots, including ones later filtered from dependency
     subtraction (read-before, right-hand-side self-reads). *)
 let extract_local_bindings ~runtime text =
-  let _, bs = scan_raw_bindings ~runtime text in
+  let _, bs, _ = scan_raw_bindings ~runtime text in
   List.sort_uniq String.compare (List.map (fun b -> b.b_name) bs)
 
 (** Names purely shadowed by the block: no whole-word read before the
@@ -1390,7 +1398,7 @@ let extract_local_bindings ~runtime text =
     edge (a spurious edge fails loudly at cycle check, a dropped real
     edge would silently under-build). *)
 let extract_shadowed_locals ~runtime text =
-  let stripped, bs = scan_raw_bindings ~runtime text in
+  let stripped, bs, _ = scan_raw_bindings ~runtime text in
   let n = String.length stripped in
   let is_id c =
     (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
@@ -1422,6 +1430,71 @@ let extract_shadowed_locals ~runtime text =
     in
     if pre = [] && in_rhs = [] then b.b_name :: acc else acc
   ) table [] |> List.sort_uniq String.compare
+
+(** Occurrence spans of [dep_name] that resolve to the dependency and may
+    be textually replaced with its expanded value — or [None] when the
+    name is never bound in the block (the caller keeps its legacy
+    whole-text replacement, so behavior outside shadowing is unchanged).
+
+    A bound name splits the block: occurrences strictly before the
+    earliest binding (of any kind, conditional included) still read the
+    dependency, as do occurrences inside the earliest *unconditional*
+    binding's right-hand side (e.g. the RHS `x` in `x <- x + 1`).
+    Binder occurrences themselves are never substituted, nor are later
+    reads, which may resolve to the local. With only conditional
+    bindings, just the pre-binding prefix substitutes; ambiguous later
+    reads stay bare and resolve through the branch's dependency edge.
+
+    Matching runs on the original text with whole-word,
+    identifier-character boundaries — the same rule the legacy path used
+    — including inside strings. Positions align because stripping is
+    length-preserving. *)
+let dep_substitution_spans ~runtime text dep_name =
+  if dep_name = "" then None
+  else
+    let m = String.length dep_name in
+    let n = String.length text in
+    let is_id c =
+      (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+      || (c >= '0' && c <= '9') || c = '_'
+    in
+    let rec occs i acc =
+      if i + m > n then List.rev acc
+      else if String.sub text i m = dep_name
+              && (i = 0 || not (is_id text.[i - 1]))
+              && (i + m >= n || not (is_id text.[i + m])) then
+        occs (i + m) ((i, m) :: acc)
+      else occs (i + 1) acc
+    in
+    let _, detailed, binders = scan_raw_bindings ~runtime text in
+    let mine = List.filter (fun (nm, _) -> nm = dep_name) binders in
+    match mine with
+    | [] -> None
+    | _ ->
+        let first_all = List.fold_left (fun a (_, p) -> min a p) max_int mine in
+        let binder_pos = List.map snd mine in
+        let uncond_rhs =
+          let rec earliest acc = function
+            | [] -> acc
+            | b :: rest when b.b_name = dep_name ->
+                (match acc with
+                 | None -> earliest (Some b) rest
+                 | Some prev ->
+                     earliest (Some (if b.b_pos < prev.b_pos then b else prev)) rest)
+            | _ :: rest -> earliest acc rest
+          in
+          match earliest None detailed with
+          | Some r -> Some (r.b_rhs_start, r.b_rhs_end)
+          | None -> None
+        in
+        let in_rhs (s, _) =
+          match uncond_rhs with
+          | Some (rs, re) -> rs <= s && s + m <= re
+          | None -> false
+        in
+        Some (List.filter (fun (s, _) ->
+          (s < first_all || in_rhs (s, m)) && not (List.mem s binder_pos)
+        ) (occs 0 []))
 
 (** Convenience type alias *)
 type environment = value Env.t

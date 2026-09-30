@@ -109,9 +109,10 @@ missed one silently rewires the DAG.
   (kwarg keeps edge, `==`/`< -` keep working, `f(x = 1)` keeps edge) in
   `test_pipeline_comments.ml`, alongside pipeline-level `p_deps` tests
   (shadow drops edge, kwarg keeps edge, read_node preserved).
-- [ ] Follow-up (separate item): `pipeline_expand.ml` still substitutes dep
-  values into raw text without consulting block locals — same shadowing
-  class, needs its own analysis before touching pattern semantics.
+- [x] Follow-up (done): `pipeline_expand.ml` now consults block locals
+  (done: `Ast.dep_substitution_spans` limits raw-text replacement to
+  pre-binding reads plus the binding RHS; binders and later local reads
+  stay bare; unbound names keep legacy whole-text replacement).
 
 **Acceptance.**
 - [x] `phantom_deps_t` and its siblings still pass; each exception has a

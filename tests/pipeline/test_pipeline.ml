@@ -2785,6 +2785,50 @@ p.t_step|}
          incr fail_count; Printf.printf "  ✗ expand_pipeline with non-T runtime should return VPipeline, got %s\n"
            (Ast.Utils.value_to_string other));
 
+    (* 9. Test pattern expansion respects block-local shadowing in raw code:
+       only occurrences resolving to the dependency are substituted — the
+       binder itself and later local reads stay bare. *)
+    let branch_raw_text (pe : Ast.pipeline_result) name =
+      match List.assoc_opt name pe.Ast.p_nodes with
+      | Some (Ast.VNode un) ->
+          (match un.un_command.node with
+           | Ast.RawCode { raw_text; _ } -> Some raw_text
+           | _ -> None)
+      | _ -> None
+    in
+    let check_branch_text name code branch expected =
+      let env_b = Test_helpers.eval_setup eval_string_env env ("test_pipeline:" ^ name) code in
+      (match eval_string_env "expand_pipeline(p)" env_b with
+       | (Ast.VPipeline pe, _) ->
+           (match branch_raw_text pe branch with
+            | Some text when text = expected ->
+                incr pass_count; Printf.printf "  ✓ %s\n" name
+            | Some text ->
+                incr fail_count; Printf.printf "  ✗ %s\n    Expected: %s\n    Got:      %s\n" name expected text
+            | None ->
+                incr fail_count; Printf.printf "  ✗ %s: branch %s has no raw command\n" name branch)
+       | (other, _) ->
+           incr fail_count; Printf.printf "  ✗ %s: expansion failed: %s\n" name (Ast.Utils.value_to_string other))
+    in
+    check_branch_text "expansion substitutes RHS but keeps binder and later reads"
+      "p = pipeline {\n\
+       \  a = [10, 20]\n\
+       \  b = rn(command = <{ a <- a + 1; a }>, deserializer = ^json, pattern = map_pattern(a))\n\
+       }"
+      "b_branch_1" "a <- 10 + 1; a";
+    check_branch_text "expansion substitutes pre-binding reads only"
+      "p = pipeline {\n\
+       \  a = [10, 20]\n\
+       \  b = rn(command = <{ print(a); a <- 1; a }>, deserializer = ^json, pattern = map_pattern(a))\n\
+       }"
+      "b_branch_1" "print(10); a <- 1; a";
+    check_branch_text "expansion respects shadowing in Python blocks"
+      "p = pipeline {\n\
+       \  a = [10, 20]\n\
+       \  b = pyn(command = <{ a = a + 1\na }>, deserializer = ^json, pattern = map_pattern(a))\n\
+       }"
+      "b_branch_1" "a = 10 + 1\na";
+
     ()
   in
   test_dynamic_branching_expansion ();
