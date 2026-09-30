@@ -140,6 +140,8 @@ let rec from_string str =
          | Some ("dict", inner) ->
              (match split_toplevel_comma inner with
               | [k; v] -> TDict (from_string k, from_string v)
+              (* Bare `Dict[X]`: keys are always strings (VDict pairs in
+                 ast.ml), so only the value type is given. *)
               | [v] -> TDict (TString, from_string v)
               | _ -> TAny)
          | Some _ | None ->

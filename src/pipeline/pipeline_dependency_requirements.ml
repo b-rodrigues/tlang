@@ -612,11 +612,21 @@ let env_flag name =
    an answer. Takes effect before any tty check or stdin read. *)
 let no_prompt_env () = env_flag "TLANG_NO_PROMPT"
 
+(* Unattended opt-in answering the prompt with "yes": updates
+   `tproject.toml` exactly as an interactive `y` would (the caller then
+   reports the rebuild message). Explicit opt-in only — unlike
+   `TLANG_NO_PROMPT`, this modifies the project file. *)
+let assume_yes_env () = env_flag "TLANG_ASSUME_YES"
+
 let prompt_to_update ~tproject_path analysis =
   if no_prompt_env () then begin
     Printf.printf "%s\n\nUnattended mode (`TLANG_NO_PROMPT` is set); leaving `tproject.toml` unchanged.\n%!"
       (format_analysis analysis);
     false
+  end else if assume_yes_env () then begin
+    Printf.printf "%s\n\nUnattended mode (`TLANG_ASSUME_YES` is set); answering yes and updating `tproject.toml`.\n%!"
+      (format_analysis analysis);
+    true
   end else begin
     Printf.printf "%s\n\nAdd these entries to %s now? [y/N]: %!"
       (format_analysis analysis) tproject_path;

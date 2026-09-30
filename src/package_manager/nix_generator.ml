@@ -250,7 +250,8 @@ let generate_project_flake
      Bare interpreters stay available for ad-hoc use. Adding any dependency
      and running `t update` restores the full env. *)
   let use_r = r_deps <> [] || r_git_deps <> [] in
-  let use_py = py_deps <> [] || py_resolver = "uv" in
+  let use_uv = py_resolver = "uv" in
+  let use_py = py_deps <> [] || use_uv in
   let use_jl = jl_deps <> [] in
   let jl_deps = ensure_julia_json_dep jl_deps in
   (* `tlang` is provided via `tlang-r`, not nixpkgs `rPackages`. Filter it
@@ -264,7 +265,6 @@ let generate_project_flake
   let buf = Buffer.create 2048 in
   (* Inputs section *)
   let dep_input_names = List.map (fun d -> nix_safe_name d.dep_name) deps in
-  let use_uv = py_resolver = "uv" in
   let all_output_args =
     ["self"; "nixpkgs"; "flake-utils"; "t-lang"] @
     (if use_uv then ["pyproject-nix"; "uv2nix"; "pyproject-build-systems"] else []) @

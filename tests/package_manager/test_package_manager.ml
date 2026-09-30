@@ -919,6 +919,29 @@ packages = []
      | None -> Unix.putenv "TLANG_NO_PROMPT" "");
     result);
 
+  test_pm "TLANG_ASSUME_YES accepts without reading" (fun () ->
+    let saved_yes = Sys.getenv_opt "TLANG_ASSUME_YES" in
+    let saved_no = Sys.getenv_opt "TLANG_NO_PROMPT" in
+    Unix.putenv "TLANG_ASSUME_YES" "1";
+    Unix.putenv "TLANG_NO_PROMPT" "";
+    let result =
+      try
+        Pipeline_dependency_requirements.prompt_to_update
+          ~tproject_path:"tproject.toml"
+          Pipeline_dependency_requirements.{ missing_r_deps = ["dplyr"];
+            missing_py_deps = []; missing_julia_deps = [];
+            missing_additional_tools = []; missing_latex_pkgs = [];
+            reasons = [] }
+      with _ -> false
+    in
+    (match saved_yes with
+     | Some v -> Unix.putenv "TLANG_ASSUME_YES" v
+     | None -> Unix.putenv "TLANG_ASSUME_YES" "");
+    (match saved_no with
+     | Some v -> Unix.putenv "TLANG_NO_PROMPT" v
+     | None -> Unix.putenv "TLANG_NO_PROMPT" "");
+    result);
+
   test_pm "apply missing Quarto dependencies updates explicit sections" (fun () ->
     let env = Packages.init_env () in
     match fst (eval_string_env {|

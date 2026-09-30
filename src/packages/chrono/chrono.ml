@@ -1988,6 +1988,8 @@ let register env =
   --# @name is_duration
   --# @param x :: Any The value to test.
   --# @return :: Bool True for Duration values.
+  --# @example
+  --#   is_duration(ymd_hms("2024-01-15 10:30:45") - ymd_hms("2024-01-14 10:30:45"))
   --# @family chrono
   --# @export
   --# *)
