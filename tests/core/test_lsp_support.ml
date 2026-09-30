@@ -328,6 +328,17 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
     (not (Ast.types_compatible
        (Ast.TArrow ([Ast.TInt], Ast.TInt))
        (Ast.TArrow ([Ast.TInt], Ast.TString))));
+  test_message "TList unknown elements match anything"
+    (Ast.types_compatible (Ast.TList None) (Ast.TList (Some Ast.TInt)));
+  test_message "TList elements widen like scalars"
+    (Ast.types_compatible
+       (Ast.TList (Some Ast.TInt)) (Ast.TList (Some Ast.TFloat)));
+  test_message "TList element mismatch"
+    (not (Ast.types_compatible
+       (Ast.TList (Some Ast.TInt)) (Ast.TList (Some Ast.TString))));
+  test_message "TDict unknown sides match anything"
+    (Ast.types_compatible
+       (Ast.TDict (None, None)) (Ast.TDict (Some Ast.TString, Some Ast.TInt)));
 
   (* ── Semantic_type.to_ast_typ ────────────────────────────── *)
   Printf.printf "Semantic_type.to_ast_typ:\n";
@@ -348,6 +359,31 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
     (match Semantic_type.to_ast_typ (Semantic_type.TFunction ([("a", Semantic_type.TInt)], Semantic_type.TString)) with
      | Ast.TArrow ([Ast.TInt], Ast.TString) -> true
      | _ -> false);
+  test_message "TList maps to Ast.TList"
+    (match Semantic_type.to_ast_typ (Semantic_type.TList Semantic_type.TInt) with
+     | Ast.TList (Some Ast.TInt) -> true
+     | _ -> false);
+  test_message "TVector maps to Ast.TList (vectors check as lists)"
+    (match Semantic_type.to_ast_typ (Semantic_type.TVector Semantic_type.TBool) with
+     | Ast.TList (Some Ast.TBool) -> true
+     | _ -> false);
+  test_message "TDict maps to Ast.TDict"
+    (match Semantic_type.to_ast_typ (Semantic_type.TDict (Semantic_type.TString, Semantic_type.TInt)) with
+     | Ast.TDict (Some Ast.TString, Some Ast.TInt) -> true
+     | _ -> false);
+  test_message "TCustom round-trips to Ast.TCustom"
+    (Semantic_type.to_ast_typ (Semantic_type.TCustom "Model") = Ast.TCustom "Model");
+  test_message "nominal types match only themselves"
+    (Ast.types_compatible (Ast.TCustom "Model") (Ast.TCustom "Model"));
+  test_message "nominal types reject other names"
+    (not (Ast.types_compatible (Ast.TCustom "Model") (Ast.TCustom "Pipeline")));
+  test_message "union accepts any member"
+    (Ast.types_compatible Ast.TInt (Ast.TUnion [Ast.TInt; Ast.TString]));
+  test_message "union rejects non-members"
+    (not (Ast.types_compatible Ast.TBool (Ast.TUnion [Ast.TInt; Ast.TString])));
+  test_message "union requires all members on the left"
+    (not (Ast.types_compatible
+       (Ast.TUnion [Ast.TInt; Ast.TBool]) (Ast.TUnion [Ast.TInt; Ast.TString])));
 
   (* ── Annotation check via Check_utils ──────────────────── *)
   Printf.printf "Annotation check (via hook):\n";
@@ -356,11 +392,9 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
   output_string oc "a: Int = 42\nb: Int = \"oops\"\n";
   close_out oc;
   let env = Packages.init_env () in
-  (* NOTE: This re-implements check_type_annotations from repl.ml instead of
-     calling it directly, because Analyzer is in the t_lang library and cannot
-     be referenced from library modules without creating a dune dependency cycle.
-     repl.ml is a separate executable outside the library, so it can reference
-     Analyzer freely. If the shipped function changes, this copy must be updated. *)
+  (* NOTE: annotation diagnostics live in Check_utils.annotation_diagnostics
+     (shared with repl.ml's check), so this hook cannot drift from the
+     shipped logic. *)
   Check_utils.extra_diagnostics_hook := (fun filename ->
     try
       let ch = open_in filename in
@@ -372,26 +406,7 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
       let scope = Symbol_table.create_scope () in
       Symbol_table.register_keywords scope;
       let _ = Analyzer.analyze program scope in
-      let diags = ref [] in
-      List.iter (fun (stmt : Ast.stmt) ->
-        match stmt.node with
-        | Ast.Assignment { name; typ = Some annotation; _ } ->
-            let inferred_ast = match Symbol_table.lookup scope name with
-              | Some { Symbol_table.typ = Some st; _ } -> Semantic_type.to_ast_typ st
-              | _ -> Ast.TCustom "Any"
-            in
-            if not (Ast.types_compatible inferred_ast annotation) then
-              diags := { Diagnostics.diag_id = "test"; diag_error_class = Diagnostics.Type_error;
-                         diag_severity = Warning; diag_phase = Schema; diag_node_id = None;
-                         diag_node_lang = None; diag_file = Some filename; diag_line = None;
-                         diag_column = None; diag_end_line = None; diag_end_column = None;
-                         diag_message = Printf.sprintf "Variable `%s` annotated as %s, but expression infers to %s."
-                           name (Ast.Utils.typ_to_string annotation) (Ast.Utils.typ_to_string inferred_ast);
-                         diag_expected = None; diag_actual = None; diag_caused_by = [];
-                         diag_suggested_fix = Diagnostics.no_fix } :: !diags
-        | _ -> ()
-      ) program;
-      List.rev !diags
+      Check_utils.annotation_diagnostics program scope filename
     with _ -> []);
   let cr = Check_utils.run_check Typecheck.Strict tmp_file env in
   let diags = Diagnostics.check_result_entries cr in
@@ -410,5 +425,44 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
       d.Diagnostics.diag_severity = Warning && d.Diagnostics.diag_message |> fun s ->
         String.length s > 10 && String.sub s 0 10 = "Variable `") diags2));
   Sys.remove tmp_file;
+
+  (* Reassignment against a standing annotation warns; a compatible
+     reassignment, an Any-annotated one, and an unannotated one stay
+     silent. The shared helper (same as the shipped check) is installed
+     as the hook again. *)
+  let tmp_file2 = Filename.temp_file "tlang_reassign_check" ".t" in
+  let oc2 = open_out tmp_file2 in
+  output_string oc2 "x: Int = 1\nx := \"hello\"\ny: Int = 2\ny := 3\nw: Any = 1\nw := \"s\"\nz = 1\nz := \"s\"\n";
+  close_out oc2;
+  Check_utils.extra_diagnostics_hook := (fun filename ->
+    try
+      let ch = open_in filename in
+      let content = really_input_string ch (in_channel_length ch) in
+      close_in ch;
+      let lexbuf = Lexing.from_string content in
+      lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = filename };
+      let program = Parser.program Lexer.token lexbuf in
+      let scope = Symbol_table.create_scope () in
+      Symbol_table.register_keywords scope;
+      let _ = Analyzer.analyze program scope in
+      Check_utils.annotation_diagnostics program scope filename
+    with _ -> []);
+  let cr3 = Check_utils.run_check Typecheck.Strict tmp_file2 env in
+  let diags3 = Diagnostics.check_result_entries cr3 in
+  let reassign_msgs = List.filter_map (fun d ->
+    if d.Diagnostics.diag_severity = Warning
+       && (let s = d.Diagnostics.diag_message in
+           String.length s > 10 && String.sub s 0 10 = "Variable `"
+           && (try ignore (Str.search_forward (Str.regexp_string "reassignment infers to") s 0); true
+               with Not_found -> false))
+    then Some d.Diagnostics.diag_message
+    else None) diags3 in
+  test_message "reassignment against annotation warns exactly once (for x)"
+    (List.length reassign_msgs = 1
+     && (let s = List.hd reassign_msgs in
+         try ignore (Str.search_forward (Str.regexp_string "`x`") s 0); true
+         with Not_found -> false));
+  Check_utils.extra_diagnostics_hook := (fun _ -> []);
+  Sys.remove tmp_file2;
 
   print_newline ()

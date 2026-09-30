@@ -708,49 +708,7 @@ let check_type_annotations filename =
     let scope = Symbol_table.create_scope () in
     Symbol_table.register_keywords scope;
     let _ = Analyzer.analyze program scope in
-    let diags = ref [] in
-    List.iter (fun (stmt : Ast.stmt) ->
-      match stmt.node with
-      | Ast.Assignment { name; typ = Some annotation; _ } ->
-          let inferred_ast = match Symbol_table.lookup scope name with
-            | Some { Symbol_table.typ = Some st; _ } -> Semantic_type.to_ast_typ st
-            | _ -> Ast.TCustom "Any"
-          in
-          if not (Ast.types_compatible inferred_ast annotation) then begin
-            let expected = Ast.Utils.typ_to_string annotation in
-            let actual = Ast.Utils.typ_to_string inferred_ast in
-            let line = match stmt.loc with
-              | Some l -> Some l.Ast.line
-              | None -> None
-            in
-            let col = match stmt.loc with
-              | Some l -> Some l.Ast.column
-              | None -> None
-            in
-            diags := {
-              Diagnostics.diag_id = Diagnostics.gen_id ();
-              diag_error_class = Diagnostics.Type_error;
-              diag_severity = Warning;
-              diag_phase = Schema;
-              diag_node_id = None;
-              diag_node_lang = None;
-              diag_file = Some filename;
-              diag_line = line;
-              diag_column = col;
-              diag_end_line = None;
-              diag_end_column = None;
-              diag_message = Printf.sprintf
-                "Variable `%s` annotated as %s, but expression infers to %s."
-                name expected actual;
-              diag_expected = Some expected;
-              diag_actual = Some actual;
-              diag_caused_by = [];
-              diag_suggested_fix = Diagnostics.no_fix;
-            } :: !diags
-          end
-      | _ -> ()
-    ) program;
-    List.rev !diags
+    Check_utils.annotation_diagnostics program scope filename
   with
   | Lexer.SyntaxError _ ->
     (* Parse/syntax errors are already reported by check_utils normal flow. *)
