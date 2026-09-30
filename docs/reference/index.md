@@ -43,6 +43,7 @@
 | [char_at](char_at.html) | Get character at index |
 | [check](check.html) | Inline assertion wrapper |
 | [clean_colnames](clean_colnames.html) | Clean DataFrame Column Names |
+| [coalesce](coalesce.html) | Coalesce missing values |
 | [coef](coef.html) | Model Coefficients |
 | [col_lens](col_lens.html) | Create a Column Lens |
 | [collect_exceptions](collect_exceptions.html) | Gather Pipeline Node Exceptions and Warnings |
@@ -58,6 +59,7 @@
 | [cosh](cosh.html) | Hyperbolic cosine |
 | [count](count.html) | Count rows by group |
 | [cov](cov.html) | Covariance |
+| [cross_join](cross_join.html) | Cartesian join |
 | [cross_pattern](cross_pattern.html) | Cross pattern stub |
 | [crossing](crossing.html) | Create a data frame from all combinations of inputs |
 | [cumall](cumall.html) | Cumulative All |
@@ -70,6 +72,7 @@
 | [cut](cut.html) | Discretize numeric vector |
 | [cv](cv.html) | Coefficient of variation |
 | [day](day.html) | Extract the day of month |
+| [days](days.html) | Build a day period |
 | [days_in_month](days_in_month.html) | Get the number of days in a month |
 | [debug_node](debug_node.html) | Interactively Debug a Pipeline Node |
 | [dense_rank](dense_rank.html) | Dense Rank |
@@ -82,12 +85,15 @@
 | [dir_exists](dir_exists.html) | Check if directory exists |
 | [dispersion](dispersion.html) | Dispersion Parameter |
 | [distinct](distinct.html) | Keep unique rows |
+| [dmy](dmy.html) | Parse day-month-year dates |
+| [dmy_hms](dmy_hms.html) | Parse day-first datetimes with second precision |
 | [downstream_of](downstream_of.html) | Extract Downstream Subgraph |
 | [drop_na](drop_na.html) | Remove rows with missing values |
 | [ends_with](ends_with.html) | Check if string ends with suffix |
 | [enquo](enquo.html) | Capture a function argument's expression (non-standard evaluation) |
 | [enquos](enquos.html) | Capture variadic argument expressions (non-standard evaluation) |
 | [env](env.html) | Get environment variable |
+| [env_var_lens](env_var_lens.html) | Environment variable lens for a node |
 | [error](error.html) | Raise Error |
 | [error_chain](error_chain.html) | Chain errors to preserve provenance |
 | [error_code](error_code.html) | Get error code |
@@ -183,6 +189,7 @@
 | [head_pattern](head_pattern.html) | Head pattern stub |
 | [help](help.html) | Display documentation for a function |
 | [hour](hour.html) | Extract the hour |
+| [hours](hours.html) | Build an hour period |
 | [huber_loss](huber_loss.html) | Huber loss |
 | [identical](identical.html) | Deep Equality Check |
 | [idx_lens](idx_lens.html) | Index Lens |
@@ -202,13 +209,18 @@
 | [iota](iota.html) | Create a vector of ones |
 | [iqr](iqr.html) | Interquartile range |
 | [is_character](is_character.html) | Check for character columns |
+| [is_date](is_date.html) | Test for Date values |
+| [is_datetime](is_datetime.html) | Test for Datetime values |
+| [is_duration](is_duration.html) | Test for Duration values |
 | [is_empty](is_empty.html) | Check if string is empty |
 | [is_error](is_error.html) | Check if a value is an Error |
 | [is_factor](is_factor.html) | Check for to_factor columns |
+| [is_interval](is_interval.html) | Test for Interval values |
 | [is_leap_year](is_leap_year.html) | Check for leap years |
 | [is_logical](is_logical.html) | Check for logical columns |
 | [is_na](is_na.html) | Check for NA |
 | [is_numeric](is_numeric.html) | Check for numeric columns |
+| [is_period](is_period.html) | Test for Period values |
 | [isoweek](isoweek.html) | Extract the ISO week number |
 | [isoyear](isoyear.html) | Extract the ISO week-based year |
 | [jln](jln.html) | Configure a Julia Pipeline Node |
@@ -234,15 +246,21 @@
 | [matches](matches.html) | Match columns by regex |
 | [matmul](matmul.html) | Matrix multiplication |
 | [max](max.html) | Maximum value |
+| [mdy](mdy.html) | Parse month-day-year dates |
+| [mdy_hms](mdy_hms.html) | Parse month-first datetimes with second precision |
 | [mean](mean.html) | Compute arithmetic mean of numeric values |
 | [median](median.html) | Median |
 | [meta_flatten](meta_flatten.html) | Flatten MetaPipeline into Standard Pipeline |
+| [microseconds](microseconds.html) | Build a microsecond period |
+| [milliseconds](milliseconds.html) | Build a millisecond period |
 | [min](min.html) | Minimum value |
 | [min_rank](min_rank.html) | Minimum Rank |
 | [minute](minute.html) | Extract the minute |
+| [minutes](minutes.html) | Build a minute period |
 | [mode](mode.html) | Mode |
 | [modify](modify.html) | Multiple Lens Transformations |
 | [month](month.html) | Extract or label the month |
+| [months](months.html) | Build a month period |
 | [mutate](mutate.html) | Mutate DataFrame |
 | [mutate_node](mutate_node.html) | Mutate Pipeline Node Metadata |
 | [n](n.html) | Group size aggregation |
@@ -252,6 +270,7 @@
 | [na_float](na_float.html) | Float NA |
 | [na_int](na_int.html) | Integer NA |
 | [na_string](na_string.html) | String NA |
+| [nanoseconds](nanoseconds.html) | Build a nanosecond period |
 | [ncol](ncol.html) | Number of columns |
 | [ndarray](ndarray.html) | Create an N-dimensional array |
 | [ndarray_data](ndarray_data.html) | Get NDArray data |
@@ -285,6 +304,12 @@
 | [path_stem](path_stem.html) | Get filename without extension |
 | [pchisq](pchisq.html) | Chi-squared distribution CDF |
 | [percent_rank](percent_rank.html) | Percent Rank |
+| [period_days](period_days.html) | Days component of a period |
+| [period_hours](period_hours.html) | Hours component of a period |
+| [period_minutes](period_minutes.html) | Minutes component of a period |
+| [period_months](period_months.html) | Months component of a period |
+| [period_seconds](period_seconds.html) | Seconds component of a period |
+| [period_years](period_years.html) | Years component of a period |
 | [pf](pf.html) | F distribution CDF |
 | [pipeline_assert](pipeline_assert.html) | Assert Pipeline Validity |
 | [pipeline_cache_status](pipeline_cache_status.html) | Check Pipeline Cache Status |
@@ -304,6 +329,7 @@
 | [pipeline_report](pipeline_report.html) | Generate Pipeline Report |
 | [pipeline_roots](pipeline_roots.html) | Pipeline Root Nodes |
 | [pipeline_run](pipeline_run.html) | Run Pipeline |
+| [pipeline_status](pipeline_status.html) | Pipeline health table |
 | [pipeline_to_dot](pipeline_to_dot.html) | Export Pipeline/MetaPipeline as DOT Graph |
 | [pipeline_to_drv](pipeline_to_drv.html) | Introspect Node Derivation Paths |
 | [pipeline_to_frame](pipeline_to_frame.html) | Convert Pipeline to DataFrame |
@@ -379,6 +405,7 @@
 | [reshape](reshape.html) | Reshape an NDArray |
 | [residuals](residuals.html) | Model Residuals |
 | [rewire](rewire.html) | Rewire a Node's Dependencies |
+| [right_join](right_join.html) | Join rows from the right table |
 | [rm](rm.html) | Remove objects from the environment |
 | [rn](rn.html) | Configure an R Pipeline Node |
 | [round](round.html) | Round values |
@@ -395,6 +422,7 @@
 | [score](score.html) | Model Scoring |
 | [sd](sd.html) | Standard Deviation |
 | [second](second.html) | Extract the second |
+| [seconds](seconds.html) | Build a second period |
 | [select](select.html) | Select columns |
 | [select_node](select_node.html) | Select Node Metadata Fields |
 | [semester](semester.html) | Extract the semester |
@@ -439,6 +467,7 @@
 | [str_replace](str_replace.html) | Replace all occurrences |
 | [str_split](str_split.html) | Split a string on a delimiter |
 | [str_sprintf](str_sprintf.html) | Format a string |
+| [str_squish](str_squish.html) | Squish whitespace |
 | [str_substring](str_substring.html) | Extract substring |
 | [str_trim](str_trim.html) | Trim whitespace |
 | [str_trunc](str_trunc.html) | Truncate strings for display |
@@ -504,6 +533,7 @@
 | [warning_msg](warning_msg.html) | Get warning message |
 | [wday](wday.html) | Extract or label the weekday |
 | [week](week.html) | Extract the week number |
+| [weeks](weeks.html) | Build a week period |
 | [where](where.html) | Select columns by predicate |
 | [which_nodes](which_nodes.html) | Filter Readable Pipeline Node Records |
 | [winsorize](winsorize.html) | Winsorize values |
@@ -514,4 +544,10 @@
 | [write_parquet](write_parquet.html) | Write Parquet file |
 | [write_text](write_text.html) | Write text to a file |
 | [yday](yday.html) | Extract the day of year |
+| [ydm](ydm.html) | Parse year-day-month dates |
 | [year](year.html) | Extract the year component |
+| [years](years.html) | Build a year period |
+| [ymd](ymd.html) | Parse year-month-day dates |
+| [ymd_h](ymd_h.html) | Parse datetimes with hour precision |
+| [ymd_hm](ymd_hm.html) | Parse datetimes with minute precision |
+| [ymd_hms](ymd_hms.html) | Parse datetimes with second precision |

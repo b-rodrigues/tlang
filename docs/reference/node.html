@@ -39,7 +39,13 @@
 serialized methods for a pipeline node. This function is typically used
 directly within a <code>pipeline { ... }</code> block to wrap
 expressions, enable cross-runtime evaluation, and optionally render a
-<code>.qmd</code> document via <code>runtime = Quarto</code>.</p>
+<code>.qmd</code> document via <code>runtime = Quarto</code>. Node
+commands run in a fresh sandbox, not a closure. Outer data values are
+inlined as frozen literals; block-local bindings stay local; functions
+and builtins stay symbolic (share code via <code>functions</code>, not
+bare references); quoted <code>to_expr</code>/<code>quo</code> code runs
+later at node runtime. Reassigning a captured outer data variable is a
+construction error.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
 <li><p><strong>command</strong> (<code>Any</code>): (Optional) The
@@ -77,12 +83,6 @@ skip execution and generate a stub. Default = false.</p></li>
 flake reference (e.g. “github:b-rodrigues/tlang”) to use for this node’s
 build environment. Default = NA (use project flake).</p></li>
 </ul>
-<p>Node commands run in a fresh sandbox, not a closure. Outer data
-values are inlined as frozen literals; block-local bindings stay local;
-functions and builtins stay symbolic (share code via
-<code>functions</code>, not bare references); quoted
-<code>to_expr</code>/<code>quo</code> code runs later at node runtime.
-Reassigning a captured outer data variable is a construction error.</p>
 <h2 id="returns">Returns</h2>
 <p>A pipeline node configuration object. Must be used as a named binding
 inside a <code>pipeline { ... }</code> block; the node code is executed

@@ -9562,7 +9562,7 @@ Now that you can work with numerical arrays, explore statistical modeling and re
 ### New features
 
 - **Automatic editor setup in new projects**: `t init` now writes an `.envrc` (`use flake`) and a `.vscode/` folder recommending the T and direnv extensions, so Positron and VS Code pick up the flake environment — including `t-lsp` and the project R/Python interpreters — after one `direnv allow`. Direnv state (`.direnv/`) is git-ignored in new projects and packages.
-- **Richer static types**: collection types (`List[X]`, `Vector[X]`, `Dict[K, V]`), nominal domain types (`Model`, `Pipeline`, `Date`, …), and top-level `A | B` unions now flow from docstrings into inference, with structural compatibility and nested widening. A coverage audit with a ratcheting floor tracks precision (308/532 fully precise); generic calls reject inconsistent instantiations instead of passing silently.
+- **Richer static types**: collection types (`List[X]`, `Vector[X]`, `Dict[K, V]`), nominal domain types (`Model`, `Pipeline`, `Date`, …), and top-level `A | B` unions now flow from docstrings into inference, with structural compatibility and nested widening. A coverage audit with a ratcheting floor tracks precision (308/532 fully precise); generic calls reject inconsistent instantiations instead of passing silently. Note: generic consistency is strict about `Int` vs `Float` (identity, not widening) by design.
 
 ### Fixes
 
@@ -9570,7 +9570,7 @@ Now that you can work with numerical arrays, explore statistical modeling and re
 - **Error values no longer trip type checks**: `VError` is now compatible with every annotation (bottom value, like `NA`), so errors propagate through typed positions instead of being masked — `f(error("boom"))` into `\(x: Int -> Int)` returns the original error, not a spurious `Expected Int` mismatch. Schema inference already treated error paths as unknown; no new type syntax was needed.
 - **Unattended builds never wait on stdin**: the missing-dependency prompt no longer reads from non-terminal stdin (where a held-open pipe would block forever) and gains a `TLANG_NO_PROMPT=1` opt-out that declines before any prompt. A new `TLANG_ASSUME_YES=1` counterpart answers yes (updating `tproject.toml`, like an interactive `y`) for scripts that previously piped one in — note that piping `y` into a build no longer works, since stdin is never read. Scripts and CI fail fast with the actionable fix instead.
 - **Foreign locals no longer wire phantom dependencies**: dependency inference now subtracts names bound by the foreign block itself (R `<-`/`=`/`->`/loop variables, Python assignments/`for`/`def` with suite tracking, Julia assignments/named definitions with scope tracking, shell `name=`/`for`). A shadowed sibling name no longer creates a false edge (or false cycle); genuinely used siblings, keyword arguments, and `read_node("name")` literals still register.
-- **Slim shells for projects without runtime dependencies**: node builds use `pipeline.nix` environments, so a project that declares no R/Python/Julia packages now gets bare interpreters instead of locally building wrapper and depot derivations — a pure-T shell drops from 10 local builds to 1. Declaring any dependency restores the full environment on the next `t update`.
+- **Slim shells for projects without runtime dependencies**: node builds use `pipeline.nix` environments, so a project that declares no R/Python/Julia packages now skips user package sets — a pure-T shell drops from 10 locally-built derivations to 2 (measured via `nix build --dry-run`). The `tlang` companion stays wrapped, so documented `library(tlang)` in ad-hoc shell R sessions keeps working; Python/Julia fall back to bare interpreters (their shell extras were never documented, and node builds are unaffected). Declaring any dependency restores the full environment on the next `t update`.
 - **Default serializers no longer hang node builds**: `default`/`^default` serializer/deserializer in T (and R/Python/Julia) nodes now resolve to the real reader/writer instead of emitting a call to a nonexistent `default` function. Calling a bare symbol is now an explicit `TypeError` instead of spinning at 100% CPU forever — this hung `model_capabilities_demo_t` on CI, where every `^default` model consumer sat until the job timed out.
 - **Scaffolded `.gitignore` covers shell guard dirs**: `.t_python_guard/` and `.t_r_profile/`, created on every `nix develop` entry, are now ignored in new projects and packages, so `t update`'s clean-tree check passes on fresh scaffolds.
 - **Plot render paths are Nix-escaped**: `show_plot` now quotes project, config, and artifact paths with `nix_double_quote` instead of OCaml `%S`, closing the same `${...}` interpolation gap already fixed for git strings. Verified no other Nix emitters still use `%S`.
@@ -25390,6 +25390,32 @@ Returns the number of days in the month described by a date, datetime, or explic
 
 
 
+# FILE: docs/reference/days.md
+
+# days
+
+Build a day period
+
+Constructs a Period value spanning the given number of days.
+
+## Parameters
+
+- **n** (`Int`): The number of days.
+
+
+## Returns
+
+The period value.
+
+## Examples
+
+```t
+days(7)
+*)
+```
+
+
+
 # FILE: docs/reference/debug_node.md
 
 # debug_node
@@ -25656,6 +25682,60 @@ Returns the distinct rows of a DataFrame, optionally using selected columns as u
 
 
 
+# FILE: docs/reference/dmy_hms.md
+
+# dmy_hms
+
+Parse day-first datetimes with second precision
+
+Parses DMY-ordered strings to Datetime values. Vectorized over vectors. Unparseable inputs become NA.
+
+## Parameters
+
+- **value** (`String`): | Vector The datetime string(s) to parse.
+
+- **tz** (`String`): (Optional) Timezone label.
+
+
+## Returns
+
+| Vector The parsed datetime(s).
+
+## Examples
+
+```t
+dmy_hms("15-01-2024 10:30:45")
+*)
+```
+
+
+
+# FILE: docs/reference/dmy.md
+
+# dmy
+
+Parse day-month-year dates
+
+Parses strings in DMY order to Date values. Vectorized over vectors. Unparseable inputs become NA.
+
+## Parameters
+
+- **value** (`String`): | Vector The date string(s) to parse.
+
+
+## Returns
+
+| Vector The parsed date(s).
+
+## Examples
+
+```t
+dmy("15-01-2024")
+*)
+```
+
+
+
 # FILE: docs/reference/downstream_of.md
 
 # downstream_of
@@ -25816,6 +25896,27 @@ Retrieves the value of an environment variable.
 ```t
 env("HOME")
 ```
+
+
+
+# FILE: docs/reference/env_var_lens.md
+
+# env_var_lens
+
+Environment variable lens for a node
+
+Builds a lens focusing an environment variable inside a node's execution environment.
+
+## Parameters
+
+- **node_name** (`String`): The name of the node.
+
+- **var_name** (`String`): The environment variable name.
+
+
+## Returns
+
+A lens for the specified environment variable.
 
 
 
@@ -28431,6 +28532,32 @@ Returns the hour component from Datetime values.
 
 
 
+# FILE: docs/reference/hours.md
+
+# hours
+
+Build an hour period
+
+Constructs a Period value spanning the given number of hours.
+
+## Parameters
+
+- **n** (`Int`): The number of hours.
+
+
+## Returns
+
+The period value.
+
+## Examples
+
+```t
+hours(12)
+*)
+```
+
+
+
 # FILE: docs/reference/huber_loss.md
 
 # huber_loss
@@ -28593,6 +28720,7 @@ A confirmation message describing the imported archive.
 | [char_at](char_at.html) | Get character at index |
 | [check](check.html) | Inline assertion wrapper |
 | [clean_colnames](clean_colnames.html) | Clean DataFrame Column Names |
+| [coalesce](coalesce.html) | Coalesce missing values |
 | [coef](coef.html) | Model Coefficients |
 | [col_lens](col_lens.html) | Create a Column Lens |
 | [collect_exceptions](collect_exceptions.html) | Gather Pipeline Node Exceptions and Warnings |
@@ -28608,6 +28736,7 @@ A confirmation message describing the imported archive.
 | [cosh](cosh.html) | Hyperbolic cosine |
 | [count](count.html) | Count rows by group |
 | [cov](cov.html) | Covariance |
+| [cross_join](cross_join.html) | Cartesian join |
 | [cross_pattern](cross_pattern.html) | Cross pattern stub |
 | [crossing](crossing.html) | Create a data frame from all combinations of inputs |
 | [cumall](cumall.html) | Cumulative All |
@@ -28620,6 +28749,7 @@ A confirmation message describing the imported archive.
 | [cut](cut.html) | Discretize numeric vector |
 | [cv](cv.html) | Coefficient of variation |
 | [day](day.html) | Extract the day of month |
+| [days](days.html) | Build a day period |
 | [days_in_month](days_in_month.html) | Get the number of days in a month |
 | [debug_node](debug_node.html) | Interactively Debug a Pipeline Node |
 | [dense_rank](dense_rank.html) | Dense Rank |
@@ -28632,12 +28762,15 @@ A confirmation message describing the imported archive.
 | [dir_exists](dir_exists.html) | Check if directory exists |
 | [dispersion](dispersion.html) | Dispersion Parameter |
 | [distinct](distinct.html) | Keep unique rows |
+| [dmy](dmy.html) | Parse day-month-year dates |
+| [dmy_hms](dmy_hms.html) | Parse day-first datetimes with second precision |
 | [downstream_of](downstream_of.html) | Extract Downstream Subgraph |
 | [drop_na](drop_na.html) | Remove rows with missing values |
 | [ends_with](ends_with.html) | Check if string ends with suffix |
 | [enquo](enquo.html) | Capture a function argument's expression (non-standard evaluation) |
 | [enquos](enquos.html) | Capture variadic argument expressions (non-standard evaluation) |
 | [env](env.html) | Get environment variable |
+| [env_var_lens](env_var_lens.html) | Environment variable lens for a node |
 | [error](error.html) | Raise Error |
 | [error_chain](error_chain.html) | Chain errors to preserve provenance |
 | [error_code](error_code.html) | Get error code |
@@ -28733,6 +28866,7 @@ A confirmation message describing the imported archive.
 | [head_pattern](head_pattern.html) | Head pattern stub |
 | [help](help.html) | Display documentation for a function |
 | [hour](hour.html) | Extract the hour |
+| [hours](hours.html) | Build an hour period |
 | [huber_loss](huber_loss.html) | Huber loss |
 | [identical](identical.html) | Deep Equality Check |
 | [idx_lens](idx_lens.html) | Index Lens |
@@ -28752,13 +28886,18 @@ A confirmation message describing the imported archive.
 | [iota](iota.html) | Create a vector of ones |
 | [iqr](iqr.html) | Interquartile range |
 | [is_character](is_character.html) | Check for character columns |
+| [is_date](is_date.html) | Test for Date values |
+| [is_datetime](is_datetime.html) | Test for Datetime values |
+| [is_duration](is_duration.html) | Test for Duration values |
 | [is_empty](is_empty.html) | Check if string is empty |
 | [is_error](is_error.html) | Check if a value is an Error |
 | [is_factor](is_factor.html) | Check for to_factor columns |
+| [is_interval](is_interval.html) | Test for Interval values |
 | [is_leap_year](is_leap_year.html) | Check for leap years |
 | [is_logical](is_logical.html) | Check for logical columns |
 | [is_na](is_na.html) | Check for NA |
 | [is_numeric](is_numeric.html) | Check for numeric columns |
+| [is_period](is_period.html) | Test for Period values |
 | [isoweek](isoweek.html) | Extract the ISO week number |
 | [isoyear](isoyear.html) | Extract the ISO week-based year |
 | [jln](jln.html) | Configure a Julia Pipeline Node |
@@ -28784,15 +28923,21 @@ A confirmation message describing the imported archive.
 | [matches](matches.html) | Match columns by regex |
 | [matmul](matmul.html) | Matrix multiplication |
 | [max](max.html) | Maximum value |
+| [mdy](mdy.html) | Parse month-day-year dates |
+| [mdy_hms](mdy_hms.html) | Parse month-first datetimes with second precision |
 | [mean](mean.html) | Compute arithmetic mean of numeric values |
 | [median](median.html) | Median |
 | [meta_flatten](meta_flatten.html) | Flatten MetaPipeline into Standard Pipeline |
+| [microseconds](microseconds.html) | Build a microsecond period |
+| [milliseconds](milliseconds.html) | Build a millisecond period |
 | [min](min.html) | Minimum value |
 | [min_rank](min_rank.html) | Minimum Rank |
 | [minute](minute.html) | Extract the minute |
+| [minutes](minutes.html) | Build a minute period |
 | [mode](mode.html) | Mode |
 | [modify](modify.html) | Multiple Lens Transformations |
 | [month](month.html) | Extract or label the month |
+| [months](months.html) | Build a month period |
 | [mutate](mutate.html) | Mutate DataFrame |
 | [mutate_node](mutate_node.html) | Mutate Pipeline Node Metadata |
 | [n](n.html) | Group size aggregation |
@@ -28802,6 +28947,7 @@ A confirmation message describing the imported archive.
 | [na_float](na_float.html) | Float NA |
 | [na_int](na_int.html) | Integer NA |
 | [na_string](na_string.html) | String NA |
+| [nanoseconds](nanoseconds.html) | Build a nanosecond period |
 | [ncol](ncol.html) | Number of columns |
 | [ndarray](ndarray.html) | Create an N-dimensional array |
 | [ndarray_data](ndarray_data.html) | Get NDArray data |
@@ -28835,6 +28981,12 @@ A confirmation message describing the imported archive.
 | [path_stem](path_stem.html) | Get filename without extension |
 | [pchisq](pchisq.html) | Chi-squared distribution CDF |
 | [percent_rank](percent_rank.html) | Percent Rank |
+| [period_days](period_days.html) | Days component of a period |
+| [period_hours](period_hours.html) | Hours component of a period |
+| [period_minutes](period_minutes.html) | Minutes component of a period |
+| [period_months](period_months.html) | Months component of a period |
+| [period_seconds](period_seconds.html) | Seconds component of a period |
+| [period_years](period_years.html) | Years component of a period |
 | [pf](pf.html) | F distribution CDF |
 | [pipeline_assert](pipeline_assert.html) | Assert Pipeline Validity |
 | [pipeline_cache_status](pipeline_cache_status.html) | Check Pipeline Cache Status |
@@ -28854,6 +29006,7 @@ A confirmation message describing the imported archive.
 | [pipeline_report](pipeline_report.html) | Generate Pipeline Report |
 | [pipeline_roots](pipeline_roots.html) | Pipeline Root Nodes |
 | [pipeline_run](pipeline_run.html) | Run Pipeline |
+| [pipeline_status](pipeline_status.html) | Pipeline health table |
 | [pipeline_to_dot](pipeline_to_dot.html) | Export Pipeline/MetaPipeline as DOT Graph |
 | [pipeline_to_drv](pipeline_to_drv.html) | Introspect Node Derivation Paths |
 | [pipeline_to_frame](pipeline_to_frame.html) | Convert Pipeline to DataFrame |
@@ -28929,6 +29082,7 @@ A confirmation message describing the imported archive.
 | [reshape](reshape.html) | Reshape an NDArray |
 | [residuals](residuals.html) | Model Residuals |
 | [rewire](rewire.html) | Rewire a Node's Dependencies |
+| [right_join](right_join.html) | Join rows from the right table |
 | [rm](rm.html) | Remove objects from the environment |
 | [rn](rn.html) | Configure an R Pipeline Node |
 | [round](round.html) | Round values |
@@ -28945,6 +29099,7 @@ A confirmation message describing the imported archive.
 | [score](score.html) | Model Scoring |
 | [sd](sd.html) | Standard Deviation |
 | [second](second.html) | Extract the second |
+| [seconds](seconds.html) | Build a second period |
 | [select](select.html) | Select columns |
 | [select_node](select_node.html) | Select Node Metadata Fields |
 | [semester](semester.html) | Extract the semester |
@@ -28989,6 +29144,7 @@ A confirmation message describing the imported archive.
 | [str_replace](str_replace.html) | Replace all occurrences |
 | [str_split](str_split.html) | Split a string on a delimiter |
 | [str_sprintf](str_sprintf.html) | Format a string |
+| [str_squish](str_squish.html) | Squish whitespace |
 | [str_substring](str_substring.html) | Extract substring |
 | [str_trim](str_trim.html) | Trim whitespace |
 | [str_trunc](str_trunc.html) | Truncate strings for display |
@@ -29054,6 +29210,7 @@ A confirmation message describing the imported archive.
 | [warning_msg](warning_msg.html) | Get warning message |
 | [wday](wday.html) | Extract or label the weekday |
 | [week](week.html) | Extract the week number |
+| [weeks](weeks.html) | Build a week period |
 | [where](where.html) | Select columns by predicate |
 | [which_nodes](which_nodes.html) | Filter Readable Pipeline Node Records |
 | [winsorize](winsorize.html) | Winsorize values |
@@ -29064,7 +29221,13 @@ A confirmation message describing the imported archive.
 | [write_parquet](write_parquet.html) | Write Parquet file |
 | [write_text](write_text.html) | Write text to a file |
 | [yday](yday.html) | Extract the day of year |
+| [ydm](ydm.html) | Parse year-day-month dates |
 | [year](year.html) | Extract the year component |
+| [years](years.html) | Build a year period |
+| [ymd](ymd.html) | Parse year-month-day dates |
+| [ymd_h](ymd_h.html) | Parse datetimes with hour precision |
+| [ymd_hm](ymd_hm.html) | Parse datetimes with minute precision |
+| [ymd_hms](ymd_hms.html) | Parse datetimes with second precision |
 
 
 # FILE: docs/reference/index_of.md
@@ -29343,6 +29506,84 @@ Predicate helper for string columns or string vectors.
 
 
 
+# FILE: docs/reference/is_date.md
+
+# is_date
+
+Test for Date values
+
+Returns true for Date values, false for anything else.
+
+## Parameters
+
+- **x** (`Any`): The value to test.
+
+
+## Returns
+
+True for Date values.
+
+## Examples
+
+```t
+is_date(ymd("2024-01-15"))
+*)
+```
+
+
+
+# FILE: docs/reference/is_datetime.md
+
+# is_datetime
+
+Test for Datetime values
+
+Returns true for Datetime values, false for anything else.
+
+## Parameters
+
+- **x** (`Any`): The value to test.
+
+
+## Returns
+
+True for Datetime values.
+
+## Examples
+
+```t
+is_datetime(ymd_hms("2024-01-15 10:30:45"))
+*)
+```
+
+
+
+# FILE: docs/reference/is_duration.md
+
+# is_duration
+
+Test for Duration values
+
+Returns true for Duration values, false for anything else.
+
+## Parameters
+
+- **x** (`Any`): The value to test.
+
+
+## Returns
+
+True for Duration values.
+
+## Examples
+
+```t
+is_duration(ymd_hms("2024-01-15 10:30:45") - ymd_hms("2024-01-14 10:30:45"))
+*)
+```
+
+
+
 # FILE: docs/reference/is_empty.md
 
 # is_empty
@@ -29395,6 +29636,32 @@ is_error(error("Something went wrong"))
 Check for to_factor columns
 
 Predicate helper for to_factor columns or to_factor vectors.
+
+
+
+# FILE: docs/reference/is_interval.md
+
+# is_interval
+
+Test for Interval values
+
+Returns true for Interval values, false for anything else.
+
+## Parameters
+
+- **x** (`Any`): The value to test.
+
+
+## Returns
+
+True for Interval values.
+
+## Examples
+
+```t
+is_interval(interval(ymd("2024-01-01"), ymd("2024-02-01")))
+*)
+```
 
 
 
@@ -29502,6 +29769,32 @@ Returns the ISO week-based year for Date or Datetime values.
 ## Returns
 
 | Vector[Int] The ISO year(s).
+
+
+
+# FILE: docs/reference/is_period.md
+
+# is_period
+
+Test for Period values
+
+Returns true for Period values, false for anything else.
+
+## Parameters
+
+- **x** (`Any`): The value to test.
+
+
+## Returns
+
+True for Period values.
+
+## Examples
+
+```t
+is_period(days(7))
+*)
+```
 
 
 
@@ -30101,6 +30394,60 @@ max([1, 2, 3])
 
 
 
+# FILE: docs/reference/mdy_hms.md
+
+# mdy_hms
+
+Parse month-first datetimes with second precision
+
+Parses MDY-ordered strings to Datetime values. Vectorized over vectors. Unparseable inputs become NA.
+
+## Parameters
+
+- **value** (`String`): | Vector The datetime string(s) to parse.
+
+- **tz** (`String`): (Optional) Timezone label.
+
+
+## Returns
+
+| Vector The parsed datetime(s).
+
+## Examples
+
+```t
+mdy_hms("01-15-2024 10:30:45")
+*)
+```
+
+
+
+# FILE: docs/reference/mdy.md
+
+# mdy
+
+Parse month-day-year dates
+
+Parses strings in MDY order to Date values. Vectorized over vectors. Unparseable inputs become NA.
+
+## Parameters
+
+- **value** (`String`): | Vector The date string(s) to parse.
+
+
+## Returns
+
+| Vector The parsed date(s).
+
+## Examples
+
+```t
+mdy("01-15-2024")
+*)
+```
+
+
+
 # FILE: docs/reference/mean.md
 
 # mean
@@ -30187,6 +30534,58 @@ meta_flatten(mp)
 
 
 
+# FILE: docs/reference/microseconds.md
+
+# microseconds
+
+Build a microsecond period
+
+Constructs a Period value spanning the given number of microseconds.
+
+## Parameters
+
+- **n** (`Int`): The number of microseconds.
+
+
+## Returns
+
+The period value.
+
+## Examples
+
+```t
+microseconds(1500)
+*)
+```
+
+
+
+# FILE: docs/reference/milliseconds.md
+
+# milliseconds
+
+Build a millisecond period
+
+Constructs a Period value spanning the given number of milliseconds.
+
+## Parameters
+
+- **n** (`Int`): The number of milliseconds.
+
+
+## Returns
+
+The period value.
+
+## Examples
+
+```t
+milliseconds(500)
+*)
+```
+
+
+
 # FILE: docs/reference/min.md
 
 # min
@@ -30268,6 +30667,32 @@ Returns the minute component from Datetime values.
 
 
 
+# FILE: docs/reference/minutes.md
+
+# minutes
+
+Build a minute period
+
+Constructs a Period value spanning the given number of minutes.
+
+## Parameters
+
+- **n** (`Int`): The number of minutes.
+
+
+## Returns
+
+The period value.
+
+## Examples
+
+```t
+minutes(30)
+*)
+```
+
+
+
 # FILE: docs/reference/mode.md
 
 # mode
@@ -30326,6 +30751,32 @@ Returns the month number, or month labels when requested, from Date or Datetime 
 ## Returns
 
 | String | Vector The month(s).
+
+
+
+# FILE: docs/reference/months.md
+
+# months
+
+Build a month period
+
+Constructs a Period value spanning the given number of months.
+
+## Parameters
+
+- **n** (`Int`): The number of months.
+
+
+## Returns
+
+The period value.
+
+## Examples
+
+```t
+months(3)
+*)
+```
 
 
 
@@ -30463,6 +30914,32 @@ Represents a missing value of generic type.
 ## See Also
 
 [is_na](is_na.html)
+
+
+
+# FILE: docs/reference/nanoseconds.md
+
+# nanoseconds
+
+Build a nanosecond period
+
+Constructs a Period value spanning the given number of nanoseconds (stored at microsecond resolution).
+
+## Parameters
+
+- **n** (`Int`): The number of nanoseconds.
+
+
+## Returns
+
+The period value.
+
+## Examples
+
+```t
+nanoseconds(2000)
+*)
+```
 
 
 
@@ -30782,7 +31259,7 @@ A lens for the node's value.
 
 Configure a Pipeline Node
 
-Configure execution settings such as the runtime and custom serialized methods for a pipeline node. This function is typically used directly within a `pipeline { ... }` block to wrap expressions, enable cross-runtime evaluation, and optionally render a `.qmd` document via `runtime = Quarto`.
+Configure execution settings such as the runtime and custom serialized methods for a pipeline node. This function is typically used directly within a `pipeline { ... }` block to wrap expressions, enable cross-runtime evaluation, and optionally render a `.qmd` document via `runtime = Quarto`.  Node commands run in a fresh sandbox, not a closure. Outer data values are inlined as frozen literals; block-local bindings stay local; functions and builtins stay symbolic (share code via `functions`, not bare references); quoted `to_expr`/`quo` code runs later at node runtime. Reassigning a captured outer data variable is a construction error.
 
 ## Parameters
 
@@ -30805,13 +31282,6 @@ Configure execution settings such as the runtime and custom serialized methods f
 - **noop** (`Bool`): (Optional) Whether to skip execution and generate a stub. Default = false.
 
 - **flake** (`String`): (Optional) A Nix flake reference (e.g. "github:b-rodrigues/tlang") to use for this node's build environment. Default = NA (use project flake).
-
-Node commands run in a fresh sandbox, not a closure. Outer data values
-are inlined as frozen literals; block-local bindings stay local;
-functions and builtins stay symbolic (share code via `functions`, not
-bare references); quoted `to_expr`/`quo` code runs later at node
-runtime. Reassigning a captured outer data variable is a construction
-error.
 
 
 ## Returns
@@ -31352,6 +31822,162 @@ The percent rank.
 ## See Also
 
 [cume_dist](cume_dist.html)
+
+
+
+# FILE: docs/reference/period_days.md
+
+# period_days
+
+Days component of a period
+
+Extracts the days field of a Period value.
+
+## Parameters
+
+- **p** (`Period`): The period value.
+
+
+## Returns
+
+The days field.
+
+## Examples
+
+```t
+period_days(days(7))
+*)
+```
+
+
+
+# FILE: docs/reference/period_hours.md
+
+# period_hours
+
+Hours component of a period
+
+Extracts the hours field of a Period value.
+
+## Parameters
+
+- **p** (`Period`): The period value.
+
+
+## Returns
+
+The hours field.
+
+## Examples
+
+```t
+period_hours(hours(12))
+*)
+```
+
+
+
+# FILE: docs/reference/period_minutes.md
+
+# period_minutes
+
+Minutes component of a period
+
+Extracts the minutes field of a Period value.
+
+## Parameters
+
+- **p** (`Period`): The period value.
+
+
+## Returns
+
+The minutes field.
+
+## Examples
+
+```t
+period_minutes(minutes(30))
+*)
+```
+
+
+
+# FILE: docs/reference/period_months.md
+
+# period_months
+
+Months component of a period
+
+Extracts the months field of a Period value.
+
+## Parameters
+
+- **p** (`Period`): The period value.
+
+
+## Returns
+
+The months field.
+
+## Examples
+
+```t
+period_months(months(3))
+*)
+```
+
+
+
+# FILE: docs/reference/period_seconds.md
+
+# period_seconds
+
+Seconds component of a period
+
+Extracts the seconds field of a Period value.
+
+## Parameters
+
+- **p** (`Period`): The period value.
+
+
+## Returns
+
+The seconds field.
+
+## Examples
+
+```t
+period_seconds(seconds(45))
+*)
+```
+
+
+
+# FILE: docs/reference/period_years.md
+
+# period_years
+
+Years component of a period
+
+Extracts the years field of a Period value.
+
+## Parameters
+
+- **p** (`Period`): The period value.
+
+
+## Returns
+
+The years field.
+
+## Examples
+
+```t
+period_years(years(2))
+*)
+```
 
 
 
@@ -34511,6 +35137,32 @@ Returns the second component from Datetime values.
 
 
 
+# FILE: docs/reference/seconds.md
+
+# seconds
+
+Build a second period
+
+Constructs a Period value spanning the given number of seconds.
+
+## Parameters
+
+- **n** (`Int`): The number of seconds.
+
+
+## Returns
+
+The period value.
+
+## Examples
+
+```t
+seconds(45)
+*)
+```
+
+
+
 # FILE: docs/reference/select.md
 
 # select
@@ -37213,6 +37865,32 @@ Returns the week number for Date or Datetime values.
 
 
 
+# FILE: docs/reference/weeks.md
+
+# weeks
+
+Build a week period
+
+Constructs a Period value spanning the given number of weeks (stored as seven days each).
+
+## Parameters
+
+- **n** (`Int`): The number of weeks.
+
+
+## Returns
+
+The period value.
+
+## Examples
+
+```t
+weeks(1)
+*)
+```
+
+
+
 # FILE: docs/reference/where.md
 
 # where
@@ -37510,6 +38188,32 @@ Returns the day-of-year component from Date or Datetime values.
 
 
 
+# FILE: docs/reference/ydm.md
+
+# ydm
+
+Parse year-day-month dates
+
+Parses strings in YDM order to Date values. Vectorized over vectors. Unparseable inputs become NA.
+
+## Parameters
+
+- **value** (`String`): | Vector The date string(s) to parse.
+
+
+## Returns
+
+| Vector The parsed date(s).
+
+## Examples
+
+```t
+ydm("2024-15-01")
+*)
+```
+
+
+
 # FILE: docs/reference/year.md
 
 # year
@@ -37526,6 +38230,142 @@ Returns the calendar year from Date or Datetime values.
 ## Returns
 
 | Vector[Int] The year(s).
+
+
+
+# FILE: docs/reference/years.md
+
+# years
+
+Build a year period
+
+Constructs a Period value spanning the given number of years.
+
+## Parameters
+
+- **n** (`Int`): The number of years.
+
+
+## Returns
+
+The period value.
+
+## Examples
+
+```t
+years(2)
+*)
+```
+
+
+
+# FILE: docs/reference/ymd_h.md
+
+# ymd_h
+
+Parse datetimes with hour precision
+
+Parses strings to Datetime values, reading year through hour. Vectorized over vectors. Unparseable inputs become NA.
+
+## Parameters
+
+- **value** (`String`): | Vector The datetime string(s) to parse.
+
+- **tz** (`String`): (Optional) Timezone label.
+
+
+## Returns
+
+| Vector The parsed datetime(s).
+
+## Examples
+
+```t
+ymd_h("2024-01-15 10")
+*)
+```
+
+
+
+# FILE: docs/reference/ymd_hm.md
+
+# ymd_hm
+
+Parse datetimes with minute precision
+
+Parses strings to Datetime values, reading year through minute. Vectorized over vectors. Unparseable inputs become NA.
+
+## Parameters
+
+- **value** (`String`): | Vector The datetime string(s) to parse.
+
+- **tz** (`String`): (Optional) Timezone label.
+
+
+## Returns
+
+| Vector The parsed datetime(s).
+
+## Examples
+
+```t
+ymd_hm("2024-01-15 10:30")
+*)
+```
+
+
+
+# FILE: docs/reference/ymd_hms.md
+
+# ymd_hms
+
+Parse datetimes with second precision
+
+Parses strings to Datetime values, reading year through second. Vectorized over vectors. Unparseable inputs become NA.
+
+## Parameters
+
+- **value** (`String`): | Vector The datetime string(s) to parse.
+
+- **tz** (`String`): (Optional) Timezone label.
+
+
+## Returns
+
+| Vector The parsed datetime(s).
+
+## Examples
+
+```t
+ymd_hms("2024-01-15 10:30:45")
+*)
+```
+
+
+
+# FILE: docs/reference/ymd.md
+
+# ymd
+
+Parse year-month-day dates
+
+Parses strings in YMD order to Date values. Vectorized over vectors. Unparseable inputs become NA.
+
+## Parameters
+
+- **value** (`String`): | Vector The date string(s) to parse.
+
+
+## Returns
+
+| Vector The parsed date(s).
+
+## Examples
+
+```t
+ymd("2024-01-15")
+*)
+```
 
 
 

@@ -52,7 +52,9 @@ nominal domain types (<code>Model</code>, <code>Pipeline</code>,
 from docstrings into inference, with structural compatibility and nested
 widening. A coverage audit with a ratcheting floor tracks precision
 (308/532 fully precise); generic calls reject inconsistent
-instantiations instead of passing silently.</li>
+instantiations instead of passing silently. Note: generic consistency is
+strict about <code>Int</code> vs <code>Float</code> (identity, not
+widening) by design.</li>
 </ul>
 <h3 id="fixes">Fixes</h3>
 <ul>
@@ -91,9 +93,13 @@ register.</p></li>
 <li><p><strong>Slim shells for projects without runtime
 dependencies</strong>: node builds use <code>pipeline.nix</code>
 environments, so a project that declares no R/Python/Julia packages now
-gets bare interpreters instead of locally building wrapper and depot
-derivations — a pure-T shell drops from 10 local builds to 1. Declaring
-any dependency restores the full environment on the next
+skips user package sets — a pure-T shell drops from 10 locally-built
+derivations to 2 (measured via <code>nix build --dry-run</code>). The
+<code>tlang</code> companion stays wrapped, so documented
+<code>library(tlang)</code> in ad-hoc shell R sessions keeps working;
+Python/Julia fall back to bare interpreters (their shell extras were
+never documented, and node builds are unaffected). Declaring any
+dependency restores the full environment on the next
 <code>t update</code>.</p></li>
 <li><p><strong>Default serializers no longer hang node builds</strong>:
 <code>default</code>/<code>^default</code> serializer/deserializer in T
