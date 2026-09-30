@@ -244,9 +244,25 @@ export let helper = 1
       Semantic_type.TFunction ([ ("data", Semantic_type.TDataFrame []) ], Semantic_type.TBool)
     in
     Semantic_type.from_string "numeric" = Semantic_type.TFloat
-    && Semantic_type.from_string "vector[int]" = Semantic_type.TAny
-    && Semantic_type.from_string "list[string]" = Semantic_type.TAny
+    && Semantic_type.from_string "vector[int]" = Semantic_type.TVector Semantic_type.TInt
+    && Semantic_type.from_string "list[string]" = Semantic_type.TList Semantic_type.TString
+    && Semantic_type.from_string "dict[string, int]" = Semantic_type.TDict (Semantic_type.TString, Semantic_type.TInt)
+    && Semantic_type.from_string "list" = Semantic_type.TList Semantic_type.TAny
+    && Semantic_type.from_string "list[int] | vector[int]"
+         = Semantic_type.TUnion [Semantic_type.TList Semantic_type.TInt; Semantic_type.TVector Semantic_type.TInt]
     && Semantic_type.from_string "mystery" = Semantic_type.TUnknown
+    && Semantic_type.from_string "model" = Semantic_type.TCustom "Model"
+    && Semantic_type.from_string "MODEL" = Semantic_type.TCustom "Model"
+    && Semantic_type.from_string "pipeline" = Semantic_type.TCustom "Pipeline"
+    && Semantic_type.from_string "null" = Semantic_type.TUnknown
+    && Semantic_type.from_string "error" = Semantic_type.TUnknown
+    && Semantic_type.from_string "int | string"
+         = Semantic_type.TUnion [Semantic_type.TInt; Semantic_type.TString]
+    && Semantic_type.from_string "list[int] | int"
+         = Semantic_type.TUnion [Semantic_type.TInt; Semantic_type.TList Semantic_type.TInt]
+    && Semantic_type.to_string
+         (Semantic_type.TUnion [Semantic_type.TInt; Semantic_type.TString])
+         = "int | string"
     && Semantic_type.to_string grouped = "grouped_dataframe[value | groups: group]"
     && String.starts_with ~prefix:"Function(" (Semantic_type.to_string fn_ty)
   );

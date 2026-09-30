@@ -32,6 +32,30 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
     "f = \\(x: Int -> Int) x; f(error(\"boom\"))"
     {|Error(GenericError: "boom")|};
 
+  test "generic lambda accepts consistent types"
+    "const = \\<T>(x: T, y: T -> T) x; const(1, 2)"
+    "1";
+
+  test "generic lambda accepts consistent types either order"
+    "const = \\<T>(x: T, y: T -> T) x; const(\"a\", \"b\")"
+    {|"a"|};
+
+  test "generic lambda rejects inconsistent types"
+    "const = \\<T>(x: T, y: T -> T) x; const(1, \"s\")"
+    {|Error(TypeError: "Type variable `T` has inconsistent types: Int vs String")|};
+
+  test "generic lambda rejects inconsistent types reversed"
+    "const = \\<T>(x: T, y: T -> T) x; const(\"s\", 1)"
+    {|Error(TypeError: "Type variable `T` has inconsistent types: String vs Int")|};
+
+  test "generic lambda lets NA through"
+    "const = \\<T>(x: T, y: T -> T) x; const(NA, 1)"
+    "NA";
+
+  test "single-use type variable never constrains"
+    "id = \\<T>(x: T -> T) x; id(1)"
+    "1";
+
   test "typed lambda allows Int for Float (widening)"
     "f = \\(x: Float -> Float) x; f(1)"
     "1";
@@ -78,5 +102,65 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
     | Error _ -> true
   in
   report "strict mode rejects generic lambda without declared type vars" generic_bad;
+
+  (* Typing coverage audit (spec typesystem item 5): what fraction of
+     builtins carry precise Tdoc signatures that inference actually uses?
+     A builtin counts as fully precise when its return and every parameter
+     map to a concrete semantic type (not Any/Unknown). The floor below
+     ratchets: it must never drop (new builtins without types do not fail
+     it, but removing types does). Re-measure with this same test. *)
+  let coverage_floor = 273 in
+  (* The registry fills from --# source comments (same as `t doc
+     --parse`); without it every builtin falls back to all-Any and the
+     audit would measure nothing. Skip gracefully outside a checkout. *)
+  let snap = Tdoc_registry.snapshot () in
+  let (full_n, total_n, ret_n, nodoc_n) =
+    Fun.protect
+      ~finally:(fun () -> Tdoc_registry.restore snap)
+      (fun () ->
+        if Sys.file_exists "src/packages" && Sys.is_directory "src/packages" then begin
+          let rec walk acc dir =
+            let entries = try Sys.readdir dir with Sys_error _ -> [||] in
+            Array.fold_left (fun acc e ->
+              let p = Filename.concat dir e in
+              if (try Sys.is_directory p with Sys_error _ -> false) then walk acc p
+              else if Filename.check_suffix e ".ml" then p :: acc
+              else acc
+            ) acc entries
+          in
+          List.iter (fun f ->
+            List.iter Tdoc_registry.register
+              (try Tdoc_parser.parse_file f with _ -> [])
+          ) (walk [] "src")
+        end else
+          Printf.printf "  (no src tree found; coverage audit measures the live registry only)\n";
+        let names = ref [] in
+        Ast.Env.iter (fun name v ->
+          match v with
+          | Ast.VBuiltin { b_name = Some n; _ } when n = name -> names := n :: !names
+          | _ -> ()) (Packages.init_env ());
+        let names = List.sort_uniq String.compare !names in
+        let concrete = function Semantic_type.TAny | Semantic_type.TUnknown -> false | _ -> true in
+        let typed_info = function
+          | Some s -> concrete (Semantic_type.from_string s)
+          | None -> false in
+        let full = ref 0 and ret = ref 0 and nodoc = ref 0 and nodoc_names = ref [] in
+        List.iter (fun n ->
+          match Tdoc_registry.lookup n with
+          | None -> incr nodoc; nodoc_names := n :: !nodoc_names
+          | Some e ->
+              let ps = List.map (fun (p : Tdoc_types.param_doc) -> typed_info p.Tdoc_types.type_info) e.Tdoc_types.params in
+              let r = match e.Tdoc_types.return_value with
+                | Some r -> typed_info r.Tdoc_types.type_info
+                | None -> false in
+              if r then incr ret;
+              if r && List.for_all (fun x -> x) ps then incr full
+        ) names;
+        Printf.printf "  TMP-NODOC: %s\n" (String.concat "," (List.sort_uniq String.compare !nodoc_names));
+        (!full, List.length names, !ret, !nodoc))
+  in
+  Printf.printf "  typing coverage: %d/%d fully precise, %d precise returns, %d without docs\n"
+    full_n total_n ret_n nodoc_n;
+  report "typing coverage at or above floor" (full_n >= coverage_floor);
 
   print_newline ()

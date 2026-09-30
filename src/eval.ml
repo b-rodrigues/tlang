@@ -3461,6 +3461,50 @@ and eval_call env_ref fn_val raw_args =
                 Some (Printf.sprintf "Expected %s, got %s" expected got)
             | _ -> None
           ) (List.combine fixed_args param_types) in
+          (* Generic consistency: a type variable occurring in several
+             parameter positions must receive the same kind of value.
+             Compared by type head only (constructors, payloads ignored),
+             so the check is order-independent and can never reject two
+             values of the same kind. Nested type variables (e.g. inside
+             List[T]) are not unified. NA and error arguments reify to
+             Any and always pass. *)
+          let generic_errors =
+            let head_of = function
+              | Ast.TInt -> 1 | Ast.TFloat -> 2 | Ast.TBool -> 3
+              | Ast.TString -> 4 | Ast.TList _ -> 5 | Ast.TDict _ -> 6
+              | Ast.TTuple _ -> 7 | Ast.TVar _ -> 8 | Ast.TCustom _ -> 9
+              | Ast.TComputedNode -> 10 | Ast.TSerializer -> 11 | Ast.TExpr -> 12
+              | Ast.TArrow _ -> 13 | Ast.TDataFrame _ -> 14 | Ast.TUnion _ -> 15
+            in
+            let typ_of_value v =
+              match Symbol_table.value_to_semantic_type v with
+              | Some st -> Semantic_type.to_ast_typ st
+              | None -> Ast.TCustom "Any"
+            in
+            let bound = Hashtbl.create 4 in
+            let errors = ref [] in
+            List.iter (fun (v, t_opt) ->
+              match t_opt with
+              | Some (Ast.TVar name) ->
+                  let got = typ_of_value v in
+                  let flexible t = match t with
+                    | Ast.TCustom "Any" | Ast.TVar _ -> true
+                    | _ -> false
+                  in
+                  (match Hashtbl.find_opt bound name with
+                   | None -> Hashtbl.add bound name got
+                   | Some prev ->
+                       if not (flexible prev) && not (flexible got)
+                          && head_of prev <> head_of got then
+                         errors := Printf.sprintf
+                           "Type variable `%s` has inconsistent types: %s vs %s"
+                           name (Ast.Utils.typ_to_string prev) (Ast.Utils.typ_to_string got)
+                           :: !errors)
+              | _ -> ()
+            ) (List.combine fixed_args param_types);
+            List.rev !errors
+          in
+          let type_errors = type_errors @ generic_errors in
           if type_errors <> [] then
             Error.type_error (String.concat "; " type_errors)
           else

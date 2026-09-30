@@ -432,6 +432,7 @@ and typ =
   | TList of typ option
   | TDict of typ option * typ option
   | TTuple of typ list
+  | TUnion of typ list
   | TDataFrame of typ option
   | TVar of string
   | TCustom of string
@@ -1312,6 +1313,7 @@ module Utils = struct
     | TDict (Some k, None) -> "Dict[" ^ typ_to_string k ^ ", _]"
     | TDict (None, Some v) -> "Dict[_, " ^ typ_to_string v ^ "]"
     | TTuple ts -> "Tuple[" ^ (String.concat ", " (List.map typ_to_string ts)) ^ "]"
+    | TUnion ts -> String.concat " | " (List.map typ_to_string ts)
     | TDataFrame None -> "DataFrame"
     | TDataFrame (Some schema) -> "DataFrame[" ^ typ_to_string schema ^ "]"
     | TVar s -> s
@@ -1991,6 +1993,8 @@ let rec is_compatible (v : value) (t : typ) : bool =
   | VPipeline _, TCustom "Pipeline" -> true
   | VMetaPipeline _, TCustom ("Pipeline" | "MetaPipeline") -> true
 
+  | v, TUnion ts -> List.exists (fun t -> is_compatible v t) ts
+
   | _ -> false
 
 (** Check if two AST types are compatible.
@@ -2003,6 +2007,13 @@ let rec is_compatible (v : value) (t : typ) : bool =
     @param b The second type (typically the annotation).
     @return [true] if the types are compatible. *)
 let rec types_compatible a b =
+  (* Element-wise compatibility where an unknown side (None) matches
+     anything. Gives nested numeric widening (List[Int] fits List[Float])
+     for free via the recursive call. *)
+  let opt_compat x y = match x, y with
+    | None, _ | _, None -> true
+    | Some x, Some y -> types_compatible x y
+  in
   match a, b with
   | _, TCustom "Any" -> true
   | TCustom "Any", _ -> true
@@ -2014,4 +2025,12 @@ let rec types_compatible a b =
       List.length p1 = List.length p2 &&
       List.for_all2 types_compatible p1 p2 &&
       types_compatible r1 r2
+  | TList x, TList y -> opt_compat x y
+  | TDict (a1, a2), TDict (b1, b2) -> opt_compat a1 b1 && opt_compat a2 b2
+  | TUnion as_, TUnion bs ->
+      List.for_all (fun a -> List.exists (fun b -> types_compatible a b) bs) as_
+  | TUnion as_, b ->
+      List.for_all (fun a -> types_compatible a b) as_
+  | a, TUnion bs ->
+      List.exists (fun b -> types_compatible a b) bs
   | _ -> a = b
