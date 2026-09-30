@@ -69,15 +69,20 @@ travels as unshaped `Dict`s. Users cannot name their domain types.
 for constructors the checker already knows.
 
 **Direction.**
-- [ ] Totality check against known constructors (error codes, `NA`
-  variants, literals seen in patterns); unknown scrutinees stay silent
-  (no false positives).
+- [x] Family-level check (done): `Check_utils.match_exhaustiveness_diagnostics`
+  warns when the scrutinee is syntactically known to be an Error value
+  (`error(...)` call or Error literal) or an NA literal and the arms lack
+  the matching family pattern (`Error { ... }`, `NA`) plus any catch-all
+  (`_` or variable). Unknown scrutinees (variables, general calls,
+  other literals) stay silent. Per-code or per-variant exhaustiveness
+  needs pattern syntax that names codes, which does not exist yet.
 - [ ] Needs item 2 for user-defined constructors to be worth much; the
-  error-code and NA families are checkable now.
+  error-code and NA families are covered at family level now.
 
 **Acceptance.**
-- [ ] A `match` missing a known error code warns; existing suite has no
-  new warnings.
+- [x] A `match` on a known Error value without an Error arm warns, and a
+  `match` on a known NA value without an NA arm warns; existing suite has
+  no new warnings (Int and variable scrutinees stay silent).
 
 ## 4. Variable rebinding
 

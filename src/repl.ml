@@ -709,6 +709,7 @@ let check_type_annotations filename =
     Symbol_table.register_keywords scope;
     let analysis = Analyzer.analyze program scope in
     Check_utils.annotation_diagnostics program analysis.Analyzer.stmt_types filename
+    @ Check_utils.match_exhaustiveness_diagnostics program filename
   with
   | Lexer.SyntaxError _ ->
     (* Parse/syntax errors are already reported by check_utils normal flow. *)

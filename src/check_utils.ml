@@ -184,6 +184,146 @@ let annotation_diagnostics program stmt_types filename =
   ) program;
   List.rev !diags
 
+(** Match exhaustiveness diagnostics (family level, no new syntax).
+    Warns only when the scrutinee is syntactically known to be an Error
+    or NA value and the arms lack the matching family pattern plus any
+    catch-all. Unknown scrutinees (variables, calls other than [error],
+    literals of other types) stay silent, so no previously clean program
+    gains a warning. Per-code or per-variant exhaustiveness needs pattern
+    syntax that names codes, which does not exist yet (see item 2). *)
+type scrutinee_family = ErrorFamily | NAFamily | UnknownFamily
+
+type match_site = {
+  ms_scrutinee : Ast.expr;
+  ms_cases : (Ast.match_pattern * Ast.expr) list;
+  ms_loc : Ast.source_location option;
+}
+
+let family_of_scrutinee (e : Ast.expr) : scrutinee_family =
+  match e.Ast.node with
+  | Ast.Value v ->
+      (match v with
+       | Ast.VNA _ -> NAFamily
+       | Ast.VError _ -> ErrorFamily
+       (* Wildcard covers all other value forms (scalars, lists, frames):
+          none of them is an Error or NA value by construction. *)
+       | _ -> UnknownFamily)
+  | Ast.Call { fn = { Ast.node = Ast.Var "error"; _ }; _ } -> ErrorFamily
+  (* Wildcard covers every other expression shape (variables, general
+     calls, operators, blocks): the family is genuinely unknown there. *)
+  | _ -> UnknownFamily
+
+let match_has_catchall cases =
+  List.exists (fun (p, _) ->
+    match p with
+    | Ast.PWildcard | Ast.PVar _ -> true
+    | Ast.PNA | Ast.PList _ | Ast.PError _ -> false
+  ) cases
+
+let match_has_error_arm cases =
+  List.exists (fun (p, _) ->
+    match p with
+    | Ast.PError _ -> true
+    | Ast.PWildcard | Ast.PVar _ | Ast.PNA | Ast.PList _ -> false
+  ) cases
+
+let match_has_na_arm cases =
+  List.exists (fun (p, _) ->
+    match p with
+    | Ast.PNA -> true
+    | Ast.PWildcard | Ast.PVar _ | Ast.PList _ | Ast.PError _ -> false
+  ) cases
+
+let rec sites_in_expr (e : Ast.expr) : match_site list =
+  let self =
+    match e.Ast.node with
+    | Ast.Match { scrutinee; cases } ->
+        [{ ms_scrutinee = scrutinee; ms_cases = cases; ms_loc = e.Ast.loc }]
+    (* Wildcard covers non-Match nodes: they contribute no site themselves,
+       only their children below do. *)
+    | _ -> []
+  in
+  self @ sites_in_children e
+
+and sites_in_children (e : Ast.expr) : match_site list =
+  match e.Ast.node with
+  | Ast.Value _ | Ast.Var _ | Ast.ColumnRef _ | Ast.RawCode _ | Ast.ShellExpr _ -> []
+  | Ast.Call { fn; args } ->
+      sites_in_expr fn @ List.concat_map (fun (_, a) -> sites_in_expr a) args
+  | Ast.ListLit items -> List.concat_map (fun (_, x) -> sites_in_expr x) items
+  | Ast.DictLit pairs -> List.concat_map (fun (_, v) -> sites_in_expr v) pairs
+  | Ast.BinOp { left; right; _ } | Ast.BroadcastOp { left; right; _ } ->
+      sites_in_expr left @ sites_in_expr right
+  | Ast.UnOp { operand; _ } -> sites_in_expr operand
+  | Ast.DotAccess { target; _ } -> sites_in_expr target
+  | Ast.IfElse { cond; then_; else_ } ->
+      sites_in_expr cond @ sites_in_expr then_ @ sites_in_expr else_
+  | Ast.Match { scrutinee; cases } ->
+      sites_in_expr scrutinee
+      @ List.concat_map (fun (_, body) -> sites_in_expr body) cases
+  | Ast.Lambda l -> sites_in_expr l.Ast.body
+  | Ast.Block stmts -> List.concat_map sites_in_stmt stmts
+  | Ast.PipelineDef nodes | Ast.PipelineOfDef nodes | Ast.IntentDef nodes ->
+      List.concat_map (fun (_, x) -> sites_in_expr x) nodes
+  | Ast.Unquote x | Ast.UnquoteSplice x -> sites_in_expr x
+
+and sites_in_stmt (s : Ast.stmt) : match_site list =
+  match s.Ast.node with
+  | Ast.Expression e -> sites_in_expr e
+  | Ast.Assignment { expr = e; _ } -> sites_in_expr e
+  | Ast.Reassignment { expr = e; _ } -> sites_in_expr e
+  | Ast.Import _ | Ast.ImportPackage _ | Ast.ImportFrom _ | Ast.ImportFileFrom _ -> []
+
+let match_exhaustiveness_diagnostics program filename =
+  let mk_diag ~missing ~hint loc =
+    let line = match loc with
+      | Some (l : Ast.source_location) -> Some l.Ast.line
+      | None -> None
+    in
+    let col = match loc with
+      | Some (l : Ast.source_location) -> Some l.Ast.column
+      | None -> None
+    in
+    { Diagnostics.diag_id = Diagnostics.gen_id ();
+      Diagnostics.diag_error_class = Match_error;
+      Diagnostics.diag_severity = Warning;
+      Diagnostics.diag_phase = Schema;
+      Diagnostics.diag_node_id = None;
+      Diagnostics.diag_node_lang = None;
+      Diagnostics.diag_file = Some filename;
+      Diagnostics.diag_line = line;
+      Diagnostics.diag_column = col;
+      Diagnostics.diag_end_line = None;
+      Diagnostics.diag_end_column = None;
+      Diagnostics.diag_message = Printf.sprintf
+        "Match on %s value lacks %s arm and has no catch-all. Add %s."
+        missing missing hint;
+      Diagnostics.diag_expected = None;
+      Diagnostics.diag_actual = None;
+      Diagnostics.diag_caused_by = [];
+      Diagnostics.diag_suggested_fix = Diagnostics.no_fix;
+    }
+  in
+  (* Local accumulation across the site walk; a ref keeps the traversal
+     iterative like annotation_diagnostics above. *)
+  let diags = ref [] in
+  let sites = List.concat_map sites_in_stmt program in
+  List.iter (fun site ->
+    if match_has_catchall site.ms_cases then ()
+    else
+      match family_of_scrutinee site.ms_scrutinee with
+      | UnknownFamily -> ()
+      | ErrorFamily ->
+          if match_has_error_arm site.ms_cases then ()
+          else diags := mk_diag ~missing:"an Error"
+            ~hint:"Error { msg } => ... or _ => ..." site.ms_loc :: !diags
+      | NAFamily ->
+          if match_has_na_arm site.ms_cases then ()
+          else diags := mk_diag ~missing:"an NA"
+            ~hint:"NA => ... or _ => ..." site.ms_loc :: !diags
+  ) sites;
+  List.rev !diags
+
 let run_check ?(schema=false) ?(env_check=false) ?(offline=false) mode filename env =
   let run () =
     Ast.check_mode := true;
