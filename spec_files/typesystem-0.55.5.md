@@ -40,14 +40,22 @@ silently.
   as inconsistent here even though `types_compatible` widens — widening
   answers "does this fit", consistency asks "are these identical", and
   silent numeric merging would be the wrong default.
-- [ ] Definition-site checking (body vs declared generic return) stays
-  future work; the analyzer records parameter types as unknown today.
+- [x] Definition-site checking, warn-only (done): `Check_utils.generic_body_diagnostics`
+  warns when a generic lambda declares a direct type-variable return
+  (`\(T)(x: T -> T)`) but its body is a fixed literal that never mentions
+  its parameters (e.g. `\(T)(x: T -> T) "oops"`). Param-using and unknown
+  bodies stay silent; nested returns (`List[T]`) are skipped. Severity is
+  Warning with a `generic_body_strict` ref for future Error mode.
+  No Analyzer dependency (syntactic literals only) so the library keeps
+  its module order with no cycle.
 
 **Acceptance.**
 - [x] `const(1, "s")` and `const("s", 1)` fail with the inconsistent-types
   error; consistent, single-use, `NA`-first, and `NA`-middle calls pass;
   `const(1, 2.5)` fails (documented strictness); full suite green
   with no new rejections on existing programs.
+- [x] `\(T)(x: T -> T) "oops"` warns once at `t check`; identity,
+  param-using, non-generic, and nested-return cases stay silent.
 
 ## 2. User-defined types
 
@@ -75,13 +83,14 @@ travels as unshaped `Dict`s. Users cannot name their domain types.
   each one), unknown case names (names the valid set), and stays silent
   for unknown scrutinees and full coverage. Same three boundary layers
   as records.
-- [ ] Design approved by maintainer (nominal, closed, T-side contracts,
+- [x] Design approved by maintainer (nominal, closed, T-side contracts,
   io_fns-owned strategy list, no grandfathering, warn-only generics):
-  remaining steps ship in order — unions, closed strategies, generic
-  body checks — each with tests and docs.
+  records, unions, and closed strategies ship in 0.55.5; generic body
+  check ships warn-only with strict ref for future use.
 
 **Acceptance.**
-- [ ] Approved design doc; implementation tracked separately.
+- [x] Approved design shipped in 0.55.5 (records, unions, closed
+  strategies, generic body warn-only); per-case `match` warnings done.
 
 ## 3. Exhaustiveness of `match`
 

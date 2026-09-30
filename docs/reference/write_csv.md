@@ -2,7 +2,7 @@
 
 Write CSV file
 
-Writes a DataFrame to a CSV file.
+Writes a DataFrame to a CSV file. Returns a FileError value when the file cannot be written.
 
 ## Parameters
 

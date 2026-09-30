@@ -725,6 +725,7 @@ let check_type_annotations filename =
     Check_utils.annotation_diagnostics program analysis.Analyzer.stmt_types filename
     @ Check_utils.match_exhaustiveness_diagnostics program filename
     @ Check_utils.match_union_diagnostics program filename
+    @ Check_utils.generic_body_diagnostics program filename
   with
   | Lexer.SyntaxError _ ->
     (* Parse/syntax errors are already reported by check_utils normal flow. *)

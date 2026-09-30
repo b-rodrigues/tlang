@@ -115,6 +115,52 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
   in
   report "strict mode rejects generic lambda without declared type vars" generic_bad;
 
+  (* Generic body check (warn-only): a generic return that never uses its
+     params and infers to a fixed type warns; param-using and unknown
+     bodies stay silent. Direct calls keep the helper honest. *)
+  let check_generic name code expect_count expect_sub =
+    let program =
+      try parse_program code
+      with _ -> []
+    in
+    let diags =
+      try Check_utils.generic_body_diagnostics program "test.t"
+      with _ -> []
+    in
+    let n = List.length diags in
+    let sub_ok =
+      match expect_sub with
+      | None -> true
+      | Some sub ->
+          List.exists (fun d ->
+            let msg = d.Diagnostics.diag_message in
+            let sl = String.length msg and bl = String.length sub in
+            if bl = 0 then true
+            else begin
+              let rec loop i =
+                if i + bl > sl then false
+                else if String.sub msg i bl = sub then true
+                else loop (i + 1)
+              in
+              loop 0
+            end) diags
+    in
+    let sev_ok =
+      List.for_all (fun d -> d.Diagnostics.diag_severity = Diagnostics.Warning) diags
+    in
+    report name (n = expect_count && sub_ok && sev_ok)
+  in
+  check_generic "generic body with fixed string warns"
+    {|id = \<T>(x: T -> T) "oops"|} 1 (Some "declares return `T`");
+  check_generic "generic identity stays silent"
+    {|id = \<T>(x: T -> T) x|} 0 None;
+  check_generic "generic body using param stays silent"
+    {|f = \<T>(x: T -> T) x + 1|} 0 None;
+  check_generic "non-generic lambda stays silent"
+    {|f = \(x: Int -> Int) "oops"|} 0 None;
+  check_generic "nested generic return stays silent"
+    {|f = \<T>(x: T -> List[T]) x|} 0 None;
+
   (* Typing coverage audit (spec typesystem item 5): what fraction of
      builtins carry precise Tdoc signatures that inference actually uses?
      A builtin counts as fully precise when its return and every parameter

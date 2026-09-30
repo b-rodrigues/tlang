@@ -2,7 +2,7 @@
 
 Read CSV file
 
-Reads a CSV file into a DataFrame.
+Reads a CSV file into a DataFrame. Returns a FileError value when the file cannot be read.
 
 ## Parameters
 
