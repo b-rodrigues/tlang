@@ -173,6 +173,68 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
   let has_src = Sys.file_exists "src/packages" in
   Printf.printf "  typing coverage: %d/%d fully precise, %d precise returns, %d without docs\n"
     full_n total_n ret_n nodoc_n;
+  (* Per-package doc-side breakdown (no behavior change): parses --# blocks
+     per file and groups by source directory, so the imprecise remainder has
+     a visible work queue. Doc-side counts differ from the registry floor
+     above (which counts live builtins); use this only to pick the next
+     package batch. *)
+  (if has_src then begin
+    let pkg_of_path f =
+      let prefix_pkg = "src/packages/" in
+      let lp = String.length prefix_pkg in
+      if String.length f > lp && String.sub f 0 lp = prefix_pkg then begin
+        let rest = String.sub f lp (String.length f - lp) in
+        (match String.index_opt rest '/' with
+         | Some i -> String.sub rest 0 i
+         | None -> rest)
+      end else begin
+        let prefix_src = "src/" in
+        let ls = String.length prefix_src in
+        if String.length f > ls && String.sub f 0 ls = prefix_src then begin
+          let rest = String.sub f ls (String.length f - ls) in
+          (match String.index_opt rest '/' with
+           | Some i -> String.sub rest 0 i
+           | None -> "core")
+        end else "other"
+      end
+    in
+    let rec walk acc dir =
+      let entries = try Sys.readdir dir with Sys_error _ -> [||] in
+      Array.fold_left (fun acc e ->
+        let p = Filename.concat dir e in
+        if (try Sys.is_directory p with Sys_error _ -> false) then walk acc p
+        else if Filename.check_suffix e ".ml" then p :: acc
+        else acc
+      ) acc entries
+    in
+    let concrete = function Semantic_type.TAny | Semantic_type.TUnknown -> false | _ -> true in
+    let entry_full (e : Tdoc_types.doc_entry) =
+      let r = match e.Tdoc_types.return_value with
+        | Some r -> (match r.Tdoc_types.type_info with Some s -> concrete (Semantic_type.from_string s) | None -> false)
+        | None -> false in
+      let ps = List.map (fun (p : Tdoc_types.param_doc) ->
+        match p.Tdoc_types.type_info with Some s -> concrete (Semantic_type.from_string s) | None -> false
+      ) e.Tdoc_types.params in
+      r && List.for_all (fun x -> x) ps
+    in
+    let grouped =
+      List.fold_left (fun acc f ->
+        let entries = try Tdoc_parser.parse_file f with _ -> [] in
+        List.fold_left (fun acc e ->
+          let label = pkg_of_path f in
+          let full = entry_full e in
+          (match List.assoc_opt label acc with
+           | Some (fl, tot) ->
+               let acc = List.remove_assoc label acc in
+               (label, ((if full then fl + 1 else fl), tot + 1)) :: acc
+           | None -> (label, ((if full then 1 else 0), 1)) :: acc)
+        ) acc entries
+      ) [] (walk [] "src")
+    in
+    List.iter (fun (label, (fl, tot)) ->
+      Printf.printf "    typing coverage [%s]: %d/%d fully precise\n" label fl tot
+    ) (List.sort (fun (a, _) (b, _) -> String.compare a b) grouped)
+  end);
   (* Outside a checkout the registry is empty and every builtin falls back
      to all-Any, so the floor cannot apply: pass by default there. *)
   report "typing coverage at or above floor" (not has_src || full_n >= coverage_floor);
