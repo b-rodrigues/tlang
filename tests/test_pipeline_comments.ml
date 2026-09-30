@@ -84,8 +84,56 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
     "```{r}\nread_node(\"data\")\nread_node('other')\n```"
     ~present:["read_node"; "data"; "other"; "r"] ~absent:[];
 
-  (* Test 3: pipeline-level repro — bar/baz/qux must not depend on foo. *)
-  let code3 = {|
+  (* Test 2b: block-local bindings per runtime. check_bind asserts the exact
+     sorted binding set so both over- and under-collection fail. *)
+  let check_bind name runtime text expected =
+    let got = Ast.extract_local_bindings ~runtime text in
+    let ok = got = List.sort_uniq String.compare expected in
+    if ok then begin
+      incr pass_count;
+      Printf.printf "  ✓ %s\n" name
+    end else begin
+      incr fail_count;
+      let msg = Printf.sprintf "  ✗ Error: %s (got [%s], want [%s])\n" name
+        (String.concat "; " got) (String.concat "; " expected) in
+      failures := msg :: !failures;
+      Printf.printf "%s" msg
+    end
+  in
+  check_bind "R <- binds" "R" "src <- read_data()\nsrc" ["src"];
+  check_bind "R = binds at depth 0" "R" "y = 2\ny" ["y"];
+  check_bind "R == is not a binding" "R" "if (x == 1) y" [];
+  check_bind "R kwarg keeps working" "R" "f(x = 1)" [];
+  check_bind "R multiline kwarg keeps working" "R" "f(a,\n  x = 1)" [];
+  check_bind "R < with space is comparison" "R" "ok <- a < -1" ["ok"];
+  check_bind "R -> binds" "R" "1 -> z" ["z"];
+  check_bind "R for binds" "R" "for (i in 1:3) print(i)" ["i"];
+  check_bind "R function body skipped" "R"
+    "g <- function(x) { tmp <- x + foo; tmp }\nfoo" ["g"];
+  check_bind "R member uses are not bindings" "R" "df$col = 1" [];
+  check_bind "Python = binds" "Python" "x = 1\nx" ["x"];
+  check_bind "Python kwarg keeps working" "Python" "f(x = 1)" [];
+  check_bind "Python == is not a binding" "Python" "if x == 1:\n  y" [];
+  check_bind "Python := binds" "Python" "if (y := compute()):\n  y" ["y"];
+  check_bind "Python for binds" "Python" "for i in items:\n  i" ["i"];
+  check_bind "Python def binds, suite skipped" "Python"
+    "def helper():\n    tmp = 1\n    tmp\nhelper" ["helper"];
+  check_bind "Python nested def suite skipped" "Python"
+    "def outer():\n    def inner():\n        pass\n    x = 1\nx" ["outer"];
+  check_bind "Python annotated binds name" "Python" "y: int = 1\ny" ["y"];
+  check_bind "Python attribute is not a binding" "Python" "obj.attr = 1" [];
+  check_bind "Julia = binds" "Julia" "x = 1\nx" ["x"];
+  check_bind "Julia function binds, suite skipped" "Julia"
+    "function g(x)\n  tmp = x\n  tmp\nend\ng" ["g"];
+  check_bind "Julia for never binds (loop scope)" "Julia"
+    "for i in 1:3\n  i\nend\ni" [];
+  check_bind "sh stmt-start binds" "sh" "x=1\necho $x" ["x"];
+  check_bind "sh arg is not a binding" "sh" "echo x=1" [];
+  check_bind "sh for binds" "sh" "for i in a b; do echo $i; done" ["i"];
+  check_bind "sh local never binds" "sh" "f() {\n  local x=1\n  echo $x\n}" [];
+  check_bind "other runtimes bind nothing" "Quarto" "x = 1\nx" [];
+
+  (* Test 3: pipeline-level repro — bar/baz/qux must not depend on foo. *)  let code3 = {|
     p = pipeline {
       foo = rn(command = <{ library(arrow); foo <- data.frame(a = 1:3) }>, serializer = ^ipc)
       bar = rn(command = <{ library(arrow); x <- data.frame(x = 1:3)  # independent of the foo node; x }>, serializer = ^ipc)
@@ -124,5 +172,68 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
        let msg = Printf.sprintf "  ✗ Error: 'p' not found in environment\n" in
        failures := msg :: !failures;
        Printf.printf "%s" msg);
+
+  (* Test 4: block-local shadowing drops the edge, real uses keep it.
+     A foreign local sharing a sibling name must not wire a phantom edge
+     (false-cycle risk); a sibling used as a call keyword argument must
+     keep its edge (dropping it would silently under-build). *)
+  let check_deps name code node expected =
+    let lexbuf = Lexing.from_string code in
+    let program = Parser.program Lexer.token lexbuf in
+    let (_, env) = eval_program program env_init in
+    (match Env.find_opt "p" env with
+     | Some (VPipeline p) ->
+         (match List.assoc_opt node p.p_deps with
+          | Some deps ->
+              let ok =
+                List.sort_uniq String.compare deps
+                = List.sort_uniq String.compare expected in
+              if ok then begin
+                incr pass_count;
+                Printf.printf "  ✓ %s\n" name
+              end else begin
+                incr fail_count;
+                let msg = Printf.sprintf "  ✗ Error: %s (%s deps [%s], want [%s])\n"
+                  name node (String.concat "; " deps) (String.concat "; " expected) in
+                failures := msg :: !failures;
+                Printf.printf "%s" msg
+              end
+          | None ->
+              incr fail_count;
+              let msg = Printf.sprintf "  ✗ Error: %s (node `%s` missing from deps)\n" name node in
+              failures := msg :: !failures;
+              Printf.printf "%s" msg)
+     | _ ->
+         incr fail_count;
+         let msg = Printf.sprintf "  ✗ Error: %s (no pipeline)\n" name in
+         failures := msg :: !failures;
+         Printf.printf "%s" msg)
+  in
+  check_deps "R shadowed sibling drops edge"
+    {|p = pipeline {
+      src = rn(command = <{ 1 }>)
+      out = rn(command = <{ src <- 99; src + 1 }>)
+    }|} "out" [];
+  check_deps "R kwarg use keeps edge"
+    {|p = pipeline {
+      src = rn(command = <{ 1 }>)
+      out = rn(command = <{ f(src) }>)
+    }|} "out" ["src"];
+  check_deps "Python shadowed sibling drops edge"
+    {|p = pipeline {
+      src = pyn(command = <{ 1 }>)
+      out = pyn(command = <{ src = 99
+      src + 1 }>)
+    }|} "out" [];
+  check_deps "Python kwarg use keeps edge"
+    {|p = pipeline {
+      src = pyn(command = <{ 1 }>)
+      out = pyn(command = <{ f(x = src) }>)
+    }|} "out" ["src"];
+  check_deps "read_node literal keeps edge despite local of same name"
+    {|p = pipeline {
+      src = rn(command = <{ 1 }>)
+      out = rn(command = <{ src <- 99; read_node("src") }>)
+    }|} "out" ["src"];
 
   print_newline ()

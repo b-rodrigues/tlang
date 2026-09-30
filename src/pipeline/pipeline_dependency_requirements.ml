@@ -572,7 +572,10 @@ let read_prompt_answer ?(tty_path="/dev/tty") ?(isatty=is_interactive) () =
         (fun () -> read_line_from_channel ch)
     with Sys_error _ -> read_line_from_channel stdin
   else
-    read_line_from_channel stdin
+    (* Non-interactive stdin (pipes, CI, /dev/null): never touch it. An EOF
+       stdin would answer None right away, but a held-open pipe would block
+       forever waiting for input that cannot come. Decline immediately. *)
+    None
 
 let answer_is_yes answer =
   let normalized = String.lowercase_ascii (String.trim answer) in
@@ -599,19 +602,30 @@ let write_file path content =
   with Sys_error msg -> Error (Printf.sprintf "%s (%s)" msg path)
 
 
-let prompt_to_update ~tproject_path analysis =
-  Printf.printf "%s\n\nAdd these entries to %s now? [y/N]: %!"
-    (format_analysis analysis) tproject_path;
-  match read_prompt_answer () with
-  | Some answer -> answer_is_yes answer
-  | None ->
-        Printf.printf "\nNo input received; leaving `tproject.toml` unchanged.\n%!";
-        false
-
 let env_flag name =
   match Sys.getenv_opt name with
   | Some ("1" | "true" | "TRUE" | "yes" | "YES" | "on" | "ON") -> true
   | _ -> false
+
+(* Unattended opt-out for the interactive prompt below. Set in scripts and
+   test suites so a terminal on stdin can never stall a build waiting for
+   an answer. Takes effect before any tty check or stdin read. *)
+let no_prompt_env () = env_flag "TLANG_NO_PROMPT"
+
+let prompt_to_update ~tproject_path analysis =
+  if no_prompt_env () then begin
+    Printf.printf "%s\n\nUnattended mode (`TLANG_NO_PROMPT` is set); leaving `tproject.toml` unchanged.\n%!"
+      (format_analysis analysis);
+    false
+  end else begin
+    Printf.printf "%s\n\nAdd these entries to %s now? [y/N]: %!"
+      (format_analysis analysis) tproject_path;
+    match read_prompt_answer () with
+    | Some answer -> answer_is_yes answer
+    | None ->
+          Printf.printf "\nNo input received; leaving `tproject.toml` unchanged.\n%!";
+          false
+  end
 
 let rebuild_message tproject_path =
   Printf.sprintf

@@ -600,7 +600,8 @@ let strip_noncode_spans text =
   scan 0 None;
   Buffer.contents buf
 
-let extract_identifiers text =
+(* Split of extract_identifiers for dependency scoping (see below). *)
+let extract_identifiers_parts text =
   (* Whole-line `--` comments are dropped before scanning (as before), so a
      stray quote inside them cannot open a phantom string span. Trailing `--`
      is intentionally kept: R uses `--x` as double negation. *)
@@ -644,8 +645,384 @@ let extract_identifiers text =
     in
     List.filter (fun s -> s <> "") (collect re_rn @ collect re_rn_sq)
   in
+  (inferred, read_node_names)
+
+(** Identifiers from executable code only (strings, comments and read_node
+    literals excluded). Local bindings (below) are subtracted from exactly
+    this set. *)
+let extract_code_identifiers text =
+  fst (extract_identifiers_parts text)
+
+(** Names mentioned inside read_node("name") literals. These are genuine
+    references even though they sit inside strings. *)
+let extract_read_node_names text =
+  snd (extract_identifiers_parts text)
+
+let extract_identifiers text =
+  let (inferred, read_node_names) = extract_identifiers_parts text in
   let all_set = List.fold_left (fun acc d -> String_set.add d acc) String_set.empty (inferred @ read_node_names) in
   String_set.elements all_set
+
+type raw_lang = RLang | PythonLang | JuliaLang | ShLang | OtherLang
+
+let lang_of_runtime = function
+  | "R" -> RLang
+  | "Python" -> PythonLang
+  | "Julia" -> JuliaLang
+  | "sh" -> ShLang
+  | _ -> OtherLang
+
+(** Names bound by the raw block itself, for dependency scoping.
+    Dependency inference subtracts these before matching sibling nodes, so a
+    foreign local that shadows a sibling name cannot wire a phantom edge
+    (which could surface as a false dependency cycle).
+
+    Certain-only: a name counts as bound only for unambiguous statement
+    forms, at paren depth 0 (call keyword arguments live deeper). Anything
+    doubtful keeps its dependency — a spurious edge fails loudly at cycle
+    check, while a dropped real edge would silently under-build.
+
+    Per runtime (all on text with strings/comments blanked, so positions
+    below refer to real code):
+    - R: `<-`, `<<-`, `->`, `->>` and `=` (never `==`, `!=`, `<=`, `>=`;
+      single `=` inside calls is a keyword argument and sits deeper).
+      `for (i in ...)` binds `i`. Function bodies (`function(...) {...}`,
+      `\(...) {...}`) are skipped: their locals are invisible outside,
+      while their uses still count via extract_code_identifiers.
+    - Python: `=` and `:=` (same guards), `for i in`, `def`/`class` names.
+      `def`/`class` suites are tracked by indent and skipped; `if`/`for`
+      suites are not scopes in Python, so their bindings count.
+    - Julia: `=` (same guards) and `function`/`macro`/`struct`/`module`
+      names, with an end-matched scope stack (`if`/`for`/`while`/`begin`
+      nest without scoping). Loop variables are never bound: Julia `for`
+      scopes them.
+    - sh: statement-start `name=` with an adjacent `=` (so `echo x=1` does
+      not count), and `for` names. `local` declarations never match (the
+      name is not statement-first); `export` targets are deliberately left
+      alone, keeping the edge (safe). `read`, `select`, and one-liner
+      `if x=1` conditions are not tracked.
+
+    Documented limitations (all fail safe toward keeping the edge):
+    tuple unpacking, `import`/`from` bindings, shell `read`/`select`,
+    one-line `def f(): x = 1` suites, R single-expression function bodies
+    containing assignment, backquote command substitutions in sh, and
+    mixed tabs/spaces confusing Python suite tracking (CPython rejects
+    such files outright). *)
+let extract_local_bindings ~runtime text =
+  (match lang_of_runtime runtime with
+   | OtherLang -> []
+   | lang ->
+       let stripped = strip_noncode_spans text in
+       let n = String.length stripped in
+       let is_id_char c =
+         (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+         || (c >= '0' && c <= '9') || c = '_'
+       in
+       let is_space c = c = ' ' || c = '\t' || c = '\r' in
+       let skip_spaces i =
+         let rec loop j = if j < n && is_space stripped.[j] then loop (j + 1) else j in
+         loop i
+       in
+       let skip_spaces_back i =
+         let rec loop j = if j >= 0 && is_space stripped.[j] then loop (j - 1) else j in
+         loop i
+       in
+       let read_ident i =
+         let rec loop j = if j < n && is_id_char stripped.[j] then loop (j + 1) else j in
+         let e = loop i in
+         (String.sub stripped i (e - i), e)
+       in
+       let is_word_at w i =
+         let m = String.length w in
+         i + m <= n && String.sub stripped i m = w
+         && (i = 0 || not (is_id_char stripped.[i - 1]))
+         && (i + m >= n || not (is_id_char stripped.[i + m]))
+       in
+       (* Paren depth before each position. R counts parens only (braces do
+          not scope, except function bodies which are skipped explicitly);
+          Python/Julia count all three pairs; sh counts parens (subshells
+          hide bindings). Unbalanced fragments go negative and match
+          nothing, which keeps dependencies (safe). *)
+       let depth = Array.make (n + 1) 0 in
+       let () =
+         for i = 0 to n - 1 do
+           let d = match stripped.[i], lang with
+             | '(', (RLang | PythonLang | JuliaLang | ShLang) -> 1
+             | '[', (PythonLang | JuliaLang) -> 1
+             | '{', (PythonLang | JuliaLang) -> 1
+             | ')', (RLang | PythonLang | JuliaLang | ShLang) -> -1
+             | ']', (PythonLang | JuliaLang) -> -1
+             | '}', (PythonLang | JuliaLang) -> -1
+             | _ -> 0
+           in
+           depth.(i + 1) <- depth.(i) + d
+         done
+       in
+       let found = ref [] in
+       let add name =
+         if name <> "" then found := name :: !found
+       in
+       (* R: skip `{...}` bodies of function definitions; their locals are
+          invisible outside while their uses still count elsewhere. *)
+       let skip_until = ref 0 in
+       let skip_balanced open_c close_c i =
+         let rec loop j level =
+           if j >= n then n
+           else if stripped.[j] = open_c then loop (j + 1) (level + 1)
+           else if stripped.[j] = close_c then
+             if level = 1 then j + 1 else loop (j + 1) (level - 1)
+           else loop (j + 1) level
+         in
+         loop i 0
+       in
+       let skip_r_function_body i =
+         (* i at `function` or `\(`: skip params, then a braced body if any. *)
+         let j = skip_spaces (i + if stripped.[i] = '\\' then 2 else 8) in
+         if j < n && stripped.[j] = '(' then begin
+           let k = skip_balanced '(' ')' (j + 1) in
+           let k = skip_spaces k in
+           if k < n && stripped.[k] = '{' then skip_balanced '{' '}' (k + 1) else k
+         end else j
+       in
+       (* Python suite tracking is line-oriented and lives inside scan_python
+          below. *)
+       (* Julia: end-matched scope stack of (scoping, depth). Only
+          function/macro/struct/module/let/quote/do scope; the rest nest. *)
+       let jl_stack = ref [] in
+       let jl_in_scope () = List.exists fst !jl_stack in
+       (* A binding name is never a member access (`obj.x`, `df$col`) and
+          never starts with a digit. Applies to every rule below. *)
+       let member_guarded pos =
+         pos <= 0
+         || (let c = stripped.[pos - 1] in c <> '.' && c <> '$' && c <> '@')
+       in
+       let is_name_start pos =
+         let c = stripped.[pos] in
+         (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c = '_'
+       in
+       (* Python suite map: per-position flag for lines inside a def/class
+          suite (whose bindings are function-locals, invisible outside).
+          Computed up front by walking line indents; `if`/`for`/`while`
+          suites do not scope and are never marked. Blank lines never pop.
+          Only meaningful when lang = PythonLang. *)
+       let py_skip =
+         let arr = Array.make n false in
+         let () =
+           if lang = PythonLang then begin
+             let lines = ref [] in
+             let ls = ref 0 in
+             for i = 0 to n do
+               if i = n || stripped.[i] = '\n' then begin
+                 lines := (!ls, i) :: !lines;
+                 ls := i + 1
+               end
+             done;
+             let suites = ref [] in
+             List.iter (fun (s, e) ->
+               let ind = ref s in
+               while !ind < e && (stripped.[!ind] = ' ' || stripped.[!ind] = '\t') do
+                 incr ind
+               done;
+               if !ind < e then begin
+                 while !suites <> [] && !ind <= List.hd !suites do
+                   suites := List.tl !suites
+                 done;
+                 let j0 = ref !ind in
+                 if is_word_at "async" !j0 then
+                   j0 := skip_spaces (!j0 + 5);
+                 let is_def =
+                   (is_word_at "def" !j0 || is_word_at "class" !j0)
+                   && !j0 + 3 < n
+                 in
+                 if is_def then begin
+                   let kwlen = if is_word_at "def" !j0 then 3 else 5 in
+                   let j = skip_spaces (!j0 + kwlen) in
+                   if j < e && is_name_start j then begin
+                     let (nm, e2) = read_ident j in
+                     if !suites = [] then add nm;
+                     suites := !ind :: !suites;
+                     for k = e2 to e - 1 do arr.(k) <- true done
+                   end else
+                     suites := !ind :: !suites
+                 end else if !suites <> [] then begin
+                   for k = s to e - 1 do arr.(k) <- true done
+                 end
+               end
+             ) (List.rev !lines)
+           end
+         in
+         arr
+       in
+       let i = ref 0 in
+       while !i < n do
+         let pos = !i in
+         if pos < !skip_until then i := !skip_until
+         else if lang = RLang && stripped.[pos] = '\\' && pos + 1 < n && stripped.[pos + 1] = '(' then
+           (* R \(...) lambda: skip params and a braced body, like function. *)
+           i := skip_r_function_body pos
+         else if not (is_id_char stripped.[pos])
+                 || (pos > 0 && is_id_char stripped.[pos - 1]) then
+           incr i
+         else begin
+           let (word, epos) = read_ident pos in
+           let advanced_to = ref epos in
+           (match lang with
+            | RLang ->
+                if word = "function" then begin
+                  skip_until := skip_r_function_body pos;
+                  advanced_to := max epos !skip_until
+                end else if word = "for" && depth.(pos) = 0 then begin
+                  let j = skip_spaces epos in
+                  if j < n && stripped.[j] = '(' then begin
+                    let k = skip_spaces (j + 1) in
+                    if k < n && is_name_start k then begin
+                      let (nm, e2) = read_ident k in
+                      let e3 = skip_spaces e2 in
+                      if is_word_at "in" e3 then add nm
+                    end
+                  end
+                end else if depth.(pos) = 0 && member_guarded pos && is_name_start pos then begin
+                  let j = skip_spaces epos in
+                  if j + 1 < n && stripped.[j] = '<' && stripped.[j + 1] = '-' then
+                    add word
+                  else if j < n && stripped.[j] = '=' then begin
+                    let prev_ok = pos = 0 || not (List.mem stripped.[pos - 1] ['!'; '<'; '>'; '='; ':']) in
+                    let next_ok = j + 1 >= n || (stripped.[j + 1] <> '=' && stripped.[j + 1] <> '>') in
+                    if prev_ok && next_ok then add word
+                  end else begin
+                    let k = skip_spaces_back (pos - 1) in
+                    if k >= 1 && stripped.[k] = '>' && stripped.[k - 1] = '-'
+                       && (k - 2 < 0 || stripped.[k - 2] <> '-') then
+                      add word
+                  end
+                end
+            | PythonLang ->
+                if py_skip.(pos) then
+                  ()
+                else if word = "def" || word = "class" || word = "async" then
+                  (* Owned by the suite precompute above; never a binding. *)
+                  ()
+                else if word = "lambda" then begin
+                  (* Skip a lambda header up to its own colon; parameters
+                     never bind outward. Depth-aware so nested brackets with
+                     colons do not end the search early. *)
+                  let rec find_colon k d =
+                    if k >= n then n
+                    else if stripped.[k] = '(' || stripped.[k] = '[' || stripped.[k] = '{' then
+                      find_colon (k + 1) (d + 1)
+                    else if stripped.[k] = ')' || stripped.[k] = ']' || stripped.[k] = '}' then
+                      find_colon (k + 1) (d - 1)
+                    else if d = depth.(pos) && stripped.[k] = ':' then k
+                    else find_colon (k + 1) d
+                  in
+                  skip_until := max !skip_until (find_colon epos depth.(pos));
+                  advanced_to := max epos !skip_until
+                end else if word = "for" && depth.(pos) = 0 then begin
+                  let j = skip_spaces epos in
+                  if j < n && is_name_start j then begin
+                    let (nm, e2) = read_ident j in
+                    let e3 = skip_spaces e2 in
+                    if is_word_at "in" e3 then add nm
+                  end
+                end else if member_guarded pos && is_name_start pos then begin
+                  let j = skip_spaces epos in
+                  if j + 1 < n && stripped.[j] = ':' && stripped.[j + 1] = '=' then
+                    (* Walrus binds the enclosing scope at any depth
+                       (`f(x := 1)` included), so no depth check here. *)
+                    add word
+                  else if depth.(pos) = 0 then begin
+                    (if j < n && stripped.[j] = '=' then begin
+                      let prev_ok =
+                        let pb = skip_spaces_back (pos - 1) in
+                        pb < 0 || not (List.mem stripped.[pb] ['!'; '<'; '>'; '='; ':'])
+                      in
+                      let next_ok = j + 1 >= n || (stripped.[j + 1] <> '=' && stripped.[j + 1] <> '>') in
+                      if prev_ok && next_ok then add word
+                    end else if j < n && stripped.[j] = ':' && (j + 1 >= n || stripped.[j + 1] <> ':') then begin
+                      (* Annotated assignment `x: int = ...`: bind x only if an
+                         `=` follows at the same depth first. *)
+                      let rec ahead k d =
+                        if k >= n || stripped.[k] = '\n' || stripped.[k] = ';' then false
+                        else if stripped.[k] = '(' || stripped.[k] = '[' || stripped.[k] = '{' then ahead (k + 1) (d + 1)
+                        else if stripped.[k] = ')' || stripped.[k] = ']' || stripped.[k] = '}' then ahead (k + 1) (d - 1)
+                        else if d = 0 && stripped.[k] = '=' && (k + 1 >= n || (stripped.[k + 1] <> '=' && stripped.[k + 1] <> '>')) then true
+                        else ahead (k + 1) d
+                      in
+                      if ahead (j + 1) depth.(pos) then add word
+                    end)
+                  end
+                end
+            | JuliaLang ->
+                if word = "function" || word = "macro" || word = "struct"
+                   || word = "module" then begin
+                  (* Named scope definitions bind in the enclosing scope;
+                     check scope before pushing. *)
+                  if not (jl_in_scope ()) then begin
+                    let j = skip_spaces epos in
+                    if j < n && is_name_start j then begin
+                      let (nm, _) = read_ident j in
+                      if member_guarded j then add nm
+                    end
+                  end;
+                  jl_stack := (true, depth.(pos)) :: !jl_stack
+                end else if word = "let" || word = "quote" || word = "do" then
+                  jl_stack := (true, depth.(pos)) :: !jl_stack
+                else if word = "if" || word = "for" || word = "while"
+                        || word = "begin" || word = "try" || word = "catch" then
+                  jl_stack := (false, depth.(pos)) :: !jl_stack
+                else if word = "end" then begin
+                  (match !jl_stack with
+                   | (_, d) :: rest when d = depth.(pos) -> jl_stack := rest
+                   | _ -> ())
+                end else if not (jl_in_scope ()) && depth.(pos) = 0
+                            && member_guarded pos && is_name_start pos then begin
+                  let j = skip_spaces epos in
+                  if j < n && stripped.[j] = '=' then begin
+                    let prev_ok = pos = 0 || not (List.mem stripped.[pos - 1] ['!'; '<'; '>'; '='; '.'; ':']) in
+                    let next_ok = j + 1 >= n || (stripped.[j + 1] <> '=' && stripped.[j + 1] <> '>') in
+                    if prev_ok && next_ok then add word
+                  end
+                end
+            | ShLang ->
+                (* Statement starts: line starts and separators. `!`, `}`,
+                   and the block keywords also begin statements
+                   (`then x=1` is valid shell). Backquotes are excluded on
+                   purpose: command substitutions do not leak bindings. *)
+                let at_stmt_start =
+                  let rec back j =
+                    if j < 0 then true
+                    else match stripped.[j] with
+                      | '\n' | ';' | '&' | '|' | '(' | '{' | '}' | '!' -> true
+                      | ' ' | '\t' | '\r' -> back (j - 1)
+                      | _ ->
+                          let rec wstart k =
+                            if k >= 0 && is_id_char stripped.[k] then wstart (k - 1) else k + 1
+                          in
+                          let ws = wstart j in
+                          let w = String.sub stripped ws (j - ws + 1) in
+                          w = "then" || w = "do" || w = "else" || w = "elif"
+                  in
+                  back (pos - 1)
+                in
+                if word = "for" && depth.(pos) = 0 && at_stmt_start then begin
+                  let j = skip_spaces epos in
+                  if j < n && is_name_start j then begin
+                    let (nm, e2) = read_ident j in
+                    let e3 = skip_spaces e2 in
+                    if e3 >= n || stripped.[e3] = ';' || stripped.[e3] = '\n'
+                       || is_word_at "in" e3 || is_word_at "do" e3 then add nm
+                  end
+                end else if depth.(pos) = 0 && member_guarded pos && is_name_start pos
+                          && at_stmt_start
+                          && epos < n && stripped.[epos] = '='
+                          && (epos + 1 >= n || stripped.[epos + 1] <> '=') then
+                  add word
+            | OtherLang -> ());
+           i := max !advanced_to epos
+         end
+       done;
+       let uniq = List.sort_uniq String.compare !found in
+       uniq)
 
 (** Convenience type alias *)
 type environment = value Env.t

@@ -896,6 +896,29 @@ packages = []
     && Pipeline_dependency_requirements.answer_is_yes "YES"
     && not (Pipeline_dependency_requirements.answer_is_yes "n"));
 
+  test_pm "non-interactive prompt never touches stdin" (fun () ->
+    Pipeline_dependency_requirements.read_prompt_answer
+      ~isatty:(fun () -> false)
+      () = None);
+
+  test_pm "TLANG_NO_PROMPT declines without reading" (fun () ->
+    let saved = Sys.getenv_opt "TLANG_NO_PROMPT" in
+    Unix.putenv "TLANG_NO_PROMPT" "1";
+    let result =
+      try
+        not (Pipeline_dependency_requirements.prompt_to_update
+               ~tproject_path:"tproject.toml"
+               Pipeline_dependency_requirements.{ missing_r_deps = ["dplyr"];
+                 missing_py_deps = []; missing_julia_deps = [];
+                 missing_additional_tools = []; missing_latex_pkgs = [];
+                 reasons = [] })
+      with _ -> false
+    in
+    (match saved with
+     | Some v -> Unix.putenv "TLANG_NO_PROMPT" v
+     | None -> Unix.putenv "TLANG_NO_PROMPT" "");
+    result);
+
   test_pm "apply missing Quarto dependencies updates explicit sections" (fun () ->
     let env = Packages.init_env () in
     match fst (eval_string_env {|
@@ -1840,6 +1863,26 @@ workspace = "python"
     && has "pkgs.openblas"
     && has "gfortran"
     && not (has "export LD_LIBRARY_PATH="));
+
+  test_pm "dep-less project flake keeps bare interpreters (slim shells)" (fun () ->
+    let flake = Nix_generator.generate_project_flake
+      ~project_name:"slim" ~nixpkgs_date:"2026-02-10"
+      ~t_version:"0.51.0" ~uv2nix_commit:"dummy" ~deps:[]
+      () in
+    let has s = try ignore (Str.search_forward (Str.regexp_string s) flake 0); true
+                with Not_found -> false in
+    (* Node builds use pipeline.nix envs, so the shell needs no wrappers
+       when nothing is declared: bare interpreters, no local builds. *)
+    has "r-env = pkgs.R;"
+    && has "py-env = pkgs.python314;"
+    && has "juliaPkg = pkgs.julia-lts;"
+    && not (has "rWrapper")
+    && not (has "withPackages")
+    && not (has "symlinkJoin")
+    (* Companion paths and hooks stay: adding any dep restores full envs. *)
+    && has "export PYTHONPATH="
+    && has "export JULIA_LOAD_PATH="
+    && has "export R_LIBS_SITE=");
 
   (* Opt-in real build of the exact wrapper Nix the emitter produces (see
      Nix_generator.uv_venv_wrapper_nix). Off by default: needs nix-build, a

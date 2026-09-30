@@ -48,6 +48,28 @@ packages.</li>
 </ul>
 <h3 id="fixes">Fixes</h3>
 <ul>
+<li><p><strong>Unattended builds never wait on stdin</strong>: the
+missing-dependency prompt no longer reads from non-terminal stdin (where
+a held-open pipe would block forever) and gains a
+<code>TLANG_NO_PROMPT=1</code> opt-out that declines before any prompt.
+Scripts and CI fail fast with the actionable fix instead.</p></li>
+<li><p><strong>Foreign locals no longer wire phantom
+dependencies</strong>: dependency inference now subtracts names bound by
+the foreign block itself (R
+<code>&lt;-</code>/<code>=</code>/<code>-&gt;</code>/loop variables,
+Python assignments/<code>for</code>/<code>def</code> with suite
+tracking, Julia assignments/named definitions with scope tracking, shell
+<code>name=</code>/<code>for</code>). A shadowed sibling name no longer
+creates a false edge (or false cycle); genuinely used siblings, keyword
+arguments, and <code>read_node("name")</code> literals still
+register.</p></li>
+<li><p><strong>Slim shells for projects without runtime
+dependencies</strong>: node builds use <code>pipeline.nix</code>
+environments, so a project that declares no R/Python/Julia packages now
+gets bare interpreters instead of locally building wrapper and depot
+derivations — a pure-T shell drops from 10 local builds to 1. Declaring
+any dependency restores the full environment on the next
+<code>t update</code>.</p></li>
 <li><p><strong>Default serializers no longer hang node builds</strong>:
 <code>default</code>/<code>^default</code> serializer/deserializer in T
 (and R/Python/Julia) nodes now resolve to the real reader/writer instead

@@ -2055,6 +2055,26 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
                  compute_deps ((name, explicit) :: acc) rest
          | None ->
              let fv = free_vars un.un_command in
+             (* For foreign blocks, subtract names bound by the block itself
+                (Ast.extract_local_bindings) before matching siblings, so a
+                local that shadows a sibling name cannot wire a phantom edge
+                (which could surface as a false dependency cycle). Uses inside
+                those locals still count via the identifiers pass, and
+                read_node("name") literals are always kept (the Quarto
+                emitter rewrites them). Script-file nodes carry no text, so
+                they keep the previous behavior. *)
+             let fv =
+               match un.un_command.node with
+               | RawCode { raw_text; _ } when raw_text <> "" ->
+                   let code = Ast.extract_code_identifiers raw_text in
+                   let locals =
+                     Ast.extract_local_bindings ~runtime:un.un_runtime raw_text
+                   in
+                   let rnn = Ast.extract_read_node_names raw_text in
+                   List.sort_uniq String.compare
+                     (List.filter (fun v -> not (List.mem v locals)) code @ rnn)
+               | _ -> fv
+             in
              let is_raw = match un.un_command.node with RawCode _ -> true | _ -> false in
              let has_self_ref = List.exists (fun v -> v = name) fv in
              if has_self_ref && not is_raw then

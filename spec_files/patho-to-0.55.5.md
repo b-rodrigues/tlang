@@ -90,13 +90,23 @@ kept deliberately). Each new syntax feature needs another carve-out, and a
 missed one silently rewires the DAG.
 
 **Direction.**
-- [ ] Scope-aware analysis: resolve references against block-local bindings
-  first (reuse the `walk` discipline from the shadowing fix), then siblings,
-  then outer env — instead of text scanning plus exceptions.
-- [ ] Keep the `read_node("name")` literal rule, but implement it as one
-  explicit case in the scoped walk rather than a text-level exception.
-- [ ] Add negative regression tests per rule (comment, string, quoted code,
-  shadowing) so new syntax cannot regress silently.
+- [x] Scope-aware analysis (done): `Ast.extract_local_bindings ~runtime`
+  collects block-level bindings per runtime idiom (R `<-`/`=`/`->`/for
+  with function-body skipping; Python `=`/`:=`/`for`/`def` with
+  indent-tracked suite skipping; Julia `=`/named definitions with an
+  end-matched scope stack, loop vars excluded; sh statement-start `=` and
+  `for`, `local` excluded). `compute_deps` subtracts them before sibling
+  matching while always keeping `read_node("name")` literals. Certain-only:
+  ambiguous forms (kwargs, comparisons, tuple unpacking, imports, nested
+  suites, class bodies) keep the edge — a spurious edge fails loudly at
+  cycle check, a dropped real edge would silently under-build.
+- [x] Dedicated regression tests per rule plus no-false-negative tests
+  (kwarg keeps edge, `==`/`< -` keep working, `f(x = 1)` keeps edge) in
+  `test_pipeline_comments.ml`, alongside pipeline-level `p_deps` tests
+  (shadow drops edge, kwarg keeps edge, read_node preserved).
+- [ ] Follow-up (separate item): `pipeline_expand.ml` still substitutes dep
+  values into raw text without consulting block locals — same shadowing
+  class, needs its own analysis before touching pattern semantics.
 
 **Acceptance.**
 - [ ] `phantom_deps_t` and its siblings still pass; each exception has a
@@ -114,10 +124,16 @@ times (60–90+ minutes observed for tiny pipelines), and most of it is
 downloading and precompiling runtimes the demo never touches.
 
 **Direction.**
-- [ ] Record per-resolver shell timings to establish the baseline.
-- [ ] Slim shells: only include the runtimes the project's nodes actually
-  use (derive from `tproject.toml` sections already present).
-- [ ] Long term: lazy environment provisioning on first use of a runtime.
+- [x] Slim shells (done, measured): a pure-T generated shell went from 10
+  locally-built derivations (Julia depot precompile, Python env, R wrapper)
+  to 1 (the shell itself) via `nix build --dry-run`. Rule: full runtime
+  envs only when the project declares that runtime (`r_deps`/`r_git_deps`
+  with renv already merged in, `py_deps` or uv resolver, user `jl_deps`
+  before the forced JSON). Bare interpreters stay for ad-hoc use and
+  editor discovery; node builds always used `pipeline.nix` envs and are
+  unaffected. Declaring any dependency restores the full env on `t update`.
+  Unit tests pin both shapes; real flake regenerates, parses, and dry-runs
+  clean.
 
 **Acceptance.**
 - [ ] A pure-T scaffolded project enters its shell measurably faster than
@@ -134,18 +150,23 @@ never ask; on EOF it currently declines, but any open-stdin context blocks
 instead of failing fast.
 
 **Direction.**
-- [ ] Gate every prompt on an explicit interactivity check *and* a
-  non-interactive default: CI gets an error naming the fix (`t add` /
-  `t update`), never a read.
-- [ ] Add `--yes`/`--no` (or honor `TLANG_AUTO_ADD_PIPELINE_DEPS` /
-  equivalent) so scripts declare intent up front.
-- [ ] Audit remaining `read_line`/`input_line` call sites for the same
-  pattern (`repl.ml` REPL loop is correctly tty-gated; keep it).
+- [x] Gate every prompt path so non-terminal stdin never blocks (done:
+  `read_prompt_answer` returns `None` immediately when not a tty instead
+  of reading stdin, where a held-open pipe would wait forever; verified
+  with stdin held open — fast actionable error, no wait).
+- [x] Unattended opt-out (done: `TLANG_NO_PROMPT=1` makes
+  `prompt_to_update` decline before any tty check or stdin read; unit
+  tested with save/restore). Note: `ensure_project_requirements` already
+  gated on `is_interactive` before reaching the prompt; the fix covers
+  direct callers and terminal-attached suites.
+- [ ] Consider `--yes`/`--no` CLI flags in a later pass (env vars cover
+  scripts and CI for now).
 
 **Acceptance.**
-- [ ] `t run <pipeline-with-missing-deps < /dev/null` errors immediately
+- [x] `t run <pipeline-with-missing-deps < /dev/null` errors immediately
   with an actionable message; never blocks.
-- [ ] Same command with stdin held open (no EOF) still never blocks.
+- [x] Same command with stdin held open (no EOF) still never blocks
+  (verified manually with `sleep 45 |`).
 
 ---
 
@@ -160,7 +181,15 @@ not meet.
 - [ ] Decide the story first (design doc, maintainer approval): e.g. result
   types, `Error` as a bottom type compatible with everything, or explicit
   `expect_*` contracts at node boundaries.
-- [ ] Only then: implement inference/propagation for the chosen story,
+- [x] Draft proposal (no code yet — syntax-adjacent, needs approval):
+  treat `Error` as a bottom type in `types_compatible` (compatible with
+  everything), matching runtime behavior where `VError` already flows
+  through every verb, pipe, and serializer untouched. This only ever
+  *relaxes* schema checks along error paths; it cannot newly reject
+  working programs. Pair with documenting fallible functions in `--#`
+  blocks and reusing the `Expect_*` contract vocabulary from `testcraft`
+  at node boundaries, instead of inventing new syntax.
+- [ ] Only then: implement inference/propagation for the approved story,
   starting with pipe chains (`|>` short-circuits, `?|>` forwards).
 - [ ] Document which functions can return `Error` in their `--#` blocks.
 

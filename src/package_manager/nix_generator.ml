@@ -243,6 +243,15 @@ let generate_project_flake
     ?(warn_invalid_pkg_names : bool = true)
     () : string =
   let additional_tools = safe_pkg_names ~warn:warn_invalid_pkg_names additional_tools in
+  (* Slim shells: node builds use pipeline.nix's own envs, so the dev shell
+     only needs full runtime envs when the project declares that runtime.
+     renv-family resolvers already merged lockfile packages into r_deps /
+     r_git_deps before this call, so empty lists genuinely mean "no R".
+     Bare interpreters stay available for ad-hoc use. Adding any dependency
+     and running `t update` restores the full env. *)
+  let use_r = r_deps <> [] || r_git_deps <> [] in
+  let use_py = py_deps <> [] || py_resolver = "uv" in
+  let use_jl = jl_deps <> [] in
   let jl_deps = ensure_julia_json_dep jl_deps in
   (* `tlang` is provided via `tlang-r`, not nixpkgs `rPackages`. Filter it
      defensively in case an old `tproject.toml` still lists it. *)
@@ -365,6 +374,7 @@ let generate_project_flake
     Buffer.add_string buf "        rGitPkgs = builtins.attrValues rGitPkgSet;\n";
   end;
   Buffer.add_string buf "\n";
+  if use_r then begin
   Buffer.add_string buf "        rpkgs = with pkgs.rPackages; [\n";
   Buffer.add_string buf "          t-lang.packages.${system}.tlang-r\n";
   List.iter (fun dep ->
@@ -405,6 +415,11 @@ let generate_project_flake
   Buffer.add_string buf "            chmod +x \"$out/bin/R\"\n";
   Buffer.add_string buf "          '';\n";
   Buffer.add_string buf "        });\n";
+  end else begin
+  Buffer.add_string buf "        # No R packages declared: bare interpreter only (nodes use\n";
+  Buffer.add_string buf "        # pipeline.nix envs). Declaring any R dependency restores r-env.\n";
+  Buffer.add_string buf "        r-env = pkgs.R;\n";
+  end;
   Buffer.add_string buf "\n";
   Buffer.add_string buf "        # Python environment\n";
   if use_uv then begin
@@ -413,7 +428,7 @@ let generate_project_flake
     Printf.bprintf buf "        pySet = (pkgs.callPackage pyproject-nix.build.packages { python = pkgs.%s; }).overrideScope (pkgs.lib.composeManyExtensions [ pyOverlay pyproject-build-systems.overlays.default ]);\n" py_version;
     Buffer.add_string buf "        py-venv = pySet.mkVirtualEnv \"t-python-uv-env\" pyWorkspace.deps.default;\n";
     Buffer.add_string buf (uv_venv_wrapper_nix "py-venv");
-  end else begin
+  end else if use_py then begin
     Printf.bprintf buf "        py-env = (pkgs.%s.withPackages (python-pkgs: with python-pkgs; [\n" py_version;
     Buffer.add_string buf "          deepdiff\n";
     List.iter (fun dep ->
@@ -424,12 +439,22 @@ let generate_project_flake
     Buffer.add_string buf "            \"--prefix\" \"LD_LIBRARY_PATH\" \":\" \"${pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib pkgs.zlib ]}\"\n";
     Buffer.add_string buf "          ];\n";
     Buffer.add_string buf "        };\n";
+  end else begin
+    Buffer.add_string buf "        # No Python packages declared: bare interpreter only (nodes use\n";
+    Buffer.add_string buf "        # pipeline.nix envs). Declaring any Python dependency restores py-env.\n";
+    Printf.bprintf buf "        py-env = pkgs.%s;\n" py_version;
   end;
   Buffer.add_string buf "\n";
   Buffer.add_string buf "        # Julia environment\n";
   let jl_attr = if jl_version = "lts" then "julia-lts" else "julia_" ^ (String.map (function '.' -> '_' | c -> c) jl_version) in
+  if use_jl then begin
   let jl_pkgs_str = " [ " ^ (String.concat " " (List.map (fun p -> "\"" ^ p ^ "\"") jl_deps)) ^ " ]" in
   Printf.bprintf buf "        juliaPkg = pkgs.%s.withPackages%s;\n" jl_attr jl_pkgs_str;
+  end else begin
+  Buffer.add_string buf "        # No Julia packages declared: bare interpreter only (nodes use\n";
+  Buffer.add_string buf "        # pipeline.nix envs). Declaring any Julia dependency restores juliaPkg.\n";
+  Printf.bprintf buf "        juliaPkg = pkgs.%s;\n" jl_attr;
+  end;
   if additional_tools <> [] then begin
     Buffer.add_string buf "\n";
     Buffer.add_string buf "        # Additional Tools\n";
