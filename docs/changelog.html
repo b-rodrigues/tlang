@@ -48,6 +48,20 @@ packages.</li>
 </ul>
 <h3 id="fixes">Fixes</h3>
 <ul>
+<li><p><strong>Richer static types</strong>: collection types
+(<code>List[X]</code>, <code>Vector[X]</code>, <code>Dict[K, V]</code>),
+nominal domain types (<code>Model</code>, <code>Pipeline</code>,
+<code>Date</code>, …), and top-level <code>A | B</code> unions now flow
+from docstrings into inference, with structural compatibility and nested
+widening. A coverage audit with a ratcheting floor tracks precision
+(308/532 fully precise); generic calls reject inconsistent
+instantiations instead of passing silently.</p></li>
+<li><p><strong>Reassignment respects annotations in
+<code>t check</code></strong>: <code>x: Int = 1</code> followed by
+<code>x := "hello"</code> now warns once, on the offending line
+(previously the stale post-analysis type blamed the original binding, or
+nothing warned at all). Fresh bindings, <code>Any</code> annotations,
+and <code>rm()</code> behave as before.</p></li>
 <li><p><strong>Error values no longer trip type checks</strong>:
 <code>VError</code> is now compatible with every annotation (bottom
 value, like <code>NA</code>), so errors propagate through typed
