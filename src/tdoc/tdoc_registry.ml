@@ -24,6 +24,16 @@ let lookup name =
 let get_all () =
   Hashtbl.fold (fun _ v acc -> v :: acc) registry []
 
+(** Snapshot the registry for save/restore around bulk loads. Tests that
+    parse whole source trees (e.g. typing coverage audits) must not leak
+    entries into other tests that assert pre-docs behavior. *)
+let snapshot () =
+  Hashtbl.fold (fun k v acc -> (k, v) :: acc) registry []
+
+let restore entries =
+  Hashtbl.clear registry;
+  List.iter (fun (k, v) -> Hashtbl.add registry k v) entries
+
 (** Save all currently registered documentation entries to a JSON file.
     
     @param filename The destination file path. *)
