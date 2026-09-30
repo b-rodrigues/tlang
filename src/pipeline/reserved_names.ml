@@ -23,8 +23,7 @@ type node_name_kind =
   | RuntimeSymbol
 
 let runtime_symbols =
-  [ "R"; "Python"; "T"; "Julia"; "Quarto"; "sh"; "default"; "write_rds";
-    "read_rds"; "write_pkl"; "read_pkl"; "write_json"; "read_json"; "pmml";
+  [ "R"; "Python"; "T"; "Julia"; "Quarto"; "sh"; "default";
     "bin" ]
 
 let builtin_functions =
@@ -39,7 +38,7 @@ let builtin_functions =
     "colnames"; "compare"; "compare_native_vs_pmml_scores"; "complete"; "compose"; "conf_int";
     "contains"; "cor"; "cos"; "cosh"; "count"; "cov";
     "cross_join"; "crossing"; "cross_pattern"; "cumall"; "cumany"; "cume_dist"; "cummax";
-    "cummean"; "cummin"; "cumsum"; "cut"; "cv"; "day";
+    "cummean"; "cummin"; "cumsum"; "custom"; "cut"; "cv"; "day";
     "days"; "days_in_month"; "debug_node"; "dense_rank"; "deserialize"; "deviance";
     "df_residual"; "diag"; "difference"; "diff_summary"; "dir_exists"; "dispersion";
     "distinct"; "dmy"; "dmy_hms"; "downstream_of"; "drop_na"; "ends_with";

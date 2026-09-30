@@ -1151,10 +1151,22 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
         let lookup_serializer_arg name default =
           match List.assoc_opt (Some name) args with
           | Some e ->
-            let v = eval_expr env_ref e in
-            (match validate_no_strings name v with
-             | Some err -> Ast.mk_expr (Ast.Value err)
-             | None -> Ast.mk_expr (Ast.Value v))
+            (* Closed strategies: a bare unbound name is never a strategy.
+               Bound names (variables holding a strategy, `default`, runtime
+               words) evaluate normally; anything unbound fails here naming
+               the valid set and the `custom()` escape, instead of
+               surfacing as a bare NameError far from the contract. *)
+            (match e.node with
+             | Var v when Env.find_opt v !env_ref = None && !Ast.node_resolver v = None ->
+                 let valid = String.concat ", " (List.map (fun f -> "^" ^ f) Pipeline_validation.known_serializer_formats) in
+                 Ast.mk_expr (Ast.Value (Error.type_error
+                   (Printf.sprintf "Unknown strategy `%s` for `%s`. Valid built-in formats: %s. For a custom function, quote it: custom(\"%s\") and declare it in `functions`."
+                      v name valid v)))
+             | _ ->
+                 let v = eval_expr env_ref e in
+                 (match validate_no_strings name v with
+                  | Some err -> Ast.mk_expr (Ast.Value err)
+                  | None -> Ast.mk_expr (Ast.Value v)))
           | None -> default
         in
         let lookup_env_vars () =
@@ -1505,13 +1517,23 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                if runtime = "Quarto" && un_script = None then
                 Error.make_error TypeError
                   "Node with runtime `Quarto` requires `script` or `args.path`/`args.file`/`args.qmd_file`/`args.input` to point to a `.qmd` file."
-              else if runtime <> "T" && runtime <> "Quarto" then
+              else
+                (* Strategy errors (unknown bare names, string literals)
+                   fail the node() call itself so they surface at
+                   construction and check time, instead of lying buried
+                   inside the serializer field until build time. *)
+                let ser_expr = lookup_serializer_arg "serializer" default_serializer in
+                let des_expr = lookup_serializer_arg "deserializer" default_deserializer in
+                (match ser_expr.node, des_expr.node with
+                 | Value (VError e), _ | _, Value (VError e) -> VError e
+                 | _ ->
+              if runtime <> "T" && runtime <> "Quarto" then
                 match un_command.node with
                 | RawCode _ ->
                     VNode {
                       un_command; un_script; un_runtime = runtime;
-                      un_serializer = lookup_serializer_arg "serializer" default_serializer;
-                      un_deserializer = lookup_serializer_arg "deserializer" default_deserializer;
+                      un_serializer = ser_expr;
+                      un_deserializer = des_expr;
                       un_env_vars; un_args;
                       un_shell = shell_opt;
                       un_shell_args = shell_args;
@@ -1528,8 +1550,8 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                 | Value (VString _) | Value (VSymbol _) | Value ((VNA NAGeneric)) when runtime = "sh" ->
                     VNode {
                       un_command; un_script; un_runtime = runtime;
-                      un_serializer = lookup_serializer_arg "serializer" default_serializer;
-                      un_deserializer = lookup_serializer_arg "deserializer" default_deserializer;
+                      un_serializer = ser_expr;
+                      un_deserializer = des_expr;
                       un_env_vars; un_args;
                       un_shell = shell_opt;
                       un_shell_args = shell_args;
@@ -1546,8 +1568,8 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                 | _ when Option.is_some un_script ->
                     VNode {
                       un_command; un_script; un_runtime = runtime;
-                      un_serializer = lookup_serializer_arg "serializer" default_serializer;
-                      un_deserializer = lookup_serializer_arg "deserializer" default_deserializer;
+                      un_serializer = ser_expr;
+                      un_deserializer = des_expr;
                       un_env_vars; un_args;
                       un_shell = shell_opt;
                       un_shell_args = shell_args;
@@ -1567,8 +1589,8 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
               else
                 VNode {
                   un_command; un_script; un_runtime = runtime;
-                  un_serializer = lookup_serializer_arg "serializer" default_serializer;
-                  un_deserializer = lookup_serializer_arg "deserializer" default_deserializer;
+                  un_serializer = ser_expr;
+                  un_deserializer = des_expr;
                   un_env_vars; un_args;
                   un_shell = shell_opt;
                   un_shell_args = shell_args;
@@ -1579,7 +1601,7 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                   un_pattern;
                   un_iteration;
                   un_flake;
-                }
+                })
 )
     | Call { fn; args } ->
         (match fn.node with

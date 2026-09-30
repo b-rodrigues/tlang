@@ -159,15 +159,15 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
       && not (List.mem n Reserved_names.runtime_symbols)
     ) ks
   in
-  (* The documented runtime + serializer vocabulary (see pipeline_node_options,
-     jln_docs, set_pipeline_global_options, builder_populate) must all resolve
-     as bare words — e.g. `runtime = R`, `serializer = ^ipc`. *)
+  (* The documented runtime + closed-strategy vocabulary (see
+     pipeline_node_options, jln_docs, set_pipeline_global_options,
+     builder_populate) must all resolve as bare words — e.g. `runtime = R`,
+     `serializer = ^ipc`. Bare custom names are NOT vocabulary: they must
+     be quoted with custom("name"). *)
   let documented_vocabulary =
     [ "R"; "Python"; "T"; "Julia"; "Quarto"; "sh";
       "default";
-      "write_rds"; "read_rds"; "write_pkl"; "read_pkl";
-      "^ipc"; "write_parquet"; "read_parquet"; "^parquet";
-      "write_json"; "read_json"; "pmml"; "^pmml"; "^csv"; "^json"; "^onnx";
+      "^ipc"; "^parquet"; "^pmml"; "^csv"; "^json"; "^onnx";
       "bin"; "^bin" ]
   in
   let ks_missing_vocab =

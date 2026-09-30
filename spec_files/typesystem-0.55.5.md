@@ -152,6 +152,11 @@ statically. Sound (never wrong) but toothless.
   signature parsed to `TUnknown`. One-line fix maps all three spellings
   to `TDataFrame`. Coverage moved 308/532 (389 returns) to **372/532
   (447 returns)** with zero new rejections on the full suite.
+- [x] Closed-strategy escape hatch (done): new `custom("name")` builtin
+  quotes a custom reader/writer (`String` in, `Symbol` out) for
+  `serializer`/`deserializer` positions, keeping the constructor docs
+  honest (`Symbol | Dict`, bare names rejected). Coverage now **373/533
+  (448 returns)**.
 - [x] Nominal domain types (done): `Pipeline`, `Model`, `NDArray`,
   `Symbol`, `Date`, `Datetime`, `Formula`, `Lens`, `Expect`,
   `ComputedNode`, `NodeDef`, `Period`, `Duration`, `Interval` map to

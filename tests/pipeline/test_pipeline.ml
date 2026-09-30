@@ -1270,8 +1270,8 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   let explicit_node_code = {|
 p_cross = pipeline {
   a = 10
-  b = node(command = <{ a * 2 }>, runtime = R, serializer = write_rds, deserializer = read_rds, functions = "my_utils.R")
-  c = node(command = <{ b + 1 }>, runtime = Python, serializer = write_pkl, deserializer = read_pkl, functions = ["my_utils.py", "my_serializer.py"], include = "data.csv")
+  b = node(command = <{ a * 2 }>, runtime = R, serializer = custom("write_rds"), deserializer = custom("read_rds"), functions = "my_utils.R")
+  c = node(command = <{ b + 1 }>, runtime = Python, serializer = custom("write_pkl"), deserializer = custom("read_pkl"), functions = ["my_utils.py", "my_serializer.py"], include = "data.csv")
 }
   |} in
   let env_cross = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_pipeline:1155" explicit_node_code in

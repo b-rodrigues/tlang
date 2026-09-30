@@ -752,28 +752,23 @@ let register env =
   env
 
 (** Known symbols: bare words that should resolve to VSymbol rather than
-    NameError.  These are used as keyword-style arguments in node() and
-    related calls (e.g. `runtime = R`, `serializer = write_rds`).
-    Add new runtimes or serializer names here as they are introduced. *)
+    NameError.  These are runtimes, the `default` strategy, and the
+    `^`-prefixed built-in strategy spellings used as keyword-style
+    arguments in node() and related calls (e.g. `runtime = R`,
+    `serializer = ^ipc`).
+    Strategies are a CLOSED set: bare custom names do NOT belong here.
+    A custom reader/writer must be quoted explicitly — `custom("name")`
+    with the function declared in the node's `functions` files — or it
+    fails where a strategy is expected. Add new runtimes or built-in
+    serializer names here as they are introduced. *)
 let known_symbols = [
   (* Runtimes *)
   "R"; "Python"; "T"; "Julia"; "Quarto"; "sh";
   (* Serialization defaults *)
   "default";
-  (* R serializers *)
-  "write_rds"; "read_rds";
-  (* Python serializers *)
-  "write_pkl"; "read_pkl";
-  (* Arrow IPC serializers *)
-  "^ipc";
-  (* Parquet serializers *)
-  "write_parquet"; "read_parquet"; "^parquet";
-  (* JSON serializers *)
-  "write_json"; "read_json";
-  (* PMML *)
-  "pmml"; "^pmml"; "^csv"; "^json"; "^onnx";
-  (* Binary/passthrough (fetchurl) *)
-  "bin"; "^bin";
+  (* Built-in strategy spellings (the lexer also produces these directly
+     from `^`-prefixed source, bypassing env lookup). *)
+  "^ipc"; "^parquet"; "^pmml"; "^csv"; "^json"; "^onnx"; "bin"; "^bin";
 ]
 
 (** Initialize the environment with all standard packages *)
@@ -914,6 +909,7 @@ let init_env () =
   let env = T_fix.register env in
   let env = Set_pipeline_global_options.register env in
   let env = Pipeline_node_options.register env in
+  let env = Custom_strategy.register env in
   (* Colcraft package *)
   let env = T_select.register env in
   let env = T_filter.register ~eval_call:Eval.eval_call_immutable ~eval_expr:Eval.eval_expr_immutable ~uses_nse:Eval.uses_nse ~desugar_nse_expr:Eval.desugar_nse_expr env in

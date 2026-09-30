@@ -239,7 +239,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   (let (v_custom, _) = eval_string_env
     {|pipeline {
       a = node(command = 1)
-      b = node(command = a + 1, deserializer = read_pkl, serializer = write_pkl, functions = ["my_ser.py"])
+      b = node(command = a + 1, deserializer = custom("read_pkl"), serializer = custom("write_pkl"), functions = ["my_ser.py"])
     }|}
     (Packages.init_env ()) in
   match v_custom with

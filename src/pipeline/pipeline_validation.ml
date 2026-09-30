@@ -322,6 +322,17 @@ let check_known_formats (p : pipeline_result) : validation_error list =
         let fmt = String.lowercase_ascii bare in
         if List.mem fmt known_serializer_formats || has_functions name then []
         else [(fmt, Printf.sprintf "Unknown %s format `%s` on node `%s`." role s name)]
+    | Var v ->
+        (* Closed strategies: a bare variable in strategy position can only
+           be an indirection that validation cannot see through statically.
+           Closed members (`default`, `^csv`, …) pass through for the
+           default sentinels and literal-equivalent indirections;
+           anything else fails naming the valid set and the `custom()`
+           escape — the same contract node() construction enforces after
+           evaluation. *)
+        let bare = if String.length v > 0 && v.[0] = '^' then String.sub v 1 (String.length v - 1) else v in
+        if List.mem (String.lowercase_ascii bare) known_serializer_formats then []
+        else [(v, Printf.sprintf "Unknown %s `%s` on node `%s`: bare names are not strategies. For a custom function, quote it: custom(\"%s\") and declare it in `functions`." role v name v)]
     | ListLit items -> List.concat_map (fun (_, e) -> unknown_in role name e) items
     | DictLit items ->
         (* A literal "format" key marks an inline custom serializer dict

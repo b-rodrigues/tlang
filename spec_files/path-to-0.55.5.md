@@ -72,6 +72,15 @@ fails the same silent way.
 - [x] Unknown strategies are a construction-time error naming the valid
   set — verified already covered (`^arrow → ^ipc` hint path); the emitter
   fallback can no longer produce bare calls.
+- [x] Closed strategy type, no grandfathering (done): bare custom names
+  left `known_symbols`, so `serializer = write_pkl` fails at node()
+  construction naming the valid set and the `custom("write_pkl")`
+  escape (plus `functions` backing, checked as before). New `custom`
+  builtin quotes the name (`String` in, `Symbol` out); constructor docs
+  state the closed set (`Symbol | Dict`); validation rejects bare
+  strategy variables with the same message; `t check` surfaces the
+  construction error with location. All bare uses ported (tests, doc
+  examples, vocabulary list).
 - [ ] Long term: a closed strategy type instead of symbols, so typos do not
   typecheck.
 

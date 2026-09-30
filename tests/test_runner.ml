@@ -196,6 +196,7 @@ let () =
   (* Domain-specific tests *)
   run_with_env "Test_dataframe" Test_dataframe.run_tests;
   run "Test_pipeline" Test_pipeline.run_tests;
+  run_with_env "Test_strategy_closed" Test_strategy_closed.run_tests;
   run_with_env "Test_colcraft" Test_colcraft.run_tests;
   run "Test_colcraft_coverage" Test_colcraft_coverage.run_tests;
   run "Test_window" Test_window.run_tests;
