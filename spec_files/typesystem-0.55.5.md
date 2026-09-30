@@ -64,8 +64,17 @@ travels as unshaped `Dict`s. Users cannot name their domain types.
   expansion rejects record-carrying dependencies for foreign runtimes,
   serializers and emitters fail loudly instead of emitting constructor
   text, and T-runtime raw blocks round-trip constructor text honestly.
-- [ ] Tagged unions for `match` (next): named cases with per-case arms
-  plus per-case exhaustiveness warnings.
+- [x] Tagged unions with per-case arms (done): `type Shape =
+  Circle(Float) | Rect(Float, Float) | Missing` declares named cases;
+  every case uses call syntax including nullary ones (`Missing()`), so a
+  bare pattern name stays a binding and the shadow trap warns instead
+  (`did you mean ...()?`). Payload counts and types check at
+  construction; calls resolve only for unbound names (bound variables
+  win); shared case names fail naming every owner; calling the union
+  itself fails naming its cases. `t check` warns on missing cases (names
+  each one), unknown case names (names the valid set), and stays silent
+  for unknown scrutinees and full coverage. Same three boundary layers
+  as records.
 - [ ] Design approved by maintainer (nominal, closed, T-side contracts,
   io_fns-owned strategy list, no grandfathering, warn-only generics):
   remaining steps ship in order — unions, closed strategies, generic

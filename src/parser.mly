@@ -170,13 +170,19 @@ statement:
     { with_stmt_loc (ImportFrom { package = id; names }) $startpos }
   | IMPORT id = any_ident { with_stmt_loc (ImportPackage id) $startpos }
   | kw = any_ident name = any_ident EQUALS LBRACE skip_sep fields = record_type_fields rbrace
-    (* Contextual `type` declaration: `type Point = { x: Float }`. Only the
-       leading word `type` takes this path — anything else (`foo Bar = ...`)
-       was a syntax error before and stays one. In particular the `type()`
-       builtin keeps parsing as an ordinary call. *)
+    (* Contextual `type` record declaration: `type Point = { x: Float }`.
+       Only the leading word `type` takes this path — anything else
+       (`foo Bar = ...`) was a syntax error before and stays one. In
+       particular the `type()` builtin keeps parsing as an ordinary call. *)
     { if kw <> "type" then raise (Ast.Invalid_type_declaration
         (Printf.sprintf "Invalid declaration `%s %s`. Only `type Name = { ... }` declarations may start with two identifiers." kw name))
       else with_stmt_loc (TypeDecl { tname = name; tdef = RecordDef { rd_fields = fields } }) $startpos }
+  | kw = any_ident name = any_ident EQUALS first = union_case_decl rest = union_case_rest
+    (* Contextual `type` union declaration:
+       `type Shape = Circle(Float) | Rect(Float, Float) | Missing`. *)
+    { if kw <> "type" then raise (Ast.Invalid_type_declaration
+        (Printf.sprintf "Invalid declaration `%s %s`. Only `type Name = ...` declarations may start with two identifiers." kw name))
+      else with_stmt_loc (TypeDecl { tname = name; tdef = UnionDef { ud_cases = first :: rest } }) $startpos }
   | e = expr { with_stmt_loc (Expression e) $startpos }
   ;
 
@@ -189,6 +195,22 @@ record_type_fields:
 
 record_type_field:
   | name = any_ident COLON t = typ { (name, t) }
+  ;
+
+union_case_rest:
+  | { [] }
+  | BITOR skip_sep c = union_case_decl rest = union_case_rest { c :: rest }
+  ;
+
+union_case_decl:
+  | cname = any_ident { (cname, []) }
+  | cname = any_ident LPAREN skip_sep args = union_payload_types RPAREN { (cname, args) }
+  ;
+
+union_payload_types:
+  | { [] }
+  | t = typ { [t] }
+  | t = typ COMMA skip_sep rest = union_payload_types { t :: rest }
   ;
 
 import_name_list:
@@ -462,6 +484,11 @@ match_case:
 
 match_pattern:
   | p = list_match_pattern { p }
+  | ctor = any_ident LPAREN skip_sep args = union_pattern_args RPAREN
+    (* Union case arm: every case uses call syntax, including nullary ones
+       (`Missing()`). A bare name stays a binding (PVar) — never a case
+       test — so patterns cannot silently mean two things. *)
+    { PUnion { pu_case = ctor; pu_args = args } }
   | ctor = any_ident LBRACE skip_sep field = error_pattern_field rbrace
     {
       if ctor = "Error" then PError field
@@ -479,6 +506,12 @@ match_pattern:
 error_pattern_field:
   | { None }
   | id = any_ident skip_sep { Some id }
+  ;
+
+union_pattern_args:
+  | { [] }
+  | p = match_pattern { [p] }
+  | p = match_pattern COMMA skip_sep rest = union_pattern_args { p :: rest }
   ;
 
 list_match_pattern:

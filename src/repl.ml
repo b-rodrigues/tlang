@@ -255,6 +255,9 @@ let rec value_summary v =
   | Ast.VRecord r ->
       Printf.sprintf "%s(%d field%s)" r.rec_type
         (List.length r.rec_fields) (if List.length r.rec_fields = 1 then "" else "s")
+  | Ast.VUnion u ->
+      Printf.sprintf "%s(%d payload%s)" u.un_case
+        (List.length u.un_payload) (if List.length u.un_payload = 1 then "" else "s")
   | Ast.VTypeDef t -> Printf.sprintf "Type(%s)" t.td_name
   | Ast.VLambda { params; autoquote_params; _ } ->
       "\\(" ^ String.concat ", " (Ast.Utils.display_params params autoquote_params) ^ ") -> ..."
@@ -721,6 +724,7 @@ let check_type_annotations filename =
     let analysis = Analyzer.analyze program scope in
     Check_utils.annotation_diagnostics program analysis.Analyzer.stmt_types filename
     @ Check_utils.match_exhaustiveness_diagnostics program filename
+    @ Check_utils.match_union_diagnostics program filename
   with
   | Lexer.SyntaxError _ ->
     (* Parse/syntax errors are already reported by check_utils normal flow. *)

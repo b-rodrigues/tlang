@@ -220,21 +220,21 @@ let match_has_catchall cases =
   List.exists (fun (p, _) ->
     match p with
     | Ast.PWildcard | Ast.PVar _ -> true
-    | Ast.PNA | Ast.PList _ | Ast.PError _ -> false
+    | Ast.PNA | Ast.PList _ | Ast.PError _ | Ast.PUnion _ -> false
   ) cases
 
 let match_has_error_arm cases =
   List.exists (fun (p, _) ->
     match p with
     | Ast.PError _ -> true
-    | Ast.PWildcard | Ast.PVar _ | Ast.PNA | Ast.PList _ -> false
+    | Ast.PWildcard | Ast.PVar _ | Ast.PNA | Ast.PList _ | Ast.PUnion _ -> false
   ) cases
 
 let match_has_na_arm cases =
   List.exists (fun (p, _) ->
     match p with
     | Ast.PNA -> true
-    | Ast.PWildcard | Ast.PVar _ | Ast.PList _ | Ast.PError _ -> false
+    | Ast.PWildcard | Ast.PVar _ | Ast.PList _ | Ast.PError _ | Ast.PUnion _ -> false
   ) cases
 
 let rec sites_in_expr (e : Ast.expr) : match_site list =
@@ -279,35 +279,39 @@ and sites_in_stmt (s : Ast.stmt) : match_site list =
   | Ast.TypeDecl _ -> []
   | Ast.Import _ | Ast.ImportPackage _ | Ast.ImportFrom _ | Ast.ImportFileFrom _ -> []
 
+let mk_match_diag message loc filename =
+  let line = match loc with
+    | Some (l : Ast.source_location) -> Some l.Ast.line
+    | None -> None
+  in
+  let col = match loc with
+    | Some (l : Ast.source_location) -> Some l.Ast.column
+    | None -> None
+  in
+  { Diagnostics.diag_id = Diagnostics.gen_id ();
+    Diagnostics.diag_error_class = Match_error;
+    Diagnostics.diag_severity = Warning;
+    Diagnostics.diag_phase = Schema;
+    Diagnostics.diag_node_id = None;
+    Diagnostics.diag_node_lang = None;
+    Diagnostics.diag_file = Some filename;
+    Diagnostics.diag_line = line;
+    Diagnostics.diag_column = col;
+    Diagnostics.diag_end_line = None;
+    Diagnostics.diag_end_column = None;
+    Diagnostics.diag_message = message;
+    Diagnostics.diag_expected = None;
+    Diagnostics.diag_actual = None;
+    Diagnostics.diag_caused_by = [];
+    Diagnostics.diag_suggested_fix = Diagnostics.no_fix;
+  }
+
 let match_exhaustiveness_diagnostics program filename =
   let mk_diag ~missing ~hint loc =
-    let line = match loc with
-      | Some (l : Ast.source_location) -> Some l.Ast.line
-      | None -> None
-    in
-    let col = match loc with
-      | Some (l : Ast.source_location) -> Some l.Ast.column
-      | None -> None
-    in
-    { Diagnostics.diag_id = Diagnostics.gen_id ();
-      Diagnostics.diag_error_class = Match_error;
-      Diagnostics.diag_severity = Warning;
-      Diagnostics.diag_phase = Schema;
-      Diagnostics.diag_node_id = None;
-      Diagnostics.diag_node_lang = None;
-      Diagnostics.diag_file = Some filename;
-      Diagnostics.diag_line = line;
-      Diagnostics.diag_column = col;
-      Diagnostics.diag_end_line = None;
-      Diagnostics.diag_end_column = None;
-      Diagnostics.diag_message = Printf.sprintf
-        "Match on %s value lacks %s arm and has no catch-all. Add %s."
-        missing missing hint;
-      Diagnostics.diag_expected = None;
-      Diagnostics.diag_actual = None;
-      Diagnostics.diag_caused_by = [];
-      Diagnostics.diag_suggested_fix = Diagnostics.no_fix;
-    }
+    mk_match_diag
+      (Printf.sprintf "Match on %s value lacks %s arm and has no catch-all. Add %s."
+         missing missing hint)
+      loc filename
   in
   (* Local accumulation across the site walk; a ref keeps the traversal
      iterative like annotation_diagnostics above. *)
@@ -326,6 +330,72 @@ let match_exhaustiveness_diagnostics program filename =
           if match_has_na_arm site.ms_cases then ()
           else diags := mk_diag ~missing:"an NA"
             ~hint:"NA => ... or _ => ..." site.ms_loc :: !diags
+  ) sites;
+  List.rev !diags
+
+(** Union case diagnostics (per-case level, warn-only).
+    Two passes over the parsed program: first collect union definitions
+    (`type` declarations), then check every `match` whose scrutinee is a
+    direct constructor call (`Circle(...)`) of a known union. Anything
+    else stays silent, so no previously clean program gains a warning.
+    Three warnings, all on the `match` line:
+    - missing cases with no catch-all (names every missing case);
+    - arms naming unknown cases (likely typos; names the valid set);
+    - bare variable arms named exactly like a case of the scrutinee's
+      union (they bind everything; suggests `Case()` instead). *)
+let match_union_diagnostics program filename =
+  let unions =
+    List.filter_map (fun (s : Ast.stmt) ->
+      match s.Ast.node with
+      | Ast.TypeDecl { tname; tdef = Ast.UnionDef { ud_cases } } ->
+          Some (tname, List.map fst ud_cases)
+      | _ -> None
+    ) program
+  in
+  if unions = [] then [] else
+  (* Local accumulation across the site walk, as above. *)
+  let diags = ref [] in
+  let sites = List.concat_map sites_in_stmt program in
+  let scrutinee_union e =
+    match e.Ast.node with
+    | Ast.Call { fn = { Ast.node = Ast.Var fname; _ }; _ } ->
+        List.find_opt (fun (_, cases) -> List.mem fname cases) unions
+    | _ -> None
+  in
+  List.iter (fun site ->
+    match scrutinee_union site.ms_scrutinee with
+    | None -> ()
+    | Some (tname, cases) ->
+        let quote c = "`" ^ c ^ "`" in
+        List.iter (fun (p, _) ->
+          match p with
+          | Ast.PUnion { pu_case; _ } when not (List.mem pu_case cases) ->
+              diags := mk_match_diag
+                (Printf.sprintf "Match on `%s` value tests unknown case %s. Valid cases: %s."
+                   tname (quote pu_case) (String.concat ", " (List.map quote cases)))
+                site.ms_loc filename :: !diags
+          | Ast.PVar name when List.mem name cases ->
+              diags := mk_match_diag
+                (Printf.sprintf "Match arm `%s` binds every value; did you mean `%s()` to test the `%s` case?"
+                   name name tname)
+                site.ms_loc filename :: !diags
+          | Ast.PWildcard | Ast.PVar _ | Ast.PNA | Ast.PList _ | Ast.PError _ | Ast.PUnion _ -> ()
+        ) site.ms_cases;
+        if not (match_has_catchall site.ms_cases) then begin
+          let covered =
+            List.filter_map (fun (p, _) ->
+              match p with Ast.PUnion { pu_case; _ } -> Some pu_case | _ -> None
+            ) site.ms_cases
+          in
+          let missing = List.filter (fun c -> not (List.mem c covered)) cases in
+          (match missing with
+           | [] -> ()
+           | first :: _ ->
+               diags := mk_match_diag
+                 (Printf.sprintf "Match on `%s` value misses case(s) %s and has no catch-all. Add `%s()` => ... or _ => ...."
+                    tname (String.concat ", " (List.map quote missing)) first)
+                 site.ms_loc filename :: !diags)
+        end
   ) sites;
   List.rev !diags
 

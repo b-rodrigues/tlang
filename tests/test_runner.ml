@@ -170,6 +170,7 @@ let () =
   run "Test_na_edge_cases" Test_na_edge_cases.run_tests;
   run_with_env "Test_errors" Test_errors.run_tests;
   run_with_env "Test_records" Test_records.run_tests;
+  run_with_env "Test_unions" Test_unions.run_tests;
   run "Test_expect_equal" Test_expect_equal.run_tests;
   run "Test_expect_more" Test_expect_more.run_tests;
   run "Test_expect_condition" Test_expect_condition.run_tests;

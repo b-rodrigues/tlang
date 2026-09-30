@@ -33,6 +33,7 @@ let rec bound_vars = function
   | PVar name -> [name]
   | PError None -> []
   | PError (Some name) -> [name]
+  | PUnion { pu_args; _ } -> List.concat_map bound_vars pu_args
   | PList (patterns, rest) ->
       let names = List.concat_map bound_vars patterns in
       match rest with

@@ -950,6 +950,20 @@ let rec match_pattern (pattern : Ast.match_pattern) (value : Ast.value)
         | Some name -> Some [ (name, VString err.message) ]
         | None -> Some []
       end
+  | PUnion { pu_case; pu_args }, VUnion u when u.un_case = pu_case ->
+      let rec match_payloads pats vals bindings =
+        match pats, vals with
+        | [], [] -> Some bindings
+        | _ :: _, [] | [], _ :: _ -> None
+        | pat :: rest_pats, v :: rest_vals ->
+            (match match_pattern pat v with
+             | None -> None
+             | Some matched ->
+                 (match merge_match_bindings bindings matched with
+                  | None -> None
+                  | Some combined -> match_payloads rest_pats rest_vals combined))
+      in
+      match_payloads pu_args u.un_payload []
   | PList (patterns, rest_name), VList items ->
       let rec match_list remaining_patterns remaining_items bindings =
         match remaining_patterns, remaining_items with
@@ -1568,8 +1582,35 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                 }
 )
     | Call { fn; args } ->
-        let fn_val = Utils.unwrap_value (eval_expr env_ref fn) in
-        eval_call env_ref fn_val args
+        (match fn.node with
+         | Var fname when not (Env.mem fname !env_ref) ->
+             (* Unbound call head: it may be a union case (`Circle(1.0)`).
+                Bound names always resolve normally (never reach here), so
+                no shadowing surprise. Zero candidate cases fall through to
+                the ordinary path (same NameError with suggestions as
+                before); several candidates fail naming every owner type. *)
+             (match find_union_case !env_ref fname with
+              | [] ->
+                  let fn_val = Utils.unwrap_value (eval_expr env_ref fn) in
+                  eval_call env_ref fn_val args
+              | [(tname, payload_types)] ->
+                  (* Case payloads are positional (records own the named
+                     style). A named argument here names nothing, so it
+                     fails instead of silently dropping the name. *)
+                  (match List.find_opt (fun (n, _) -> n <> None) args with
+                   | Some _ ->
+                       Error.make_error Ast.ArityError
+                         (Printf.sprintf "Case `%s` of `%s` takes positional arguments only." fname tname)
+                   | None ->
+                       let arg_vals = List.map (fun (_, e) -> eval_expr env_ref e) args in
+                       construct_union_case tname fname payload_types arg_vals)
+              | candidates ->
+                  let owners = String.concat ", " (List.map fst candidates |> List.sort_uniq String.compare) in
+                  Error.make_error Ast.NameError
+                    (Printf.sprintf "Case `%s` is defined by types %s. Rename one case." fname owners))
+         | _ ->
+             let fn_val = Utils.unwrap_value (eval_expr env_ref fn) in
+             eval_call env_ref fn_val args)
 
     | Lambda l -> VLambda { l with env = Some !env_ref } (* Capture the current environment *)
 
@@ -1644,6 +1685,7 @@ and free_vars (expr : Ast.expr) : string list =
             | PVar name -> [name]
             | PError None -> []
             | PError (Some name) -> [name]
+            | PUnion { pu_args; _ } -> List.concat_map bound_vars pu_args
             | PList (patterns, rest) ->
                 let names = List.concat_map bound_vars patterns in
                 match rest with
@@ -3236,6 +3278,39 @@ and expand_autoquoted_unquotes (env_ref : environment ref) (expr : Ast.expr) : A
       Ast.mk_expr ?loc (Block (List.map expand_stmt stmts))
   | Value _ | Var _ | ColumnRef _ | RawCode _ | ShellExpr _ -> expr
 
+(** Find union types in scope defining `case_name`: every `(type_name,
+    payload_types)` pair. Used for union case construction, where an
+    unbound call head resolves to a case. Bound variables always win
+    (normal scoping); this runs only for names with no binding. *)
+and find_union_case (env : environment) (case_name : string)
+    : (string * Ast.typ list) list =
+  List.filter_map (fun (_, v) ->
+    match v with
+    | VTypeDef { td_name; td_def = Ast.UnionDef { ud_cases } } ->
+        (match List.assoc_opt case_name ud_cases with
+         | Some payload -> Some (td_name, payload)
+         | None -> None)
+    | _ -> None
+  ) (Env.bindings env)
+
+(** Construct a union case value from evaluated arguments. Payload count
+    must equal the declared arity; each payload must satisfy its declared
+    type (NA and errors flow through, as everywhere). *)
+and construct_union_case tname cname payload_types (args : Ast.value list) : Ast.value =
+  if List.length args <> List.length payload_types then
+    Error.make_error Ast.ArityError
+      (Printf.sprintf "Case `%s` of `%s` expects %d argument(s), got %d."
+         cname tname (List.length payload_types) (List.length args))
+  else
+    (match List.find_opt (fun (ptyp, v) -> not (Ast.is_compatible v ptyp))
+             (List.combine payload_types args) with
+     | Some (ptyp, v) ->
+         Error.type_error
+           (Printf.sprintf "Expected %s for `%s` of `%s`, got %s"
+              (Ast.Utils.typ_to_string ptyp) cname tname (Ast.Utils.type_name v))
+     | None ->
+         Ast.VUnion { un_type = tname; un_case = cname; un_payload = args })
+
 (** Construct a nominal closed record from evaluated call arguments.
     Either every argument is positional (matched in field order) or every
     argument is named (matched by field name) — mixing the two is an
@@ -3733,6 +3808,13 @@ and eval_call env_ref fn_val raw_args =
   | VNA _ -> Error.type_error "Cannot call NA as a function."
   | VTypeDef { td_name; td_def = Ast.RecordDef { rd_fields } } ->
       construct_record td_name rd_fields named_args
+  | VTypeDef { td_name; td_def = Ast.UnionDef { ud_cases } } ->
+      (* A union type itself is not constructible; exactly one of its
+         cases is. Naming the cases keeps the choice explicit. *)
+      Error.type_error
+        (Printf.sprintf "Type `%s` is a union and cannot be constructed directly. Construct one of its cases: %s."
+           td_name
+           (String.concat ", " (List.map fst ud_cases)))
   | _ -> Error.not_callable_error (Utils.type_name fn_val)
   end
 
@@ -3965,6 +4047,20 @@ and eval_statement (env : environment) (stmt : stmt) : value * environment =
                 | Some n ->
                     (Error.value_error
                        (Printf.sprintf "Duplicate field `%s` in type `%s`." n tname), env)
+                | None ->
+                    let new_env = Env.add tname (VTypeDef { td_name = tname; td_def = tdef }) env in
+                    ((VNA NAGeneric), new_env))
+           | UnionDef { ud_cases } ->
+               let cnames = List.map fst ud_cases in
+               let dup =
+                 List.find_opt (fun n ->
+                   List.length (List.filter (( = ) n) cnames) > 1
+                 ) cnames
+               in
+               (match dup with
+                | Some n ->
+                    (Error.value_error
+                       (Printf.sprintf "Duplicate case `%s` in type `%s`." n tname), env)
                 | None ->
                     let new_env = Env.add tname (VTypeDef { td_name = tname; td_def = tdef }) env in
                     ((VNA NAGeneric), new_env)))

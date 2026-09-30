@@ -77,6 +77,22 @@ p.x -- 1.0
 
 Construction takes all-positional or all-named arguments (never a mix). Unknown, missing, or mistyped fields fail with an error naming the field and the valid set. Annotations accept record names (`\(p: Point -> Point) p`), enforced at runtime like all annotations. Records match `_` and variable arms in `match`. Records are T-side contracts: they cannot cross into foreign node code or serializers — use plain data across the boundary instead. The leading word `type` is contextual, so the `type()` builtin keeps working.
 
+### User-Defined Tagged Unions
+
+Unions name related cases with positional payloads. Every case uses call syntax, including nullary ones — a bare name in a pattern is always a binding, never a case test.
+
+```t
+type Shape = Circle(Float) | Rect(Float, Float) | Missing
+s = Circle(1.0)
+match(s) {
+  Circle(r) => r,
+  Rect(w, h) => w * h,
+  Missing() => 0.0
+} -- 1.0
+```
+
+Cases resolve only for unbound names: an ordinary variable with the same name always wins. A case shared by two unions in scope fails naming every owner type — rename one case. Payload counts and types are checked at construction; calling the union type itself fails naming its cases. `t check` warns on missing cases, unknown case names, and bare variables shadowing a case name. Unions are T-side contracts like records.
+
 ### Variables and Assignment
 
 ```t

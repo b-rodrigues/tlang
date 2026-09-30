@@ -66,6 +66,10 @@ let value_to_literal ~runtime (v : value) : string =
       invalid_arg (Printf.sprintf
         "expand_pipeline: record `%s` cannot be inlined as %s code text; records are T-side contracts. Pass plain data across the boundary instead."
         r.rec_type runtime)
+  | VUnion u when runtime <> "T" ->
+      invalid_arg (Printf.sprintf
+        "expand_pipeline: union value `%s` of `%s` cannot be inlined as %s code text; unions are T-side contracts. Pass plain data across the boundary instead."
+        u.un_case u.un_type runtime)
   | VTypeDef t when runtime <> "T" ->
       invalid_arg (Printf.sprintf
         "expand_pipeline: type `%s` itself cannot be inlined as %s code text." t.td_name runtime)
@@ -210,17 +214,30 @@ let resolve_map_deps
      record at this level by construction. *)
   let record_name_of = function
     | VRecord r -> Some r.rec_type
+    | VUnion u -> Some (u.un_case ^ " of " ^ u.un_type)
     | VTypeDef t -> Some ("type " ^ t.td_name)
     | VList items ->
         List.find_map (fun (_, v) ->
-          match v with VRecord r -> Some r.rec_type | VTypeDef t -> Some ("type " ^ t.td_name) | _ -> None
+          match v with
+          | VRecord r -> Some r.rec_type
+          | VUnion u -> Some (u.un_case ^ " of " ^ u.un_type)
+          | VTypeDef t -> Some ("type " ^ t.td_name)
+          | _ -> None
         ) items
     | VVector arr ->
         Array.to_seq arr |> Seq.find_map (fun v ->
-          match v with VRecord r -> Some r.rec_type | VTypeDef t -> Some ("type " ^ t.td_name) | _ -> None)
+          match v with
+          | VRecord r -> Some r.rec_type
+          | VUnion u -> Some (u.un_case ^ " of " ^ u.un_type)
+          | VTypeDef t -> Some ("type " ^ t.td_name)
+          | _ -> None)
     | VDict pairs ->
         List.find_map (fun (_, v) ->
-          match v with VRecord r -> Some r.rec_type | VTypeDef t -> Some ("type " ^ t.td_name) | _ -> None
+          match v with
+          | VRecord r -> Some r.rec_type
+          | VUnion u -> Some (u.un_case ^ " of " ^ u.un_type)
+          | VTypeDef t -> Some ("type " ^ t.td_name)
+          | _ -> None
         ) pairs
     | _ -> None
   in

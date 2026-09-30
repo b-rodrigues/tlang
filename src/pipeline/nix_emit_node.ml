@@ -298,6 +298,10 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
         invalid_arg (Printf.sprintf
           "Nix emitter: record `%s` cannot cross into node environment/arguments; records are T-side contracts. Pass plain data across the boundary instead."
           r.rec_type)
+    | Ast.VUnion u ->
+        invalid_arg (Printf.sprintf
+          "Nix emitter: union value `%s` of `%s` cannot cross into node environment/arguments; unions are T-side contracts. Pass plain data across the boundary instead."
+          u.un_case u.un_type)
     | Ast.VTypeDef t ->
         invalid_arg (Printf.sprintf
           "Nix emitter: type `%s` itself cannot cross into node environment/arguments." t.td_name)

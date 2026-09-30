@@ -307,6 +307,9 @@ and value =
   (* General-Purpose Containers *)
   | VList of (string option * value) list
   | VDict of (string * value) list
+  (* User-defined union value: nominal (the type name is identity) with an
+     explicit case tag and positional payload. *)
+  | VUnion of { un_type : string; un_case : string; un_payload : value list }
   | VVector of value array
   | VNDArray of ndarray
   | VDataFrame of dataframe
@@ -384,11 +387,16 @@ and match_pattern =
   | PNA
   | PList of match_pattern list * symbol option
   | PError of symbol option
+  (* Union case arm: the case name plus one sub-pattern per payload
+     position. Nullary cases still use call syntax (`Missing()`), so a
+     bare name always means a binding, never a case test. *)
+  | PUnion of { pu_case : string; pu_args : match_pattern list }
 
-(** User-defined type definitions. Records only for now; tagged unions
-    arrive as a separate step with their own `match` arms. *)
+(** User-defined type definitions: nominal closed records, and tagged
+    unions whose cases carry positional payloads. *)
 and type_def =
   | RecordDef of { rd_fields : (string * typ) list }
+  | UnionDef of { ud_cases : (string * typ list) list }
 
 and expr = expr_node located
 
@@ -1815,6 +1823,7 @@ module Utils = struct
     | VBool _ -> "Bool" | VString _ -> "String" | VRawCode _ -> "Code"
     | VSymbol _ -> "Symbol" | VDate _ -> "Date" | VDatetime _ -> "Datetime"
     | VList _ -> "List" | VDict _ -> "Dict"
+    | VUnion u -> u.un_type
     | VRecord r -> r.rec_type
     | VTypeDef _ -> "Type"
     | VVector _ -> "Vector" | VNDArray _ -> "NDArray" | VDataFrame _ -> "DataFrame"
@@ -1882,6 +1891,8 @@ module Utils = struct
         "[" ^ String.concat ", " items ^ "]"
     | PError None -> "Error"
     | PError (Some field) -> "Error { " ^ field ^ " }"
+    | PUnion { pu_case; pu_args } ->
+        pu_case ^ "(" ^ String.concat ", " (List.map unparse_match_pattern pu_args) ^ ")"
 
   and unparse_expr expr =
     match expr.node with
@@ -1946,6 +1957,10 @@ module Utils = struct
         "type " ^ tname ^ " = { "
         ^ String.concat ", " (List.map (fun (n, t) -> n ^ ": " ^ typ_to_string t) rd_fields)
         ^ " }"
+    | TypeDecl { tname; tdef = UnionDef { ud_cases } } ->
+        "type " ^ tname ^ " = "
+        ^ String.concat " | " (List.map (fun (c, ts) ->
+              c ^ "(" ^ String.concat ", " (List.map typ_to_string ts) ^ ")") ud_cases)
     | Import s -> "import \"" ^ s ^ "\""
     | ImportPackage s -> "import " ^ s
     | ImportFrom { package; names } -> 
@@ -2047,6 +2062,8 @@ module Utils = struct
     | VRecord r ->
         let field_to_string (k, v) = k ^ " = " ^ value_to_string v in
         r.rec_type ^ "(" ^ (r.rec_fields |> List.map field_to_string |> String.concat ", ") ^ ")"
+    | VUnion u ->
+        u.un_case ^ "(" ^ (u.un_payload |> List.map value_to_string |> String.concat ", ") ^ ")"
     | VTypeDef t ->
         "Type(" ^ t.td_name ^ ")"
     | VVector arr ->
@@ -2480,6 +2497,8 @@ let rec is_compatible (v : value) (t : typ) : bool =
   (* Nominal records: the type name is identity. A record is never a Dict
      and never another record type, even with an identical field shape. *)
   | VRecord r, TCustom name -> r.rec_type = name
+  (* Nominal unions: same rule by type name. Payload shapes never merge. *)
+  | VUnion u, TCustom name -> u.un_type = name
 
   (* Relaxed numeric matching: Int can often be used where Float is expected in T *)
   | VInt _, TFloat -> true
