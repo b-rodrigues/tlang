@@ -374,14 +374,19 @@ let generate_project_flake
     Buffer.add_string buf "        rGitPkgs = builtins.attrValues rGitPkgSet;\n";
   end;
   Buffer.add_string buf "\n";
-  if use_r then begin
+  (* The tlang companion package is always present: `library(tlang)` in an
+     ad-hoc shell R session is documented (debugging guide), so even a
+     project with no declared R packages keeps a minimal wrapper around
+     it. User packages extend the same list when declared. *)
   Buffer.add_string buf "        rpkgs = with pkgs.rPackages; [\n";
   Buffer.add_string buf "          t-lang.packages.${system}.tlang-r\n";
+  if use_r then begin
   List.iter (fun dep ->
     let nixified = String.concat "_" (String.split_on_char '.' dep) in
     Printf.bprintf buf "          %s\n" nixified
   ) r_deps;
-  if r_git_deps <> [] then
+  end;
+  if use_r && r_git_deps <> [] then
     Buffer.add_string buf "        ] ++ rGitPkgs;\n"
   else
     Buffer.add_string buf "        ];\n";
@@ -415,11 +420,6 @@ let generate_project_flake
   Buffer.add_string buf "            chmod +x \"$out/bin/R\"\n";
   Buffer.add_string buf "          '';\n";
   Buffer.add_string buf "        });\n";
-  end else begin
-  Buffer.add_string buf "        # No R packages declared: bare interpreter only (nodes use\n";
-  Buffer.add_string buf "        # pipeline.nix envs). Declaring any R dependency restores r-env.\n";
-  Buffer.add_string buf "        r-env = pkgs.R;\n";
-  end;
   Buffer.add_string buf "\n";
   Buffer.add_string buf "        # Python environment\n";
   if use_uv then begin

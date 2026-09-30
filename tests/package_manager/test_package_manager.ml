@@ -2023,19 +2023,23 @@ workspace = "python"
     && has "gfortran"
     && not (has "export LD_LIBRARY_PATH="));
 
-  test_pm "dep-less project flake keeps bare interpreters (slim shells)" (fun () ->
+  test_pm "dep-less project flake slims shells but keeps tlang-r" (fun () ->
     let flake = Nix_generator.generate_project_flake
       ~project_name:"slim" ~nixpkgs_date:"2026-02-10"
       ~t_version:"0.51.0" ~uv2nix_commit:"dummy" ~deps:[]
       () in
     let has s = try ignore (Str.search_forward (Str.regexp_string s) flake 0); true
                 with Not_found -> false in
-    (* Node builds use pipeline.nix envs, so the shell needs no wrappers
-       when nothing is declared: bare interpreters, no local builds. *)
-    has "r-env = pkgs.R;"
+    (* Node builds use pipeline.nix envs, so the shell skips user package
+       sets when nothing is declared. The tlang companion stays wrapped
+       (documented: `library(tlang)` works in ad-hoc shell R sessions);
+       Python/Julia drop to bare interpreters (their shell extras were
+       never documented; node envs are unaffected). *)
+    has "t-lang.packages.${system}.tlang-r"
+    && has "r-env = (pkgs.rWrapper.override {"
+    && not (has "rGitPkgs")
     && has "py-env = pkgs.python314;"
     && has "juliaPkg = pkgs.julia-lts;"
-    && not (has "rWrapper")
     && not (has "withPackages")
     && not (has "symlinkJoin")
     (* Companion paths and hooks stay: adding any dep restores full envs. *)
