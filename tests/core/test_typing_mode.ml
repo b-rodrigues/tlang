@@ -52,6 +52,18 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
     "const = \\<T>(x: T, y: T -> T) x; const(NA, 1)"
     "NA";
 
+  test "generic lambda ignores leading NA when binding"
+    "f3 = \\<T>(x: T, y: T, z: T -> T) x; f3(NA, 1, 2)"
+    "NA";
+
+  test "generic lambda still rejects after leading NA"
+    "f3 = \\<T>(x: T, y: T, z: T -> T) x; f3(1, NA, \"s\")"
+    {|Error(TypeError: "Type variable `T` has inconsistent types: Int vs String")|};
+
+  test "generic lambda keeps Int and Float distinct"
+    "const = \\<T>(x: T, y: T -> T) x; const(1, 2.5)"
+    {|Error(TypeError: "Type variable `T` has inconsistent types: Int vs Float")|};
+
   test "single-use type variable never constrains"
     "id = \\<T>(x: T -> T) x; id(1)"
     "1";

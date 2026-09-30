@@ -3464,10 +3464,17 @@ and eval_call env_ref fn_val raw_args =
           (* Generic consistency: a type variable occurring in several
              parameter positions must receive the same kind of value.
              Compared by type head only (constructors, payloads ignored),
-             so the check is order-independent and can never reject two
-             values of the same kind. Nested type variables (e.g. inside
-             List[T]) are not unified. NA and error arguments reify to
-             Any and always pass. *)
+             so the check can never reject two values of the same kind;
+             custom types additionally compare by name (`Model` vs
+             `Pipeline` differ). Flexible positions (`Any`, including
+             reified NA and error values) never constrain and never bind:
+             the first *solid* value wins, so the check is order
+             independent (`(NA, 1, "s")` and `(1, "s", NA)` agree).
+             Nested type variables (e.g. inside List[T]) are not unified.
+             Note: unlike [types_compatible], `Int` vs `Float` is a
+             mismatch here by design — widening answers "does this fit",
+             consistency asks "are these identical", and silent numeric
+             merging would be the wrong default. *)
           let generic_errors =
             let head_of = function
               | Ast.TInt -> 1 | Ast.TFloat -> 2 | Ast.TBool -> 3
@@ -3475,6 +3482,11 @@ and eval_call env_ref fn_val raw_args =
               | Ast.TTuple _ -> 7 | Ast.TVar _ -> 8 | Ast.TCustom _ -> 9
               | Ast.TComputedNode -> 10 | Ast.TSerializer -> 11 | Ast.TExpr -> 12
               | Ast.TArrow _ -> 13 | Ast.TDataFrame _ -> 14 | Ast.TUnion _ -> 15
+            in
+            let same_head a b =
+              match a, b with
+              | Ast.TCustom s1, Ast.TCustom s2 -> String.equal s1 s2
+              | _ -> head_of a = head_of b
             in
             let typ_of_value v =
               match Symbol_table.value_to_semantic_type v with
@@ -3494,8 +3506,9 @@ and eval_call env_ref fn_val raw_args =
                   (match Hashtbl.find_opt bound name with
                    | None -> Hashtbl.add bound name got
                    | Some prev ->
-                       if not (flexible prev) && not (flexible got)
-                          && head_of prev <> head_of got then
+                       if flexible got then ()
+                       else if flexible prev then Hashtbl.replace bound name got
+                       else if not (same_head prev got) then
                          errors := Printf.sprintf
                            "Type variable `%s` has inconsistent types: %s vs %s"
                            name (Ast.Utils.typ_to_string prev) (Ast.Utils.typ_to_string got)
