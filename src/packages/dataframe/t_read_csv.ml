@@ -5,7 +5,8 @@ let is_sep_name = function Some "separator" | Some "sep" -> true | _ -> false
 (*
 --# Read CSV file
 --#
---# Reads a CSV file into a DataFrame.
+--# Reads a CSV file into a DataFrame. Returns a FileError value
+--# when the file cannot be read.
 --#
 --# @name read_csv
 --# @param path :: String Path or URL to the CSV file.
@@ -142,7 +143,8 @@ let parse_csv_string ?(sep=',') ?(skip_header=false) ?(skip_lines=0) ?(clean_col
 (*
 --# Read CSV file
 --#
---# Reads a CSV file into a DataFrame.
+--# Reads a CSV file into a DataFrame. Returns a FileError value
+--# when the file cannot be read.
 --#
 --# @name read_csv
 --# @param path :: String Path or URL to the CSV file.

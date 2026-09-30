@@ -5,6 +5,7 @@ open Ast
 --# Write Arrow IPC file
 --#
 --# Writes a DataFrame to an Apache Arrow IPC (Feather v2) file.
+--# Returns a FileError value when the file cannot be written.
 --#
 --# IPC is the fastest format to read and write (no compression), ideal for
 --# pipeline intermediates and cross-runtime exchange. For compressed,

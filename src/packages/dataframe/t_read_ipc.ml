@@ -5,6 +5,7 @@ open Ast
 --# Read an Arrow IPC (Feather) file
 --#
 --# Loads a DataFrame from an Arrow IPC file (also known as Feather v2) on disk.
+--# Returns a FileError value when the file cannot be read.
 --#
 --# IPC is the fastest format to read and write (no compression), ideal for
 --# pipeline intermediates and cross-runtime exchange. For compressed,

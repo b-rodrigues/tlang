@@ -5,7 +5,8 @@ let is_sep_name = function Some "separator" -> true | _ -> false
 (*
 --# Write CSV file
 --#
---# Writes a DataFrame to a CSV file.
+--# Writes a DataFrame to a CSV file. Returns a FileError value
+--# when the file cannot be written.
 --#
 --# @name write_csv
 --# @param df :: DataFrame The data to write.
