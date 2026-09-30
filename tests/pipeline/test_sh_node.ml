@@ -183,6 +183,71 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
         begin incr fail_count; Printf.printf "  ✗ text deserializer emission wrong\n" end
   | _ ->
       incr fail_count; Printf.printf "  ✗ text deserializer fixture failed\n");
+  (* Every runtime maps ^default to a real writer: no runtime may emit a
+     bare `default(...)` call (the silent-hang class). *)
+  List.iter (fun (label, rt, body, writer) ->
+    let code = Printf.sprintf
+      {|pipeline {
+        a = node(command = 1)
+        b = node(command = %s, deserializer = ^default, serializer = ^default, runtime = %s)
+      }|} body rt in
+    match eval_string_env code (Packages.init_env ()) with
+    | (Ast.VPipeline p, _) ->
+        let nix = Nix_emit_pipeline.emit_pipeline p in
+        if contains_substring nix (writer ^ "(")
+           && not (contains_substring nix "= default(") then
+          begin incr pass_count; Printf.printf "  ✓ %s maps default to %s\n" label writer end
+        else
+          begin incr fail_count; Printf.printf "  ✗ %s default mapping wrong\n" label end
+    | _ ->
+        incr fail_count; Printf.printf "  ✗ %s default fixture failed\n" label
+  ) [("T", "T", "a + 1", "serialize"); ("R", "R", "<{ a + 1 }>", "saveRDS");
+     ("Python", "Python", "<{ a + 1 }>", "serialize");
+     ("Julia", "Julia", "<{ a + 1 }>", "jl_serialize")];
+  (* Known-but-unmapped formats fail loud at emission instead of emitting a
+     bare call to a nonexistent function (the silent-hang class): ^bin is
+     only valid for fetchurl nodes, so an R node with ^bin has no reader.
+     (The ^text spelling resolves through the serializer registry to a
+     real readLines and keeps working.) Custom function names still pass
+     through for resolution against `functions` files at build time. *)
+  (let (v_text_r, _) = eval_string_env
+    {|pipeline {
+      a = rn(command = <{ 1 }>)
+      b = rn(command = <{ a }>, deserializer = ^bin)
+    }|}
+    (Packages.init_env ()) in
+  match v_text_r with
+  | Ast.VPipeline p ->
+      (match (try let _ = Nix_emit_pipeline.emit_pipeline p in None
+              with Invalid_argument msg -> Some msg) with
+       | Some msg
+         when contains_substring msg "text" && contains_substring msg "R" ->
+           incr pass_count; Printf.printf "  ✓ unmapped known format fails loud with valid set\n"
+       | Some msg ->
+           incr fail_count; Printf.printf "  ✗ loud failure missing format/runtime: %s\n" msg
+       | None ->
+           incr fail_count; Printf.printf "  ✗ unmapped known format emitted silently\n")
+  | _ ->
+      incr fail_count; Printf.printf "  ✗ text-on-R fixture failed\n");
+  (let (v_custom, _) = eval_string_env
+    {|pipeline {
+      a = node(command = 1)
+      b = node(command = a + 1, deserializer = read_pkl, serializer = write_pkl, functions = ["my_ser.py"])
+    }|}
+    (Packages.init_env ()) in
+  match v_custom with
+  | Ast.VPipeline p ->
+      let nix =
+        (try Some (Nix_emit_pipeline.emit_pipeline p)
+         with Invalid_argument _ -> None)
+      in
+      (match nix with
+       | Some s when contains_substring s "read_pkl(" && contains_substring s "write_pkl(" ->
+           incr pass_count; Printf.printf "  ✓ custom function strategies pass through\n"
+       | _ ->
+           incr fail_count; Printf.printf "  ✗ custom function strategies blocked or missing\n")
+  | _ ->
+      incr fail_count; Printf.printf "  ✗ custom strategy fixture failed\n");
   (* Regression: UV nodes need system BLAS/Fortran, nixpkgs nodes must stay
      pristine (foreign BLAS breaks scipy/seaborn). The node derivation picks
      the libs only when the project resolver is uv. This fixture has no

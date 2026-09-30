@@ -172,7 +172,9 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
           "pmml", ("r_write_pmml", "r_read_pmml");
           "onnx", ("r_write_onnx", "r_read_onnx");
           "csv", ("r_write_csv", "r_read_csv");
-          "default", ("saveRDS", "readRDS"); ]
+          "default", ("saveRDS", "readRDS");
+          (* Legacy spelling for the default writer/reader. *)
+          "serialize", ("saveRDS", "readRDS"); ]
     | "Python" ->
         [ "json", ("py_write_json", "py_read_json");
           "ipc", ("py_write_ipc", "py_read_ipc");
@@ -180,7 +182,9 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
           "pmml", ("py_write_pmml", "py_read_pmml");
           "onnx", ("py_write_onnx", "py_read_onnx");
           "csv", ("py_write_csv", "py_read_csv");
-          "default", ("serialize", "deserialize"); ]
+          "default", ("serialize", "deserialize");
+          (* Legacy spelling for the default writer/reader. *)
+          "serialize", ("serialize", "deserialize"); ]
     | "Julia" ->
         [ "json", ("jl_write_json", "jl_read_json");
           "ipc", ("jl_write_ipc", "jl_read_ipc");
@@ -188,7 +192,9 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
           "pmml", ("jl_write_pmml", "jl_read_pmml");
           "onnx", ("jl_write_onnx", "jl_read_onnx");
           "csv", ("jl_write_csv", "jl_read_csv");
-          "default", ("jl_serialize", "deserialize"); ]
+          "default", ("jl_serialize", "deserialize");
+          (* Legacy spelling for the default writer/reader. *)
+          "serialize", ("jl_serialize", "deserialize"); ]
     | _ ->
         [ "json", ("t_write_json", "t_read_json");
           "ipc", ("write_ipc", "read_ipc");
@@ -200,13 +206,27 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
              come back via read_file (no read_text builtin exists; the old
              fallback emitted a bare text(...) call to nothing). *)
           "text", ("write_text", "read_file");
-          "default", ("serialize", "deserialize"); ]
+          "default", ("serialize", "deserialize");
+          (* Legacy spelling for the default writer/reader. *)
+          "serialize", ("serialize", "deserialize"); ]
   in
   let lookup_writer fmt =
     match List.assoc_opt fmt io_fns with Some (w, _) -> Some w | None -> None
   in
   let lookup_reader fmt =
     match List.assoc_opt fmt io_fns with Some (_, r) -> Some r | None -> None
+  in
+  (* A known built-in format with no mapping for this runtime is an
+     internal emitter/validation inconsistency: emitting it raw would call
+     a nonexistent function in the node script (the silent-hang class that
+     `default` once hit). Fail loud, naming the valid set. Anything outside
+     the known set is a custom function name, resolved against the node's
+     `functions` files at build time, and passes through untouched. *)
+  let resolve_known ~role fmt =
+    invalid_arg (Printf.sprintf
+      "Internal error: no %s for format `%s` on runtime `%s`. Valid built-in formats: %s."
+      role fmt runtime
+      (String.concat ", " (List.map (fun f -> "^" ^ f) Pipeline_validation.known_serializer_formats)))
   in
 
   let ext, extra_input = match runtime with
@@ -2215,7 +2235,13 @@ Base.setproperty!(ns::TlangNamespace, sym::Symbol, val) = (getfield(ns, :dict)[s
           | Some fmt ->
               (match get_polyglot_snippet ~lang:runtime ~kind:"reader" des_node_val with
                | Some snippet -> snippet
-               | None -> lookup_reader fmt |> Option.value ~default:fmt)
+               | None ->
+                   (match lookup_reader fmt with
+                    | Some r -> r
+                    | None ->
+                        if List.mem fmt Pipeline_validation.known_serializer_formats then
+                          resolve_known ~role:"reader" fmt
+                        else fmt))
           | None ->
             if strategy = "default" then
               (if runtime = "R" then "readRDS" else if runtime = "Python" then "deserialize" else if runtime = "Julia" then "deserialize" else "deserialize")
@@ -2383,7 +2409,13 @@ EOF|} k (Nix_utils.nix_escape_indented_code expr_str)
     | Some fmt ->
         (match get_polyglot_snippet ~lang:runtime ~kind:"writer" ser_val with
          | Some snippet -> snippet
-         | None -> lookup_writer fmt |> Option.value ~default:fmt)
+         | None ->
+             (match lookup_writer fmt with
+              | Some w -> w
+              | None ->
+                  if List.mem fmt Pipeline_validation.known_serializer_formats then
+                    resolve_known ~role:"writer" fmt
+                  else fmt))
     | None ->
         if ser_s = "default" then
           (if runtime = "R" then "saveRDS" else if runtime = "Python" then "serialize" else if runtime = "Julia" then "jl_serialize" else "serialize")
