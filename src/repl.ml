@@ -479,6 +479,8 @@ let print_help () =
   Printf.printf "  debug <node>      Start a subshell to debug a pipeline node\n";
   Printf.printf "  --mode <m>        Type-check mode: repl or strict\n";
   Printf.printf "  --failfast        Stop execution on first error\n";
+  Printf.printf "  --yes             Answer yes to all prompts (e.g. missing-dependency updates)\n";
+  Printf.printf "  --no              Decline all prompts; never modify project files\n";
   Printf.printf "  explain <expr>    Explain a value or expression\n";
   Printf.printf "  init --package <n>  Create a new T package\n";
   Printf.printf "  init --project <n>  Create a new T project\n";
@@ -1577,11 +1579,17 @@ let () =
   in
   let unsafe = List.mem "--unsafe" raw_args in
   let failfast = mode_parse.failfast in
+  let yes_flag = mode_parse.yes in
+  let no_flag = mode_parse.no in
   let args = if unsafe then List.filter (fun s -> s <> "--unsafe") mode_parse.args else mode_parse.args in
   let args = if failfast then List.filter (fun s -> s <> "--failfast") args else args in
-  (match Cli_args.validate_cli_flags ~mode_flag:mode_parse.mode_flag ~unsafe_flag:unsafe ~failfast_flag:failfast args with
+  let args = if yes_flag then List.filter (fun s -> s <> "--yes") args else args in
+  let args = if no_flag then List.filter (fun s -> s <> "--no") args else args in
+  (match Cli_args.validate_cli_flags ~mode_flag:mode_parse.mode_flag ~unsafe_flag:unsafe ~failfast_flag:failfast ~yes_flag ~no_flag:no_flag args with
    | Ok () -> ()
    | Error msg -> exit_with_error msg);
+  Pipeline_dependency_requirements.cli_yes := yes_flag;
+  Pipeline_dependency_requirements.cli_no := no_flag;
   let env = Packages.init_env () in
   Check_utils.extra_diagnostics_hook := check_type_annotations;
   (* Register interactive CLI wrappers — must be here (not in packages.ml)

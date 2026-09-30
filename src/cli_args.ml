@@ -24,6 +24,8 @@ type mode_parse = {
   mode : Typecheck.mode;
   mode_flag : bool;
   failfast : bool;
+  yes : bool;
+  no : bool;
 }
 
 (** Validate that a file system path exists and matches the expected kind.
@@ -57,13 +59,15 @@ let validate_path ~kind path =
     @param args The CLI argument list.
     @return [Ok mode_parse] containing filtered args and parsed flags, or [Error message] on invalid flags. *)
 let parse_mode_args (args : string list) : (mode_parse, string) result =
-  let rec extract acc mode seen failfast = function
+  let rec extract acc mode seen failfast yes no = function
     | [] ->
         Ok {
           args = List.rev acc;
           mode;
           mode_flag = seen;
           failfast;
+          yes;
+          no;
         }
     | "--mode" :: [] ->
         Error "Missing value for --mode. Use --mode repl|strict"
@@ -72,22 +76,26 @@ let parse_mode_args (args : string list) : (mode_parse, string) result =
           Error "Duplicate --mode flag. Use --mode repl|strict only once."
         else
           (match Typecheck.mode_of_string m with
-           | Some mode' -> extract acc mode' true failfast rest
+           | Some mode' -> extract acc mode' true failfast yes no rest
            | None ->
                Error (Printf.sprintf "Invalid mode '%s'. Use --mode repl|strict" m))
-    | "--failfast" :: rest -> extract acc mode seen true rest
-    | x :: xs -> extract (x :: acc) mode seen failfast xs
+    | "--failfast" :: rest -> extract acc mode seen true yes no rest
+    | "--yes" :: rest -> extract acc mode seen failfast true no rest
+    | "--no" :: rest -> extract acc mode seen failfast yes true rest
+    | x :: xs -> extract (x :: acc) mode seen failfast yes no xs
   in
-  extract [] Typecheck.Repl false false args
+  extract [] Typecheck.Repl false false false false args
 
 (** Validate that CLI flags are used only in command contexts where they are supported.
     
     @param mode_flag Whether [--mode] was provided.
     @param unsafe_flag Whether [--unsafe] was provided.
     @param failfast_flag Whether [--failfast] was provided.
+    @param yes_flag Whether [--yes] was provided.
+    @param no_flag Whether [--no] was provided.
     @param args The entire CLI arguments list.
     @return [Ok ()] if all flag constraints are met, or [Error message] otherwise. *)
-let validate_cli_flags ~mode_flag ~unsafe_flag ~failfast_flag (args : string list) : (unit, string) result =
+let validate_cli_flags ~mode_flag ~unsafe_flag ~failfast_flag ~yes_flag ~no_flag (args : string list) : (unit, string) result =
   let commands = ["run"; "repl"; "test"; "explain"; "init"; "doc"; "doctor"; "docs"; "update"; "publish"; "export_artifacts"; "import_artifacts"; "--help"; "-h"; "--version"; "-v"] in
   let command =
     match args with
@@ -123,7 +131,15 @@ let validate_cli_flags ~mode_flag ~unsafe_flag ~failfast_flag (args : string lis
     | None | Some "run" | Some "repl" -> true
     | _ -> false
   in
-  if unsafe_flag && not unsafe_allowed then
+  let answer_allowed =
+    match command with
+    | Some "test" | Some "run" | Some "repl" | Some "explain" -> true
+    | None -> true
+    | _ -> false
+  in
+  if yes_flag && no_flag then
+    Error "`--yes` and `--no` cannot be used together."
+  else if unsafe_flag && not unsafe_allowed then
     Error "--unsafe is only valid with `t run <file.t>` or `t` (REPL)."
   else if unsafe_flag && run_expr then
     Error "--unsafe cannot be used with `t run --expr`."
@@ -131,6 +147,8 @@ let validate_cli_flags ~mode_flag ~unsafe_flag ~failfast_flag (args : string lis
     Error "--mode only applies to repl/run/explain."
   else if failfast_flag && not failfast_allowed then
     Error "--failfast only applies to repl/run/explain/test."
+  else if (yes_flag || no_flag) && not answer_allowed then
+    Error "--yes/--no only apply to repl/run/explain/test."
   else
     Ok ()
 

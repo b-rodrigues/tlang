@@ -378,7 +378,7 @@ p = pipeline {
 - Plot-producing R, Python, and Julia nodes can expose structured `viz` metadata through `read_node()` / `pretty_print()`, and `show_plot()` can render `ggplot2`, Python plotting backends, `TidierPlots.jl`, `Plots.jl`, and `CairoMakie` artifacts.
 - **Companion Packages (`tlang`)**: Light-weight helper packages (named `tlang` in R, Python, and Julia) are made available for all T project. They provide the `read_node()` function for seamless data consumption between languages.
 - Nodes run in Nix-managed sandboxes, so R/Python/shell/Quarto/Julia dependencies must be declared in the project/package metadata and synced via `t update`.
-- T auto-detects serializer runtime dependencies from your pipeline nodes. When you build, T checks `tproject.toml` and prompts you to add any missing packages before proceeding. Set `TLANG_AUTO_ADD_PIPELINE_DEPS=1` to skip the prompt in CI. See the [Serializer Runtime Dependencies table](docs/serializers.md) for the full mapping of formats to per-runtime packages.
+- T auto-detects serializer runtime dependencies from your pipeline nodes. When you build, T checks `tproject.toml` and prompts you to add any missing packages before proceeding. Set `TLANG_AUTO_ADD_PIPELINE_DEPS=1` to skip the prompt in CI, or answer per command with `t run --yes <file.t>` / `t run --no <file.t>` (`--no` always wins). See the [Serializer Runtime Dependencies table](docs/serializers.md) for the full mapping of formats to per-runtime packages.
 
 ### Quarto specifics
 

@@ -165,8 +165,16 @@ instead of failing fast.
   tested with save/restore). Note: `ensure_project_requirements` already
   gated on `is_interactive` before reaching the prompt; the fix covers
   direct callers and terminal-attached suites.
-- [ ] Consider `--yes`/`--no` CLI flags in a later pass (env vars cover
-  scripts and CI for now).
+- [x] Per-command flags (done: `t run --yes <file.t>` answers yes and
+  `t run --no <file.t>` declines, on `run`/`repl`/`test`/`explain`;
+  both together is a CLI error). `--no` joins the decline path, so it
+  wins over `--yes` and every env var, and it also blocks the
+  `TLANG_AUTO_ADD_PIPELINE_DEPS=1` absent-file bypass; `--yes` joins the
+  affirm path but never grants that bypass (absent `tproject.toml` still
+  errors). Unit tested per source and per combination, plus `t check`-free
+  held-open-stdin runs that return immediately.
+- [x] Per-command `--yes`/`--no` CLI flags (done, see above; env vars
+  still cover scripts and CI that prefer ambient configuration).
 
 **Acceptance.**
 - [x] `t run <pipeline-with-missing-deps < /dev/null` errors immediately

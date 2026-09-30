@@ -607,25 +607,47 @@ let env_flag name =
   | Some ("1" | "true" | "TRUE" | "yes" | "YES" | "on" | "ON") -> true
   | _ -> false
 
+(* CLI overrides for the unattended prompt paths below. Set once from the
+   `t` entry point (`--yes` / `--no`); plain refs because the prompt call
+   sites sit deep inside pipeline evaluation and threading parameters
+   through every layer would churn unrelated signatures (same pattern as
+   `Ast.check_mode`). Tests save and restore both refs around each case. *)
+let cli_yes = ref false
+let cli_no = ref false
+
 (* Unattended opt-out for the interactive prompt below. Set in scripts and
    test suites so a terminal on stdin can never stall a build waiting for
-   an answer. Takes effect before any tty check or stdin read. *)
-let no_prompt_env () = env_flag "TLANG_NO_PROMPT"
+   an answer. Takes effect before any tty check or stdin read. `--no`
+   joins `TLANG_NO_PROMPT` here, so an explicit decline always wins over
+   every auto-answer below, from flags and env alike. *)
+let no_prompt_env () = !cli_no || env_flag "TLANG_NO_PROMPT"
 
 (* Unattended opt-in answering the prompt with "yes": updates
    `tproject.toml` exactly as an interactive `y` would (the caller then
    reports the rebuild message). Explicit opt-in only — unlike
-   `TLANG_NO_PROMPT`, this modifies the project file. *)
-let assume_yes_env () = env_flag "TLANG_ASSUME_YES"
+   `TLANG_NO_PROMPT`, this modifies the project file. `--yes` joins
+   `TLANG_ASSUME_YES` here; it never grants the absent-file bypass that
+   `TLANG_AUTO_ADD_PIPELINE_DEPS` alone grants below. *)
+let assume_yes_env () = !cli_yes || env_flag "TLANG_ASSUME_YES"
+
+(* Names the active source in unattended messages so `--yes` runs do not
+   claim an env var is set and vice versa. Decline has one question to
+   answer, affirm names `--yes` first (explicit beats ambient). *)
+let decline_source () = if !cli_no then "`--no`" else "`TLANG_NO_PROMPT`"
+
+let affirm_source () =
+  if !cli_yes then "`--yes`"
+  else if env_flag "TLANG_AUTO_ADD_PIPELINE_DEPS" then "`TLANG_AUTO_ADD_PIPELINE_DEPS`"
+  else "`TLANG_ASSUME_YES`"
 
 let prompt_to_update ~tproject_path analysis =
   if no_prompt_env () then begin
-    Printf.printf "%s\n\nUnattended mode (`TLANG_NO_PROMPT` is set); leaving `tproject.toml` unchanged.\n%!"
-      (format_analysis analysis);
+    Printf.printf "%s\n\nUnattended mode (%s is set); leaving `tproject.toml` unchanged.\n%!"
+      (format_analysis analysis) (decline_source ());
     false
   end else if assume_yes_env () then begin
-    Printf.printf "%s\n\nUnattended mode (`TLANG_ASSUME_YES` is set); answering yes and updating `tproject.toml`.\n%!"
-      (format_analysis analysis);
+    Printf.printf "%s\n\nUnattended mode (%s is set); answering yes and updating `tproject.toml`.\n%!"
+      (format_analysis analysis) (affirm_source ());
     true
   end else begin
     Printf.printf "%s\n\nAdd these entries to %s now? [y/N]: %!"
@@ -656,7 +678,12 @@ let ensure_project_requirements (p : Ast.pipeline_result) =
   if not has_any_requirements then
     Ok ()
   else if not (Sys.file_exists tproject_path) then
-    if env_flag "TLANG_AUTO_ADD_PIPELINE_DEPS" then
+    if env_flag "TLANG_AUTO_ADD_PIPELINE_DEPS" && not (no_prompt_env ()) then
+      (* Absent project file with auto-add and no decline signal: proceed;
+         any `--no` / `TLANG_NO_PROMPT` decline falls through to the error
+         below instead of silently skipping declaration. `--yes` alone never
+         takes this path: without `tproject.toml` there is nothing honest to
+         update, so it still fails with the actionable message. *)
       Ok ()
     else
       let analysis =
@@ -696,10 +723,11 @@ let ensure_project_requirements (p : Ast.pipeline_result) =
                Ok ()
              else if no_prompt_env () then
                (* Explicit decline wins over every auto-answer below,
-                  including `TLANG_ASSUME_YES`. *)
+                  from flags (`--no`) and env (`TLANG_NO_PROMPT`) alike,
+                  including `--yes` and `TLANG_ASSUME_YES`. *)
                Error
                   (format_analysis analysis
-                   ^ "\n\nUnattended mode (`TLANG_NO_PROMPT` is set); leaving `tproject.toml` unchanged.")
+                   ^ Printf.sprintf "\n\nUnattended mode (%s is set); leaving `tproject.toml` unchanged." (decline_source ()))
              else if env_flag "TLANG_AUTO_ADD_PIPELINE_DEPS" || assume_yes_env () then
                let updated_cfg = update_config_with_missing_requirements cfg analysis in
                let updated_content = Toml_parser.serialize_tproject_toml updated_cfg in
@@ -710,7 +738,8 @@ let ensure_project_requirements (p : Ast.pipeline_result) =
                Error
                   (format_analysis analysis
                   ^ "\n\nThis session is non-interactive, so T cannot update `tproject.toml` automatically."
-                  ^ "\nSet `TLANG_AUTO_ADD_PIPELINE_DEPS=1` or `TLANG_ASSUME_YES=1` to auto-add the missing entries in CI or other unattended environments.")
+                  ^ "\nSet `--yes`, `TLANG_AUTO_ADD_PIPELINE_DEPS=1` or `TLANG_ASSUME_YES=1` to auto-add the missing entries in CI or other unattended environments."
+                  ^ "\nSet `--no` or `TLANG_NO_PROMPT=1` to decline without prompting.")
              else if not (prompt_to_update ~tproject_path analysis) then
                Error
                   (format_analysis analysis

@@ -137,7 +137,7 @@ This prevents runtime errors after long-running computations by catching interch
 
 ## 5. Serializer Runtime Dependencies
 
-When you build a pipeline, T scans every node's serializer and runtime to determine which packages are needed, then checks `tproject.toml` for those packages. If any are missing, T **prompts you** with the exact `[r-dependencies]`, `[py-dependencies]`, and `[jl-dependencies]` entries to add before proceeding. You must then run `t update` and re-enter `nix develop` for the packages to become available. (Set `TLANG_AUTO_ADD_PIPELINE_DEPS=1` to skip the prompt in CI — T auto-appends the missing entries and exits with instructions to rerun the build.)
+When you build a pipeline, T scans every node's serializer and runtime to determine which packages are needed, then checks `tproject.toml` for those packages. If any are missing, T **prompts you** with the exact `[r-dependencies]`, `[py-dependencies]`, and `[jl-dependencies]` entries to add before proceeding. You must then run `t update` and re-enter `nix develop` for the packages to become available. (Set `TLANG_AUTO_ADD_PIPELINE_DEPS=1` to skip the prompt in CI — T auto-appends the missing entries and exits with instructions to rerun the build. Per-command equivalents: `t run --yes <file.t>` answers yes, `t run --no <file.t>` declines; `--no` always wins, and `--yes` still requires `tproject.toml` to exist.)
 
 The table below shows which packages each format pulls in per runtime:
 
