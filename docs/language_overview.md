@@ -82,7 +82,7 @@ Construction takes all-positional or all-named arguments (never a mix). Unknown,
 Unions name related cases with positional payloads. Every case uses call syntax, including nullary ones — a bare name in a pattern is always a binding, never a case test.
 
 ```t
-type Shape = Circle(Float) | Rect(Float, Float) | Missing
+type Shape = Circle(Float) | Rect(Float, Float) | Missing()
 s = Circle(1.0)
 match(s) {
   Circle(r) => r,

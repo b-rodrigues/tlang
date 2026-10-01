@@ -13,5 +13,5 @@ Serializes any T value to a file using OCaml's Marshal module. Includes a conten
 
 ## Returns
 
-String] Ok or error.
+Ok or error.
 

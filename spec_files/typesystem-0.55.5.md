@@ -32,20 +32,28 @@ silently.
   Compared by type head only (constructors, payloads ignored), so the
   check can never reject two values of the same kind; custom types
   compare by name (`Model` vs `Pipeline` differ). Flexible positions
-  (`Any`, including reified `NA` and error values) neither bind nor
-  constrain: the first *solid* value wins, so `(NA, 1, "s")` and
-  `(1, "s", NA)` agree. Nested type variables (e.g. inside `List[T]`)
-  are not unified. The static analyzer has no call checking to extend,
-  so runtime is the only layer changed. Note: `Int` vs `Float` counts
-  as inconsistent here even though `types_compatible` widens — widening
-  answers "does this fit", consistency asks "are these identical", and
-  silent numeric merging would be the wrong default.
+  (`Any`, `TVar`, `TUnknown`, including reified `NA` and error values)
+  neither bind nor constrain: the first *solid* value wins, so
+  `(NA, 1, "s")` and `(1, "s", NA)` agree. Nested type variables unify
+  structurally through `List`/`Dict`/`Tuple` positions (homogeneous
+  containers contribute element structure; heterogeneous ones keep a
+  union member; empty containers stay open). The static analyzer has no
+  call checking to extend, so runtime is the only layer changed. Note:
+  `Int` vs `Float` counts as inconsistent here even though
+  `types_compatible` widens — widening answers "does this fit",
+  consistency asks "are these identical", and silent numeric merging
+  would be the wrong default. `Ast.TUnknown` is now a distinct variant
+  (no longer collapsed to `Any`): unknown matches everything, so no
+  previously passing check newly fails, but unknown stays visible as
+  `Unknown` instead of disappearing into `Any`.
 - [x] Definition-site checking, warn-only (done): `Check_utils.generic_body_diagnostics`
-  warns when a generic lambda declares a direct type-variable return
+  warns when a generic lambda declares a type-variable return
   (`\(T)(x: T -> T)`) but its body is a fixed literal that never mentions
-  its parameters (e.g. `\(T)(x: T -> T) "oops"`). Param-using and unknown
-  bodies stay silent; nested returns (`List[T]`) are skipped. Severity is
-  Warning with a `generic_body_strict` ref for future Error mode.
+  its parameters (e.g. `\(T)(x: T -> T) "oops"`). One level of nesting
+  is covered too (`List[T]`/`Dict[String, T]` returns against fixed
+  list/dict literals); deeper shapes stay silent. Param-using and unknown
+  bodies stay silent. Severity is Warning with a `generic_body_strict`
+  ref for future Error mode.
   No Analyzer dependency (syntactic literals only) so the library keeps
   its module order with no cycle.
 
@@ -55,7 +63,9 @@ silently.
   `const(1, 2.5)` fails (documented strictness); full suite green
   with no new rejections on existing programs.
 - [x] `\(T)(x: T -> T) "oops"` warns once at `t check`; identity,
-  param-using, non-generic, and nested-return cases stay silent.
+  param-using, non-generic, and unknown-body cases stay silent.
+  `\(T)(x: T -> List[T]) [1, 2]` warns; param-using and call bodies
+  stay silent.
 
 ## 2. User-defined types
 
@@ -161,11 +171,12 @@ statically. Sound (never wrong) but toothless.
   signature parsed to `TUnknown`. One-line fix maps all three spellings
   to `TDataFrame`. Coverage moved 308/532 (389 returns) to **372/532
   (447 returns)** with zero new rejections on the full suite.
-- [x] Closed-strategy escape hatch (done): new `custom("name")` builtin
-  quotes a custom reader/writer (`String` in, `Symbol` out) for
-  `serializer`/`deserializer` positions, keeping the constructor docs
-  honest (`Symbol | Dict`, bare names rejected). Coverage now **373/533
-  (448 returns)**.
+- [x] Closed-strategy dicts (done, `custom("name")` removed): strategy
+  positions take built-ins or `[format: ^name, ...snippets]` dicts with
+  closed keys. The quoting escape is gone; `t check` teaches the dict
+  form. Coverage now **384/533
+  (454 returns)**, with an unknown-signature watch listing unparseable
+  positions (live builtins only).
 - [x] Nominal domain types (done): `Pipeline`, `Model`, `NDArray`,
   `Symbol`, `Date`, `Datetime`, `Formula`, `Lens`, `Expect`,
   `ComputedNode`, `NodeDef`, `Period`, `Duration`, `Interval` map to

@@ -27,9 +27,9 @@ open Ast
 --#   path(s) to include in the node sandbox.  Per-node `include` appended after.
 --# @param env_vars :: Dict (Optional) Combine (prepend). Environment variables.
 --#   Per-node env vars override same keys.
---# @param serializer :: String | Symbol (Optional) Override. Default serializer;
+--# @param serializer :: Strategy (Optional) Override. Default serializer;
 --#   replaces per-node serializer.
---# @param deserializer :: String | Symbol (Optional) Override. Default deserializer;
+--# @param deserializer :: Strategy (Optional) Override. Default deserializer;
 --#   replaces per-node deserializer.
 --# @param noop :: Bool (Optional) Force-only. If true, nodes become no-ops.
 --#   Setting false has no effect — it cannot un-set a per-node noop.
@@ -121,14 +121,19 @@ let register env =
             let parse_expr_opt v =
               match v with
               | VSerializer s -> Ok (Some (mk_expr (Value (VSerializer s))))
-              | VSymbol "default" | VString "default" -> Ok (Some (mk_expr (Var "default")))
-              | VString s -> Ok (Some (mk_expr (Value (VString s))))
-              | VSymbol s -> Ok (Some (mk_expr (Value (VString s))))
+              | VSymbol "default" -> Ok (Some (mk_expr (Var "default")))
+              | VSymbol s -> Ok (Some (mk_expr (Value (VSymbol s))))
+              | VDict pairs -> Ok (Some (mk_expr (Value (VDict pairs))))
+              | VString s ->
+                  Error (Error.type_error
+                    (Printf.sprintf
+                       "set_pipeline_global_options: `serializer`/`deserializer` expects a Strategy (^%s or a strategy dict), got String. Use a ^-prefixed symbol instead."
+                       s))
               | VNA _ -> Ok None
               | other ->
                   Error (Error.type_error
                     (Printf.sprintf
-                       "set_pipeline_global_options: expected a string or symbol for serializer/deserializer, but got %s."
+                       "set_pipeline_global_options: expected a symbol or strategy dict for serializer/deserializer, but got %s."
                        (Utils.type_name other)))
             in
 

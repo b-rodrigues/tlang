@@ -17,6 +17,5 @@ True for Interval values.
 
 ```t
 is_interval(interval(ymd("2024-01-01"), ymd("2024-02-01")))
-*)
 ```
 

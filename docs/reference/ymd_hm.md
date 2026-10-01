@@ -19,6 +19,5 @@ Parses strings to Datetime values, reading year through minute. Vectorized over 
 
 ```t
 ymd_hm("2024-01-15 10:30")
-*)
 ```
 

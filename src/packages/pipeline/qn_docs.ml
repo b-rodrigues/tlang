@@ -8,8 +8,8 @@
 --#
 --# @name qn
 --# @param script :: String (Optional) Path to an external `.qmd` file to render. Mutually exclusive with `command`.
---# @param serializer :: Symbol | Dict (Optional) Serializer strategy: a built-in (`default`, `^csv`, `^json`, `^ipc`, `^parquet`, `^pmml`, `^onnx`, `^bin`, `^text`, `^tlang`), an inline custom dict, or a quoted custom function `custom("name")` declared in `functions`. Bare function names are rejected. Default is `default`.
---# @param deserializer :: Symbol | Dict (Optional) Deserializer strategy: same closed set as `serializer`. Default is `default`.
+--# @param serializer :: Strategy (Optional) Serializer strategy: a built-in (`default`, `^csv`, `^json`, `^ipc`, `^parquet`, `^pmml`, `^onnx`, `^bin`, `^text`, `^tlang`) or a strategy dict `[format: ^name, ...snippets]` (see `docs/serializers.md`). Bare function names are rejected. Default is `default`.
+--# @param deserializer :: Strategy (Optional) Deserializer strategy: same closed set as `serializer`. Default is `default`.
 --# @param env_vars :: Dict (Optional) Environment variables to pass into the sandbox.
 --# @param args :: Dict (Optional) Runtime/tool arguments. Use this to pass Quarto CLI arguments such as `subcommand`, `path`, `to`, and additional options. `output_dir` is reserved and managed automatically so the rendered result is stored as the node artifact.
 --# @param functions :: String | List[String] (Optional) Files to source before execution.

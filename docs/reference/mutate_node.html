@@ -38,8 +38,8 @@
 <p>Modifies metadata fields on pipeline nodes. Supports a
 <code>where</code> named argument to scope changes to a subset of nodes.
 Without <code>where</code>, all nodes are affected. Mutable metadata
-fields: <code>noop</code> (Bool), <code>serializer</code> (String),
-<code>deserializer</code> (String), <code>runtime</code> (String),
+fields: <code>noop</code> (Bool), <code>serializer</code> (Strategy),
+<code>deserializer</code> (Strategy), <code>runtime</code> (String),
 <code>deps</code> (List[String]), <code>functions</code> (List[String]),
 <code>include</code> (List[String]), <code>env_vars</code> (Dict),
 <code>args</code> (Dict), <code>shell</code> (String),
@@ -59,7 +59,7 @@ Predicate scoping which nodes are updated.</p></li>
 <p>A new pipeline with updated node metadata.</p>
 <h2 id="examples">Examples</h2>
 <pre class="t"><code>p |&gt; mutate_node($noop = true)
-p |&gt; mutate_node($serializer = &quot;pmml&quot;, where = $runtime == &quot;R&quot;)</code></pre>
+p |&gt; mutate_node($serializer = ^pmml, where = $runtime == &quot;R&quot;)</code></pre>
 <h2 id="see-also">See Also</h2>
 <p><a href="rename_node.html">rename_node</a>, <a
 href="filter_node.html">filter_node</a></p>

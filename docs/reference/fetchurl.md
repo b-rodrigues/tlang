@@ -10,7 +10,7 @@ Downloads a file from a URL. In the REPL, wraps curl. In a pipeline, creates a n
 
 - **sha256** (`String`): (Optional) Expected SHA-256 hash (required in pipeline mode).
 
-- **serializer** (`String`): (Optional) Serializer format for pipeline mode. Defaults to "bin". Use "text" for plain text files.
+- **serializer** (`Symbol`): (Optional) Serializer format for pipeline mode as a ^-prefixed symbol. Defaults to ^bin. Use ^text for plain text files.
 
 - **output** (`String`): (Optional) Output file path (REPL mode only). Defaults to the basename of the URL.
 

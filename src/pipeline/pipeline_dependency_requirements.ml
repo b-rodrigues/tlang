@@ -640,24 +640,40 @@ let affirm_source () =
   else if env_flag "TLANG_AUTO_ADD_PIPELINE_DEPS" then "`TLANG_AUTO_ADD_PIPELINE_DEPS`"
   else "`TLANG_ASSUME_YES`"
 
+(** One decision function for every unattended prompt path. Decline always
+    wins (explicit `--no` / `TLANG_NO_PROMPT` beats every auto-answer);
+    otherwise an explicit or ambient yes wins; otherwise ask the user
+    interactively. Both `prompt_to_update` and `ensure_project_requirements`
+    consult it, so precedence lives in one place and tests exercise the
+    real gate instead of only the rendering branches. *)
+type prompt_decision =
+  | Decline of string (* source name for messages *)
+  | Accept of string (* source name for messages *)
+  | Ask
+
+let decide_prompt () =
+  if no_prompt_env () then Decline (decline_source ())
+  else if assume_yes_env () then Accept (affirm_source ())
+  else Ask
+
 let prompt_to_update ~tproject_path analysis =
-  if no_prompt_env () then begin
-    Printf.printf "%s\n\nUnattended mode (%s is set); leaving `tproject.toml` unchanged.\n%!"
-      (format_analysis analysis) (decline_source ());
-    false
-  end else if assume_yes_env () then begin
-    Printf.printf "%s\n\nUnattended mode (%s is set); answering yes and updating `tproject.toml`.\n%!"
-      (format_analysis analysis) (affirm_source ());
-    true
-  end else begin
-    Printf.printf "%s\n\nAdd these entries to %s now? [y/N]: %!"
-      (format_analysis analysis) tproject_path;
-    match read_prompt_answer () with
-    | Some answer -> answer_is_yes answer
-    | None ->
-          Printf.printf "\nNo input received; leaving `tproject.toml` unchanged.\n%!";
-          false
-  end
+  match decide_prompt () with
+  | Decline src ->
+      Printf.printf "%s\n\nUnattended mode (%s is set); leaving `tproject.toml` unchanged.\n%!"
+        (format_analysis analysis) src;
+      false
+  | Accept src ->
+      Printf.printf "%s\n\nUnattended mode (%s is set); answering yes and updating `tproject.toml`.\n%!"
+        (format_analysis analysis) src;
+      true
+  | Ask ->
+      Printf.printf "%s\n\nAdd these entries to %s now? [y/N]: %!"
+        (format_analysis analysis) tproject_path;
+      (match read_prompt_answer () with
+       | Some answer -> answer_is_yes answer
+       | None ->
+           Printf.printf "\nNo input received; leaving `tproject.toml` unchanged.\n%!";
+           false)
 
 let rebuild_message tproject_path =
   Printf.sprintf

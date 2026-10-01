@@ -62,6 +62,10 @@ let value_to_literal ~runtime (v : value) : string =
   | VString s -> "\"" ^ String.escaped s ^ "\""
   | VSymbol s -> s
   | VNA _ -> "NA"
+  (* Unreachable for foreign runtimes: `resolve_map_deps` rejects records,
+     unions, and type definitions at any depth first (see `record_desc_of`
+     in pipeline_expand.ml). For T runtimes the arms below never fire.
+     Kept as a loud backstop instead of silent constructor text. *)
   | VRecord r when runtime <> "T" ->
       invalid_arg (Printf.sprintf
         "expand_pipeline: record `%s` cannot be inlined as %s code text; records are T-side contracts. Pass plain data across the boundary instead."
@@ -206,44 +210,43 @@ let resolve_map_deps
   ) dep_names in
   (* Records are T-side contracts: they cannot be inlined as foreign code
      text during pattern expansion. Slices take list/vector elements and
-     whole dict values, so the check covers one level down — anything
-     deeper trips the loud `invalid_arg` backstop in `value_to_literal`
-     instead of silently emitting constructor text. T-runtime nodes never
-     hit this gate with raw text (their substitutions stay values). The
-     wildcard below is the rule itself: any other value shape carries no
-     record at this level by construction. *)
-  let record_name_of = function
+     whole dict values, so the check walks to any depth — a record nested
+     anywhere would otherwise reach `value_to_literal` (which raises) or,
+     worse, render as silent constructor text. T-runtime nodes never hit
+     this gate with raw text (their substitutions stay values). *)
+  let rec record_desc_of = function
     | VRecord r -> Some r.rec_type
     | VUnion u -> Some (u.un_case ^ " of " ^ u.un_type)
     | VTypeDef t -> Some ("type " ^ t.td_name)
-    | VList items ->
-        List.find_map (fun (_, v) ->
-          match v with
-          | VRecord r -> Some r.rec_type
-          | VUnion u -> Some (u.un_case ^ " of " ^ u.un_type)
-          | VTypeDef t -> Some ("type " ^ t.td_name)
-          | _ -> None
-        ) items
-    | VVector arr ->
-        Array.to_seq arr |> Seq.find_map (fun v ->
-          match v with
-          | VRecord r -> Some r.rec_type
-          | VUnion u -> Some (u.un_case ^ " of " ^ u.un_type)
-          | VTypeDef t -> Some ("type " ^ t.td_name)
-          | _ -> None)
-    | VDict pairs ->
-        List.find_map (fun (_, v) ->
-          match v with
-          | VRecord r -> Some r.rec_type
-          | VUnion u -> Some (u.un_case ^ " of " ^ u.un_type)
-          | VTypeDef t -> Some ("type " ^ t.td_name)
-          | _ -> None
-        ) pairs
+    | VNodeResult { v; _ } -> record_desc_of v
+    | VList items -> List.find_map (fun (_, v) -> record_desc_of v) items
+    | VVector arr -> Array.to_seq arr |> Seq.find_map record_desc_of
+    | VDict pairs -> List.find_map (fun (_, v) -> record_desc_of v) pairs
     | _ -> None
+  in
+  (* Conditional shadows with later reads would resolve to the whole
+     artifact instead of the per-branch slice (see
+     Ast.has_conditional_shadow_read): fail loudly and ask for a rename
+     instead of expanding silently inconsistent branches. T commands
+     substitute values structurally, so only raw foreign blocks apply. *)
+  let shadow_err =
+    match get_node_command p name with
+    | Some e ->
+        (match e.node with
+         | RawCode { raw_text; _ } ->
+             let runtime = runtime_of_node p name in
+             (match List.find_opt (fun d -> Ast.has_conditional_shadow_read ~runtime raw_text d) dep_names with
+              | None -> Ok ()
+              | Some d ->
+                  Error (Error.value_error
+                    (Printf.sprintf "expand_pipeline: node `%s` conditionally binds `%s` and reads it later. Later reads would see the whole artifact instead of the per-branch slice. Rename the local variable so every `%s` read means the dependency."
+                       name d d)))
+         | _ -> Ok ())
+    | None -> Ok ()
   in
   let record_hit =
     List.find_map (fun (d, v) ->
-      match record_name_of v with Some r -> Some (d, r) | None -> None
+      match record_desc_of v with Some r -> Some (d, r) | None -> None
     ) (List.combine dep_names dep_values)
   in
   (match record_hit with
@@ -265,7 +268,9 @@ let resolve_map_deps
          else if branch_count = 0 then
            Error (Error.type_error (Printf.sprintf "expand_pipeline: dependencies for node '%s' have zero length." name))
          else
-           Ok (dep_values, branch_count))
+            (match shadow_err with
+             | Error _ as e -> e
+             | Ok () -> Ok (dep_values, branch_count)))
 
 let make_branch (name : string) (orig_name : string) (i : int) (value_idx : int) (dep_indices : (string * int) list) (command_expr : Ast.expr) : branch_info =
   let branch_name = name ^ "_branch_" ^ string_of_int (i + 1) in

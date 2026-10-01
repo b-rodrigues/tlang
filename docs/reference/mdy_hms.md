@@ -19,6 +19,5 @@ Parses MDY-ordered strings to Datetime values. Vectorized over vectors. Unparsea
 
 ```t
 mdy_hms("01-15-2024 10:30:45")
-*)
 ```
 

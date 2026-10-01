@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>T Function Reference - ydm</title>
+  <title>T Function Reference - to_dict</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -33,19 +33,22 @@
     <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
 </nav>
 <div class="container">
-<h1 id="ydm">ydm</h1>
-<p>Parse year-day-month dates</p>
-<p>Parses strings in YDM order to Date values. Vectorized over vectors.
-Unparseable inputs become NA.</p>
+<h1 id="to_dict">to_dict</h1>
+<p>Convert record to Dict</p>
+<p>Converts a user-defined record to a plain Dict with one entry per
+field, so record data can cross into foreign node code (records
+themselves are T-side contracts and never cross). Shallow: nested
+records stay records; call <code>to_dict</code> on them first if
+needed.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><strong>value</strong> (<code>String</code>): | Vector The date
-string(s) to parse.</li>
+<li><strong>x</strong> (<code>Record</code>): The record to
+convert.</li>
 </ul>
 <h2 id="returns">Returns</h2>
-<div class="line-block">Vector The parsed date(s).</div>
+<p>A Dict mapping field names to values.</p>
 <h2 id="examples">Examples</h2>
-<pre class="t"><code>ydm(&quot;2024-15-01&quot;)</code></pre>
+<pre class="t"><code>to_dict(Point(x = 1.0, y = 2.0))</code></pre>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

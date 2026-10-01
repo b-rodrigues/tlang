@@ -17,6 +17,5 @@ The period value.
 
 ```t
 weeks(1)
-*)
 ```
 

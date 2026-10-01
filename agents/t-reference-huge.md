@@ -528,6 +528,34 @@ T supports the following value types:
 | `Expression`| `to_expr(1 + 2)`            | Captured code (for metaprogramming) |
 | `Intent`    | `intent { ... }`         | LLM-friendly metadata block         |
 
+### User-Defined Record Types
+
+T supports nominal, closed record types for naming domain shapes. A record is never a `Dict` and never another record type, even with an identical field shape — the type name is identity.
+
+```t
+type Point = { x: Float, y: Float }
+p = Point(x = 1.0, y = 2.0)
+p.x -- 1.0
+```
+
+Construction takes all-positional or all-named arguments (never a mix). Unknown, missing, or mistyped fields fail with an error naming the field and the valid set. Annotations accept record names (`\(p: Point -> Point) p`), enforced at runtime like all annotations. Records match `_` and variable arms in `match`. Records are T-side contracts: they cannot cross into foreign node code or serializers — use plain data across the boundary instead. The leading word `type` is contextual, so the `type()` builtin keeps working.
+
+### User-Defined Tagged Unions
+
+Unions name related cases with positional payloads. Every case uses call syntax, including nullary ones — a bare name in a pattern is always a binding, never a case test.
+
+```t
+type Shape = Circle(Float) | Rect(Float, Float) | Missing()
+s = Circle(1.0)
+match(s) {
+  Circle(r) => r,
+  Rect(w, h) => w * h,
+  Missing() => 0.0
+} -- 1.0
+```
+
+Cases resolve only for unbound names: an ordinary variable with the same name always wins. A case shared by two unions in scope fails naming every owner type — rename one case. Payload counts and types are checked at construction; calling the union type itself fails naming its cases. `t check` warns on missing cases, unknown case names, and bare variables shadowing a case name. Unions are T-side contracts like records.
+
 ### Variables and Assignment
 
 ```t
@@ -1884,6 +1912,26 @@ to_float("F")          -- 0.0
 to_float(42)             -- 42.0
 to_float("hello")        -- NA(Float)
 to_float(["1", "2"])   -- [1.0, 2.0]
+```
+
+---
+
+### `to_dict(record)`
+
+Convert a user-defined record to a plain `Dict` with one entry per field, so record data can cross into foreign node code (records themselves are T-side contracts and never cross). Shallow: nested records stay records.
+
+**Parameters:**
+
+
+- `record` — Record value
+
+**Returns:**
+
+`Dict` mapping field names to values
+
+**Examples:**
+```t
+to_dict(Point(x = 1.0, y = 2.0))   -- [`x`: 1., `y`: 2.]
 ```
 
 ---
@@ -4427,8 +4475,8 @@ Subsetting nodes in a pipeline. `filter_node` keeps nodes matching a condition; 
 to a subset via the `where` named argument). `rename_node` changes a node's
 label while preserving its dependency edges.
 
-**Mutable fields:** `noop` (Bool), `runtime` (String), `serializer` (String),
-`deserializer` (String), `deps` (List[String]), `functions` (List[String]),
+**Mutable fields:** `noop` (Bool), `runtime` (String), `serializer` (Strategy),
+`deserializer` (Strategy), `deps` (List[String]), `functions` (List[String]),
 `include` (List[String]), `env_vars` (Dict), `args` (Dict), `shell` (String),
 `shell_args` (List[String]), `flake` (String).
 
@@ -4561,11 +4609,11 @@ Merge semantics vary per option:
   Per-node `include` arguments are appended after these global includes.
 - `env_vars` (optional) — Dict of environment variables for every node. Per-node
   `env_vars` override global values for the same key.
-- `serializer` (optional) — String, Symbol, or `^`-prefixed serializer name. Default
-  serializer for every node; replaces any per-node serializer. `"default"` selects
+- `serializer` (optional) — Strategy: a `^`-prefixed built-in name or a strategy dict. Default
+  serializer for every node; replaces any per-node serializer. `default` selects
   the runtime's default.
-- `deserializer` (optional) — String, Symbol, or `^`-prefixed deserializer name. Default
-  deserializer for every node; replaces any per-node deserializer. `"default"` selects
+- `deserializer` (optional) — Strategy: a `^`-prefixed built-in name or a strategy dict. Default
+  deserializer for every node; replaces any per-node deserializer. `default` selects
   the runtime's default.
 - `noop` (optional) — Bool. If true, every node becomes a no-op. Setting false has no
   effect (it cannot un-set a per-node `noop = true`).
@@ -4625,8 +4673,8 @@ The returned Dict has the following keys:
 
 - `name` — the node name (String)
 - `runtime` — one of `"T"`, `"R"`, `"Python"`, `"Julia"`, `"Quarto"`, `"sh"` (String)
-- `serializer` — e.g. `"default"`, `"pmml"` (String)
-- `deserializer` — e.g. `"default"`, `"pmml"` (String)
+- `serializer` — resolved strategy value (a Symbol like ^csv, a strategy Dict, or "default" for unset)
+- `deserializer` — resolved strategy value, same shapes as `serializer`
 - `noop` — whether the node is a no-op (Bool)
 - `deps` — names of nodes this node depends on (List of String)
 - `depth` — topological depth in the DAG (Int); roots are depth 0
@@ -6616,7 +6664,7 @@ Pass if `node_name` serializer matches the expected serializer.
 **Parameters:**
 - `p` — The pipeline to check.
 - `node_name` — The node name.
-- `expected` — Expected serializer (String or Symbol, e.g. `^ipc`, `^csv`).
+- `expected` — Expected serializer (Symbol, e.g. `^ipc`, `^csv`).
 
 **Examples:**
 ```t
@@ -6630,7 +6678,7 @@ Pass if `node_name` deserializer matches the expected deserializer.
 **Parameters:**
 - `p` — The pipeline to check.
 - `node_name` — The node name.
-- `expected` — Expected deserializer (String or Symbol).
+- `expected` — Expected deserializer (Symbol).
 
 **Examples:**
 ```t
@@ -9557,12 +9605,18 @@ Now that you can work with numerical arrays, explore statistical modeling and re
 
 # Changelog
 
-## [0.55.4] - 2026-09-29
+## [0.55.5] - Unreleased
 
 ### New features
 
-- **Automatic editor setup in new projects**: `t init` now writes an `.envrc` (`use flake`) and a `.vscode/` folder recommending the T and direnv extensions, so Positron and VS Code pick up the flake environment — including `t-lsp` and the project R/Python interpreters — after one `direnv allow`. Direnv state (`.direnv/`) is git-ignored in new projects and packages.
-- **Richer static types**: collection types (`List[X]`, `Vector[X]`, `Dict[K, V]`), nominal domain types (`Model`, `Pipeline`, `Date`, …), and top-level `A | B` unions now flow from docstrings into inference, with structural compatibility and nested widening. A coverage audit with a ratcheting floor tracks precision (308/532 fully precise); generic calls reject inconsistent instantiations instead of passing silently. Note: generic consistency is strict about `Int` vs `Float` (identity, not widening) by design.
+- **Richer static types**: collection types (`List[X]`, `Vector[X]`, `Dict[K, V]`), nominal domain types (`Model`, `Pipeline`, `Date`, …), and top-level `A | B` unions now flow from docstrings into inference, with structural compatibility and nested widening. A coverage audit with a ratcheting floor tracks precision (384/533 fully precise, with per-package breakdown, plus a listed watch for signatures that parse to unknown); generic calls reject inconsistent instantiations instead of passing silently. Note: generic consistency is strict about `Int` vs `Float` (identity, not widening) by design.
+- **`t check` warns on non-exhaustive `match` over known values**: matching a known `Error` value without an `Error` arm, or a known `NA` without an `NA` arm (and no `_` catch-all), now warns at check time instead of failing only at runtime. Matches over variables and other values stay silent, so no existing program gains a warning.
+- **User-defined record types**: `type Point = { x: Float, y: Float }` declares a nominal, closed shape; `Point(x = 1.0)` and `Point(1.0)` construct it, `p.x` reads fields, and annotations (`\(p: Point -> Point)`) enforce it at runtime. Same-shape types still differ (`Point` is never `Pair` and never a `Dict`); unknown, missing, or mistyped fields fail naming the valid set. Records are T-side contracts and cannot cross into foreign node code or serializers — pass plain data across the boundary.
+- **User-defined tagged unions**: `type Shape = Circle(Float) | Rect(Float, Float) | Missing()` declares named cases; every case uses call syntax in declarations, construction, and patterns alike, so a bare name always stays a binding and can never silently mean a case test. Bare-word declarations (including single-case aliases like `type Celsius = Float`) fail with a message teaching the call syntax. Payload counts and types check at construction; shared case names and direct union construction fail naming the owners and cases. `t check` warns on missing cases, unknown case names, and shadowing bare variables. Unions are T-side contracts like records.
+- **Closed serializer strategies**: `serializer`/`deserializer` accept built-ins (`default`, `^csv`, …) or a strategy dict `[format: ^name, ...snippets]` with inline `<{ ... }>` reader/writer snippets (see `docs/serializers.md` and the `custom_polyglot_serializer_t` demo in `t_demos`). Strategy dicts have closed keys (`format` always present, snippets per runtime) and custom formats must carry a snippet for the node's runtime and role — a bare `default` sentinel, `t check`, and the emitter can no longer produce bare `name(...)` calls. Bare function names fail at construction naming the valid set and the dict form; the constructor docs now state the closed set. There is no quoting escape: the old `custom("name")` builtin is removed, use a strategy dict instead.
+- **`--yes` / `--no` flags for unattended prompts**: `t run --yes <file.t>` answers yes to the missing-dependency prompt (updating `tproject.toml`, like typing `y`), and `t run --no <file.t>` declines (like typing `N`). The flags are the per-command form of `TLANG_NO_PROMPT=1` / `TLANG_ASSUME_YES=1`; `--no` always wins over `--yes` and the env vars, the two flags together are an error, and `--yes` still requires `tproject.toml` to exist (unlike `TLANG_AUTO_ADD_PIPELINE_DEPS=1` alone, which also skips the absent-file error).
+- **Union declarations require call syntax**: every case in a `type` declaration now needs parentheses (`Missing()`, never bare `Missing`), matching construction and patterns. Bare-word declarations — including single-case aliases like `type Celsius = Float` — fail at parse time naming the call syntax.
+- **`to_dict(record)`**: converts a user-defined record to a plain `Dict` (one entry per field, shallow) so record data can cross into foreign node code, where records themselves can never go.
 
 ### Fixes
 
@@ -9570,7 +9624,28 @@ Now that you can work with numerical arrays, explore statistical modeling and re
 - **Error values no longer trip type checks**: `VError` is now compatible with every annotation (bottom value, like `NA`), so errors propagate through typed positions instead of being masked — `f(error("boom"))` into `\(x: Int -> Int)` returns the original error, not a spurious `Expected Int` mismatch. Schema inference already treated error paths as unknown; no new type syntax was needed.
 - **Unattended builds never wait on stdin**: the missing-dependency prompt no longer reads from non-terminal stdin (where a held-open pipe would block forever) and gains a `TLANG_NO_PROMPT=1` opt-out that declines before any prompt. A new `TLANG_ASSUME_YES=1` counterpart answers yes (updating `tproject.toml`, like an interactive `y`) for scripts that previously piped one in — note that piping `y` into a build no longer works, since stdin is never read. Scripts and CI fail fast with the actionable fix instead.
 - **Foreign locals no longer wire phantom dependencies**: dependency inference now subtracts names bound by the foreign block itself (R `<-`/`=`/`->`/loop variables, Python assignments/`for`/`def` with suite tracking, Julia assignments/named definitions with scope tracking, shell `name=`/`for`). A shadowed sibling name no longer creates a false edge (or false cycle); genuinely used siblings, keyword arguments, and `read_node("name")` literals still register.
-- **Slim shells for projects without runtime dependencies**: node builds use `pipeline.nix` environments, so a project that declares no R/Python/Julia packages now skips user package sets — a pure-T shell drops from 10 locally-built derivations to 2 (measured via `nix build --dry-run`). The `tlang` companion stays wrapped, so documented `library(tlang)` in ad-hoc shell R sessions keeps working; Python/Julia fall back to bare interpreters (their shell extras were never documented, and node builds are unaffected). Declaring any dependency restores the full environment on the next `t update`.
+- **Slim shells for projects without runtime dependencies**: node builds use `pipeline.nix` environments, so a project that declares no R/Python/Julia packages now skips user package sets — a pure-T shell drops from 10 locally-built derivations to 2 (measured via `nix build --dry-run`). The `tlang` companion stays wrapped, so documented `library(tlang)` in ad-hoc shell R sessions keeps working, and the companion paths stay exported for all three runtimes (`import tlang` works bare since the Python package is stdlib-only; `using tlang` needs JSON, auto-added once any Julia dependency is declared). Declaring any dependency restores the full environment on the next `t update`.
+- **`Quarto` nodes take no strategies**: an explicit `serializer` or `deserializer` on a `qn()` node is now a `TypeError` (`serializer/deserializer for quarto undefined`) instead of a silently ignored argument.
+- **Strings rejected in every strategy position**: `mutate_node`, `set_pipeline_global_options`, and `fetchurl` now require `^`-prefixed symbols or strategy dicts — string literals are a `TypeError` naming the `^`-form.
+- **Special nodes reject custom formats**: strategy dicts with non-builtin formats fail fast on `T` (builtins only), `sh`, and `fetchurl` nodes instead of emitting calls that fail downstream.
+- **`t check` reads in source order**: diagnostics across all phases now sort by file location instead of grouping by check category, in both human and JSON output.
+- **Union exhaustiveness follows variables**: `s = Circle(1.0)` followed by `match(s)` now warns on missing cases exactly like a direct `match(Circle(1.0))`. Reassigned variables and lambda parameters stay silent.
+- **`^text` is T/sh-only and `^tlang` means default**: `^text` on R, Python, or Julia nodes is now an ordinary validation error instead of an emitter `Internal error`; `^tlang` emits exactly like the runtime default everywhere.
+- **`expect_serializer` / `expect_deserializer` take Symbols only**: a String `expected` value now stops the check with a message naming the `^`-form instead of matching silently.
+- **Records coerce Int payloads and reject error payloads**: constructing a record or union case with an Int for a Float field now stores a Float, so later generic calls see consistent kinds; an error payload fails construction instead of building a value that carries the error.
+- **Generic consistency checks inside containers**: a type variable shared across arguments must now agree at every level, so `const([1], ["a"])` fails exactly like `const(1, "s")` already did (same for dict values and nested `List[T]` parameters, with `Int` vs `Float` kept distinct throughout). NA elements stay wildcards. Fixed-shape bodies of generic `List[T]`/`Dict[String, T]` functions warn at `t check` when they never use their parameters.
+- **Type declarations guarded at declaration time**: names colliding with built-in nominal types (`Model`, `Pipeline`, `Date`, …) are rejected, and union case names shared across types fail immediately instead of at first use.
+- **Pattern expansion rejects conditional shadows with later reads**: a foreign block that binds a dependency name conditionally and reads it later now fails with an explicit rename request — the later reads would otherwise see the whole artifact instead of the per-branch slice. Records nested at any depth are rejected the same way.
+- **Smarter foreign-block scope inference**: shell env-prefix assignments (`FOO=1 cmd`) and `export` with a following command no longer count as bindings; chained assignments (`A=1 B=2`) bind as a group; `export`/`declare`/`readonly`/`local` with `=` bind normally; `${X:=...}` records conditionally; statement continuations after `&&`, `||`, `|`, and `\` guard same-line bindings; Julia `try`/`finally` bodies and `abstract`/`primitive` types scope correctly. Quoted `$var`, `${var}`, `$(...)`, backtick, and Python f-string reads in shell, Julia, and Python strings now create dependency edges.
+
+## [0.55.4] - 2026-09-29
+
+### New features
+
+- **Automatic editor setup in new projects**: `t init` now writes an `.envrc` (`use flake`) and a `.vscode/` folder recommending the T and direnv extensions, so Positron and VS Code pick up the flake environment — including `t-lsp` and the project R/Python interpreters — after one `direnv allow`. Direnv state (`.direnv/`) is git-ignored in new projects and packages.
+
+### Fixes
+
 - **Default serializers no longer hang node builds**: `default`/`^default` serializer/deserializer in T (and R/Python/Julia) nodes now resolve to the real reader/writer instead of emitting a call to a nonexistent `default` function. Calling a bare symbol is now an explicit `TypeError` instead of spinning at 100% CPU forever — this hung `model_capabilities_demo_t` on CI, where every `^default` model consumer sat until the job timed out.
 - **Scaffolded `.gitignore` covers shell guard dirs**: `.t_python_guard/` and `.t_r_profile/`, created on every `nix develop` entry, are now ignored in new projects and packages, so `t update`'s clean-tree check passes on fresh scaffolds.
 - **Plot render paths are Nix-escaped**: `show_plot` now quotes project, config, and artifact paths with `nix_double_quote` instead of OCaml `%S`, closing the same `${...}` interpolation gap already fixed for git strings. Verified no other Nix emitters still use `%S`.
@@ -15693,22 +15768,17 @@ analysis = pipeline {
   raw_data = node(
     command = read_csv("tests/pipeline/data/mtcars.csv", separator = "|"),
     runtime = T,
-    serializer = t_write_csv,
-    functions = "tests/pipeline/iolib.t"
+    serializer = ^csv
   )
 
   summary_r = rn(
     command = <{ raw_data |> dplyr::group_by(cyl) |> dplyr::summarize(avg_mpg = mean(mpg)) }>,
-    serializer = r_write_csv,
-    deserializer = r_read_csv,
-    functions = "tests/pipeline/iolib.R"
+    deserializer = [raw_data: ^csv]
   )
 
   summary_py = pyn(
     command = <{ raw_data.groupby("cyl").agg({"mpg": "mean"}).reset_index().rename(columns={"mpg": "avg_mpg"}) }>,
-    serializer = py_write_csv,
-    deserializer = py_read_csv,
-    functions = "tests/pipeline/iolib.py"
+    deserializer = [raw_data: ^csv]
   )
 
   shell_report = shn(command = <{
@@ -15727,6 +15797,8 @@ cat "$T_NODE_summary_py/artifact"
 
 build_pipeline(analysis)
 ```
+
+For a custom format, define a strategy dict `[format: ^name, ...snippets]` (see `docs/serializers.md` and the `custom_polyglot_serializer_t` demo in `t_demos`).
 
 This exact pattern is exercised end-to-end in `tests/pipeline/polyglot_shell_pipeline.t` and `.github/workflows/polyglot-shell-pipeline.yml`.
 
@@ -20770,7 +20842,7 @@ A consolidated index of all pipeline reading, inspecting, and build-log function
 | `pipeline_leaves(p)` | `Pipeline` | `List[String]` | Nodes that nothing depends on |
 | `pipeline_depth(p)` | `Pipeline` | `Int` | Maximum topological depth |
 | `pipeline_cycles(p)` | `Pipeline` | `List[String]` | Nodes involved in cycles (empty = valid) |
-| `pipeline_validate(p)` | `Pipeline` | `List[String]` | All structural validation errors (empty = valid); checks missing files, unknown runtimes, missing deps, cycles, cross-runtime deserializer gaps, serializer coherence, multi-dep deserializer strategies, and `^bin`-only-for-fetchurl. Same checks power `populate_pipeline`, `build_pipeline`, and `t check` tier 1 |
+| `pipeline_validate(p)` | `Pipeline` | `List[String]` | All structural validation errors (empty = valid); checks missing files, unknown runtimes, missing deps, cycles, cross-runtime deserializer gaps, serializer coherence, multi-dep deserializer strategies, closed strategy-dict shape with per-runtime snippet checks, strategies on `Quarto` nodes, and `^bin`-only-for-fetchurl. Same checks power `populate_pipeline`, `build_pipeline`, and `t check` tier 1 |
 | `pipeline_assert(p)` | `Pipeline` | `Pipeline` | Throws first error, or returns pipeline unchanged |
 | `pipeline_print(p)` | `Pipeline` | `NA` | Pretty-print node table to stdout |
 | `pipeline_to_dot(p)` | `Pipeline` \| `MetaPipeline` | `String` | Graphviz DOT representation |
@@ -20805,7 +20877,7 @@ A consolidated index of all pipeline reading, inspecting, and build-log function
 
 | Function | Parameters | Returns | What it does |
 |---|---|---|---|
-| `set_pipeline_global_options(p, functions?, include?, env_vars?, serializer?, deserializer?, noop?, args?, shell?, shell_args?, flake?, dependencies?, runtimes?, nodes?)` | `Pipeline` plus optional `Dict`/`String`/`List`/`Bool` settings | `Pipeline` | Returns a new pipeline with global defaults merged into target nodes (all nodes by default). Original unchanged. Merge semantics: `functions`, `include`, `env_vars`, `args`, `shell_args`, `dependencies` prepend global values before per-node values (per-node dict keys win); `serializer`, `deserializer`, `shell`, `flake` override per-node values entirely; `noop = true` forces every node to no-op (`false` has no effect). `runtimes`/`nodes` restrict the merge to a subset (union when both given). |
+| `set_pipeline_global_options(p, functions?, include?, env_vars?, serializer?, deserializer?, noop?, args?, shell?, shell_args?, flake?, dependencies?, runtimes?, nodes?)` | `Pipeline` plus optional `Dict`/`String`/`Symbol`/`List`/`Bool` settings (`serializer`/`deserializer` take `Strategy`: `^`-symbols or strategy dicts, never strings) | `Pipeline` | Returns a new pipeline with global defaults merged into target nodes (all nodes by default). Original unchanged. Merge semantics: `functions`, `include`, `env_vars`, `args`, `shell_args`, `dependencies` prepend global values before per-node values (per-node dict keys win); `serializer`, `deserializer`, `shell`, `flake` override per-node values entirely; `noop = true` forces every node to no-op (`false` has no effect). `runtimes`/`nodes` restrict the merge to a subset (union when both given). |
 | `pipeline_node_options(p, node)` | `Pipeline`, `String` | `Dict` | Read-back: returns the fully resolved configuration of a single node after any global-options merges (runtime, serializer, functions, env_vars, shell, flake, deps, depth, ...). Unknown node is a `TypeError`. |
 
 ---
@@ -22250,7 +22322,7 @@ Syncing 2 dependency(ies) from tproject.toml → flake.nix...
 Running nix flake update...
 ```
 
-This regenerates `flake.nix` so new dependencies and tools appear as proper flake inputs with locked versions. The tools will be available directly in your shell and automatically provided to any pipeline nodes during execution. When you declare runtime dependencies, the matching `tlang` companion package is also exposed in the project shell (`library(tlang)` for R, `import tlang` for Python, and `using tlang` for Julia). Then re-enter the shell:
+This regenerates `flake.nix` so new dependencies and tools appear as proper flake inputs with locked versions. The tools will be available directly in your shell and automatically provided to any pipeline nodes during execution. When you declare runtime dependencies, the matching `tlang` companion package is also exposed in the project shell (`library(tlang)` for R, `import tlang` for Python, and `using tlang` for Julia). The R wrapper and both companion paths are present even with no declared dependencies: the Python package is stdlib-only, so `import tlang` works in a bare shell; the Julia package needs JSON, which `t update` auto-adds once any Julia dependency is declared. Then re-enter the shell:
 
 ```bash
 $ nix develop
@@ -22287,7 +22359,7 @@ After editing, run `t update` to include them in `flake.nix`. Packages are avail
 
 #### 3.3.1a Automatic Discovery from R Code
 
-T scans R node code for package usage — roxygen `@import`/`@importFrom` tags, `library()`/`require()`/`requireNamespace()`/`loadNamespace()` calls, and `pkg::fun` qualifiers — and prompts you to add any missing packages to `tproject.toml` before building (or auto-adds them with `TLANG_AUTO_ADD_PIPELINE_DEPS=1`). Base packages are never listed. Names inside string literals and `#` comments are skipped. Discovery only ensures packages are *installed*; your code must still attach them (`library(dplyr)` or `dplyr::mutate`).
+T scans R node code for package usage — roxygen `@import`/`@importFrom` tags, `library()`/`require()`/`requireNamespace()`/`loadNamespace()` calls, and `pkg::fun` qualifiers — and prompts you to add any missing packages to `tproject.toml` before building (or auto-adds them with `TLANG_AUTO_ADD_PIPELINE_DEPS=1`). Base packages are never listed. Names inside string literals and `#` comments are skipped. Discovery only ensures packages are *installed*; your code must still attach them (`library(dplyr)` or `dplyr::mutate`). For non-interactive runs, answer the prompt per command with `t run --yes <file.t>` (updates `tproject.toml`, like typing `y`) or `t run --no <file.t>` (declines, like typing `N`); `--no` always wins over `--yes` and the env vars, and `--yes` never skips a missing `tproject.toml` the way `TLANG_AUTO_ADD_PIPELINE_DEPS=1` alone does.
 
 ```r
 #' @importFrom dplyr mutate filter
@@ -24308,12 +24380,12 @@ Calls `nix-build` on the generated `pipeline.nix` file. Extracts the store path 
 
 ## Parameters
 
-- **p** (`PipelineResult`): The pipeline AST structure.
+- **p** (`Pipeline`): The pipeline AST structure.
 
 
 ## Returns
 
-The output Nix store path or the dry-run DataFrame.
+| DataFrame The output Nix store path or the dry-run DataFrame.
 
 
 
@@ -25411,7 +25483,6 @@ The period value.
 
 ```t
 days(7)
-*)
 ```
 
 
@@ -25486,7 +25557,7 @@ Reads a serialized T value from a file. Verifies an integrity digest before unma
 
 ## Returns
 
-String] Value or error.
+Value or error.
 
 
 
@@ -25496,7 +25567,7 @@ String] Value or error.
 
 Deserialize Value
 
-Deserializes a value from a `.tobj` file.
+Deserializes a value from a `.tobj` file. Returns a FileError value when the file cannot be read.
 
 ## Parameters
 
@@ -25705,7 +25776,6 @@ Parses DMY-ordered strings to Datetime values. Vectorized over vectors. Unparsea
 
 ```t
 dmy_hms("15-01-2024 10:30:45")
-*)
 ```
 
 
@@ -25731,7 +25801,6 @@ Parses strings in DMY order to Date values. Vectorized over vectors. Unparseable
 
 ```t
 dmy("15-01-2024")
-*)
 ```
 
 
@@ -26310,7 +26379,7 @@ Passes if `node_name` deserializer matches the expected deserializer.
 
 - **node_name** (`String`): The node name.
 
-- **expected** (`String`): | Symbol The expected deserializer.
+- **expected** (`Symbol`): The expected deserializer.
 
 
 ## Returns
@@ -27137,7 +27206,7 @@ Passes if `node_name` serializer matches the expected serializer.
 
 - **node_name** (`String`): The node name.
 
-- **expected** (`String`): | Symbol The expected serializer.
+- **expected** (`Symbol`): The expected serializer.
 
 
 ## Returns
@@ -27947,7 +28016,7 @@ Downloads a file from a URL. In the REPL, wraps curl. In a pipeline, creates a n
 
 - **sha256** (`String`): (Optional) Expected SHA-256 hash (required in pipeline mode).
 
-- **serializer** (`String`): (Optional) Serializer format for pipeline mode. Defaults to "bin". Use "text" for plain text files.
+- **serializer** (`Symbol`): (Optional) Serializer format for pipeline mode as a ^-prefixed symbol. Defaults to ^bin. Use ^text for plain text files.
 
 - **output** (`String`): (Optional) Output file path (REPL mode only). Defaults to the basename of the URL.
 
@@ -28553,7 +28622,6 @@ The period value.
 
 ```t
 hours(12)
-*)
 ```
 
 
@@ -29527,7 +29595,6 @@ True for Date values.
 
 ```t
 is_date(ymd("2024-01-15"))
-*)
 ```
 
 
@@ -29553,7 +29620,6 @@ True for Datetime values.
 
 ```t
 is_datetime(ymd_hms("2024-01-15 10:30:45"))
-*)
 ```
 
 
@@ -29579,7 +29645,6 @@ True for Duration values.
 
 ```t
 is_duration(ymd_hms("2024-01-15 10:30:45") - ymd_hms("2024-01-14 10:30:45"))
-*)
 ```
 
 
@@ -29660,7 +29725,6 @@ True for Interval values.
 
 ```t
 is_interval(interval(ymd("2024-01-01"), ymd("2024-02-01")))
-*)
 ```
 
 
@@ -29793,7 +29857,6 @@ True for Period values.
 
 ```t
 is_period(days(7))
-*)
 ```
 
 
@@ -29812,9 +29875,9 @@ A convenience wrapper around `node()` with `runtime = "Julia"`. Used directly wi
 
 - **script** (`String`): (Optional) Path to an external `.jl` file to execute as the node body. Mutually exclusive with `command`. Sets the runtime to `Julia` automatically.
 
-- **serializer** (`Symbol`): (Optional) Custom serializer strategy. Use `^`-prefixed symbols (e.g., `^csv`, `^json`, `^ipc`, `^parquet`, `^onnx`). Default = runtime-native binary serialization (`jl_serialize`).
+- **serializer** (`Strategy`): (Optional) Serializer strategy: a built-in (`default`, `^csv`, `^json`, `^ipc`, `^parquet`, `^pmml`, `^onnx`, `^bin`, `^text`, `^tlang`) or a strategy dict `[format: ^name, ...snippets]` (see `docs/serializers.md`). Bare function names are rejected. Default is `default`.
 
-- **deserializer** (`Symbol`): (Optional) Custom deserializer strategy. Use `^`-prefixed symbols (e.g., `^csv`, `^json`, `^ipc`, `^parquet`, `^onnx`). Default = runtime-native binary deserialization.
+- **deserializer** (`Strategy`): (Optional) Deserializer strategy: same closed set as `serializer`. Default is `default`.
 
 - **functions** (`String`): | List[String] (Optional) Julia files to source before execution.
 
@@ -30076,7 +30139,7 @@ levels(fct)
 
 List files in directory
 
-Returns a list of files and directories in the specified path. Supports an optional regex pattern for filtering.
+Returns a list of files and directories in the specified path. Supports an optional regex pattern for filtering. Returns a FileError value when the directory cannot be read.
 
 ## Parameters
 
@@ -30151,7 +30214,7 @@ summary(model)
 
 Natural logarithm
 
-Calculates the natural logarithm (base e) of x.
+Calculates the natural logarithm (base e) of x. Returns a ValueError value for non-positive input.
 
 ## Parameters
 
@@ -30417,7 +30480,6 @@ Parses MDY-ordered strings to Datetime values. Vectorized over vectors. Unparsea
 
 ```t
 mdy_hms("01-15-2024 10:30:45")
-*)
 ```
 
 
@@ -30443,7 +30505,6 @@ Parses strings in MDY order to Date values. Vectorized over vectors. Unparseable
 
 ```t
 mdy("01-15-2024")
-*)
 ```
 
 
@@ -30555,7 +30616,6 @@ The period value.
 
 ```t
 microseconds(1500)
-*)
 ```
 
 
@@ -30581,7 +30641,6 @@ The period value.
 
 ```t
 milliseconds(500)
-*)
 ```
 
 
@@ -30688,7 +30747,6 @@ The period value.
 
 ```t
 minutes(30)
-*)
 ```
 
 
@@ -30775,7 +30833,6 @@ The period value.
 
 ```t
 months(3)
-*)
 ```
 
 
@@ -30817,7 +30874,7 @@ mutate(mtcars, $ratio = $mpg / $hp)
 
 Mutate Pipeline Node Metadata
 
-Modifies metadata fields on pipeline nodes. Supports a `where` named argument to scope changes to a subset of nodes. Without `where`, all nodes are affected.  Mutable metadata fields: `noop` (Bool), `serializer` (String), `deserializer` (String), `runtime` (String), `deps` (List[String]), `functions` (List[String]), `include` (List[String]), `env_vars` (Dict), `args` (Dict), `shell` (String), `shell_args` (List[String]), `flake` (String).  The `where` clause uses NSE (`$field`) just like `filter_node`.
+Modifies metadata fields on pipeline nodes. Supports a `where` named argument to scope changes to a subset of nodes. Without `where`, all nodes are affected.  Mutable metadata fields: `noop` (Bool), `serializer` (Strategy), `deserializer` (Strategy), `runtime` (String), `deps` (List[String]), `functions` (List[String]), `include` (List[String]), `env_vars` (Dict), `args` (Dict), `shell` (String), `shell_args` (List[String]), `flake` (String).  The `where` clause uses NSE (`$field`) just like `filter_node`.
 
 ## Parameters
 
@@ -30836,7 +30893,7 @@ A new pipeline with updated node metadata.
 
 ```t
 p |> mutate_node($noop = true)
-p |> mutate_node($serializer = "pmml", where = $runtime == "R")
+p |> mutate_node($serializer = ^pmml, where = $runtime == "R")
 ```
 
 ## See Also
@@ -30938,7 +30995,6 @@ The period value.
 
 ```t
 nanoseconds(2000)
-*)
 ```
 
 
@@ -31218,7 +31274,7 @@ Evaluated at pipeline construction time. Takes condition-value pairs and returns
 
 ## Returns
 
-| Null The selected node value or null marker.
+The selected node value or null marker.
 
 ## Examples
 
@@ -31269,9 +31325,9 @@ Configure execution settings such as the runtime and custom serialized methods f
 
 - **runtime** (`Symbol`): (Optional) The runtime environment (T, R, Python, Quarto). Default = T.
 
-- **serializer** (`String`): | Function (Optional) Custom serializer strategy. Built-in values include "default", "ipc", "parquet", and "pmml". Can be a string (e.g., "ipc") or an unquoted function name. Custom functions can also be used. Default = "default".
+- **serializer** (`Strategy`): (Optional) Serializer strategy: a built-in (`default`, `^csv`, `^json`, `^ipc`, `^parquet`, `^pmml`, `^onnx`, `^bin`, `^text`, `^tlang`) or a strategy dict `[format: ^name, ...snippets]` (see `docs/serializers.md`). Bare function names are rejected. Default is `default`.
 
-- **deserializer** (`String`): | Function (Optional) Custom deserializer strategy. Built-in values include "default", "ipc", "parquet", and "pmml". Can be a string (e.g., "ipc") or an unquoted function name. Custom functions can also be used. Default = "default".
+- **deserializer** (`Strategy`): (Optional) Deserializer strategy: same closed set as `serializer`. Default is `default`.
 
 - **args** (`Dict`): (Optional) Runtime/tool arguments. For Quarto, use this to pass CLI arguments such as `subcommand`, `path`, and additional options. `output_dir` is reserved and managed automatically so the rendered result is stored as the node artifact.
 
@@ -31323,12 +31379,12 @@ Evaluated at pipeline construction time. Returns `value` if `condition` is truth
 
 - **condition** (`Bool`): The condition to evaluate.
 
-- **value** (`Node`): The node value to include if condition is true.
+- **value** (`Any`): The node value to include if condition is true.
 
 
 ## Returns
 
-| Null The node value or null marker.
+The node value or null marker.
 
 ## Examples
 
@@ -31846,7 +31902,6 @@ The days field.
 
 ```t
 period_days(days(7))
-*)
 ```
 
 
@@ -31872,7 +31927,6 @@ The hours field.
 
 ```t
 period_hours(hours(12))
-*)
 ```
 
 
@@ -31898,7 +31952,6 @@ The minutes field.
 
 ```t
 period_minutes(minutes(30))
-*)
 ```
 
 
@@ -31924,7 +31977,6 @@ The months field.
 
 ```t
 period_months(months(3))
-*)
 ```
 
 
@@ -31950,7 +32002,6 @@ The seconds field.
 
 ```t
 period_seconds(seconds(45))
-*)
 ```
 
 
@@ -31976,7 +32027,6 @@ The years field.
 
 ```t
 period_years(years(2))
-*)
 ```
 
 
@@ -32330,7 +32380,7 @@ The value of the node.
 
 Get Pipeline Node Options (read-back)
 
-Returns a Dict describing the fully resolved configuration of a single pipeline node, after any `set_pipeline_global_options` merges have been applied.  This is the read-back companion to `set_pipeline_global_options`: what you merged in, you can read back out.  The returned Dict has the following keys: - `name` — the node name (String) - `runtime` — one of "T", "R", "Python", "Julia", "Quarto", "sh" (String) - `serializer` — e.g. "default", "pmml" (String) - `deserializer` — e.g. "default", "pmml" (String) - `noop` — whether the node is a no-op (Bool) - `deps` — names of nodes this node depends on (List of String) - `depth` — topological depth in the DAG (Int); roots are depth 0 - `command_type` — one of "command" or "script" (String) - `diagnostics` — node diagnostics (Dict) - `functions` — function files merged into the node (List of String) - `include` — included files (List of String) - `env_vars` — build environment variables (Dict) - `args` — runtime/tool arguments (Dict) - `shell` — shell interpreter, or NA when unset (String | NA) - `shell_args` — shell interpreter arguments (List of String) - `flake` — Nix flake path, or NA when unset (String | NA) - `provenance` — where each resolved option came from (Dict).  Combine options (`functions`, `include`, `shell_args`, `dependencies`) are grouped into `global`/`node` sub-lists; override options (`serializer`, `deserializer`, `shell`, `flake`, `noop`) map to a source String ("global" | "node") or NA when unset; `env_vars` and `args` map each key to its source String.  An unknown node name is a `TypeError` listing the valid node names.
+Returns a Dict describing the fully resolved configuration of a single pipeline node, after any `set_pipeline_global_options` merges have been applied.  This is the read-back companion to `set_pipeline_global_options`: what you merged in, you can read back out.  The returned Dict has the following keys: - `name` — the node name (String) - `runtime` — one of "T", "R", "Python", "Julia", "Quarto", "sh" (String) - `serializer` — resolved strategy value (a Symbol like ^csv, a strategy Dict, or "default" for unset) - `deserializer` — resolved strategy value, same shapes as `serializer` - `noop` — whether the node is a no-op (Bool) - `deps` — names of nodes this node depends on (List of String) - `depth` — topological depth in the DAG (Int); roots are depth 0 - `command_type` — one of "command" or "script" (String) - `diagnostics` — node diagnostics (Dict) - `functions` — function files merged into the node (List of String) - `include` — included files (List of String) - `env_vars` — build environment variables (Dict) - `args` — runtime/tool arguments (Dict) - `shell` — shell interpreter, or NA when unset (String | NA) - `shell_args` — shell interpreter arguments (List of String) - `flake` — Nix flake path, or NA when unset (String | NA) - `provenance` — where each resolved option came from (Dict).  Combine options (`functions`, `include`, `shell_args`, `dependencies`) are grouped into `global`/`node` sub-lists; override options (`serializer`, `deserializer`, `shell`, `flake`, `noop`) map to a source String ("global" | "node") or NA when unset; `env_vars` and `args` map each key to its source String.  An unknown node name is a `TypeError` listing the valid node names.
 
 ## Parameters
 
@@ -32539,7 +32589,7 @@ Returns a string containing a Graphviz DOT representation of the pipeline or met
 
 - **flatten** (`Bool`): = false Flatten meta-pipeline subgraphs into a single level.
 
-- **title** (`Str`): = None Optional graph title. Auto-detected from tproject.toml when omitted.
+- **title** (`String`): = None Optional graph title. Auto-detected from tproject.toml when omitted.
 
 
 ## Returns
@@ -32663,7 +32713,7 @@ Returns a string containing a Mermaid JS flowchart representation of the pipelin
 
 - **flatten** (`Bool`): = false Flatten meta-pipeline subgraphs into a single level.
 
-- **title** (`Str`): = None Optional graph title. Auto-detected from tproject.toml when omitted.
+- **title** (`String`): = None Optional graph title. Auto-detected from tproject.toml when omitted.
 
 
 ## Returns
@@ -33270,7 +33320,7 @@ Returns a generator spec producing a DataFrame with one column per entry in `col
 
 ## Parameters
 
-- **columns** (`Dict[String,`): Dict] Column name -> generator spec.
+- **columns** (`Dict[String, Dict]`): Column name -> generator spec.
 
 - **nrows** (`Int`): = 30 Number of rows.
 
@@ -33305,7 +33355,7 @@ Returns a generator spec producing a Dict with one generated value per column. E
 
 ## Parameters
 
-- **columns** (`Dict`): { name :: String : gen_spec :: Dict } A Dict mapping column names to generator specs.
+- **columns** (`Dict`): A Dict mapping column names to generator specs (keys are names, values are gen specs).
 
 - **na_prob** (`Float`): = 0.1 Probability of a column value being NA.
 
@@ -33426,7 +33476,7 @@ Returns a generator spec that picks one of the supplied generators with probabil
 
 ## Parameters
 
-- **pairs** (`List[[Int,`): Dict]] A list of `[weight, generator]` pairs.
+- **pairs** (`List[List]`): A list of `[weight, generator]` pairs.
 
 
 ## Returns
@@ -33986,9 +34036,9 @@ A convenience wrapper around `node()` with `runtime = "Python"`. Used directly w
 
 - **script** (`String`): (Optional) Path to an external `.py` file to execute as the node body. Mutually exclusive with `command`. Sets the runtime to `Python` automatically.
 
-- **serializer** (`String`): | Function (Optional) Custom serializer strategy. Built-in values include "default", "ipc", "parquet", and "pmml". Can be a string (e.g., "ipc") or an unquoted function name. Custom functions can also be used. Default = "default".
+- **serializer** (`Strategy`): (Optional) Serializer strategy: a built-in (`default`, `^csv`, `^json`, `^ipc`, `^parquet`, `^pmml`, `^onnx`, `^bin`, `^text`, `^tlang`) or a strategy dict `[format: ^name, ...snippets]` (see `docs/serializers.md`). Bare function names are rejected. Default is `default`.
 
-- **deserializer** (`String`): | Function (Optional) Custom deserializer strategy. Built-in values include "default", "ipc", "parquet", and "pmml". Can be a string (e.g., "ipc") or an unquoted function name. Custom functions can also be used. Default = "default".
+- **deserializer** (`Strategy`): (Optional) Deserializer strategy: same closed set as `serializer`. Default is `default`.
 
 - **functions** (`String`): | List[String] (Optional) Python files to source before execution.
 
@@ -34077,9 +34127,9 @@ A convenience wrapper around `node()` with `runtime = "Quarto"`. Used directly w
 
 - **script** (`String`): (Optional) Path to an external `.qmd` file to render. Mutually exclusive with `command`.
 
-- **serializer** (`String`): | Function (Optional) Custom serializer strategy. Built-in values include "default", "ipc", "parquet", and "pmml". Can be a string (e.g., "ipc") or an unquoted function name. Custom functions can also be used. Default = "default".
+- **serializer** (`Strategy`): (Optional) Serializer strategy: a built-in (`default`, `^csv`, `^json`, `^ipc`, `^parquet`, `^pmml`, `^onnx`, `^bin`, `^text`, `^tlang`) or a strategy dict `[format: ^name, ...snippets]` (see `docs/serializers.md`). Bare function names are rejected. Default is `default`.
 
-- **deserializer** (`String`): | Function (Optional) Custom deserializer strategy. Built-in values include "default", "ipc", "parquet", and "pmml". Can be a string (e.g., "ipc") or an unquoted function name. Custom functions can also be used. Default = "default".
+- **deserializer** (`Strategy`): (Optional) Deserializer strategy: same closed set as `serializer`. Default is `default`.
 
 - **env_vars** (`Dict`): (Optional) Environment variables to pass into the sandbox.
 
@@ -34298,7 +34348,7 @@ Return min and max as a length-2 vector.
 
 Read CSV file
 
-Reads a CSV file into a DataFrame.
+Reads a CSV file into a DataFrame. Returns a FileError value when the file cannot be read.
 
 ## Parameters
 
@@ -34336,7 +34386,7 @@ df = read_csv("data.csv", separator = ";")
 
 Read file contents
 
-Reads the entire content of a file into a string.
+Reads the entire content of a file into a string. Returns a FileError value when the file cannot be read.
 
 ## Parameters
 
@@ -34361,7 +34411,7 @@ read_file("config.json")
 
 Read an Arrow IPC (Feather) file
 
-Loads a DataFrame from an Arrow IPC file (also known as Feather v2) on disk.  IPC is the fastest format to read and write (no compression), ideal for pipeline intermediates and cross-runtime exchange. For compressed, long-term storage of large datasets, use read_parquet instead.
+Loads a DataFrame from an Arrow IPC file (also known as Feather v2) on disk. Returns a FileError value when the file cannot be read.  IPC is the fastest format to read and write (no compression), ideal for pipeline intermediates and cross-runtime exchange. For compressed, long-term storage of large datasets, use read_parquet instead.
 
 ## Parameters
 
@@ -34432,7 +34482,7 @@ The deserialized artifact value, or the in-memory value.
 
 Read Parquet file
 
-Reads a DataFrame from a Parquet file using the native parquet-glib reader.  Prefer Parquet for compressed, long-term storage of large datasets or when sharing data with external analytics tooling. For the fastest possible round trip (no compression), use read_ipc instead.
+Reads a DataFrame from a Parquet file using the native parquet-glib reader. Returns a FileError value when the file cannot be read.  Prefer Parquet for compressed, long-term storage of large datasets or when sharing data with external analytics tooling. For the fastest possible round trip (no compression), use read_ipc instead.
 
 ## Parameters
 
@@ -34518,7 +34568,7 @@ Parses a registry JSON file back into a list of name-path pairs.
 
 ## Returns
 
-String)], String] Entries or error.
+Entries or error.
 
 
 
@@ -34801,9 +34851,9 @@ A convenience wrapper around `node()` with `runtime = "R"`. Used directly within
 
 - **script** (`String`): (Optional) Path to an external `.R` file to execute as the node body. Mutually exclusive with `command`. Sets the runtime to `R` automatically.
 
-- **serializer** (`String`): | Function (Optional) Custom serializer strategy. Built-in values include "default", "ipc", "parquet", and "pmml". Can be a string (e.g., "ipc") or an unquoted function name. Custom functions can also be used. Default = "default".
+- **serializer** (`Strategy`): (Optional) Serializer strategy: a built-in (`default`, `^csv`, `^json`, `^ipc`, `^parquet`, `^pmml`, `^onnx`, `^bin`, `^text`, `^tlang`) or a strategy dict `[format: ^name, ...snippets]` (see `docs/serializers.md`). Bare function names are rejected. Default is `default`.
 
-- **deserializer** (`String`): | Function (Optional) Custom deserializer strategy. Built-in values include "default", "ipc", "parquet", and "pmml". Can be a string (e.g., "ipc") or an unquoted function name. Custom functions can also be used. Default = "default".
+- **deserializer** (`Strategy`): (Optional) Deserializer strategy: same closed set as `serializer`. Default is `default`.
 
 - **functions** (`String`): | List[String] (Optional) R scripts to source before execution.
 
@@ -35158,7 +35208,6 @@ The period value.
 
 ```t
 seconds(45)
-*)
 ```
 
 
@@ -35356,7 +35405,7 @@ seq(start = 1, end = 10, by = 2)
 
 Serialize Value
 
-Serializes a value to a `.tobj` file.
+Serializes a value to a `.tobj` file. Returns a FileError value when the file cannot be written.
 
 ## Parameters
 
@@ -35392,7 +35441,7 @@ Serializes any T value to a file using OCaml's Marshal module. Includes a conten
 
 ## Returns
 
-String] Ok or error.
+Ok or error.
 
 
 
@@ -35456,9 +35505,9 @@ Pure function that returns a new pipeline with the given defaults merged into no
 
 - **env_vars** (`Dict`): (Optional) Combine (prepend). Environment variables.
 
-- **serializer** (`String`): | Symbol (Optional) Override. Default serializer;
+- **serializer** (`Strategy`): (Optional) Override. Default serializer;
 
-- **deserializer** (`String`): | Symbol (Optional) Override. Default deserializer;
+- **deserializer** (`Strategy`): (Optional) Override. Default deserializer;
 
 - **noop** (`Bool`): (Optional) Force-only. If true, nodes become no-ops.
 
@@ -35557,9 +35606,9 @@ A convenience wrapper around `node()` with `runtime = "sh"`. Use `shn()` inside 
 
 - **script** (`String`): (Optional) Path to an external `.sh` file to execute as the node body. Mutually exclusive with `command`.
 
-- **serializer** (`String`): | Function (Optional) Custom serializer strategy. Built-in values include "default", "ipc", "parquet", and "pmml". Can be a string (e.g., "ipc") or an unquoted function name. Custom functions can also be used. Default = "default".
+- **serializer** (`Strategy`): (Optional) Serializer strategy: a built-in (`default`, `^csv`, `^json`, `^ipc`, `^parquet`, `^pmml`, `^onnx`, `^bin`, `^text`, `^tlang`) or a strategy dict `[format: ^name, ...snippets]` (see `docs/serializers.md`). Bare function names are rejected. Default is `default`.
 
-- **deserializer** (`String`): | Function (Optional) Custom deserializer strategy. Built-in values include "default", "ipc", "parquet", and "pmml". Can be a string (e.g., "ipc") or an unquoted function name. Custom functions can also be used. Default = "default".
+- **deserializer** (`Strategy`): (Optional) Deserializer strategy: same closed set as `serializer`. Default is `default`.
 
 - **args** (`Dict`): | List (Optional) Runtime arguments. Lists become positional CLI arguments for exec-style nodes.
 
@@ -35906,7 +35955,7 @@ source(print)
 
 Square root
 
-Calculates the square root of x.
+Calculates the square root of x. Returns a ValueError value for negative input.
 
 ## Parameters
 
@@ -36519,7 +36568,7 @@ Replaces a node's implementation with a new node value. The dependency edges of 
 
 - **name** (`String`): The name of the node to replace.
 
-- **new_node** (`Node`): The new node implementation.
+- **new_node** (`Any`): The new node implementation.
 
 
 ## Returns
@@ -36942,6 +36991,31 @@ The current date.
 
 
 
+# FILE: docs/reference/to_dict.md
+
+# to_dict
+
+Convert record to Dict
+
+Converts a user-defined record to a plain Dict with one entry per field, so record data can cross into foreign node code (records themselves are T-side contracts and never cross). Shallow: nested records stay records; call `to_dict` on them first if needed.
+
+## Parameters
+
+- **x** (`Record`): The record to convert.
+
+
+## Returns
+
+A Dict mapping field names to values.
+
+## Examples
+
+```t
+to_dict(Point(x = 1.0, y = 2.0))
+```
+
+
+
 # FILE: docs/reference/to_expr.md
 
 # to_expr
@@ -37223,7 +37297,7 @@ The transposed matrix.
 
 Read Value from JSON
 
-Deserializes a T value from a JSON file. Automatically handles type conversion for scalars, lists, and dictionaries.
+Deserializes a T value from a JSON file. Automatically handles type conversion for scalars, lists, and dictionaries. Returns a FileError value when the file cannot be read.
 
 ## Parameters
 
@@ -37447,7 +37521,7 @@ results = t_test(failfast = true, timeout = 30, verbose = true)
 
 Write Value to JSON
 
-Serializes a T value to a JSON file. This is used as the universal baseline for object transport between runtimes in the sandbox interchange protocol.
+Serializes a T value to a JSON file. This is used as the universal baseline for object transport between runtimes in the sandbox interchange protocol. Returns a FileError value when the file cannot be written.
 
 ## Parameters
 
@@ -37886,7 +37960,6 @@ The period value.
 
 ```t
 weeks(1)
-*)
 ```
 
 
@@ -38038,7 +38111,7 @@ Retains the instant in time while changing the displayed timezone label.
 
 Write CSV file
 
-Writes a DataFrame to a CSV file.
+Writes a DataFrame to a CSV file. Returns a FileError value when the file cannot be written.
 
 ## Parameters
 
@@ -38071,7 +38144,7 @@ write_csv(df, "output.csv")
 
 Write Arrow IPC file
 
-Writes a DataFrame to an Apache Arrow IPC (Feather v2) file.  IPC is the fastest format to read and write (no compression), ideal for pipeline intermediates and cross-runtime exchange. For compressed, long-term storage of large datasets, use write_parquet instead.
+Writes a DataFrame to an Apache Arrow IPC (Feather v2) file. Returns a FileError value when the file cannot be written.  IPC is the fastest format to read and write (no compression), ideal for pipeline intermediates and cross-runtime exchange. For compressed, long-term storage of large datasets, use write_parquet instead.
 
 ## Parameters
 
@@ -38102,7 +38175,7 @@ write_ipc(df, "data.arrow")
 
 Write Parquet file
 
-Writes a DataFrame to a Parquet file using the native parquet-glib writer.  Prefer Parquet for compressed, long-term storage of large datasets or when sharing data with external analytics tooling. For the fastest possible round trip (no compression), use write_ipc instead.
+Writes a DataFrame to a Parquet file using the native parquet-glib writer. Returns a FileError value when the file cannot be written.  Prefer Parquet for compressed, long-term storage of large datasets or when sharing data with external analytics tooling. For the fastest possible round trip (no compression), use write_ipc instead.
 
 ## Parameters
 
@@ -38139,12 +38212,12 @@ Writes a flat JSON object mapping node names to artifact paths.
 
 - **path** (`String`): Destination file.
 
-- **entries** (`List[(String,`): String)] Name-path pairs.
+- **entries** (`List[(String, String)]`): Name-path pairs.
 
 
 ## Returns
 
-String] Status.
+Status.
 
 
 
@@ -38154,7 +38227,7 @@ String] Status.
 
 Write text to a file
 
-Writes a string to a file at the specified path.
+Writes a string to a file at the specified path. Returns a FileError value when the file cannot be written.
 
 ## Parameters
 
@@ -38209,7 +38282,6 @@ Parses strings in YDM order to Date values. Vectorized over vectors. Unparseable
 
 ```t
 ydm("2024-15-01")
-*)
 ```
 
 
@@ -38254,7 +38326,6 @@ The period value.
 
 ```t
 years(2)
-*)
 ```
 
 
@@ -38282,7 +38353,6 @@ Parses strings to Datetime values, reading year through hour. Vectorized over ve
 
 ```t
 ymd_h("2024-01-15 10")
-*)
 ```
 
 
@@ -38310,7 +38380,6 @@ Parses strings to Datetime values, reading year through minute. Vectorized over 
 
 ```t
 ymd_hm("2024-01-15 10:30")
-*)
 ```
 
 
@@ -38338,7 +38407,6 @@ Parses strings to Datetime values, reading year through second. Vectorized over 
 
 ```t
 ymd_hms("2024-01-15 10:30:45")
-*)
 ```
 
 
@@ -38364,7 +38432,6 @@ Parses strings in YMD order to Date values. Vectorized over vectors. Unparseable
 
 ```t
 ymd("2024-01-15")
-*)
 ```
 
 
@@ -38832,9 +38899,7 @@ node(..., serializer = my_ser)
 ```
 
 > [!IMPORTANT]
-> **String literals (e.g., `serializer = "ipc"`) are strictly disallowed in node constructors** (`rn()`, `pyn()`, `jln()`, `shn()`, `qn()`, `node()`). You must use either a symbol with the `^` prefix for built-ins or a variable name for custom serializers. Using a string literal in a node constructor will result in a `TypeError`.
->
-> `mutate_node()` and `set_pipeline_global_options()` accept both strings and symbols: `mutate_node($serializer = "pmml")` and `set_pipeline_global_options(p, serializer = ^pmml)` are both valid.
+> **String literals (e.g., `serializer = "ipc"`) are strictly disallowed in strategy positions** (`rn()`, `pyn()`, `jln()`, `shn()`, `qn()`, `node()`, `mutate_node()`, `set_pipeline_global_options()`, `fetchurl()`). You must use either a symbol with the `^` prefix for built-ins or a strategy dict for custom formats. Using a string literal will result in a `TypeError`.
 
 
 ### Implicit Serialization
@@ -38891,22 +38956,18 @@ type serializer = {
 
 ### Custom Serializers
 
-You can create a custom serializer by defining a record that matches the required interface. Note that the `format` field should use a **Symbol** (starting with `^`) to remain consistent with T's symbol-based serialization mandate.
+You can create a custom serializer with a strategy dict. The dict has closed keys: `format` (always present, a `^`-prefixed symbol) plus inline `<{ ... }>` code snippets per runtime (`r_writer`, `r_reader`, `py_writer`, `py_reader`, `julia_writer`, `julia_reader`). `t check` and pipeline validation enforce the shape: unknown keys, a missing `format`, non-code snippets, and custom formats without a snippet for the node's runtime are all errors. Custom formats are not supported on `T` nodes (builtins only) or on `sh` and `fetchurl` nodes, and `Quarto` nodes take no serializer or deserializer at all.
 
 ```t
-my_log_serializer = {
+my_log_serializer = [
   format: ^log,
-  writer: \(path, val) {
-    -- custom logic to write log
-    Ok(NA)
-  },
-  reader: \(path) {
-    -- custom logic to read log
-    Ok("log content")
-  }
-}
+  r_writer: <{ function(obj, path) writeLines(obj, path) }>,
+  r_reader: <{ function(path) readLines(path) }>,
+  py_writer: <{ lambda obj, path: open(path, 'w').write(str(obj)) }>,
+  py_reader: <{ lambda path: open(path).read() }>
+]
 
--- Usage: Pass the variable name (no ^ hat on the variable itself!)
+-- Usage: pass the variable name (no ^ hat on the variable itself!)
 node(command = ..., serializer = my_log_serializer)
 ```
 
@@ -38933,7 +38994,7 @@ This prevents runtime errors after long-running computations by catching interch
 
 ## 5. Serializer Runtime Dependencies
 
-When you build a pipeline, T scans every node's serializer and runtime to determine which packages are needed, then checks `tproject.toml` for those packages. If any are missing, T **prompts you** with the exact `[r-dependencies]`, `[py-dependencies]`, and `[jl-dependencies]` entries to add before proceeding. You must then run `t update` and re-enter `nix develop` for the packages to become available. (Set `TLANG_AUTO_ADD_PIPELINE_DEPS=1` to skip the prompt in CI — T auto-appends the missing entries and exits with instructions to rerun the build.)
+When you build a pipeline, T scans every node's serializer and runtime to determine which packages are needed, then checks `tproject.toml` for those packages. If any are missing, T **prompts you** with the exact `[r-dependencies]`, `[py-dependencies]`, and `[jl-dependencies]` entries to add before proceeding. You must then run `t update` and re-enter `nix develop` for the packages to become available. (Set `TLANG_AUTO_ADD_PIPELINE_DEPS=1` to skip the prompt in CI — T auto-appends the missing entries and exits with instructions to rerun the build. Per-command equivalents: `t run --yes <file.t>` answers yes, `t run --no <file.t>` declines; `--no` always wins, and `--yes` still requires `tproject.toml` to exist.)
 
 The table below shows which packages each format pulls in per runtime:
 

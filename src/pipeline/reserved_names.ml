@@ -38,7 +38,7 @@ let builtin_functions =
     "colnames"; "compare"; "compare_native_vs_pmml_scores"; "complete"; "compose"; "conf_int";
     "contains"; "cor"; "cos"; "cosh"; "count"; "cov";
     "cross_join"; "crossing"; "cross_pattern"; "cumall"; "cumany"; "cume_dist"; "cummax";
-    "cummean"; "cummin"; "cumsum"; "custom"; "cut"; "cv"; "day";
+    "cummean"; "cummin"; "cumsum"; "cut"; "cv"; "day";
     "days"; "days_in_month"; "debug_node"; "dense_rank"; "deserialize"; "deviance";
     "df_residual"; "diag"; "difference"; "diff_summary"; "dir_exists"; "dispersion";
     "distinct"; "dmy"; "dmy_hms"; "downstream_of"; "drop_na"; "ends_with";
@@ -106,7 +106,7 @@ let builtin_functions =
     "str_words"; "subgraph"; "sum"; "summarize"; "summary"; "suppress_warnings";
     "swap"; "tail"; "tail_pattern"; "tan"; "tanh"; "t_check";
     "t_diff"; "t_fix"; "t_gc"; "t_make"; "to_array"; "to_bool";
-    "to_dataframe"; "to_date"; "to_datetime"; "today"; "to_expr"; "to_exprs";
+    "to_dataframe"; "to_date"; "to_datetime"; "to_dict"; "today"; "to_expr"; "to_exprs";
     "to_factor"; "to_float"; "to_integer"; "to_lower"; "to_string"; "to_symbol";
     "to_upper"; "trace_nodes"; "transpose"; "t_read_json"; "t_read_onnx"; "t_read_pmml";
     "trim_end"; "trimmed_mean"; "trim_start"; "trunc"; "t_score_pmml"; "t_write_json";

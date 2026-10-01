@@ -7,6 +7,7 @@ let register env =
     --#
     --# Serializes a T value to a JSON file. This is used as the universal
     --# baseline for object transport between runtimes in the sandbox interchange protocol.
+    --# Returns a FileError value when the file cannot be written.
     --#
     --# @name t_write_json
     --# @param value :: Any The value to serialize.
@@ -31,7 +32,8 @@ let register env =
   --# Read Value from JSON
   --#
   --# Deserializes a T value from a JSON file. Automatically handles type
-  --# conversion for scalars, lists, and dictionaries.
+  --# conversion for scalars, lists, and dictionaries. Returns a FileError
+  --# value when the file cannot be read.
   --#
   --# @name t_read_json
   --# @param path :: String Path to the JSON file.

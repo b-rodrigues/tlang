@@ -42,8 +42,9 @@ merges have been applied. This is the read-back companion to
 read back out. The returned Dict has the following keys: -
 <code>name</code> — the node name (String) - <code>runtime</code> — one
 of “T”, “R”, “Python”, “Julia”, “Quarto”, “sh” (String) -
-<code>serializer</code> — e.g. “default”, “pmml” (String) -
-<code>deserializer</code> — e.g. “default”, “pmml” (String) -
+<code>serializer</code> — resolved strategy value (a Symbol like ^csv, a
+strategy Dict, or “default” for unset) - <code>deserializer</code> —
+resolved strategy value, same shapes as <code>serializer</code> -
 <code>noop</code> — whether the node is a no-op (Bool) -
 <code>deps</code> — names of nodes this node depends on (List of String)
 - <code>depth</code> — topological depth in the DAG (Int); roots are

@@ -101,6 +101,7 @@ let rec from_string str =
      TFunction), Error/VError/Null (descriptive positions, not
      contracts), NA (bottom rules own it). *)
   | "pipeline" -> TCustom "Pipeline"
+  | "metapipeline" -> TCustom "MetaPipeline"
   | "model" -> TCustom "Model"
   | "ndarray" -> TCustom "NDArray"
   | "symbol" -> TCustom "Symbol"
@@ -108,6 +109,14 @@ let rec from_string str =
   | "datetime" -> TCustom "Datetime"
   | "formula" -> TCustom "Formula"
   | "lens" -> TCustom "Lens"
+  | "strategy" -> TCustom "Strategy"
+  | "factor" -> TCustom "Factor"
+  | "noderesult" -> TCustom "NodeResult"
+  | "record" -> TCustom "Record"
+  | "intent" -> TCustom "Intent"
+  | "quosure" -> TCustom "Quosure"
+  | "expr" -> TCustom "Expr"
+  | "buildlog" -> TCustom "BuildLog"
   | "expect" -> TCustom "Expect"
   | "computednode" -> TCustom "ComputedNode"
   | "nodedef" -> TCustom "NodeDef"
@@ -121,12 +130,13 @@ let rec from_string str =
       if has_toplevel_pipe str then
         (* Unions stay precise member-wise. Empty segments are dropped; a
            single surviving member needs no union; an Any member absorbs
-           the whole union (it matches everything anyway). *)
+           the whole union (it matches everything anyway). Members keep
+           declaration order (deduped) so messages read naturally. *)
         let members =
           split_toplevel_pipe str
           |> List.filter (fun s -> s <> "")
           |> List.map from_string
-          |> List.sort_uniq compare
+          |> List.fold_left (fun acc m -> if List.mem m acc then acc else acc @ [m]) []
         in
         (match members with
          | [] -> TAny
@@ -206,4 +216,4 @@ let rec to_ast_typ (t : t) : Ast.typ =
   | TUnion ts -> Ast.TUnion (List.map to_ast_typ ts)
   | TCustom s -> Ast.TCustom s
   | TAny -> Ast.TCustom "Any"
-  | TUnknown -> Ast.TCustom "Any"
+  | TUnknown -> Ast.TUnknown

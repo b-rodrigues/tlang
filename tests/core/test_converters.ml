@@ -49,4 +49,11 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
   test "to_bool list maps over elements"
     "to_bool([1, 0, 1])"
     "[true, false, true]";
+  test "to_dict record"
+    {|type PtDict = { x: Float, y: Float }
+to_dict(PtDict(x = 1.0, y = 2.0))|}
+    "{`x`: 1., `y`: 2.}";
+  test "to_dict non-record"
+    "to_dict(1)"
+    "expects a record";
   print_newline ()

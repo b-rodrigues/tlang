@@ -8,9 +8,9 @@ A convenience wrapper around `node()` with `runtime = "Quarto"`. Used directly w
 
 - **script** (`String`): (Optional) Path to an external `.qmd` file to render. Mutually exclusive with `command`.
 
-- **serializer** (`Symbol`): | Dict (Optional) Serializer strategy: a built-in (`default`, `^csv`, `^json`, `^ipc`, `^parquet`, `^pmml`, `^onnx`, `^bin`, `^text`, `^tlang`), an inline custom dict, or a quoted custom function `custom("name")` declared in `functions`. Bare function names are rejected. Default is `default`.
+- **serializer** (`Strategy`): (Optional) Serializer strategy: a built-in (`default`, `^csv`, `^json`, `^ipc`, `^parquet`, `^pmml`, `^onnx`, `^bin`, `^text`, `^tlang`) or a strategy dict `[format: ^name, ...snippets]` (see `docs/serializers.md`). Bare function names are rejected. Default is `default`.
 
-- **deserializer** (`Symbol`): | Dict (Optional) Deserializer strategy: same closed set as `serializer`. Default is `default`.
+- **deserializer** (`Strategy`): (Optional) Deserializer strategy: same closed set as `serializer`. Default is `default`.
 
 - **env_vars** (`Dict`): (Optional) Environment variables to pass into the sandbox.
 

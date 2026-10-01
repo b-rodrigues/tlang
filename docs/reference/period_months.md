@@ -17,6 +17,5 @@ The months field.
 
 ```t
 period_months(months(3))
-*)
 ```
 

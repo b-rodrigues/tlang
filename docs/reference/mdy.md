@@ -17,6 +17,5 @@ Parses strings in MDY order to Date values. Vectorized over vectors. Unparseable
 
 ```t
 mdy("01-15-2024")
-*)
 ```
 

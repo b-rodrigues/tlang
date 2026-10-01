@@ -458,22 +458,17 @@ analysis = pipeline {
   raw_data = node(
     command = read_csv("tests/pipeline/data/mtcars.csv", separator = "|"),
     runtime = T,
-    serializer = custom("t_write_csv"),
-    functions = "tests/pipeline/iolib.t"
+    serializer = ^csv
   )
 
   summary_r = rn(
     command = <{ raw_data |> dplyr::group_by(cyl) |> dplyr::summarize(avg_mpg = mean(mpg)) }>,
-    serializer = custom("r_write_csv"),
-    deserializer = custom("r_read_csv"),
-    functions = "tests/pipeline/iolib.R"
+    deserializer = [raw_data: ^csv]
   )
 
   summary_py = pyn(
     command = <{ raw_data.groupby("cyl").agg({"mpg": "mean"}).reset_index().rename(columns={"mpg": "avg_mpg"}) }>,
-    serializer = custom("py_write_csv"),
-    deserializer = custom("py_read_csv"),
-    functions = "tests/pipeline/iolib.py"
+    deserializer = [raw_data: ^csv]
   )
 
   shell_report = shn(command = <{
@@ -492,6 +487,8 @@ cat "$T_NODE_summary_py/artifact"
 
 build_pipeline(analysis)
 ```
+
+For a custom format, define a strategy dict `[format: ^name, ...snippets]` (see `docs/serializers.md` and the `custom_polyglot_serializer_t` demo in `t_demos`).
 
 This exact pattern is exercised end-to-end in `tests/pipeline/polyglot_shell_pipeline.t` and `.github/workflows/polyglot-shell-pipeline.yml`.
 

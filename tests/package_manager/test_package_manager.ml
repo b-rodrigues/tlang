@@ -1179,6 +1179,51 @@ packages = []
      | None -> Unix.putenv "TLANG_NO_PROMPT" "");
     result);
 
+  (* The decision gate itself, per source: decline always wins, then
+     accept, else ask. These hit `decide_prompt` directly — the layer both
+     `prompt_to_update` and `ensure_project_requirements` consult. *)
+  let decide_label =
+    let open Pipeline_dependency_requirements in
+    function Decline src -> "decline:" ^ src | Accept src -> "accept:" ^ src | Ask -> "ask"
+  in
+  test_pm "decide: --no declines" (fun () ->
+    with_cleared_prompt_env (fun () ->
+      with_cli_refs false true (fun () ->
+        decide_label (Pipeline_dependency_requirements.decide_prompt ()) = "decline:`--no`")));
+
+  test_pm "decide: TLANG_NO_PROMPT declines" (fun () ->
+    with_cleared_prompt_env (fun () ->
+      Unix.putenv "TLANG_NO_PROMPT" "1";
+      with_cli_refs false false (fun () ->
+        decide_label (Pipeline_dependency_requirements.decide_prompt ()) = "decline:`TLANG_NO_PROMPT`")));
+
+  test_pm "decide: --no wins over --yes" (fun () ->
+    with_cleared_prompt_env (fun () ->
+      with_cli_refs true true (fun () ->
+        match Pipeline_dependency_requirements.decide_prompt () with
+        | Pipeline_dependency_requirements.Decline _ -> true
+        | _ -> false)));
+
+  test_pm "decide: --yes accepts" (fun () ->
+    with_cleared_prompt_env (fun () ->
+      with_cli_refs true false (fun () ->
+        match Pipeline_dependency_requirements.decide_prompt () with
+        | Pipeline_dependency_requirements.Accept _ -> true
+        | _ -> false)));
+
+  test_pm "decide: TLANG_ASSUME_YES accepts" (fun () ->
+    with_cleared_prompt_env (fun () ->
+      Unix.putenv "TLANG_ASSUME_YES" "1";
+      with_cli_refs false false (fun () ->
+        (match Pipeline_dependency_requirements.decide_prompt () with
+         | Pipeline_dependency_requirements.Accept _ -> true
+         | _ -> false))));
+
+  test_pm "decide: clean env asks" (fun () ->
+    with_cleared_prompt_env (fun () ->
+      with_cli_refs false false (fun () ->
+        Pipeline_dependency_requirements.decide_prompt () = Pipeline_dependency_requirements.Ask)));
+
   test_pm "--yes updates tproject without prompting" (fun () ->
     Random.self_init ();
     let base_dir =
@@ -2276,8 +2321,10 @@ workspace = "python"
     (* Node builds use pipeline.nix envs, so the shell skips user package
        sets when nothing is declared. The tlang companion stays wrapped
        (documented: `library(tlang)` works in ad-hoc shell R sessions);
-       Python/Julia drop to bare interpreters (their shell extras were
-       never documented; node envs are unaffected). *)
+       Python/Julia drop to bare interpreters (node envs are unaffected).
+       Companion paths stay exported: the Python package is stdlib-only so
+       `import tlang` works bare; the Julia package needs JSON, which
+       `t update` auto-adds once any Julia dependency is declared. *)
     has "t-lang.packages.${system}.tlang-r"
     && has "r-env = (pkgs.rWrapper.override {"
     && not (has "rGitPkgs")
@@ -2286,8 +2333,8 @@ workspace = "python"
     && not (has "withPackages")
     && not (has "symlinkJoin")
     (* Companion paths and hooks stay: adding any dep restores full envs. *)
-    && has "export PYTHONPATH="
-    && has "export JULIA_LOAD_PATH="
+    && has "export PYTHONPATH=\"${t-lang.packages.${system}.default}/share/tlang/py-package/src:''${PYTHONPATH:-}\""
+    && has "export JULIA_LOAD_PATH=\":${t-lang.packages.${system}.tlang-julia-path}:''${JULIA_LOAD_PATH:-}\""
     && has "export R_LIBS_SITE=");
 
   (* Opt-in real build of the exact wrapper Nix the emitter produces (see

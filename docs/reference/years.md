@@ -17,6 +17,5 @@ The period value.
 
 ```t
 years(2)
-*)
 ```
 

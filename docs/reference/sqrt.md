@@ -2,7 +2,7 @@
 
 Square root
 
-Calculates the square root of x.
+Calculates the square root of x. Returns a ValueError value for negative input.
 
 ## Parameters
 

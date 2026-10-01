@@ -17,6 +17,5 @@ The period value.
 
 ```t
 nanoseconds(2000)
-*)
 ```
 

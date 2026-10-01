@@ -17,6 +17,5 @@ True for Duration values.
 
 ```t
 is_duration(ymd_hms("2024-01-15 10:30:45") - ymd_hms("2024-01-14 10:30:45"))
-*)
 ```
 

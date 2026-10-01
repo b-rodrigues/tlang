@@ -17,6 +17,5 @@ The hours field.
 
 ```t
 period_hours(hours(12))
-*)
 ```
 

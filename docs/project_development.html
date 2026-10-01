@@ -222,7 +222,11 @@ pipeline nodes during execution. When you declare runtime dependencies,
 the matching <code>tlang</code> companion package is also exposed in the
 project shell (<code>library(tlang)</code> for R,
 <code>import tlang</code> for Python, and <code>using tlang</code> for
-Julia). Then re-enter the shell:</p>
+Julia). The R wrapper and both companion paths are present even with no
+declared dependencies: the Python package is stdlib-only, so
+<code>import tlang</code> works in a bare shell; the Julia package needs
+JSON, which <code>t update</code> auto-adds once any Julia dependency is
+declared. Then re-enter the shell:</p>
 <div class="sourceCode" id="cb7"><pre
 class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> nix develop</span></code></pre></div>
 <h3 id="upgrading-t-and-nixpkgs">3.2 Upgrading T and Nixpkgs</h3>
@@ -261,7 +265,15 @@ auto-adds them with <code>TLANG_AUTO_ADD_PIPELINE_DEPS=1</code>). Base
 packages are never listed. Names inside string literals and
 <code>#</code> comments are skipped. Discovery only ensures packages are
 <em>installed</em>; your code must still attach them
-(<code>library(dplyr)</code> or <code>dplyr::mutate</code>).</p>
+(<code>library(dplyr)</code> or <code>dplyr::mutate</code>). For
+non-interactive runs, answer the prompt per command with
+<code>t run --yes &lt;file.t&gt;</code> (updates
+<code>tproject.toml</code>, like typing <code>y</code>) or
+<code>t run --no &lt;file.t&gt;</code> (declines, like typing
+<code>N</code>); <code>--no</code> always wins over <code>--yes</code>
+and the env vars, and <code>--yes</code> never skips a missing
+<code>tproject.toml</code> the way
+<code>TLANG_AUTO_ADD_PIPELINE_DEPS=1</code> alone does.</p>
 <div class="sourceCode" id="cb10"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co">#&#39; @importFrom dplyr mutate filter</span></span>
 <span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>clean <span class="ot">&lt;-</span> <span class="cf">function</span>(raw) {</span>
 <span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(raw, <span class="at">x =</span> <span class="dv">1</span>)</span>

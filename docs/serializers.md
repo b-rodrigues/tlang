@@ -36,9 +36,7 @@ node(..., serializer = my_ser)
 ```
 
 > [!IMPORTANT]
-> **String literals (e.g., `serializer = "ipc"`) are strictly disallowed in node constructors** (`rn()`, `pyn()`, `jln()`, `shn()`, `qn()`, `node()`). You must use either a symbol with the `^` prefix for built-ins or a variable name for custom serializers. Using a string literal in a node constructor will result in a `TypeError`.
->
-> `mutate_node()` and `set_pipeline_global_options()` accept both strings and symbols: `mutate_node($serializer = "pmml")` and `set_pipeline_global_options(p, serializer = ^pmml)` are both valid.
+> **String literals (e.g., `serializer = "ipc"`) are strictly disallowed in strategy positions** (`rn()`, `pyn()`, `jln()`, `shn()`, `qn()`, `node()`, `mutate_node()`, `set_pipeline_global_options()`, `fetchurl()`). You must use either a symbol with the `^` prefix for built-ins or a strategy dict for custom formats. Using a string literal will result in a `TypeError`.
 
 
 ### Implicit Serialization
@@ -95,22 +93,18 @@ type serializer = {
 
 ### Custom Serializers
 
-You can create a custom serializer by defining a record that matches the required interface. Note that the `format` field should use a **Symbol** (starting with `^`) to remain consistent with T's symbol-based serialization mandate.
+You can create a custom serializer with a strategy dict. The dict has closed keys: `format` (always present, a `^`-prefixed symbol) plus inline `<{ ... }>` code snippets per runtime (`r_writer`, `r_reader`, `py_writer`, `py_reader`, `julia_writer`, `julia_reader`). `t check` and pipeline validation enforce the shape: unknown keys, a missing `format`, non-code snippets, and custom formats without a snippet for the node's runtime are all errors. Custom formats are not supported on `T` nodes (builtins only) or on `sh` and `fetchurl` nodes, and `Quarto` nodes take no serializer or deserializer at all.
 
 ```t
-my_log_serializer = {
+my_log_serializer = [
   format: ^log,
-  writer: \(path, val) {
-    -- custom logic to write log
-    Ok(NA)
-  },
-  reader: \(path) {
-    -- custom logic to read log
-    Ok("log content")
-  }
-}
+  r_writer: <{ function(obj, path) writeLines(obj, path) }>,
+  r_reader: <{ function(path) readLines(path) }>,
+  py_writer: <{ lambda obj, path: open(path, 'w').write(str(obj)) }>,
+  py_reader: <{ lambda path: open(path).read() }>
+]
 
--- Usage: Pass the variable name (no ^ hat on the variable itself!)
+-- Usage: pass the variable name (no ^ hat on the variable itself!)
 node(command = ..., serializer = my_log_serializer)
 ```
 

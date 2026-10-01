@@ -74,6 +74,12 @@ type(PtL(x = 1.0))|}
     {|type PtM = { x: Float }
 type PtM = { x: Int }|}
     "already defined";
+  test_env (fresh ()) "rm then redeclare works"
+    {|type PtM2 = { x: Float }
+rm(PtM2)
+type PtM2 = { x: Float, y: Float }
+PtM2(x = 1.0, y = 2.0).y|}
+    "2.";
   test_env (fresh ()) "duplicate fields are rejected"
     {|type PtN = { x: Float, x: Int }|}
     "Duplicate field `x`";
@@ -129,4 +135,44 @@ p = pipeline {
 }
 expand_pipeline(p)|}
     "Pipeline";
+  test_env (fresh ()) "deeply nested records fail loudly on foreign runtimes"
+    {|type PtDeep = { x: Float }
+rs = [[PtDeep(x = 1.0)]]
+p = pipeline {
+  a = rs
+  b = rn(command = <{ a }>, deserializer = ^json, pattern = map_pattern(a))
+}
+expand_pipeline(p)|}
+    "cannot cross";
+  test_env (fresh ()) "int payload coerces to Float field"
+    {|type PtT = { x: Float, y: Float }
+p = PtT(x = 1, y = 2.5)
+p.x|}
+    "1.";
+  test_env (fresh ()) "int elements coerce inside List fields"
+    {|type PtT2 = { xs: List[Float] }
+p = PtT2(xs = [1, 2])
+p.xs|}
+    "[1., 2.]";
+  test_env (fresh ()) "positional int payload coerces to Float field"
+    {|type PtU = { x: Float, y: Float }
+p = PtU(1, 2.5)
+p.x|}
+    "1.";
+  test_env (fresh ()) "coerced fields pass generic consistency"
+    {|type PtV = { x: Float, y: Float }
+p = PtV(1, 2.5)
+same = \<T>(x: T, y: T -> T) x
+same(p.x, p.y)|}
+    "1.";
+  test_env (fresh ()) "error payload fails construction"
+    {|type PtW = { x: Float, y: Float }
+PtW(x = error("boom"), y = 1.0)|}
+    "boom";
+  test_env (fresh ()) "builtin nominal names are rejected"
+    {|type Model = { x: Float }|}
+    "built-in type name";
+  test_env (fresh ()) "builtin nominal match is case-insensitive"
+    {|type model = { x: Float }|}
+    "built-in type name";
   print_newline ()

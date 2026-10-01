@@ -355,7 +355,7 @@ let register env =
 --# @name pipeline_to_dot
 --# @param p :: Pipeline|MetaPipeline The pipeline or metapipeline.
 --# @param flatten :: Bool = false Flatten meta-pipeline subgraphs into a single level.
---# @param title :: Str = None Optional graph title. Auto-detected from tproject.toml when omitted.
+--# @param title :: String = None Optional graph title. Auto-detected from tproject.toml when omitted.
 --# @return :: String A DOT graph string.
 --# @example
 --#   pipeline_to_dot(p)
@@ -519,7 +519,7 @@ let register env =
 --# @name pipeline_to_mermaid
 --# @param p :: Pipeline|MetaPipeline The pipeline or metapipeline.
 --# @param flatten :: Bool = false Flatten meta-pipeline subgraphs into a single level.
---# @param title :: Str = None Optional graph title. Auto-detected from tproject.toml when omitted.
+--# @param title :: String = None Optional graph title. Auto-detected from tproject.toml when omitted.
 --# @return :: String A Mermaid flowchart string.
 --# @example
 --#   pipeline_to_mermaid(p)

@@ -34,8 +34,202 @@
 </nav>
 <div class="container">
 <h1 id="changelog">Changelog</h1>
-<h2 id="section">[0.55.4] - 2026-09-29</h2>
+<h2 id="unreleased">[0.55.5] - Unreleased</h2>
 <h3 id="new-features">New features</h3>
+<ul>
+<li><strong>Richer static types</strong>: collection types
+(<code>List[X]</code>, <code>Vector[X]</code>, <code>Dict[K, V]</code>),
+nominal domain types (<code>Model</code>, <code>Pipeline</code>,
+<code>Date</code>, …), and top-level <code>A | B</code> unions now flow
+from docstrings into inference, with structural compatibility and nested
+widening. A coverage audit with a ratcheting floor tracks precision
+(384/533 fully precise, with per-package breakdown, plus a listed watch
+for signatures that parse to unknown); generic calls reject inconsistent
+instantiations instead of passing silently. Note: generic consistency is
+strict about <code>Int</code> vs <code>Float</code> (identity, not
+widening) by design.</li>
+<li><strong><code>t check</code> warns on non-exhaustive
+<code>match</code> over known values</strong>: matching a known
+<code>Error</code> value without an <code>Error</code> arm, or a known
+<code>NA</code> without an <code>NA</code> arm (and no <code>_</code>
+catch-all), now warns at check time instead of failing only at runtime.
+Matches over variables and other values stay silent, so no existing
+program gains a warning.</li>
+<li><strong>User-defined record types</strong>:
+<code>type Point = { x: Float, y: Float }</code> declares a nominal,
+closed shape; <code>Point(x = 1.0)</code> and <code>Point(1.0)</code>
+construct it, <code>p.x</code> reads fields, and annotations
+(<code>\(p: Point -&gt; Point)</code>) enforce it at runtime. Same-shape
+types still differ (<code>Point</code> is never <code>Pair</code> and
+never a <code>Dict</code>); unknown, missing, or mistyped fields fail
+naming the valid set. Records are T-side contracts and cannot cross into
+foreign node code or serializers — pass plain data across the
+boundary.</li>
+<li><strong>User-defined tagged unions</strong>:
+<code>type Shape = Circle(Float) | Rect(Float, Float) | Missing()</code>
+declares named cases; every case uses call syntax in declarations,
+construction, and patterns alike, so a bare name always stays a binding
+and can never silently mean a case test. Bare-word declarations
+(including single-case aliases like <code>type Celsius = Float</code>)
+fail with a message teaching the call syntax. Payload counts and types
+check at construction; shared case names and direct union construction
+fail naming the owners and cases. <code>t check</code> warns on missing
+cases, unknown case names, and shadowing bare variables. Unions are
+T-side contracts like records.</li>
+<li><strong>Closed serializer strategies</strong>:
+<code>serializer</code>/<code>deserializer</code> accept built-ins
+(<code>default</code>, <code>^csv</code>, …) or a strategy dict
+<code>[format: ^name, ...snippets]</code> with inline
+<code>&lt;{ ... }&gt;</code> reader/writer snippets (see
+<code>docs/serializers.md</code> and the
+<code>custom_polyglot_serializer_t</code> demo in <code>t_demos</code>).
+Strategy dicts have closed keys (<code>format</code> always present,
+snippets per runtime) and custom formats must carry a snippet for the
+node’s runtime and role — a bare <code>default</code> sentinel,
+<code>t check</code>, and the emitter can no longer produce bare
+<code>name(...)</code> calls. Bare function names fail at construction
+naming the valid set and the dict form; the constructor docs now state
+the closed set. There is no quoting escape: the old
+<code>custom("name")</code> builtin is removed, use a strategy dict
+instead.</li>
+<li><strong><code>--yes</code> / <code>--no</code> flags for unattended
+prompts</strong>: <code>t run --yes &lt;file.t&gt;</code> answers yes to
+the missing-dependency prompt (updating <code>tproject.toml</code>, like
+typing <code>y</code>), and <code>t run --no &lt;file.t&gt;</code>
+declines (like typing <code>N</code>). The flags are the per-command
+form of <code>TLANG_NO_PROMPT=1</code> /
+<code>TLANG_ASSUME_YES=1</code>; <code>--no</code> always wins over
+<code>--yes</code> and the env vars, the two flags together are an
+error, and <code>--yes</code> still requires <code>tproject.toml</code>
+to exist (unlike <code>TLANG_AUTO_ADD_PIPELINE_DEPS=1</code> alone,
+which also skips the absent-file error).</li>
+<li><strong>Union declarations require call syntax</strong>: every case
+in a <code>type</code> declaration now needs parentheses
+(<code>Missing()</code>, never bare <code>Missing</code>), matching
+construction and patterns. Bare-word declarations — including
+single-case aliases like <code>type Celsius = Float</code> — fail at
+parse time naming the call syntax.</li>
+<li><strong><code>to_dict(record)</code></strong>: converts a
+user-defined record to a plain <code>Dict</code> (one entry per field,
+shallow) so record data can cross into foreign node code, where records
+themselves can never go.</li>
+</ul>
+<h3 id="fixes">Fixes</h3>
+<ul>
+<li><strong>Reassignment respects annotations in
+<code>t check</code></strong>: <code>x: Int = 1</code> followed by
+<code>x := "hello"</code> now warns once, on the offending line
+(previously the stale post-analysis type blamed the original binding, or
+nothing warned at all). Fresh bindings, <code>Any</code> annotations,
+and <code>rm()</code> behave as before.</li>
+<li><strong>Error values no longer trip type checks</strong>:
+<code>VError</code> is now compatible with every annotation (bottom
+value, like <code>NA</code>), so errors propagate through typed
+positions instead of being masked — <code>f(error("boom"))</code> into
+<code>\(x: Int -&gt; Int)</code> returns the original error, not a
+spurious <code>Expected Int</code> mismatch. Schema inference already
+treated error paths as unknown; no new type syntax was needed.</li>
+<li><strong>Unattended builds never wait on stdin</strong>: the
+missing-dependency prompt no longer reads from non-terminal stdin (where
+a held-open pipe would block forever) and gains a
+<code>TLANG_NO_PROMPT=1</code> opt-out that declines before any prompt.
+A new <code>TLANG_ASSUME_YES=1</code> counterpart answers yes (updating
+<code>tproject.toml</code>, like an interactive <code>y</code>) for
+scripts that previously piped one in — note that piping <code>y</code>
+into a build no longer works, since stdin is never read. Scripts and CI
+fail fast with the actionable fix instead.</li>
+<li><strong>Foreign locals no longer wire phantom dependencies</strong>:
+dependency inference now subtracts names bound by the foreign block
+itself (R <code>&lt;-</code>/<code>=</code>/<code>-&gt;</code>/loop
+variables, Python assignments/<code>for</code>/<code>def</code> with
+suite tracking, Julia assignments/named definitions with scope tracking,
+shell <code>name=</code>/<code>for</code>). A shadowed sibling name no
+longer creates a false edge (or false cycle); genuinely used siblings,
+keyword arguments, and <code>read_node("name")</code> literals still
+register.</li>
+<li><strong>Slim shells for projects without runtime
+dependencies</strong>: node builds use <code>pipeline.nix</code>
+environments, so a project that declares no R/Python/Julia packages now
+skips user package sets — a pure-T shell drops from 10 locally-built
+derivations to 2 (measured via <code>nix build --dry-run</code>). The
+<code>tlang</code> companion stays wrapped, so documented
+<code>library(tlang)</code> in ad-hoc shell R sessions keeps working,
+and the companion paths stay exported for all three runtimes
+(<code>import tlang</code> works bare since the Python package is
+stdlib-only; <code>using tlang</code> needs JSON, auto-added once any
+Julia dependency is declared). Declaring any dependency restores the
+full environment on the next <code>t update</code>.</li>
+<li><strong><code>Quarto</code> nodes take no strategies</strong>: an
+explicit <code>serializer</code> or <code>deserializer</code> on a
+<code>qn()</code> node is now a <code>TypeError</code>
+(<code>serializer/deserializer for quarto undefined</code>) instead of a
+silently ignored argument.</li>
+<li><strong>Strings rejected in every strategy position</strong>:
+<code>mutate_node</code>, <code>set_pipeline_global_options</code>, and
+<code>fetchurl</code> now require <code>^</code>-prefixed symbols or
+strategy dicts — string literals are a <code>TypeError</code> naming the
+<code>^</code>-form.</li>
+<li><strong>Special nodes reject custom formats</strong>: strategy dicts
+with non-builtin formats fail fast on <code>T</code> (builtins only),
+<code>sh</code>, and <code>fetchurl</code> nodes instead of emitting
+calls that fail downstream.</li>
+<li><strong><code>t check</code> reads in source order</strong>:
+diagnostics across all phases now sort by file location instead of
+grouping by check category, in both human and JSON output.</li>
+<li><strong>Union exhaustiveness follows variables</strong>:
+<code>s = Circle(1.0)</code> followed by <code>match(s)</code> now warns
+on missing cases exactly like a direct <code>match(Circle(1.0))</code>.
+Reassigned variables and lambda parameters stay silent.</li>
+<li><strong><code>^text</code> is T/sh-only and <code>^tlang</code>
+means default</strong>: <code>^text</code> on R, Python, or Julia nodes
+is now an ordinary validation error instead of an emitter
+<code>Internal error</code>; <code>^tlang</code> emits exactly like the
+runtime default everywhere.</li>
+<li><strong><code>expect_serializer</code> /
+<code>expect_deserializer</code> take Symbols only</strong>: a String
+<code>expected</code> value now stops the check with a message naming
+the <code>^</code>-form instead of matching silently.</li>
+<li><strong>Records coerce Int payloads and reject error
+payloads</strong>: constructing a record or union case with an Int for a
+Float field now stores a Float, so later generic calls see consistent
+kinds; an error payload fails construction instead of building a value
+that carries the error.</li>
+<li><strong>Generic consistency checks inside containers</strong>: a
+type variable shared across arguments must now agree at every level, so
+<code>const([1], ["a"])</code> fails exactly like
+<code>const(1, "s")</code> already did (same for dict values and nested
+<code>List[T]</code> parameters, with <code>Int</code> vs
+<code>Float</code> kept distinct throughout). NA elements stay
+wildcards. Fixed-shape bodies of generic
+<code>List[T]</code>/<code>Dict[String, T]</code> functions warn at
+<code>t check</code> when they never use their parameters.</li>
+<li><strong>Type declarations guarded at declaration time</strong>:
+names colliding with built-in nominal types (<code>Model</code>,
+<code>Pipeline</code>, <code>Date</code>, …) are rejected, and union
+case names shared across types fail immediately instead of at first
+use.</li>
+<li><strong>Pattern expansion rejects conditional shadows with later
+reads</strong>: a foreign block that binds a dependency name
+conditionally and reads it later now fails with an explicit rename
+request — the later reads would otherwise see the whole artifact instead
+of the per-branch slice. Records nested at any depth are rejected the
+same way.</li>
+<li><strong>Smarter foreign-block scope inference</strong>: shell
+env-prefix assignments (<code>FOO=1 cmd</code>) and <code>export</code>
+with a following command no longer count as bindings; chained
+assignments (<code>A=1 B=2</code>) bind as a group;
+<code>export</code>/<code>declare</code>/<code>readonly</code>/<code>local</code>
+with <code>=</code> bind normally; <code>${X:=...}</code> records
+conditionally; statement continuations after <code>&amp;&amp;</code>,
+<code>||</code>, <code>|</code>, and <code>\</code> guard same-line
+bindings; Julia <code>try</code>/<code>finally</code> bodies and
+<code>abstract</code>/<code>primitive</code> types scope correctly.
+Quoted <code>$var</code>, <code>${var}</code>, <code>$(...)</code>,
+backtick, and Python f-string reads in shell, Julia, and Python strings
+now create dependency edges.</li>
+</ul>
+<h2 id="section">[0.55.4] - 2026-09-29</h2>
+<h3 id="new-features-1">New features</h3>
 <ul>
 <li><strong>Automatic editor setup in new projects</strong>:
 <code>t init</code> now writes an <code>.envrc</code>
@@ -45,62 +239,9 @@ environment — including <code>t-lsp</code> and the project R/Python
 interpreters — after one <code>direnv allow</code>. Direnv state
 (<code>.direnv/</code>) is git-ignored in new projects and
 packages.</li>
-<li><strong>Richer static types</strong>: collection types
-(<code>List[X]</code>, <code>Vector[X]</code>, <code>Dict[K, V]</code>),
-nominal domain types (<code>Model</code>, <code>Pipeline</code>,
-<code>Date</code>, …), and top-level <code>A | B</code> unions now flow
-from docstrings into inference, with structural compatibility and nested
-widening. A coverage audit with a ratcheting floor tracks precision
-(308/532 fully precise); generic calls reject inconsistent
-instantiations instead of passing silently. Note: generic consistency is
-strict about <code>Int</code> vs <code>Float</code> (identity, not
-widening) by design.</li>
 </ul>
-<h3 id="fixes">Fixes</h3>
+<h3 id="fixes-1">Fixes</h3>
 <ul>
-<li><p><strong>Reassignment respects annotations in
-<code>t check</code></strong>: <code>x: Int = 1</code> followed by
-<code>x := "hello"</code> now warns once, on the offending line
-(previously the stale post-analysis type blamed the original binding, or
-nothing warned at all). Fresh bindings, <code>Any</code> annotations,
-and <code>rm()</code> behave as before.</p></li>
-<li><p><strong>Error values no longer trip type checks</strong>:
-<code>VError</code> is now compatible with every annotation (bottom
-value, like <code>NA</code>), so errors propagate through typed
-positions instead of being masked — <code>f(error("boom"))</code> into
-<code>\(x: Int -&gt; Int)</code> returns the original error, not a
-spurious <code>Expected Int</code> mismatch. Schema inference already
-treated error paths as unknown; no new type syntax was needed.</p></li>
-<li><p><strong>Unattended builds never wait on stdin</strong>: the
-missing-dependency prompt no longer reads from non-terminal stdin (where
-a held-open pipe would block forever) and gains a
-<code>TLANG_NO_PROMPT=1</code> opt-out that declines before any prompt.
-A new <code>TLANG_ASSUME_YES=1</code> counterpart answers yes (updating
-<code>tproject.toml</code>, like an interactive <code>y</code>) for
-scripts that previously piped one in — note that piping <code>y</code>
-into a build no longer works, since stdin is never read. Scripts and CI
-fail fast with the actionable fix instead.</p></li>
-<li><p><strong>Foreign locals no longer wire phantom
-dependencies</strong>: dependency inference now subtracts names bound by
-the foreign block itself (R
-<code>&lt;-</code>/<code>=</code>/<code>-&gt;</code>/loop variables,
-Python assignments/<code>for</code>/<code>def</code> with suite
-tracking, Julia assignments/named definitions with scope tracking, shell
-<code>name=</code>/<code>for</code>). A shadowed sibling name no longer
-creates a false edge (or false cycle); genuinely used siblings, keyword
-arguments, and <code>read_node("name")</code> literals still
-register.</p></li>
-<li><p><strong>Slim shells for projects without runtime
-dependencies</strong>: node builds use <code>pipeline.nix</code>
-environments, so a project that declares no R/Python/Julia packages now
-skips user package sets — a pure-T shell drops from 10 locally-built
-derivations to 2 (measured via <code>nix build --dry-run</code>). The
-<code>tlang</code> companion stays wrapped, so documented
-<code>library(tlang)</code> in ad-hoc shell R sessions keeps working;
-Python/Julia fall back to bare interpreters (their shell extras were
-never documented, and node builds are unaffected). Declaring any
-dependency restores the full environment on the next
-<code>t update</code>.</p></li>
 <li><p><strong>Default serializers no longer hang node builds</strong>:
 <code>default</code>/<code>^default</code> serializer/deserializer in T
 (and R/Python/Julia) nodes now resolve to the real reader/writer instead
@@ -210,7 +351,7 @@ escaped, so special characters cannot break generated flake
 evaluation.</p></li>
 </ul>
 <h2 id="section-1">[0.55.3] - 2026-09-26</h2>
-<h3 id="new-features-1">New features</h3>
+<h3 id="new-features-2">New features</h3>
 <ul>
 <li><strong><code>renv+toml</code> R resolver (union mode)</strong>: Set
 <code>[r-dependencies] resolver = "renv+toml"</code> to use the union of
@@ -231,7 +372,7 @@ ends single-source truth. Impure install commands (such as
 <code>R -e 'renv::install(...)'</code>) are never suggested.</li>
 </ul>
 <h2 id="section-2">[0.55.2] - 2026-09-26</h2>
-<h3 id="fixes-1">Fixes</h3>
+<h3 id="fixes-2">Fixes</h3>
 <ul>
 <li><strong>Pipelines with R Git packages build again</strong>: R code
 that loads a package from Git — via <code>renv.lock</code> or via
@@ -250,7 +391,7 @@ dependency prompts now cover <code>requireNamespace()</code> and
 literals and <code>#</code> comments cause no prompt.</li>
 </ul>
 <h2 id="section-3">[0.55.1] - 2026-09-23</h2>
-<h3 id="new-features-2">New features</h3>
+<h3 id="new-features-3">New features</h3>
 <ul>
 <li><strong><code>tlang</code> Quarto extension highlights T
 code</strong>: <code>{t}</code> chunks now render with syntax
@@ -283,7 +424,7 @@ Vectorized.</li>
 matches CLI <code>t test</code> flags. <code>verbose = true</code>
 prints per-file error details.</li>
 </ul>
-<h3 id="fixes-2">Fixes</h3>
+<h3 id="fixes-3">Fixes</h3>
 <ul>
 <li><strong>Positron R interpreter discovery</strong>: Project R
 environments (<code>r-env</code> in generated <code>flake.nix</code>)

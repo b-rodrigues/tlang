@@ -17,6 +17,5 @@ Parses strings in DMY order to Date values. Vectorized over vectors. Unparseable
 
 ```t
 dmy("15-01-2024")
-*)
 ```
 

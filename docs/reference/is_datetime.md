@@ -17,6 +17,5 @@ True for Datetime values.
 
 ```t
 is_datetime(ymd_hms("2024-01-15 10:30:45"))
-*)
 ```
 

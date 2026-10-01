@@ -166,6 +166,40 @@ seq(1, 10, by = 2)    -- [1, 3, 5, 7, 9]</code></pre>
 </tr>
 </tbody>
 </table>
+<h3 id="user-defined-record-types">User-Defined Record Types</h3>
+<p>T supports nominal, closed record types for naming domain shapes. A
+record is never a <code>Dict</code> and never another record type, even
+with an identical field shape — the type name is identity.</p>
+<pre class="t"><code>type Point = { x: Float, y: Float }
+p = Point(x = 1.0, y = 2.0)
+p.x -- 1.0</code></pre>
+<p>Construction takes all-positional or all-named arguments (never a
+mix). Unknown, missing, or mistyped fields fail with an error naming the
+field and the valid set. Annotations accept record names
+(<code>\(p: Point -&gt; Point) p</code>), enforced at runtime like all
+annotations. Records match <code>_</code> and variable arms in
+<code>match</code>. Records are T-side contracts: they cannot cross into
+foreign node code or serializers — use plain data across the boundary
+instead. The leading word <code>type</code> is contextual, so the
+<code>type()</code> builtin keeps working.</p>
+<h3 id="user-defined-tagged-unions">User-Defined Tagged Unions</h3>
+<p>Unions name related cases with positional payloads. Every case uses
+call syntax, including nullary ones — a bare name in a pattern is always
+a binding, never a case test.</p>
+<pre class="t"><code>type Shape = Circle(Float) | Rect(Float, Float) | Missing()
+s = Circle(1.0)
+match(s) {
+  Circle(r) =&gt; r,
+  Rect(w, h) =&gt; w * h,
+  Missing() =&gt; 0.0
+} -- 1.0</code></pre>
+<p>Cases resolve only for unbound names: an ordinary variable with the
+same name always wins. A case shared by two unions in scope fails naming
+every owner type — rename one case. Payload counts and types are checked
+at construction; calling the union type itself fails naming its cases.
+<code>t check</code> warns on missing cases, unknown case names, and
+bare variables shadowing a case name. Unions are T-side contracts like
+records.</p>
 <h3 id="variables-and-assignment">Variables and Assignment</h3>
 <pre class="t"><code>x = 42
 name = &quot;Alice&quot;

@@ -179,7 +179,7 @@ statement:
       else with_stmt_loc (TypeDecl { tname = name; tdef = RecordDef { rd_fields = fields } }) $startpos }
   | kw = any_ident name = any_ident EQUALS first = union_case_decl rest = union_case_rest
     (* Contextual `type` union declaration:
-       `type Shape = Circle(Float) | Rect(Float, Float) | Missing`. *)
+       `type Shape = Circle(Float) | Rect(Float, Float) | Missing()`. *)
     { if kw <> "type" then raise (Ast.Invalid_type_declaration
         (Printf.sprintf "Invalid declaration `%s %s`. Only `type Name = ...` declarations may start with two identifiers." kw name))
       else with_stmt_loc (TypeDecl { tname = name; tdef = UnionDef { ud_cases = first :: rest } }) $startpos }
@@ -203,7 +203,9 @@ union_case_rest:
   ;
 
 union_case_decl:
-  | cname = any_ident { (cname, []) }
+  | cname = any_ident
+    { raise (Ast.Invalid_type_declaration
+        (Printf.sprintf "Union case `%s` must use call syntax with parentheses (e.g. `%s(...)`), even when empty. Bare-word cases do not exist, and T has no type aliases." cname cname)) }
   | cname = any_ident LPAREN skip_sep args = union_payload_types RPAREN { (cname, args) }
   ;
 

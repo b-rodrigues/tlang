@@ -444,7 +444,6 @@ and import_spec = {
 and binop = Plus | Minus | Mul | Div | Mod | Eq | NEq | Gt | Lt | GtEq | LtEq | And | Or | BitAnd | BitOr
   | In (* New: membership check *) | Pipe | MaybePipe | Formula | FatArrow
 and unop = Not | Neg
-
 and typ =
   | TInt
   | TFloat
@@ -461,8 +460,40 @@ and typ =
   | TSerializer
   | TExpr
   | TArrow of typ list * typ
+  | TUnknown
 
 type program = stmt list
+(* Immediate child expressions of an expression node, in source order.
+    Single place covering every constructor: a new AST variant without an
+    arm here is a compile-time match warning, not a silent traversal gap.
+    Whole-tree walkers ([sites_in_expr], [generic_lambdas_in_expr],
+    [expr_mentions_any] in check_utils.ml) build on this instead of
+    repeating the traversal. *)
+let rec children_of_expr (e : expr) : expr list =
+  match e.node with
+  | Value _ | Var _ | ColumnRef _ | RawCode _ | ShellExpr _ -> []
+  | Call { fn; args } -> fn :: List.map snd args
+  | Lambda l -> [l.body]
+  | IfElse { cond; then_; else_ } -> [cond; then_; else_]
+  | Match { scrutinee; cases } -> scrutinee :: List.map snd cases
+  | ListLit items -> List.map snd items
+  | DictLit pairs -> List.map snd pairs
+  | BinOp { left; right; _ } | BroadcastOp { left; right; _ } -> [left; right]
+  | UnOp { operand; _ } -> [operand]
+  | DotAccess { target; _ } -> [target]
+  | PipelineDef nodes | PipelineOfDef nodes | IntentDef nodes -> List.map snd nodes
+  | Unquote x | UnquoteSplice x -> [x]
+  | Block stmts -> List.concat_map children_of_stmt stmts
+
+and children_of_stmt (s : stmt) : expr list =
+  match s.node with
+  | Expression e -> [e]
+  | Assignment { expr = e; _ } -> [e]
+  | Reassignment { expr = e; _ } -> [e]
+  | TypeDecl _ -> []
+  | Import _ | ImportPackage _ | ImportFrom _ | ImportFileFrom _ -> []
+
+
 
 (** Sentinel path used when a computed node has not been built yet. *)
 let unbuilt_path = "<unbuilt>"
@@ -566,7 +597,16 @@ let options_value_to_expr_list v =
     they mention are always included. Whole-line `--` comments are also
     dropped for compatibility; trailing `--` is kept because R uses `--x`
     as double negation. `#!` shebang lines are kept as code. *)
-let strip_noncode_spans text =
+type raw_lang = RLang | PythonLang | JuliaLang | ShLang | OtherLang
+
+let lang_of_runtime = function
+  | "R" -> RLang
+  | "Python" -> PythonLang
+  | "Julia" -> JuliaLang
+  | "sh" -> ShLang
+  | _ -> OtherLang
+
+let strip_noncode_spans ?(lang : raw_lang option = None) text =
   let n = String.length text in
   let buf = Buffer.create n in
   let line_start i =
@@ -581,6 +621,61 @@ let strip_noncode_spans text =
     in
     back (i - 1)
   in
+  let interp = match lang with Some ShLang | Some JuliaLang -> true | _ -> false in
+  let pyf = lang = Some PythonLang in
+  let julia = lang = Some JuliaLang in
+  let is_name_start c =
+    (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c = '_'
+  in
+  let is_name_char c = is_name_start c || (c >= '0' && c <= '9') in
+  (* End index (exclusive) past a balanced opener at [j], honouring
+     nested quotes, backticks and backslash escapes. Returns [n] when
+     unbalanced. *)
+  let balanced_end open_c close_c j =
+    let rec skip_quoted q k =
+      if k >= n then n
+      else if text.[k] = '\\' then skip_quoted q (k + 2)
+      else if text.[k] = q then k + 1
+      else skip_quoted q (k + 1)
+    in
+    let rec loop k d =
+      if k >= n then n
+      else if text.[k] = '\\' then loop (k + 2) d
+      else if text.[k] = '\'' || text.[k] = '"' || text.[k] = '`' then
+        loop (skip_quoted text.[k] (k + 1)) d
+      else if text.[k] = open_c then loop (k + 1) (d + 1)
+      else if text.[k] = close_c then
+        if d = 0 then k + 1 else loop (k + 1) (d - 1)
+      else loop (k + 1) d
+    in
+    loop j 0
+  in
+  (* End index (exclusive) past the closing unescaped backtick from [j]. *)
+  let backtick_end j =
+    let rec loop k =
+      if k >= n then n
+      else if text.[k] = '\\' then loop (k + 2)
+      else if text.[k] = '`' then k + 1
+      else loop (k + 1)
+    in
+    loop j
+  in
+  (* Python f-string prefix: identifier chars from [rRbBuUfF] immediately
+     before the quote, containing f/F, and not part of a longer name.
+     Any identifier abutting a string literal is a prefix in valid
+     Python, so this is exact, not heuristic. *)
+  let is_fstring_prefix i =
+    let rec back k acc =
+      if k < 0 then (acc, k)
+      else match text.[k] with
+        | 'r' | 'R' | 'b' | 'B' | 'u' | 'U' | 'f' | 'F' -> back (k - 1) (text.[k] :: acc)
+        | _ -> (acc, k)
+    in
+    let (run, k) = back (i - 1) [] in
+    run <> [] && List.exists (fun c -> c = 'f' || c = 'F') run
+    && (k < 0 || (let c = text.[k] in not (is_name_char c || c = '.' || c = '\'' || c = '"')))
+  in
+  let is_triple i q = i + 2 < n && text.[i + 1] = q && text.[i + 2] = q in
   let rec scan i in_str =
     if i >= n then ()
     else match in_str with
@@ -598,6 +693,29 @@ let strip_noncode_spans text =
              scan (i + 1) in_str)
     | None ->
         (match text.[i] with
+         | '"' when interp ->
+             (* Double quotes interpolate `$name`, `${...}`, `$(...)`
+                and backticks (shell) / `$name`, `$(...)` (Julia): keep
+                those spans readable, blank the rest. Single quotes never
+                interpolate. Triple-quoted Julia strings take the same
+                rule with a triple closer. *)
+             if i + 2 < n && text.[i + 1] = '"' && text.[i + 2] = '"' then begin
+               Buffer.add_string buf "   ";
+               scan_interp (i + 3) true
+             end else begin
+               Buffer.add_char buf ' ';
+               scan_interp (i + 1) false
+             end
+         | ('\'' | '"' as q) when pyf && is_fstring_prefix i ->
+             (* Python f-string: `{...}` interpolates (balanced, with
+                `{{`/`}}` as literal braces); everything else blanks. *)
+             if is_triple i q then begin
+               Buffer.add_string buf "   ";
+               scan_fstring (i + 3) true q
+             end else begin
+               Buffer.add_char buf ' ';
+               scan_fstring (i + 1) false q
+             end
          | '\'' | '"' as q ->
              Buffer.add_char buf ' ';
              scan (i + 1) (Some q)
@@ -618,12 +736,89 @@ let strip_noncode_spans text =
          | c ->
              Buffer.add_char buf c;
              scan (i + 1) None)
+  and scan_interp i triple =
+    if i >= n then ()
+    else match text.[i] with
+    | '\\' ->
+        Buffer.add_string buf "  ";
+        scan_interp (i + 2) triple
+    | '"' ->
+        if triple && i + 2 < n && text.[i + 1] = '"' && text.[i + 2] = '"' then begin
+          Buffer.add_string buf "   ";
+          scan (i + 3) None
+        end else if not triple then begin
+          Buffer.add_char buf ' ';
+          scan (i + 1) None
+        end else begin
+          Buffer.add_char buf ' ';
+          scan_interp (i + 1) triple
+        end
+    | '$' ->
+        let j = i + 1 in
+        if j < n && text.[j] = '(' then
+          let e = balanced_end '(' ')' (j + 1) in
+          Buffer.add_substring buf text i (e - i);
+          scan_interp e triple
+        else if j < n && text.[j] = '{' && not julia then begin
+          Buffer.add_char buf '$';
+          let k = ref (j + 1) in
+          if !k < n && is_name_start text.[!k] then begin
+            while !k < n && is_name_char text.[!k] do
+              Buffer.add_char buf text.[!k]; incr k
+            done
+          end;
+          scan_interp !k triple
+        end else if j < n && is_name_start text.[j] then begin
+          Buffer.add_char buf '$';
+          let k = ref j in
+          while !k < n && is_name_char text.[!k] do
+            Buffer.add_char buf text.[!k]; incr k
+          done;
+          scan_interp !k triple
+        end else begin
+          Buffer.add_char buf ' ';
+          scan_interp (i + 1) triple
+        end
+    | '`' ->
+        let e = backtick_end (i + 1) in
+        Buffer.add_substring buf text i (e - i);
+        scan_interp e triple
+    | _ ->
+        Buffer.add_char buf ' ';
+        scan_interp (i + 1) triple
+  and scan_fstring i triple q =
+    (* Inside a Python f-string: `{...}` interpolates (balanced spans stay
+       readable, with `{{`/`}}` as literal braces); everything else blanks,
+       including the closing quote, which returns to code scanning. *)
+    if i >= n then ()
+    else if triple && i + 2 < n && text.[i] = q && text.[i + 1] = q && text.[i + 2] = q then begin
+      Buffer.add_string buf "   ";
+      scan (i + 3) None
+    end else match text.[i] with
+    | '\\' ->
+        Buffer.add_string buf "  ";
+        scan_fstring (i + 2) triple q
+    | c when c = q ->
+        Buffer.add_char buf ' ';
+        scan (i + 1) None
+    | '{' ->
+        if i + 1 < n && text.[i + 1] = '{' then begin
+          Buffer.add_string buf "  ";
+          scan_fstring (i + 2) triple q
+        end else begin
+          let e = balanced_end '{' '}' i in
+          Buffer.add_substring buf text i (e - i);
+          scan_fstring e triple q
+        end
+    | _ ->
+        Buffer.add_char buf ' ';
+        scan_fstring (i + 1) triple q
   in
   scan 0 None;
   Buffer.contents buf
 
 (* Split of extract_identifiers for dependency scoping (see below). *)
-let extract_identifiers_parts text =
+let extract_identifiers_parts ?(lang : raw_lang option = None) text =
   (* Whole-line `--` comments are dropped before scanning (as before), so a
      stray quote inside them cannot open a phantom string span. Trailing `--`
      is intentionally kept: R uses `--x` as double negation. *)
@@ -634,7 +829,7 @@ let extract_identifiers_parts text =
         else Some line)
     |> String.concat "\n"
   in
-  let filtered_text = strip_noncode_spans code_lines in
+  let filtered_text = strip_noncode_spans ~lang code_lines in
   let re = Str.regexp {|[a-zA-Z_][a-zA-Z0-9_]*|} in
   let rec find acc pos =
     match (try Some (Str.search_forward re filtered_text pos) with Not_found -> None) with
@@ -672,27 +867,18 @@ let extract_identifiers_parts text =
 (** Identifiers from executable code only (strings, comments and read_node
     literals excluded). Local bindings (below) are subtracted from exactly
     this set. *)
-let extract_code_identifiers text =
-  fst (extract_identifiers_parts text)
+let extract_code_identifiers ?(lang : raw_lang option = None) text =
+  fst (extract_identifiers_parts ~lang text)
 
 (** Names mentioned inside read_node("name") literals. These are genuine
     references even though they sit inside strings. *)
 let extract_read_node_names text =
   snd (extract_identifiers_parts text)
 
-let extract_identifiers text =
-  let (inferred, read_node_names) = extract_identifiers_parts text in
+let extract_identifiers ?(lang : raw_lang option = None) text =
+  let (inferred, read_node_names) = extract_identifiers_parts ~lang text in
   let all_set = List.fold_left (fun acc d -> String_set.add d acc) String_set.empty (inferred @ read_node_names) in
   String_set.elements all_set
-
-type raw_lang = RLang | PythonLang | JuliaLang | ShLang | OtherLang
-
-let lang_of_runtime = function
-  | "R" -> RLang
-  | "Python" -> PythonLang
-  | "Julia" -> JuliaLang
-  | "sh" -> ShLang
-  | _ -> OtherLang
 
 (** A binding spotted by the raw-block scan: name, position of the name,
     and span of its right-hand side (for `->` the span precedes the name).
@@ -750,7 +936,7 @@ let scan_raw_bindings ~runtime text =
   (match lang_of_runtime runtime with
    | OtherLang -> (strip_noncode_spans text, [], [])
    | lang ->
-       let stripped = strip_noncode_spans text in
+       let stripped = strip_noncode_spans ~lang:(Some lang) text in
        let n = String.length stripped in
        let is_id_char c =
          (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
@@ -1027,13 +1213,44 @@ let scan_raw_bindings ~runtime text =
           covered by regions/stacks instead; this guard is their same-line
           complement plus the operator cases regions cannot see. *)
        let line_guarded ~include_for bpos =
-         let rec line_start j = if j < 0 || stripped.[j] = '\n' then j + 1 else line_start (j - 1) in
+         (* A newline preceded (outside quotes, which are already blanked)
+            by `&&`, `||`, `|` or `\` continues the statement (multiline
+            lists and pipelines). A lone `&` still terminates, since
+            background ends the statement. *)
+         let nl_continues j =
+           let rec back k =
+             if k < 0 then None
+             else match stripped.[k] with
+               | ' ' | '\t' | '\r' -> back (k - 1)
+               | '\\' | '|' -> Some true
+               | '&' ->
+                   let rec back2 k2 =
+                     if k2 < 0 then false
+                     else match stripped.[k2] with
+                       | ' ' | '\t' | '\r' -> back2 (k2 - 1)
+                       | '&' -> true
+                       | _ -> false
+                   in
+                   Some (back2 (k - 1))
+               | _ -> Some false
+           in
+           back (j - 1) = Some true
+         in
+         let rec line_start j =
+           if j < 0 then 0
+           else if stripped.[j] = '\n' && not (nl_continues j) then j + 1
+           else line_start (j - 1)
+         in
          let ls = line_start (bpos - 1) in
          (* Last statement terminator before [bpos]; only triggers after
-            it count. `&&`/`||` guard but never reset. *)
+            it count. `&&`/`||` guard but never reset. Continued newlines
+            (see nl_continues) do not terminate either, so operators on
+            the previous line still guard. *)
          let rec last_term j acc =
            if j >= bpos then acc
-           else if (stripped.[j] = ';' || stripped.[j] = '\n') && depth.(j) = 0 then
+           else if stripped.[j] = ';' && depth.(j) = 0 then
+             last_term (j + 1) (Some j)
+           else if stripped.[j] = '\n' && depth.(j) = 0 && not (nl_continues j) then
              last_term (j + 1) (Some j)
            else last_term (j + 1) acc
          in
@@ -1214,6 +1431,49 @@ let scan_raw_bindings ~runtime text =
          (skip, cond)
        in
        let i = ref 0 in
+       (* An assignment chain from the first `NAME`, position, and `=`: each
+          further `NAME=` continues it. Returns the chain (outer first)
+          when it runs to an empty rest (end of statement), else [None]:
+          `FOO=1 cmd` sets FOO for that command alone, `A=1 B=2` binds
+          both, `A=1 B=2 cmd` binds neither. *)
+       let rec assign_chain nm pos veq =
+         let rec skip_tok t =
+           if t >= n || stripped.[t] = ' ' || stripped.[t] = '\t' || stripped.[t] = '\r'
+              || stripped.[t] = ';' || stripped.[t] = '\n' then t
+           else skip_tok (t + 1)
+         in
+         let t = skip_spaces (skip_tok (skip_spaces (veq + 1))) in
+         if t >= n || stripped.[t] = ';' || stripped.[t] = '\n' then
+           Some [(nm, pos, veq)]
+         else if is_name_start t && member_guarded t then
+           let (nm2, e) = read_ident t in
+           let e2 = skip_spaces e in
+           if e2 < n && stripped.[e2] = '=' && (e2 + 1 >= n || stripped.[e2 + 1] <> '=') then
+             (match assign_chain nm2 t e2 with
+              | Some rest -> Some ((nm, pos, veq) :: rest)
+              | None -> None)
+           else None
+         else None
+       in
+       (* Record a whole chain with per-name right-hand spans. *)
+       let record_chain chain =
+         List.iter (fun (cnm, cpos, ceq) ->
+           record cnm cpos (ceq + 1) (stmt_end_from (ceq + 1))) chain
+       in
+       (* A `{`/`(` granting statement start that is itself `$`-prefixed
+          runs in a subshell (`$(...)`) or expands a parameter (`${...}`):
+          assignments inside never persist in the current shell. *)
+       let dollar_opener pos =
+         let rec back j =
+           if j < 0 then None
+           else match stripped.[j] with
+             | ' ' | '\t' | '\r' -> back (j - 1)
+             | '{' | '(' as c ->
+                 if j > 0 && stripped.[j - 1] = '$' then Some c else None
+             | _ -> None
+         in
+         back (pos - 1)
+       in
        while !i < n do
          let pos = !i in
          if pos < !skip_until then i := !skip_until
@@ -1340,11 +1600,21 @@ let scan_raw_bindings ~runtime text =
                    they live inside call parens by nature yet always pair
                    with `end`. *)
                 if word = "function" || word = "macro" || word = "struct"
-                   || word = "module" then begin
+                   || word = "module" || word = "abstract" || word = "primitive" then begin
                   (* Named scope definitions bind in the enclosing scope;
-                     check scope before pushing. *)
+                     check scope before pushing. `abstract` and `primitive`
+                     are followed by the `type` keyword, which is skipped so
+                     the type name itself records; their `end` then balances
+                     instead of popping the enclosing frame early. *)
                   if not (jl_in_scope ()) then begin
                     let j = skip_spaces epos in
+                    let j =
+                      if (word = "abstract" || word = "primitive")
+                         && j < n && is_name_start j then
+                        let (w2, e2) = read_ident j in
+                        if w2 = "type" then skip_spaces e2 else j
+                      else j
+                    in
                     if j < n && is_name_start j then begin
                       let (nm, e2) = read_ident j in
                       if member_guarded j then record nm j e2 e2
@@ -1366,7 +1636,7 @@ let scan_raw_bindings ~runtime text =
                         | _ -> ())
                    | _ -> ());
                   let cond = word = "if" || word = "for" || word = "while"
-                             || word = "catch" in
+                             || word = "catch" || word = "try" || word = "finally" in
                   jl_stack := (word, false, cond, depth.(pos)) :: !jl_stack
                 end else if word = "end" then begin
                   (match !jl_stack with
@@ -1394,11 +1664,40 @@ let scan_raw_bindings ~runtime text =
                        || is_word_at "in" e3 || is_word_at "do" e3 then
                       record ~is_loopvar:true nm j pos (stmt_end_from pos)
                   end
+                end else if (word = "export" || word = "declare" || word = "readonly" || word = "local")
+                          && depth.(pos) = 0 && sh_stmt_start pos then begin
+                  (* `export NAME=...` (and declare/readonly/local) persist
+                     like plain assignments; with a following command they
+                     are prefixes (see assign_rest_binds). Bare `export
+                     NAME` assigns nothing. Regions still apply through
+                     `record`, so function bodies stay conditional. *)
+                  let j = skip_spaces epos in
+                  if j < n && is_name_start j && member_guarded j then begin
+                    let (nm, e2) = read_ident j in
+                    let e3 = skip_spaces e2 in
+                    if e3 < n && stripped.[e3] = '='
+                       && (e3 + 1 >= n || stripped.[e3 + 1] <> '=') then
+                      (match assign_chain nm j e3 with
+                       | Some chain -> record_chain chain
+                       | None -> ())
+                  end
                 end else if depth.(pos) = 0 && member_guarded pos && is_name_start pos
                           && sh_stmt_start pos
                           && epos < n && stripped.[epos] = '='
                           && (epos + 1 >= n || stripped.[epos + 1] <> '=') then
-                  record word pos (epos + 1) (stmt_end_from (epos + 1))
+                  (match dollar_opener pos with
+                   | Some _ ->
+                       (* `$`-prefixed opener: subshell `$(...)` assignments
+                          never persist, and parameter expansion (`${X=...}`)
+                          assigns only when unset (all other `${...}`
+                          operators are pure reads and never reach here).
+                          Record as conditional-only so the edge stays and
+                          later reads stay bare. *)
+                       all_binders := (word, pos) :: !all_binders
+                   | None ->
+                       (match assign_chain word pos epos with
+                        | Some chain -> record_chain chain
+                        | None -> ()))
             | OtherLang -> ());
            i := max !advanced_to epos
          end
@@ -1516,6 +1815,54 @@ let dep_substitution_spans ~runtime text dep_name =
         Some (List.filter (fun (s, _) ->
           (s < first_all || in_rhs (s, m)) && not (List.mem s binder_pos)
         ) (occs 0 []))
+
+(** True when [dep_name] is bound only conditionally in [text] and read
+    after the first binder. Those late reads stay bare during pattern
+    expansion (see [dep_substitution_spans]) and would resolve to the
+    whole artifact instead of the per-branch slice, so expansion must
+    fail loudly and ask for a rename. `read_node("dep")` literals are
+    deliberate whole-artifact reads and do not count. *)
+let has_conditional_shadow_read ~runtime text dep_name =
+  if dep_name = "" then false
+  else
+    let _, bs, all = scan_raw_bindings ~runtime text in
+    let mine = List.filter (fun (nm, _) -> nm = dep_name) all in
+    if mine = [] then false
+    else if List.exists (fun b -> b.b_name = dep_name) bs then false
+    else
+      let first_all = List.fold_left (fun a (_, p) -> min a p) max_int mine in
+      let m = String.length dep_name and n = String.length text in
+      let is_id c =
+        (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+        || (c >= '0' && c <= '9') || c = '_'
+      in
+      (* A whole-word occurrence is a deliberate whole-artifact read when
+         it sits inside read_node("dep") / read_node('dep'). Only the
+         immediate `read_node` + quote shape counts. *)
+      let in_read_node_literal i =
+        let j = ref (i - 1) in
+        while !j >= 0 && (text.[!j] = ' ' || text.[!j] = '\t') do decr j done;
+        if !j < 1 then false
+        else
+          let q = text.[!j] in
+          if q <> '"' && q <> '\'' then false
+          else
+            let k = !j - 1 in
+            let w = "read_node" in
+            let m = String.length w in
+            k + 1 >= m && String.sub text (k + 1 - m) m = w
+            && (k + 1 - m = 0 || not (is_id text.[k - m]))
+      in
+      let rec loop i =
+        if i + m > n then false
+        else if String.sub text i m = dep_name
+                && (i = 0 || not (is_id text.[i - 1]))
+                && (i + m >= n || not (is_id text.[i + m]))
+                && i > first_all
+                && not (in_read_node_literal i) then true
+        else loop (i + 1)
+      in
+      loop 0
 
 (** Convenience type alias *)
 type environment = value Env.t
@@ -1816,6 +2163,7 @@ module Utils = struct
     | TArrow (params, ret) ->
         let params_str = String.concat ", " (List.map typ_to_string params) in
         "(" ^ params_str ^ ") -> " ^ typ_to_string ret
+  | TUnknown -> "Unknown"
 
   let rec type_name = function
     | VBuildLog _ -> "BuildLog"
@@ -2462,6 +2810,7 @@ let rec is_compatible (v : value) (t : typ) : bool =
   match v, t with
   | _, TVar _ -> true (* Generics match anything at runtime for now *)
   | _, TCustom "Any" -> true
+  | _, TUnknown -> true (* Unknown annotations cannot fail: nothing to check against *)
   | VInt _, TInt -> true
   | VFloat _, TFloat -> true
   | VBool _, TBool -> true
@@ -2496,7 +2845,7 @@ let rec is_compatible (v : value) (t : typ) : bool =
 
   (* Nominal records: the type name is identity. A record is never a Dict
      and never another record type, even with an identical field shape. *)
-  | VRecord r, TCustom name -> r.rec_type = name
+  | VRecord r, TCustom name -> name = "Record" || r.rec_type = name
   (* Nominal unions: same rule by type name. Payload shapes never merge. *)
   | VUnion u, TCustom name -> u.un_type = name
 
@@ -2507,7 +2856,23 @@ let rec is_compatible (v : value) (t : typ) : bool =
   | VBuildLog _, TCustom "BuildLog" -> true
   | VExpr _, TExpr -> true
   | VQuo _, TExpr -> true
+  | VExpr _, TCustom "Expr" | VQuo _, TCustom "Expr" -> true
+  | VFactor _, TCustom "Factor" -> true
+  | VNodeResult _, TCustom "NodeResult" -> true
+  | VIntent _, TCustom "Intent" -> true
+  | VQuo _, TCustom "Quosure" -> true
 
+  (* Closed strategy type (permissive at value level): `Strategy` documents
+     the closed set (`default`, `^csv`, `^json`, `^ipc`, `^parquet`, `^pmml`,
+     `^onnx`, `^bin`, `^text`, `^tlang`, or a strategy dict with `format`
+     plus inline snippets). Value-level checks stay permissive on purpose:
+     custom formats are validated with pipeline context (runtime, role) in
+     eval/validation, so rejecting shapes here would hide the precise
+     diagnostic. The closed dict shape is enforced in
+     pipeline_validation.check_known_formats. *)
+  | VSymbol _, TCustom "Strategy" -> true
+  | VSerializer _, TCustom "Strategy" -> true
+  | VDict _, TCustom "Strategy" -> true
   | VPipeline _, TCustom "Pipeline" -> true
   | VMetaPipeline _, TCustom ("Pipeline" | "MetaPipeline") -> true
 
@@ -2537,6 +2902,8 @@ let rec types_compatible a b =
   | TCustom "Any", _ -> true
   | _, TVar _ -> true
   | TVar _, _ -> true
+  | _, TUnknown -> true
+  | TUnknown, _ -> true
   | TInt, TFloat -> true
   | TFloat, TInt -> false
   | TArrow (p1, r1), TArrow (p2, r2) ->

@@ -162,8 +162,8 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
   (* The documented runtime + closed-strategy vocabulary (see
      pipeline_node_options, jln_docs, set_pipeline_global_options,
      builder_populate) must all resolve as bare words — e.g. `runtime = R`,
-     `serializer = ^ipc`. Bare custom names are NOT vocabulary: they must
-     be quoted with custom("name"). *)
+     `serializer = ^ipc`. Bare names are NOT vocabulary: custom formats
+     must be strategy dicts ([format: ^name, ...snippets]). *)
   let documented_vocabulary =
     [ "R"; "Python"; "T"; "Julia"; "Quarto"; "sh";
       "default";

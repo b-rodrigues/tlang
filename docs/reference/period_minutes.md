@@ -17,6 +17,5 @@ The minutes field.
 
 ```t
 period_minutes(minutes(30))
-*)
 ```
 

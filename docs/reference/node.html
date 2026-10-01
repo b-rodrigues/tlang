@@ -58,16 +58,17 @@ to execute as the node body. Mutually exclusive with
 extension when not explicitly provided.</p></li>
 <li><p><strong>runtime</strong> (<code>Symbol</code>): (Optional) The
 runtime environment (T, R, Python, Quarto). Default = T.</p></li>
-<li><p><strong>serializer</strong> (<code>String</code>): | Function
-(Optional) Custom serializer strategy. Built-in values include
-“default”, “ipc”, “parquet”, and “pmml”. Can be a string (e.g., “ipc”)
-or an unquoted function name. Custom functions can also be used. Default
-= “default”.</p></li>
-<li><p><strong>deserializer</strong> (<code>String</code>): | Function
-(Optional) Custom deserializer strategy. Built-in values include
-“default”, “ipc”, “parquet”, and “pmml”. Can be a string (e.g., “ipc”)
-or an unquoted function name. Custom functions can also be used. Default
-= “default”.</p></li>
+<li><p><strong>serializer</strong> (<code>Strategy</code>): (Optional)
+Serializer strategy: a built-in (<code>default</code>,
+<code>^csv</code>, <code>^json</code>, <code>^ipc</code>,
+<code>^parquet</code>, <code>^pmml</code>, <code>^onnx</code>,
+<code>^bin</code>, <code>^text</code>, <code>^tlang</code>) or a
+strategy dict <code>[format: ^name, ...snippets]</code> (see
+<code>docs/serializers.md</code>). Bare function names are rejected.
+Default is <code>default</code>.</p></li>
+<li><p><strong>deserializer</strong> (<code>Strategy</code>): (Optional)
+Deserializer strategy: same closed set as <code>serializer</code>.
+Default is <code>default</code>.</p></li>
 <li><p><strong>args</strong> (<code>Dict</code>): (Optional)
 Runtime/tool arguments. For Quarto, use this to pass CLI arguments such
 as <code>subcommand</code>, <code>path</code>, and additional options.

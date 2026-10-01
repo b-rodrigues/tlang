@@ -9,8 +9,8 @@ open Builder_utils
 --# to artifact paths in the Nix store.
 --#
 --# @name build_pipeline_internal
---# @param p :: PipelineResult The pipeline AST structure.
---# @return :: Result[Value] The output Nix store path or the dry-run DataFrame.
+--# @param p :: Pipeline The pipeline AST structure.
+--# @return :: String | DataFrame The output Nix store path or the dry-run DataFrame.
 --# @family pipeline
 --# @export
 *)

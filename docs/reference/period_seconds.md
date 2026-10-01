@@ -17,6 +17,5 @@ The seconds field.
 
 ```t
 period_seconds(seconds(45))
-*)
 ```
 

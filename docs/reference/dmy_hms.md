@@ -19,6 +19,5 @@ Parses DMY-ordered strings to Datetime values. Vectorized over vectors. Unparsea
 
 ```t
 dmy_hms("15-01-2024 10:30:45")
-*)
 ```
 

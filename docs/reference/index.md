@@ -69,7 +69,6 @@
 | [cummean](cummean.html) | Cumulative Mean |
 | [cummin](cummin.html) | Cumulative Minimum |
 | [cumsum](cumsum.html) | Cumulative Sum |
-| [custom](custom.html) | Quote a custom strategy function name |
 | [cut](cut.html) | Discretize numeric vector |
 | [cv](cv.html) | Coefficient of variation |
 | [day](day.html) | Extract the day of month |

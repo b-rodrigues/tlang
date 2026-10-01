@@ -230,7 +230,27 @@ export let helper = 1
             && first.line_number = 1
         | _ -> false)
     in
-    parse_block_ok && parse_file_ok
+    let parse_indented_closer_ok =
+      with_temp_dir "tdoc" (fun dir ->
+        let file = Filename.concat dir "indented_source.ml" in
+        write_text file
+          {|  (*
+  --# Indented helper
+  --#
+  --# @name indented_fn
+  --# @example
+  --#   indented_fn(1)
+  --# *)
+  let indented_fn = 1
+|};
+        match Tdoc_parser.parse_file file with
+        | [ only ] ->
+            only.name = "indented_fn"
+            && not (List.mem "*)" only.examples)
+            && List.mem "indented_fn(1)" only.examples
+        | _ -> false)
+    in
+    parse_block_ok && parse_file_ok && parse_indented_closer_ok
   );
   print_newline ();
 
@@ -262,7 +282,7 @@ export let helper = 1
     && Semantic_type.from_string "int | string"
          = Semantic_type.TUnion [Semantic_type.TInt; Semantic_type.TString]
     && Semantic_type.from_string "list[int] | int"
-         = Semantic_type.TUnion [Semantic_type.TInt; Semantic_type.TList Semantic_type.TInt]
+         = Semantic_type.TUnion [Semantic_type.TList Semantic_type.TInt; Semantic_type.TInt]
     && Semantic_type.to_string
          (Semantic_type.TUnion [Semantic_type.TInt; Semantic_type.TString])
          = "int | string"

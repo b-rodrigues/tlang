@@ -250,8 +250,8 @@ let identical args _env =
 --#
 --# @name node_when
 --# @param condition :: Bool The condition to evaluate.
---# @param value :: Node The node value to include if condition is true.
---# @return :: Node | Null The node value or null marker.
+--# @param value :: Any The node value to include if condition is true.
+--# @return :: Any The node value or null marker.
 --# @example
 --#   p = pipeline {
 --#     model = node_when(env("CI") == "1", pyn(script = "train.py"))
@@ -283,7 +283,7 @@ let node_when_fn args _env =
 --# @name node_fork
 --# @param ... :: Any Pairs of condition-value arguments.
 --# @param .default :: Any (Optional) Fallback value if no condition matches.
---# @return :: Node | Null The selected node value or null marker.
+--# @return :: Any The selected node value or null marker.
 --# @example
 --#   p = pipeline {
 --#     model = node_fork(

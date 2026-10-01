@@ -10,7 +10,7 @@ open Ast
 --# @name fetchurl
 --# @param url :: String The URL to download.
 --# @param sha256 :: String (Optional) Expected SHA-256 hash (required in pipeline mode).
---# @param serializer :: String (Optional) Serializer format for pipeline mode. Defaults to "bin". Use "text" for plain text files.
+--# @param serializer :: Symbol (Optional) Serializer format for pipeline mode as a ^-prefixed symbol. Defaults to ^bin. Use ^text for plain text files.
 --# @param output :: String (Optional) Output file path (REPL mode only). Defaults to the basename of the URL.
 --# @param dest :: String (Optional) Output directory (REPL mode only). Defaults to the current directory.
 --# @return :: String | Node In REPL mode, returns the file path as a String. In pipeline mode, returns a Node value.
@@ -45,13 +45,19 @@ let register env =
     | None -> Ok ""
   in
   let serializer_from_args args =
+    let hat s =
+      if String.length s > 0 && s.[0] = '^' then s else "^" ^ s
+    in
     match List.find_opt (fun (n, _) -> n = Some "serializer") args with
-    | Some (_, VSymbol s) -> Ok ("^" ^ s)
-    | Some (_, VString s) -> Ok ("^" ^ s)
-    | Some (_, VSerializer s) -> Ok ("^" ^ s.s_format)
+    | Some (_, VSymbol s) -> Ok (hat s)
+    | Some (_, VSerializer s) -> Ok (hat s.s_format)
+    | Some (_, VString s) ->
+        Error (Error.type_error
+          (Printf.sprintf "Function `fetchurl`: `serializer` expects a Symbol (e.g. ^%s), got String \"%s\". Use a ^-prefixed symbol instead."
+            s s))
     | Some (_, other) ->
         Error (Error.type_error
-          (Printf.sprintf "Function `fetchurl`: `serializer` expects a Symbol or String, got %s."
+          (Printf.sprintf "Function `fetchurl`: `serializer` expects a Symbol, got %s."
              (Ast.Utils.type_name other)))
     | None -> Ok "^bin"
   in

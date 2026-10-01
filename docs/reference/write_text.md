@@ -2,7 +2,7 @@
 
 Write text to a file
 
-Writes a string to a file at the specified path.
+Writes a string to a file at the specified path. Returns a FileError value when the file cannot be written.
 
 ## Parameters
 

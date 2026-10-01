@@ -9,8 +9,8 @@
 --# @name rn
 --# @param command :: Any (Optional) The expression to evaluate inside the R node (must be enclosed in `<{ ... }>` blocks). Mutually exclusive with `script`.
 --# @param script :: String (Optional) Path to an external `.R` file to execute as the node body. Mutually exclusive with `command`. Sets the runtime to `R` automatically.
---# @param serializer :: Symbol | Dict (Optional) Serializer strategy: a built-in (`default`, `^csv`, `^json`, `^ipc`, `^parquet`, `^pmml`, `^onnx`, `^bin`, `^text`, `^tlang`), an inline custom dict, or a quoted custom function `custom("name")` declared in `functions`. Bare function names are rejected. Default is `default`.
---# @param deserializer :: Symbol | Dict (Optional) Deserializer strategy: same closed set as `serializer`. Default is `default`.
+--# @param serializer :: Strategy (Optional) Serializer strategy: a built-in (`default`, `^csv`, `^json`, `^ipc`, `^parquet`, `^pmml`, `^onnx`, `^bin`, `^text`, `^tlang`) or a strategy dict `[format: ^name, ...snippets]` (see `docs/serializers.md`). Bare function names are rejected. Default is `default`.
+--# @param deserializer :: Strategy (Optional) Deserializer strategy: same closed set as `serializer`. Default is `default`.
 --# @param functions :: String | List[String] (Optional) R scripts to source before execution.
 --# @param include :: String | List[String] (Optional) Additional files for the sandbox.
 --# @param noop :: Bool (Optional) Whether to skip execution and generate a stub. Default = false.

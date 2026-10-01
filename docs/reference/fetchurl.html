@@ -44,9 +44,9 @@ the Nix store, making it available downstream.</p>
 download.</p></li>
 <li><p><strong>sha256</strong> (<code>String</code>): (Optional)
 Expected SHA-256 hash (required in pipeline mode).</p></li>
-<li><p><strong>serializer</strong> (<code>String</code>): (Optional)
-Serializer format for pipeline mode. Defaults to “bin”. Use “text” for
-plain text files.</p></li>
+<li><p><strong>serializer</strong> (<code>Symbol</code>): (Optional)
+Serializer format for pipeline mode as a ^-prefixed symbol. Defaults to
+^bin. Use ^text for plain text files.</p></li>
 <li><p><strong>output</strong> (<code>String</code>): (Optional) Output
 file path (REPL mode only). Defaults to the basename of the
 URL.</p></li>

@@ -11,5 +11,5 @@ Reads a serialized T value from a file. Verifies an integrity digest before unma
 
 ## Returns
 
-String] Value or error.
+Value or error.
 

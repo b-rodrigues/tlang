@@ -6,10 +6,10 @@ Calls `nix-build` on the generated `pipeline.nix` file. Extracts the store path 
 
 ## Parameters
 
-- **p** (`PipelineResult`): The pipeline AST structure.
+- **p** (`Pipeline`): The pipeline AST structure.
 
 
 ## Returns
 
-The output Nix store path or the dry-run DataFrame.
+| DataFrame The output Nix store path or the dry-run DataFrame.
 

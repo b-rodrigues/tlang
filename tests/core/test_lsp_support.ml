@@ -353,8 +353,8 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
     (Semantic_type.to_ast_typ Semantic_type.TBool = Ast.TBool);
   test_message "TAny maps to Ast.TCustom \"Any\""
     (Semantic_type.to_ast_typ Semantic_type.TAny = Ast.TCustom "Any");
-  test_message "TUnknown maps to Ast.TCustom \"Any\""
-    (Semantic_type.to_ast_typ Semantic_type.TUnknown = Ast.TCustom "Any");
+  test_message "TUnknown maps to Ast.TUnknown (unknown stays unknown)"
+    (Semantic_type.to_ast_typ Semantic_type.TUnknown = Ast.TUnknown);
   test_message "TFunction maps to Ast.TArrow"
     (match Semantic_type.to_ast_typ (Semantic_type.TFunction ([("a", Semantic_type.TInt)], Semantic_type.TString)) with
      | Ast.TArrow ([Ast.TInt], Ast.TString) -> true
@@ -425,6 +425,40 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
       d.Diagnostics.diag_severity = Warning && d.Diagnostics.diag_message |> fun s ->
         String.length s > 10 && String.sub s 0 10 = "Variable `") diags2));
   Sys.remove tmp_file;
+
+  (* Unknown inference stays silent under annotations: `if` with
+     mismatched branches infers Unknown, which matches every
+     annotation. The `k` control still warns, so silence is not
+     a broken check. *)
+  let tmp_file_u = Filename.temp_file "t_type_unknown" ".t" in
+  let oc_u = open_out tmp_file_u in
+  output_string oc_u "u: Int = if (true) 1 else \"s\"\nk: Int = \"oops\"\n";
+  close_out oc_u;
+  Check_utils.extra_diagnostics_hook := (fun filename ->
+    try
+      let ch = open_in filename in
+      let content = really_input_string ch (in_channel_length ch) in
+      close_in ch;
+      let lexbuf = Lexing.from_string content in
+      lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = filename };
+      let program = Parser.program Lexer.token lexbuf in
+      let scope = Symbol_table.create_scope () in
+      Symbol_table.register_keywords scope;
+      let analysis = Analyzer.analyze program scope in
+      Check_utils.annotation_diagnostics program analysis.Analyzer.stmt_types filename
+    with _ -> []);
+  let cr_u = Check_utils.run_check Typecheck.Strict tmp_file_u env in
+  let diags_u = Diagnostics.check_result_entries cr_u in
+  let var_warns = List.filter (fun d ->
+    d.Diagnostics.diag_severity = Warning && d.Diagnostics.diag_message |> fun s ->
+      String.length s > 10 && String.sub s 0 10 = "Variable `") diags_u in
+  test_message "unknown inference stays silent while known mismatch warns"
+    (List.length var_warns = 1
+     && (let s = (List.hd var_warns).Diagnostics.diag_message in
+         try ignore (Str.search_forward (Str.regexp_string "`k`") s 0); true
+         with Not_found -> false));
+  Check_utils.extra_diagnostics_hook := (fun _ -> []);
+  Sys.remove tmp_file_u;
 
   (* Reassignment against a standing annotation warns; a compatible
      reassignment, an Any-annotated one, and an unannotated one stay

@@ -17,6 +17,5 @@ True for Date values.
 
 ```t
 is_date(ymd("2024-01-15"))
-*)
 ```
 

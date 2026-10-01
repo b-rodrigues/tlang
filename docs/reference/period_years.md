@@ -17,6 +17,5 @@ The years field.
 
 ```t
 period_years(years(2))
-*)
 ```
 

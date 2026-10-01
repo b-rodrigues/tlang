@@ -96,8 +96,10 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
   (* 6. expect_serializer *)
   assert_pass "expect_serializer: csv symbol"
     (call "expect_serializer" [(None, p_ser); (None, VString "a"); (None, VSymbol "csv")]);
-  assert_pass "expect_serializer: csv string"
-    (call "expect_serializer" [(None, p_ser); (None, VString "a"); (None, VString "csv")]);
+  assert_result "expect_serializer: string rejected"
+    (Ast.Utils.value_to_string
+      (call "expect_serializer" [(None, p_ser); (None, VString "a"); (None, VString "csv")]))
+    "must be a Symbol";
   assert_pass "expect_serializer: default serializer"
     (call "expect_serializer" [(None, p_ser); (None, VString "d"); (None, VSymbol "default")]);
   assert_stop "expect_serializer: mismatch"
@@ -106,8 +108,10 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
   (* 7. expect_deserializer *)
   assert_pass "expect_deserializer: json symbol"
     (call "expect_deserializer" [(None, p_ser); (None, VString "b"); (None, VSymbol "json")]);
-  assert_pass "expect_deserializer: json string"
-    (call "expect_deserializer" [(None, p_ser); (None, VString "b"); (None, VString "json")]);
+  assert_result "expect_deserializer: string rejected"
+    (Ast.Utils.value_to_string
+      (call "expect_deserializer" [(None, p_ser); (None, VString "b"); (None, VString "json")]))
+    "must be a Symbol";
   assert_pass "expect_deserializer: default deserializer"
     (call "expect_deserializer" [(None, p_ser); (None, VString "d"); (None, VSymbol "default")]);
   assert_stop "expect_deserializer: mismatch"

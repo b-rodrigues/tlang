@@ -17,6 +17,5 @@ Parses strings in YMD order to Date values. Vectorized over vectors. Unparseable
 
 ```t
 ymd("2024-01-15")
-*)
 ```
 

@@ -134,8 +134,22 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
   check_bind "Julia comprehension leaks no frame" "Julia"
     "[x for x in xs if x > 0]\ny = 1\ny" ["y"];
   check_bind "Julia try/catch/finally stays balanced" "Julia"
-    "try\n  x = 1\ncatch e\n  y = 2\nfinally\n  z = 3\nend\nw = 4\nw" ["w"; "x"; "z"];
+    "try\n  x = 1\ncatch e\n  y = 2\nfinally\n  z = 3\nend\nw = 4\nw" ["w"];
   check_bind "sh stmt-start binds" "sh" "x=1\necho $x" ["x"];
+  check_bind "sh prefix is not a binding" "sh" "FOO=1 cmd\necho $FOO" [];
+  check_bind "sh chained assignments bind" "sh" "A=1 B=2\necho $A $B" ["A"; "B"];
+  check_bind "sh chained prefix binds nothing" "sh" "A=1 B=2 cmd\necho $A" [];
+  check_bind "sh export binds" "sh" "export FOO=1\necho $FOO" ["FOO"];
+  check_bind "sh export prefix binds nothing" "sh" "export FOO=1 cmd\necho $FOO" [];
+  check_bind "sh bare export binds nothing" "sh" "export FOO\necho $FOO" [];
+  check_bind "sh brace default assigns conditionally" "sh" "echo ${X:=1}\necho $X" [];
+  check_bind "sh or-continuation guards" "sh" "cmd ||\nx=1\necho $x" [];
+  check_bind "R or-continuation guards" "R" "cmd() ||\nx <- 1\nx" [];
+  check_bind "Julia and-continuation guards" "Julia" "ok(pre) &&\nx = 1\nx" [];
+  check_bind "Julia abstract type balances" "Julia"
+    "module M\nabstract type T end\nx = 1\nend\nx" ["M"];
+  check_bind "Julia abstract type name records" "Julia"
+    "abstract type T end\nx = 1\nx" ["T"; "x"];
   check_bind "sh arg is not a binding" "sh" "echo x=1" [];
   check_bind "sh for binds" "sh" "for i in a b; do echo $i; done" ["i"];
   check_bind "sh local never binds" "sh" "f() {\n  local x=1\n  echo $x\n}" [];
@@ -163,6 +177,8 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
   check_shadowed "R transform-in-place keeps edge" "R" "raw <- raw + 1" [];
   check_shadowed "R read-before keeps edge" "R" "print(src); src <- 99" [];
   check_shadowed "R conditional keeps edge" "R" "if (flag) src <- 99; use(src)" [];
+  check_shadowed "Julia try keeps edge" "Julia" "try\n  src = 1\nend\nuse(src)" [];
+  check_shadowed "Julia finally keeps edge" "Julia" "try\n  1\nfinally\n  src = 2\nend\nuse(src)" [];
   check_shadowed "R multi-line conditional keeps edge" "R" "if (flag) {\n  src <- 99\n}\nuse(src)" [];
   check_shadowed "Python transform-in-place keeps edge" "Python" "df = df.dropna()" [];
   check_shadowed "Python read-before keeps edge" "Python" "print(src)\nsrc = 99" [];
@@ -307,6 +323,26 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
       out = pyn(command = <{ if flag: src = 99
       use(src) }>)
     }|} "out" ["src"];
+  check_deps "sh quoted interpolation keeps edge"
+    {|p = pipeline {
+      src = 1
+      out = shn(command = <{ echo "$src" }>)
+    }|} "out" ["src"];
+  check_deps "Julia quoted interpolation keeps edge"
+    {|p = pipeline {
+      src = 1
+      out = jln(command = <{ x = "$src" }>, deserializer = ^json)
+    }|} "out" ["src"];
+  check_deps "Python f-string interpolation keeps edge"
+    {|p = pipeline {
+      df = pyn(command = <{ 1 }>)
+      out = pyn(command = <{ x = f"{df}" }>)
+    }|} "out" ["df"];
+  check_deps "Python plain string keeps no edge"
+    {|p = pipeline {
+      df = pyn(command = <{ 1 }>)
+      out = pyn(command = <{ x = "{df}" }>)
+    }|} "out" [];
   (* sh string commands carry no RawCode text, so dependency edges from
      sh bodies are out of scope here; sh shadowing is pinned at the
      binding level in Test 2b instead. *)

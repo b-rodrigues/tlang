@@ -68,6 +68,42 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
     "id = \\<T>(x: T -> T) x; id(1)"
     "1";
 
+  test "generic lambda accepts homogeneous lists"
+    "const = \\<T>(x: T, y: T -> T) x; const([1], [2])"
+    "[1]";
+
+  test "generic lambda rejects heterogeneous list elements"
+    "const = \\<T>(x: T, y: T -> T) x; const([1], [\"a\"])"
+    {|Error(TypeError: "Type variable `T` has inconsistent types: List[Int] vs List[String]")|};
+
+  test "generic lambda keeps Int and Float distinct inside lists"
+    "const = \\<T>(x: T, y: T -> T) x; const([1], [2.5])"
+    {|Error(TypeError: "Type variable `T` has inconsistent types: List[Int] vs List[Float]")|};
+
+  test "generic lambda rejects heterogeneous dict values"
+    "h = \\<T>(x: T, y: T -> T) x; h([a: 1], [a: \"s\"])"
+    {|Error(TypeError: "Type variable `T` has inconsistent types: Dict[String, Int] vs Dict[String, String]")|};
+
+  test "generic lambda lets NA through inside lists"
+    "c2 = \\<T>(x: T, y: T -> T) x; c2([1, NA], [2])"
+    "[1, NA]";
+
+  test "generic lambda rejects mixed lists against plain lists"
+    "const = \\<T>(x: T, y: T -> T) x; const([1, \"a\"], [2])"
+    {|Error(TypeError: "Type variable `T` has inconsistent types: List[Int | String] vs List[Int]")|};
+
+  test "nested type variable unifies inside List"
+    "f2 = \\<T>(x: List[T], y: List[T] -> T) x; f2([1], [2])"
+    "[1]";
+
+  test "nested type variable rejects mismatch inside List"
+    "f2 = \\<T>(x: List[T], y: List[T] -> T) x; f2([1], [\"a\"])"
+    {|Error(TypeError: "Type variable `T` has inconsistent types: Int vs String")|};
+
+  test "single nested type variable never constrains"
+    "g = \\<T>(x: List[T] -> T) x; g([1, 2])"
+    "[1, 2]";
+
   test "typed lambda allows Int for Float (widening)"
     "f = \\(x: Float -> Float) x; f(1)"
     "1";
@@ -158,6 +194,16 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
     {|f = \<T>(x: T -> T) x + 1|} 0 None;
   check_generic "non-generic lambda stays silent"
     {|f = \(x: Int -> Int) "oops"|} 0 None;
+  check_generic "generic list return with fixed body warns"
+    {|f = \<T>(x: T -> List[T]) [1, 2]|} 1 (Some "declares return `List[T]`");
+  check_generic "generic list return using param stays silent"
+    {|f = \<T>(x: T -> List[T]) [x]|} 0 None;
+  check_generic "generic dict return with fixed body warns"
+    {|f = \<T>(x: T -> Dict[String, T]) [a: 1]|} 1 (Some "declares return `Dict[String, T]`");
+  check_generic "generic dict return using param stays silent"
+    {|f = \<T>(x: T -> Dict[String, T]) [a: x]|} 0 None;
+  check_generic "generic list return with call body stays silent"
+    {|f = \<T>(x: T -> List[T]) foo()|} 0 None;
   check_generic "nested generic return stays silent"
     {|f = \<T>(x: T -> List[T]) x|} 0 None;
 
@@ -166,8 +212,9 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
      A builtin counts as fully precise when its return and every parameter
      map to a concrete semantic type (not Any/Unknown). The floor below
      ratchets: it must never drop (new builtins without types do not fail
-     it, but removing types does). Re-measure with this same test. *)
-  let coverage_floor = 373 in
+     it, but removing types does). Re-measure with this same test.
+     Floor is 372: 373 before the `custom()` builtin was removed. *)
+  let coverage_floor = 384 in
   (* The registry fills from --# source comments (same as `t doc
      --parse`); without it every builtin falls back to all-Any and the
      audit would measure nothing. Skip gracefully outside a checkout. *)
@@ -254,6 +301,43 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
       ) acc entries
     in
     let concrete = function Semantic_type.TAny | Semantic_type.TUnknown -> false | _ -> true in
+    (* Signatures that parse to TUnknown anywhere silently disable checking
+       for that position (often a typo like `Flot`). Members matching the
+       deliberate pseudo-vocabulary below stay quiet: they carry meaning
+       for humans but have no runtime contract (`Column`, `Selection`,
+       `Call`, `KeywordArgs`), or are bottom values (`Function`, `Error`,
+       `Null`, `NA`, `VError`). Only live builtins are listed: internal
+       OCaml docs (scaffold, arrow_io, serialization) use OCaml-side
+       vocabulary that is out of scope here — except when they collide
+       with a builtin name (`read_csv`/`write_csv` vs arrow_io), which
+       stays listed as a known registry-collision follow-up. Everything
+       listed is informational, never failed. *)
+    let deliberate_member w =
+      match w with
+      | "function" | "error" | "null" | "na" | "verror" | "column"
+      | "selection" | "call" | "keywordargs" -> true
+      | _ -> false
+    in
+    let rec has_unknown = function
+      | Semantic_type.TUnknown -> true
+      | Semantic_type.TList t | Semantic_type.TVector t -> has_unknown t
+      | Semantic_type.TDict (k, v) -> has_unknown k || has_unknown v
+      | Semantic_type.TUnion ts -> List.exists has_unknown ts
+      | Semantic_type.TFunction (args, ret) ->
+          List.exists (fun (_, t) -> has_unknown t) args || has_unknown ret
+      | _ -> false
+    in
+    let unknowns = ref [] in
+    (* Live builtin names: the unknown-signature warning applies to T
+       builtin signatures only, not internal OCaml docs. *)
+    let builtin_names =
+      let acc = ref [] in
+      Ast.Env.iter (fun name v ->
+        match v with
+        | Ast.VBuiltin { b_name = Some n; _ } when n = name -> acc := n :: !acc
+        | _ -> ()) (Packages.init_env ());
+      !acc
+    in
     let entry_full (e : Tdoc_types.doc_entry) =
       let r = match e.Tdoc_types.return_value with
         | Some r -> (match r.Tdoc_types.type_info with Some s -> concrete (Semantic_type.from_string s) | None -> false)
@@ -269,6 +353,26 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
         List.fold_left (fun acc e ->
           let label = pkg_of_path f in
           let full = entry_full e in
+          let note_unknown kind = function
+            | Some s when List.mem e.Tdoc_types.name builtin_names ->
+                let members =
+                  List.map (fun m -> String.lowercase_ascii (String.trim m))
+                    (Semantic_type.split_toplevel_pipe s)
+                in
+                if List.exists (fun m ->
+                     not (deliberate_member m)
+                     && has_unknown (Semantic_type.from_string m)
+                   ) members then
+                  unknowns := (e.Tdoc_types.name ^ "." ^ kind ^ " :: " ^ s) :: !unknowns
+            | _ -> ()
+          in
+          (match e.Tdoc_types.return_value with
+           | Some r -> note_unknown "return" r.Tdoc_types.type_info
+           | None -> ());
+          List.iter (fun (p : Tdoc_types.param_doc) ->
+            if p.Tdoc_types.name <> "..." then
+              note_unknown p.Tdoc_types.name p.Tdoc_types.type_info
+          ) e.Tdoc_types.params;
           (match List.assoc_opt label acc with
            | Some (fl, tot) ->
                let acc = List.remove_assoc label acc in
@@ -279,7 +383,19 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
     in
     List.iter (fun (label, (fl, tot)) ->
       Printf.printf "    typing coverage [%s]: %d/%d fully precise\n" label fl tot
-    ) (List.sort (fun (a, _) (b, _) -> String.compare a b) grouped)
+    ) (List.sort (fun (a, _) (b, _) -> String.compare a b) grouped);
+    (match List.sort_uniq String.compare !unknowns with
+     | [] -> ()
+     | unk ->
+         let shown, extra =
+           let rec take n acc = function
+             | [] -> (List.rev acc, 0)
+             | x :: xs -> if n <= 0 then (List.rev acc, 1 + List.length xs) else take (n - 1) (x :: acc) xs
+           in
+           take 15 [] unk
+         in
+         List.iter (fun u -> Printf.printf "    typing unknown signature: %s\n" u) shown;
+         if extra > 0 then Printf.printf "    ... and %d more unknown signatures\n" extra)
   end);
   (* Outside a checkout the registry is empty and every builtin falls back
      to all-Any, so the floor cannot apply: pass by default there. *)

@@ -140,7 +140,7 @@ let populate_pipeline ?(build=false) ?(skip_requirements=false) ?verbose ?pipeli
         let is_custom_ser = requires_functions ser in
         let is_custom_des = requires_functions des in
         if (is_custom_ser || is_custom_des) && funcs = [] then
-          Printf.eprintf "Warning: Node `%s` uses a custom or unknown strategy (not 'default', 'csv', 'json', 'ipc', 'parquet', 'pmml', 'onnx', etc.) but has no supporting `functions` specified.\nIf this is a built-in strategy, check the spelling (e.g., ^ipc or ^parquet).\nIf it is a custom function, ensure it is available in the runtime environment.\n%!" name
+          Printf.eprintf "Warning: Node `%s` uses an unknown strategy (not 'default', 'csv', 'json', 'ipc', 'parquet', 'pmml', 'onnx', etc.).\nIf this is a built-in strategy, check the spelling (e.g., ^ipc or ^parquet).\nFor a custom format, define a strategy dict [format: ^name, ...snippets] (see docs/serializers.md).\n%!" name
       ) p.p_exprs
     in
 

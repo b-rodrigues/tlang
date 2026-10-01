@@ -48,16 +48,17 @@ expression to evaluate inside the R node (must be enclosed in
 an external <code>.R</code> file to execute as the node body. Mutually
 exclusive with <code>command</code>. Sets the runtime to <code>R</code>
 automatically.</p></li>
-<li><p><strong>serializer</strong> (<code>String</code>): | Function
-(Optional) Custom serializer strategy. Built-in values include
-“default”, “ipc”, “parquet”, and “pmml”. Can be a string (e.g., “ipc”)
-or an unquoted function name. Custom functions can also be used. Default
-= “default”.</p></li>
-<li><p><strong>deserializer</strong> (<code>String</code>): | Function
-(Optional) Custom deserializer strategy. Built-in values include
-“default”, “ipc”, “parquet”, and “pmml”. Can be a string (e.g., “ipc”)
-or an unquoted function name. Custom functions can also be used. Default
-= “default”.</p></li>
+<li><p><strong>serializer</strong> (<code>Strategy</code>): (Optional)
+Serializer strategy: a built-in (<code>default</code>,
+<code>^csv</code>, <code>^json</code>, <code>^ipc</code>,
+<code>^parquet</code>, <code>^pmml</code>, <code>^onnx</code>,
+<code>^bin</code>, <code>^text</code>, <code>^tlang</code>) or a
+strategy dict <code>[format: ^name, ...snippets]</code> (see
+<code>docs/serializers.md</code>). Bare function names are rejected.
+Default is <code>default</code>.</p></li>
+<li><p><strong>deserializer</strong> (<code>Strategy</code>): (Optional)
+Deserializer strategy: same closed set as <code>serializer</code>.
+Default is <code>default</code>.</p></li>
 <li><p><strong>functions</strong> (<code>String</code>): | List[String]
 (Optional) R scripts to source before execution.</p></li>
 <li><p><strong>include</strong> (<code>String</code>): | List[String]

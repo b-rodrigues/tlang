@@ -8,12 +8,12 @@ Evaluated at pipeline construction time. Returns `value` if `condition` is truth
 
 - **condition** (`Bool`): The condition to evaluate.
 
-- **value** (`Node`): The node value to include if condition is true.
+- **value** (`Any`): The node value to include if condition is true.
 
 
 ## Returns
 
-| Null The node value or null marker.
+The node value or null marker.
 
 ## Examples
 

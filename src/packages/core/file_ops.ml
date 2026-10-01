@@ -85,7 +85,8 @@ let register env =
   (*
   --# Read file contents
   --#
-  --# Reads the entire content of a file into a string.
+  --# Reads the entire content of a file into a string. Returns a FileError
+  --# value when the file cannot be read.
   --#
   --# @name read_file
   --# @param path :: String The path to the file.
@@ -127,7 +128,8 @@ let register env =
   --# List files in directory
   --#
   --# Returns a list of files and directories in the specified path.
-  --# Supports an optional regex pattern for filtering.
+  --# Supports an optional regex pattern for filtering. Returns a FileError
+  --# value when the directory cannot be read.
   --#
   --# @name list_files
   --# @param path :: String [Optional] The directory to list. Defaults to ".".

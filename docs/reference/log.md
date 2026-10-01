@@ -2,7 +2,7 @@
 
 Natural logarithm
 
-Calculates the natural logarithm (base e) of x.
+Calculates the natural logarithm (base e) of x. Returns a ValueError value for non-positive input.
 
 ## Parameters
 

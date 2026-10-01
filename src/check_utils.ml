@@ -152,11 +152,11 @@ let annotation_diagnostics program stmt_types filename =
   in
   (* Type this statement actually had: recorded during analysis in visit
      order, before later reassignments overwrite the scope. Falls back to
-     `Any` (silent) when absent. *)
+     `TUnknown` (silent: unknown matches every annotation) when absent. *)
   let stmt_ty i =
     match Hashtbl.find_opt stmt_types i with
     | Some st -> Semantic_type.to_ast_typ st
-    | _ -> Ast.TCustom "Any"
+    | _ -> Ast.TUnknown
   in
   List.iteri (fun i (stmt : Ast.stmt) ->
     match stmt.node with
@@ -243,41 +243,13 @@ let rec sites_in_expr (e : Ast.expr) : match_site list =
     | Ast.Match { scrutinee; cases } ->
         [{ ms_scrutinee = scrutinee; ms_cases = cases; ms_loc = e.Ast.loc }]
     (* Wildcard covers non-Match nodes: they contribute no site themselves,
-       only their children below do. *)
+       only their children below (see Ast.children_of_expr) do. *)
     | _ -> []
   in
-  self @ sites_in_children e
-
-and sites_in_children (e : Ast.expr) : match_site list =
-  match e.Ast.node with
-  | Ast.Value _ | Ast.Var _ | Ast.ColumnRef _ | Ast.RawCode _ | Ast.ShellExpr _ -> []
-  | Ast.Call { fn; args } ->
-      sites_in_expr fn @ List.concat_map (fun (_, a) -> sites_in_expr a) args
-  | Ast.ListLit items -> List.concat_map (fun (_, x) -> sites_in_expr x) items
-  | Ast.DictLit pairs -> List.concat_map (fun (_, v) -> sites_in_expr v) pairs
-  | Ast.BinOp { left; right; _ } | Ast.BroadcastOp { left; right; _ } ->
-      sites_in_expr left @ sites_in_expr right
-  | Ast.UnOp { operand; _ } -> sites_in_expr operand
-  | Ast.DotAccess { target; _ } -> sites_in_expr target
-  | Ast.IfElse { cond; then_; else_ } ->
-      sites_in_expr cond @ sites_in_expr then_ @ sites_in_expr else_
-  | Ast.Match { scrutinee; cases } ->
-      sites_in_expr scrutinee
-      @ List.concat_map (fun (_, body) -> sites_in_expr body) cases
-  | Ast.Lambda l -> sites_in_expr l.Ast.body
-  | Ast.Block stmts -> List.concat_map sites_in_stmt stmts
-  | Ast.PipelineDef nodes | Ast.PipelineOfDef nodes | Ast.IntentDef nodes ->
-      List.concat_map (fun (_, x) -> sites_in_expr x) nodes
-  | Ast.Unquote x | Ast.UnquoteSplice x -> sites_in_expr x
+  self @ List.concat_map sites_in_expr (Ast.children_of_expr e)
 
 and sites_in_stmt (s : Ast.stmt) : match_site list =
-  match s.Ast.node with
-  | Ast.Expression e -> sites_in_expr e
-  | Ast.Assignment { expr = e; _ } -> sites_in_expr e
-  | Ast.Reassignment { expr = e; _ } -> sites_in_expr e
-  (* Type declarations hold static annotations only; no match sites. *)
-  | Ast.TypeDecl _ -> []
-  | Ast.Import _ | Ast.ImportPackage _ | Ast.ImportFrom _ | Ast.ImportFileFrom _ -> []
+  List.concat_map sites_in_expr (Ast.children_of_stmt s)
 
 let mk_match_diag message loc filename =
   let line = match loc with
@@ -336,8 +308,10 @@ let match_exhaustiveness_diagnostics program filename =
 (** Union case diagnostics (per-case level, warn-only).
     Two passes over the parsed program: first collect union definitions
     (`type` declarations), then check every `match` whose scrutinee is a
-    direct constructor call (`Circle(...)`) of a known union. Anything
-    else stays silent, so no previously clean program gains a warning.
+    direct constructor call (`Circle(...)`) of a known union, or a variable
+    bound unambiguously to one (`s = Circle(...)` exactly once program-wide,
+    never reassigned, never a lambda parameter). Anything else stays
+    silent, so no previously clean program gains a warning.
     Three warnings, all on the `match` line:
     - missing cases with no catch-all (names every missing case);
     - arms naming unknown cases (likely typos; names the valid set);
@@ -353,6 +327,44 @@ let match_union_diagnostics program filename =
     ) program
   in
   if unions = [] then [] else
+  (* Names bound anywhere in the program: every assignment target, every
+     reassignment target, every lambda parameter. A variable scrutinee
+     resolves to a union only when bound exactly once (to a direct
+     union-case call) with no other binding — blocks share scope and only
+     lambdas shadow, so any second binding makes resolution unsafe. *)
+  let assigned = ref [] and reassigned = ref [] and params = ref [] in
+  let rec uses_in_expr e =
+    (match e.Ast.node with
+     | Ast.Lambda l -> params := l.Ast.params @ !params
+     | _ -> ());
+    List.iter uses_in_expr (Ast.children_of_expr e)
+  and uses_in_stmt s =
+    (match s.Ast.node with
+     | Ast.Assignment { name; expr = e; _ } ->
+         assigned := name :: !assigned; uses_in_expr e
+     | Ast.Reassignment { name; expr = e; _ } ->
+         reassigned := name :: !reassigned; uses_in_expr e
+     | _ -> List.iter uses_in_expr (Ast.children_of_stmt s))
+  in
+  let () = List.iter uses_in_stmt program in
+  let assigned_once name =
+    List.length (List.filter (( = ) name) !assigned) = 1
+    && not (List.mem name !reassigned)
+    && not (List.mem name !params)
+  in
+  let union_var_map =
+    List.filter_map (fun (s : Ast.stmt) ->
+      match s.Ast.node with
+      | Ast.Assignment { name; expr = e; _ } ->
+          (match e.Ast.node with
+           | Ast.Call { fn = { Ast.node = Ast.Var fname; _ }; _ } ->
+               (match List.find_opt (fun (_, cases) -> List.mem fname cases) unions with
+                | Some u when assigned_once name -> Some (name, u)
+                | _ -> None)
+           | _ -> None)
+      | _ -> None
+    ) program
+  in
   (* Local accumulation across the site walk, as above. *)
   let diags = ref [] in
   let sites = List.concat_map sites_in_stmt program in
@@ -360,6 +372,8 @@ let match_union_diagnostics program filename =
     match e.Ast.node with
     | Ast.Call { fn = { Ast.node = Ast.Var fname; _ }; _ } ->
         List.find_opt (fun (_, cases) -> List.mem fname cases) unions
+    | Ast.Var name ->
+        List.assoc_opt name union_var_map
     | _ -> None
   in
   List.iter (fun site ->
@@ -400,19 +414,22 @@ let match_union_diagnostics program filename =
   List.rev !diags
 
 (** Generic body check (warn-only, flexible for future strictness).
-    Warns when a generic lambda declares a direct type-variable return
+    Warns when a generic lambda declares a type-variable return
     (`\(T)(x: T -> T)`) but its body cannot be that variable: the body
     infers to a concrete type and never mentions its parameters
-    (e.g. `\(T)(x: T -> T) "oops"`). Bodies that mention any parameter
-    stay silent (they may be generic); unknown bodies stay silent (no
-    false positives). Nested type variables (e.g. `List[T]` returns)
-    are skipped entirely. Severity is Warning today; set
-    [generic_body_strict] for Error when a future strict mode needs it. *)
+    (e.g. `\(T)(x: T -> T) "oops"`). One nesting level is covered
+    (`List[T]`/`Dict[String, T]` returns against fixed literals, see
+    `syntactic_shape` below). Bodies that mention any parameter stay
+    silent (they may be generic); unknown bodies stay silent (no
+    false positives). Deeper shapes are skipped entirely. Severity is
+    Warning today; set [generic_body_strict] for Error when a future
+    strict mode needs it. *)
 let generic_body_strict = ref false
 
 type generic_site = {
   gs_params : string list;
   gs_return_var : string;
+  gs_return_typ : Ast.typ;
   gs_body : Ast.expr;
   gs_loc : Ast.source_location option;
 }
@@ -422,79 +439,36 @@ let rec generic_lambdas_in_expr (e : Ast.expr) : generic_site list =
     match e.Ast.node with
     | Ast.Lambda l ->
         (match l.Ast.generic_params, l.Ast.return_type with
-         | _ :: _, Some (Ast.TVar r) ->
-             [{ gs_params = l.Ast.params; gs_return_var = r;
-                gs_body = l.Ast.body; gs_loc = e.Ast.loc }]
+         | _ :: _, Some ret ->
+             let var_of = function
+               | Ast.TVar r -> Some r
+               | Ast.TList (Some (Ast.TVar r)) -> Some r
+               | Ast.TDict (_, Some (Ast.TVar r)) -> Some r
+               | _ -> None
+             in
+             (match var_of ret with
+              | Some r ->
+                  [{ gs_params = l.Ast.params; gs_return_var = r;
+                     gs_return_typ = ret;
+                     gs_body = l.Ast.body; gs_loc = e.Ast.loc }]
+              | None -> [])
          | _ -> [])
     | _ -> []
   in
-  self @ generic_lambdas_in_children e
-
-and generic_lambdas_in_children (e : Ast.expr) : generic_site list =
-  match e.Ast.node with
-  | Ast.Value _ | Ast.Var _ | Ast.ColumnRef _ | Ast.RawCode _ | Ast.ShellExpr _ -> []
-  | Ast.Call { fn; args } ->
-      generic_lambdas_in_expr fn @ List.concat_map (fun (_, a) -> generic_lambdas_in_expr a) args
-  | Ast.ListLit items -> List.concat_map (fun (_, x) -> generic_lambdas_in_expr x) items
-  | Ast.DictLit pairs -> List.concat_map (fun (_, v) -> generic_lambdas_in_expr v) pairs
-  | Ast.BinOp { left; right; _ } | Ast.BroadcastOp { left; right; _ } ->
-      generic_lambdas_in_expr left @ generic_lambdas_in_expr right
-  | Ast.UnOp { operand; _ } -> generic_lambdas_in_expr operand
-  | Ast.DotAccess { target; _ } -> generic_lambdas_in_expr target
-  | Ast.IfElse { cond; then_; else_ } ->
-      generic_lambdas_in_expr cond @ generic_lambdas_in_expr then_ @ generic_lambdas_in_expr else_
-  | Ast.Match { scrutinee; cases } ->
-      generic_lambdas_in_expr scrutinee
-      @ List.concat_map (fun (_, body) -> generic_lambdas_in_expr body) cases
-  | Ast.Lambda l -> generic_lambdas_in_expr l.Ast.body
-  | Ast.Block stmts -> List.concat_map generic_lambdas_in_stmt stmts
-  | Ast.PipelineDef nodes | Ast.PipelineOfDef nodes | Ast.IntentDef nodes ->
-      List.concat_map (fun (_, x) -> generic_lambdas_in_expr x) nodes
-  | Ast.Unquote x | Ast.UnquoteSplice x -> generic_lambdas_in_expr x
+  self @ List.concat_map generic_lambdas_in_expr (Ast.children_of_expr e)
 
 and generic_lambdas_in_stmt (s : Ast.stmt) : generic_site list =
-  match s.Ast.node with
-  | Ast.Expression e -> generic_lambdas_in_expr e
-  | Ast.Assignment { expr = e; _ } -> generic_lambdas_in_expr e
-  | Ast.Reassignment { expr = e; _ } -> generic_lambdas_in_expr e
-  | Ast.TypeDecl _ -> []
-  | Ast.Import _ | Ast.ImportPackage _ | Ast.ImportFrom _ | Ast.ImportFileFrom _ -> []
+  List.concat_map generic_lambdas_in_expr (Ast.children_of_stmt s)
 
 let rec expr_mentions_any (params : string list) (e : Ast.expr) : bool =
   match e.Ast.node with
   | Ast.Var name -> List.mem name params
-  | Ast.Value _ | Ast.ColumnRef _ | Ast.RawCode _ | Ast.ShellExpr _ -> false
-  | Ast.Call { fn; args } ->
-      expr_mentions_any params fn
-      || List.exists (fun (_, a) -> expr_mentions_any params a) args
-  | Ast.ListLit items -> List.exists (fun (_, x) -> expr_mentions_any params x) items
-  | Ast.DictLit pairs -> List.exists (fun (_, v) -> expr_mentions_any params v) pairs
-  | Ast.BinOp { left; right; _ } | Ast.BroadcastOp { left; right; _ } ->
-      expr_mentions_any params left || expr_mentions_any params right
-  | Ast.UnOp { operand; _ } -> expr_mentions_any params operand
-  | Ast.DotAccess { target; _ } -> expr_mentions_any params target
-  | Ast.IfElse { cond; then_; else_ } ->
-      expr_mentions_any params cond || expr_mentions_any params then_
-      || expr_mentions_any params else_
-  | Ast.Match { scrutinee; cases } ->
-      expr_mentions_any params scrutinee
-      || List.exists (fun (_, body) -> expr_mentions_any params body) cases
-  | Ast.Lambda l ->
-      (* Inner bindings shadow outer params; a textual mention still
-         counts as use (silent direction), so no false warning. *)
-      expr_mentions_any params l.Ast.body
-  | Ast.Block stmts -> List.exists (generic_stmt_mentions_any params) stmts
-  | Ast.PipelineDef nodes | Ast.PipelineOfDef nodes | Ast.IntentDef nodes ->
-      List.exists (fun (_, x) -> expr_mentions_any params x) nodes
-  | Ast.Unquote x | Ast.UnquoteSplice x -> expr_mentions_any params x
+  (* Inner bindings shadow outer params; a textual mention still
+     counts as use (silent direction), so no false warning. *)
+  | _ -> List.exists (expr_mentions_any params) (Ast.children_of_expr e)
 
 and generic_stmt_mentions_any params (s : Ast.stmt) : bool =
-  match s.Ast.node with
-  | Ast.Expression e -> expr_mentions_any params e
-  | Ast.Assignment { expr = e; _ } -> expr_mentions_any params e
-  | Ast.Reassignment { expr = e; _ } -> expr_mentions_any params e
-  | Ast.TypeDecl _ -> false
-  | Ast.Import _ | Ast.ImportPackage _ | Ast.ImportFrom _ | Ast.ImportFileFrom _ -> false
+  List.exists (expr_mentions_any params) (Ast.children_of_stmt s)
 
 let generic_body_diagnostics program filename =
   (* Syntactic body type only (no Analyzer: Check_utils stays leaf so the
@@ -520,41 +494,88 @@ let generic_body_diagnostics program filename =
   let sites =
     List.concat_map generic_lambdas_in_stmt program
   in
+  (* One-level container shapes over scalar literals: `[1, 2]` is
+     `List[Int]`, `[a: 1]` is `Dict[String, Int]`. Anything deeper or
+     non-literal is opaque (silent); a future pass can go deeper. *)
+  let rec syntactic_shape (e : Ast.expr) : Ast.typ option =
+    let scalar = function
+      | Ast.VInt _ -> Some Ast.TInt
+      | Ast.VFloat _ -> Some Ast.TFloat
+      | Ast.VBool _ -> Some Ast.TBool
+      | Ast.VString _ -> Some Ast.TString
+      | _ -> None
+    in
+    let fold_elems ts =
+      match List.sort_uniq compare ts with
+      | [] -> None
+      | [t] -> Some t
+      | ts -> Some (Ast.TUnion ts)
+    in
+    match e.Ast.node with
+    | Ast.Value v -> scalar v
+    | Ast.ListLit items ->
+        let elems = List.map (fun (_, x) ->
+          match x.Ast.node with Ast.Value v -> scalar v | _ -> None) items in
+        if List.exists Option.is_none elems then None
+        else Some (Ast.TList (fold_elems (List.filter_map Fun.id elems)))
+    | Ast.DictLit pairs ->
+        let vals = List.map (fun (_, x) ->
+          match x.Ast.node with Ast.Value v -> scalar v | _ -> None) pairs in
+        if List.exists Option.is_none vals then None
+        else Some (Ast.TDict (Some Ast.TString, fold_elems (List.filter_map Fun.id vals)))
+    | Ast.Block stmts ->
+        (match stmts with
+         | [{ Ast.node = Ast.Expression inner; _ }] -> syntactic_shape inner
+         | _ -> None)
+    | _ -> None
+  in
+  let warn_site site expected actual =
+    let sev = if !generic_body_strict then Diagnostics.Error else Diagnostics.Warning in
+    let line = match site.gs_loc with
+      | Some (l : Ast.source_location) -> Some l.Ast.line
+      | None -> None
+    in
+    let col = match site.gs_loc with
+      | Some (l : Ast.source_location) -> Some l.Ast.column
+      | None -> None
+    in
+    diags := { Diagnostics.diag_id = Diagnostics.gen_id ();
+      Diagnostics.diag_error_class = Diagnostics.Type_error;
+      Diagnostics.diag_severity = sev;
+      Diagnostics.diag_phase = Diagnostics.Schema;
+      Diagnostics.diag_node_id = None;
+      Diagnostics.diag_node_lang = None;
+      Diagnostics.diag_file = Some filename;
+      Diagnostics.diag_line = line;
+      Diagnostics.diag_column = col;
+      Diagnostics.diag_end_line = None;
+      Diagnostics.diag_end_column = None;
+      Diagnostics.diag_message = Printf.sprintf
+        "Generic function declares return `%s` but its body infers to `%s` without using its parameters."
+        expected actual;
+      Diagnostics.diag_expected = Some expected;
+      Diagnostics.diag_actual = Some actual;
+      Diagnostics.diag_caused_by = [];
+      Diagnostics.diag_suggested_fix = Diagnostics.no_fix;
+    } :: !diags
+  in
   List.iter (fun site ->
     if expr_mentions_any site.gs_params site.gs_body then ()
-    else begin
-      match syntactic_body_type site.gs_body with
-      | None -> ()
-      | Some concrete ->
-          let sev = if !generic_body_strict then Diagnostics.Error else Diagnostics.Warning in
-          let line = match site.gs_loc with
-            | Some (l : Ast.source_location) -> Some l.Ast.line
-            | None -> None
-          in
-          let col = match site.gs_loc with
-            | Some (l : Ast.source_location) -> Some l.Ast.column
-            | None -> None
-          in
-          diags := { Diagnostics.diag_id = Diagnostics.gen_id ();
-            Diagnostics.diag_error_class = Diagnostics.Type_error;
-            Diagnostics.diag_severity = sev;
-            Diagnostics.diag_phase = Diagnostics.Schema;
-            Diagnostics.diag_node_id = None;
-            Diagnostics.diag_node_lang = None;
-            Diagnostics.diag_file = Some filename;
-            Diagnostics.diag_line = line;
-            Diagnostics.diag_column = col;
-            Diagnostics.diag_end_line = None;
-            Diagnostics.diag_end_column = None;
-            Diagnostics.diag_message = Printf.sprintf
-              "Generic function declares return `%s` but its body infers to `%s` without using its parameters."
-              site.gs_return_var (Semantic_type.to_string concrete);
-            Diagnostics.diag_expected = Some site.gs_return_var;
-            Diagnostics.diag_actual = Some (Semantic_type.to_string concrete);
-            Diagnostics.diag_caused_by = [];
-            Diagnostics.diag_suggested_fix = Diagnostics.no_fix;
-          } :: !diags
-    end
+    else
+      match site.gs_return_typ with
+      | Ast.TVar _ ->
+          (match syntactic_body_type site.gs_body with
+           | None -> ()
+           | Some concrete ->
+               warn_site site site.gs_return_var (Semantic_type.to_string concrete))
+      | Ast.TList (Some (Ast.TVar _)) | Ast.TDict (_, Some (Ast.TVar _)) ->
+          (match syntactic_shape site.gs_body with
+           | None -> ()
+           | Some shape ->
+               warn_site site
+                 (Ast.Utils.typ_to_string site.gs_return_typ)
+                 (Ast.Utils.typ_to_string shape))
+      | _ -> ()
   ) sites;
   List.rev !diags
 
@@ -603,7 +624,15 @@ let run_check ?(schema=false) ?(env_check=false) ?(offline=false) mode filename 
         wire_diags @ schema_diags @ env_diags
       ) pipelines in
       let extra_diags = !extra_diagnostics_hook filename in
-      extra_diags @ error_diags @ pipeline_diags
+      let unordered = extra_diags @ error_diags @ pipeline_diags in
+      (* Diagnostics read better in source order than grouped by category:
+         stable sort by location, keeping category order within one spot.
+         Location-less diagnostics sort last. Applies to text and JSON. *)
+      let loc_key d =
+        ((match d.Diagnostics.diag_line with Some l -> l | None -> max_int),
+         (match d.Diagnostics.diag_column with Some c -> c | None -> max_int))
+      in
+      List.stable_sort (fun a b -> compare (loc_key a) (loc_key b)) unordered
     in
     let check_phase = Diagnostics.worst_phase diag_list in
     let tier = Diagnostics.worst_tier diag_list in

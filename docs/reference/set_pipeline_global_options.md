@@ -14,9 +14,9 @@ Pure function that returns a new pipeline with the given defaults merged into no
 
 - **env_vars** (`Dict`): (Optional) Combine (prepend). Environment variables.
 
-- **serializer** (`String`): | Symbol (Optional) Override. Default serializer;
+- **serializer** (`Strategy`): (Optional) Override. Default serializer;
 
-- **deserializer** (`String`): | Symbol (Optional) Override. Default deserializer;
+- **deserializer** (`Strategy`): (Optional) Override. Default deserializer;
 
 - **noop** (`Bool`): (Optional) Force-only. If true, nodes become no-ops.
 

@@ -106,7 +106,7 @@ Syncing 2 dependency(ies) from tproject.toml → flake.nix...
 Running nix flake update...
 ```
 
-This regenerates `flake.nix` so new dependencies and tools appear as proper flake inputs with locked versions. The tools will be available directly in your shell and automatically provided to any pipeline nodes during execution. When you declare runtime dependencies, the matching `tlang` companion package is also exposed in the project shell (`library(tlang)` for R, `import tlang` for Python, and `using tlang` for Julia). Then re-enter the shell:
+This regenerates `flake.nix` so new dependencies and tools appear as proper flake inputs with locked versions. The tools will be available directly in your shell and automatically provided to any pipeline nodes during execution. When you declare runtime dependencies, the matching `tlang` companion package is also exposed in the project shell (`library(tlang)` for R, `import tlang` for Python, and `using tlang` for Julia). The R wrapper and both companion paths are present even with no declared dependencies: the Python package is stdlib-only, so `import tlang` works in a bare shell; the Julia package needs JSON, which `t update` auto-adds once any Julia dependency is declared. Then re-enter the shell:
 
 ```bash
 $ nix develop

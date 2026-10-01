@@ -17,6 +17,5 @@ True for Period values.
 
 ```t
 is_period(days(7))
-*)
 ```
 

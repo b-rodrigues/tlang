@@ -548,7 +548,7 @@ let serialize_to_file path value =
 --#
 --# @name deserialize_from_file
 --# @param path :: String Source file path.
---# @return :: Result[Any, String] Value or error.
+--# @return :: Any Value or error.
 --# @private
 --# *)
 let deserialize_from_file path =

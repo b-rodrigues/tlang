@@ -159,7 +159,7 @@ A consolidated index of all pipeline reading, inspecting, and build-log function
 | `pipeline_leaves(p)` | `Pipeline` | `List[String]` | Nodes that nothing depends on |
 | `pipeline_depth(p)` | `Pipeline` | `Int` | Maximum topological depth |
 | `pipeline_cycles(p)` | `Pipeline` | `List[String]` | Nodes involved in cycles (empty = valid) |
-| `pipeline_validate(p)` | `Pipeline` | `List[String]` | All structural validation errors (empty = valid); checks missing files, unknown runtimes, missing deps, cycles, cross-runtime deserializer gaps, serializer coherence, multi-dep deserializer strategies, and `^bin`-only-for-fetchurl. Same checks power `populate_pipeline`, `build_pipeline`, and `t check` tier 1 |
+| `pipeline_validate(p)` | `Pipeline` | `List[String]` | All structural validation errors (empty = valid); checks missing files, unknown runtimes, missing deps, cycles, cross-runtime deserializer gaps, serializer coherence, multi-dep deserializer strategies, closed strategy-dict shape with per-runtime snippet checks, strategies on `Quarto` nodes, and `^bin`-only-for-fetchurl. Same checks power `populate_pipeline`, `build_pipeline`, and `t check` tier 1 |
 | `pipeline_assert(p)` | `Pipeline` | `Pipeline` | Throws first error, or returns pipeline unchanged |
 | `pipeline_print(p)` | `Pipeline` | `NA` | Pretty-print node table to stdout |
 | `pipeline_to_dot(p)` | `Pipeline` \| `MetaPipeline` | `String` | Graphviz DOT representation |
@@ -194,7 +194,7 @@ A consolidated index of all pipeline reading, inspecting, and build-log function
 
 | Function | Parameters | Returns | What it does |
 |---|---|---|---|
-| `set_pipeline_global_options(p, functions?, include?, env_vars?, serializer?, deserializer?, noop?, args?, shell?, shell_args?, flake?, dependencies?, runtimes?, nodes?)` | `Pipeline` plus optional `Dict`/`String`/`List`/`Bool` settings | `Pipeline` | Returns a new pipeline with global defaults merged into target nodes (all nodes by default). Original unchanged. Merge semantics: `functions`, `include`, `env_vars`, `args`, `shell_args`, `dependencies` prepend global values before per-node values (per-node dict keys win); `serializer`, `deserializer`, `shell`, `flake` override per-node values entirely; `noop = true` forces every node to no-op (`false` has no effect). `runtimes`/`nodes` restrict the merge to a subset (union when both given). |
+| `set_pipeline_global_options(p, functions?, include?, env_vars?, serializer?, deserializer?, noop?, args?, shell?, shell_args?, flake?, dependencies?, runtimes?, nodes?)` | `Pipeline` plus optional `Dict`/`String`/`Symbol`/`List`/`Bool` settings (`serializer`/`deserializer` take `Strategy`: `^`-symbols or strategy dicts, never strings) | `Pipeline` | Returns a new pipeline with global defaults merged into target nodes (all nodes by default). Original unchanged. Merge semantics: `functions`, `include`, `env_vars`, `args`, `shell_args`, `dependencies` prepend global values before per-node values (per-node dict keys win); `serializer`, `deserializer`, `shell`, `flake` override per-node values entirely; `noop = true` forces every node to no-op (`false` has no effect). `runtimes`/`nodes` restrict the merge to a subset (union when both given). |
 | `pipeline_node_options(p, node)` | `Pipeline`, `String` | `Dict` | Read-back: returns the fully resolved configuration of a single node after any global-options merges (runtime, serializer, functions, env_vars, shell, flake, deps, depth, ...). Unknown node is a `TypeError`. |
 
 ---

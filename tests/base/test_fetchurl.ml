@@ -48,6 +48,6 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
 
   test "fetchurl: serializer wrong type"
     {|fetchurl("https://example.com", sha256 = "abc123", serializer = 42)|}
-    {|Error(TypeError: "Function `fetchurl`: `serializer` expects a Symbol or String, got Int.")|};
+    {|Error(TypeError: "Function `fetchurl`: `serializer` expects a Symbol, got Int.")|};
 
   print_newline ()

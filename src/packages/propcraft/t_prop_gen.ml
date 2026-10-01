@@ -314,7 +314,7 @@ let prop_gen_choice =
 --# with probability proportional to its weight.
 --#
 --# @name prop_gen_frequency
---# @param pairs :: List[[Int, Dict]] A list of `[weight, generator]` pairs.
+--# @param pairs :: List[List] A list of `[weight, generator]` pairs.
 --# @return :: Dict A generator spec.
 --# @example
 --#   g = prop_gen_frequency([[5, prop_gen_int()], [1, prop_gen_bool()]])
@@ -631,7 +631,7 @@ let prop_gen_df =
 --# controls the probability that any given column value is NA.
 --#
 --# @name prop_gen_dict
---# @param columns :: Dict { name :: String : gen_spec :: Dict } A Dict mapping column names to generator specs.
+--# @param columns :: Dict A Dict mapping column names to generator specs (keys are names, values are gen specs).
 --# @param na_prob :: Float = 0.1 Probability of a column value being NA.
 --# @return :: Dict A generator spec.
 --# @example

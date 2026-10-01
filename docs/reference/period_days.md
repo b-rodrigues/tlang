@@ -17,6 +17,5 @@ The days field.
 
 ```t
 period_days(days(7))
-*)
 ```
 

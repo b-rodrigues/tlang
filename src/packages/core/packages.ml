@@ -756,11 +756,10 @@ let register env =
     `^`-prefixed built-in strategy spellings used as keyword-style
     arguments in node() and related calls (e.g. `runtime = R`,
     `serializer = ^ipc`).
-    Strategies are a CLOSED set: bare custom names do NOT belong here.
-    A custom reader/writer must be quoted explicitly — `custom("name")`
-    with the function declared in the node's `functions` files — or it
-    fails where a strategy is expected. Add new runtimes or built-in
-    serializer names here as they are introduced. *)
+    Strategies are a CLOSED set: bare names do NOT belong here.
+    Custom formats are strategy dicts ([format: ^name, ...snippets],
+    see docs/serializers.md) — never bare names. Add new runtimes or
+    built-in serializer names here as they are introduced. *)
 let known_symbols = [
   (* Runtimes *)
   "R"; "Python"; "T"; "Julia"; "Quarto"; "sh";
@@ -909,7 +908,6 @@ let init_env () =
   let env = T_fix.register env in
   let env = Set_pipeline_global_options.register env in
   let env = Pipeline_node_options.register env in
-  let env = Custom_strategy.register env in
   (* Colcraft package *)
   let env = T_select.register env in
   let env = T_filter.register ~eval_call:Eval.eval_call_immutable ~eval_expr:Eval.eval_expr_immutable ~uses_nse:Eval.uses_nse ~desugar_nse_expr:Eval.desugar_nse_expr env in

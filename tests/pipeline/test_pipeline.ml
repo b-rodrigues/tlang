@@ -1270,8 +1270,8 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   let explicit_node_code = {|
 p_cross = pipeline {
   a = 10
-  b = node(command = <{ a * 2 }>, runtime = R, serializer = custom("write_rds"), deserializer = custom("read_rds"), functions = "my_utils.R")
-  c = node(command = <{ b + 1 }>, runtime = Python, serializer = custom("write_pkl"), deserializer = custom("read_pkl"), functions = ["my_utils.py", "my_serializer.py"], include = "data.csv")
+  b = node(command = <{ a * 2 }>, runtime = R, serializer = ^csv, deserializer = ^csv)
+  c = node(command = <{ b + 1 }>, runtime = Python, serializer = ^json, deserializer = ^json, include = "data.csv")
 }
   |} in
   let env_cross = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_pipeline:1155" explicit_node_code in
@@ -2692,6 +2692,27 @@ p.t_step|}
      | other ->
          incr fail_count; Printf.printf "  ✗ expand_pipeline should return VPipeline, got %s\n" (Ast.Utils.value_to_string other));
 
+    (* 2b. Conditional shadow with a later read fails loudly instead of
+       expanding branches that would mix per-branch slices with the whole
+       artifact. *)
+    let env_cond = Test_helpers.eval_setup eval_string_env env "test_pipeline:condshadow" "p = pipeline {\n  src = [10, 20, 30]\n  out = rn(command = <{\n  if (flag) src <- 99\n  use(src)\n}>, pattern = map_pattern(src), deserializer = ^json)\n}" in
+    let (v_cond, _) = eval_string_env "expand_pipeline(p)" env_cond in
+    (match v_cond with
+     | VError err when Test_helpers.contains err.message "conditionally binds" ->
+         incr pass_count; Printf.printf "  ✓ expand_pipeline rejects conditional shadow with later read\n"
+     | other ->
+         incr fail_count; Printf.printf "  ✗ conditional shadow should fail loudly, got %s\n" (Ast.Utils.value_to_string other));
+
+    (* 2c. Conditional shadow with no later read still expands: nothing
+       after the binder can observe the inconsistency. *)
+    let env_cond_ok = Test_helpers.eval_setup eval_string_env env "test_pipeline:condshadowok" "p = pipeline {\n  src = [10, 20, 30]\n  out = rn(command = <{\n  if (flag) src <- 99\n  1\n}>, pattern = map_pattern(src), deserializer = ^json)\n}" in
+    let (v_cond_ok, _) = eval_string_env "expand_pipeline(p)" env_cond_ok in
+    (match v_cond_ok with
+     | VPipeline pe when List.length pe.p_nodes = 4 ->
+         incr pass_count; Printf.printf "  ✓ expand_pipeline allows conditional shadow without later read\n"
+     | other ->
+         incr fail_count; Printf.printf "  ✗ conditional shadow without later read should expand, got %s\n" (Ast.Utils.value_to_string other));
+
     (* 3. Test expand_pipeline with single value (length 1) — creates 1 branch *)
     let env_single = Test_helpers.eval_setup eval_string_env env "test_pipeline:2587" "p = pipeline {\n  a = 42\n  b = node(command = <{ a }>, pattern = map_pattern(a))\n}" in
     let (v_single, _) = eval_string_env "expand_pipeline(p)" env_single in
@@ -3381,7 +3402,7 @@ p.t_step|}
      p = pipeline {
        n1 = rn(command = <{ 1 + 1 }>, deserializer = ^json)
      }
-     q = set_pipeline_global_options(p, deserializer = "csv")
+     q = set_pipeline_global_options(p, deserializer = ^csv)
    |} in
     let (vq, _) = eval_string_env "q" env in
     match vq with
@@ -3558,7 +3579,7 @@ p.t_step|}
    (* Test 18: Type error for wrong serializer type *)
    test "set_pipeline_global_options serializer type error"
      {|set_pipeline_global_options((pipeline { n1 = node(command = 1) }), serializer = 42)|}
-     {|Error(TypeError: "set_pipeline_global_options: expected a string or symbol for serializer/deserializer, but got Int.")|};
+     {|Error(TypeError: "set_pipeline_global_options: expected a symbol or strategy dict for serializer/deserializer, but got Int.")|};
 
    (* Test 19: Type error for wrong dependencies type *)
    test "set_pipeline_global_options dependencies type error"

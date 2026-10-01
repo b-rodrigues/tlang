@@ -13,7 +13,7 @@ Evaluated at pipeline construction time. Takes condition-value pairs and returns
 
 ## Returns
 
-| Null The selected node value or null marker.
+The selected node value or null marker.
 
 ## Examples
 

@@ -236,10 +236,31 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
            incr fail_count; Printf.printf "  ✗ unmapped known format emitted silently\n")
   | _ ->
       incr fail_count; Printf.printf "  ✗ text-on-R fixture failed\n");
+  (let (v_tlang, _) = eval_string_env
+    {|pipeline {
+      a = node(command = 1, serializer = ^tlang)
+    }|}
+    (Packages.init_env ()) in
+  match v_tlang with
+  | Ast.VPipeline p ->
+      let nix =
+        (try Some (Nix_emit_pipeline.emit_pipeline p)
+         with Invalid_argument msg -> Some ("INVALID_ARGUMENT: " ^ msg))
+      in
+      (match nix with
+       | Some s when contains_substring s "serialize(" ->
+           incr pass_count; Printf.printf "  ✓ tlang emits as the runtime default\n"
+       | Some s ->
+           incr fail_count; Printf.printf "  ✗ tlang emission missing default call: %s\n"
+             (String.sub s 0 (min 200 (String.length s)))
+       | None ->
+           incr fail_count; Printf.printf "  ✗ tlang emission failed\n")
+  | _ ->
+      incr fail_count; Printf.printf "  ✗ tlang fixture failed\n");
   (let (v_custom, _) = eval_string_env
     {|pipeline {
-      a = node(command = 1)
-      b = node(command = a + 1, deserializer = custom("read_pkl"), serializer = custom("write_pkl"), functions = ["my_ser.py"])
+      a = rn(command = <{ 1 }>)
+      b = rn(command = <{ a }>, deserializer = [a: [format: ^yml, r_reader: <{ function(path) readRDS(path) }>]], serializer = [format: ^yml, r_writer: <{ function(obj, path) saveRDS(obj, path) }>])
     }|}
     (Packages.init_env ()) in
   match v_custom with
@@ -249,12 +270,12 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
          with Invalid_argument _ -> None)
       in
       (match nix with
-       | Some s when contains_substring s "read_pkl(" && contains_substring s "write_pkl(" ->
-           incr pass_count; Printf.printf "  ✓ custom function strategies pass through\n"
+       | Some s when contains_substring s "saveRDS(obj, path)" && contains_substring s "readRDS(path)" ->
+           incr pass_count; Printf.printf "  ✓ strategy dict snippets pass through\n"
        | _ ->
-           incr fail_count; Printf.printf "  ✗ custom function strategies blocked or missing\n")
+           incr fail_count; Printf.printf "  ✗ strategy dict snippets blocked or missing\n")
   | _ ->
-      incr fail_count; Printf.printf "  ✗ custom strategy fixture failed\n");
+      incr fail_count; Printf.printf "  ✗ strategy dict fixture failed\n");
   (* Regression: UV nodes need system BLAS/Fortran, nixpkgs nodes must stay
      pristine (foreign BLAS breaks scipy/seaborn). The node derivation picks
      the libs only when the project resolver is uv. This fixture has no
