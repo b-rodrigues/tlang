@@ -6,12 +6,12 @@ Parses strings in YDM order to Date values. Vectorized over vectors. Unparseable
 
 ## Parameters
 
-- **value** (`String`): | Vector The date string(s) to parse.
+- **value** (`String | Vector`): The date string(s) to parse.
 
 
 ## Returns
 
-| Vector The parsed date(s).
+The parsed date(s).
 
 ## Examples
 

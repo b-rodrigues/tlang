@@ -9609,7 +9609,7 @@ Now that you can work with numerical arrays, explore statistical modeling and re
 
 ### New features
 
-- **Richer static types**: collection types (`List[X]`, `Vector[X]`, `Dict[K, V]`), nominal domain types (`Model`, `Pipeline`, `Date`, …), and top-level `A | B` unions now flow from docstrings into inference, with structural compatibility and nested widening. A coverage audit with a ratcheting floor tracks precision (384/533 fully precise, with per-package breakdown, plus a listed watch for signatures that parse to unknown); generic calls reject inconsistent instantiations instead of passing silently. Note: generic consistency is strict about `Int` vs `Float` (identity, not widening) by design.
+- **Richer static types**: collection types (`List[X]`, `Vector[X]`, `Dict[K, V]`), nominal domain types (`Model`, `Pipeline`, `Date`, …), and top-level `A | B` unions now flow from docstrings into inference, with structural compatibility and nested widening. A coverage audit with a ratcheting floor tracks precision (382/533 fully precise, with per-package breakdown, plus a listed watch for signatures that parse to unknown); generic calls reject inconsistent instantiations instead of passing silently. Note: generic consistency is strict about `Int` vs `Float` (identity, not widening) by design.
 - **`t check` warns on non-exhaustive `match` over known values**: matching a known `Error` value without an `Error` arm, or a known `NA` without an `NA` arm (and no `_` catch-all), now warns at check time instead of failing only at runtime. Matches over variables and other values stay silent, so no existing program gains a warning.
 - **User-defined record types**: `type Point = { x: Float, y: Float }` declares a nominal, closed shape; `Point(x = 1.0)` and `Point(1.0)` construct it, `p.x` reads fields, and annotations (`\(p: Point -> Point)`) enforce it at runtime. Same-shape types still differ (`Point` is never `Pair` and never a `Dict`); unknown, missing, or mistyped fields fail naming the valid set. Records are T-side contracts and cannot cross into foreign node code or serializers — pass plain data across the boundary.
 - **User-defined tagged unions**: `type Shape = Circle(Float) | Rect(Float, Float) | Missing()` declares named cases; every case uses call syntax in declarations, construction, and patterns alike, so a bare name always stays a binding and can never silently mean a case test. Bare-word declarations (including single-case aliases like `type Celsius = Float`) fail with a message teaching the call syntax. Payload counts and types check at construction; shared case names and direct union construction fail naming the owners and cases. `t check` warns on missing cases, unknown case names, and shadowing bare variables. Unions are T-side contracts like records.
@@ -9637,6 +9637,10 @@ Now that you can work with numerical arrays, explore statistical modeling and re
 - **Type declarations guarded at declaration time**: names colliding with built-in nominal types (`Model`, `Pipeline`, `Date`, …) are rejected, and union case names shared across types fail immediately instead of at first use.
 - **Pattern expansion rejects conditional shadows with later reads**: a foreign block that binds a dependency name conditionally and reads it later now fails with an explicit rename request — the later reads would otherwise see the whole artifact instead of the per-branch slice. Records nested at any depth are rejected the same way.
 - **Smarter foreign-block scope inference**: shell env-prefix assignments (`FOO=1 cmd`) and `export` with a following command no longer count as bindings; chained assignments (`A=1 B=2`) bind as a group; `export`/`declare`/`readonly`/`local` with `=` bind normally; `${X:=...}` records conditionally; statement continuations after `&&`, `||`, `|`, and `\` guard same-line bindings; Julia `try`/`finally` bodies and `abstract`/`primitive` types scope correctly. Quoted `$var`, `${var}`, `$(...)`, backtick, and Python f-string reads in shell, Julia, and Python strings now create dependency edges.
+- **Per-dependency maps read as maps**: a `serializer`/`deserializer` dict is a strategy dict only when it carries `format`; otherwise it is a per-dependency map, so nodes literally named `reader` or `writer` validate normally. Map keys must name real dependencies of the node (with a `deps = [...]` hint when they do not), instead of silently falling back to the default strategy.
+- **Quoted shell values decide persistence correctly**: `FOO="a b" cmd` no longer records a binding, while `x=$(date +%s)`, `x="a b"`, arrays, and `&&`-continued statements bind as the shell does.
+- **Union exhaustiveness ignores nested rebindings**: a variable rebound inside a branch or closure no longer resolves to its first union, so no false missing-case warning fires.
+- **Doc signatures keep spaced unions whole**: `Dict | List` and `Dict[String, Dict]` now parse as written instead of truncating at the first space.
 
 ## [0.55.4] - 2026-09-29
 
@@ -23714,14 +23718,14 @@ Returns the absolute value of a number or vector/ndarray elements. Raises a Type
 
 ## Parameters
 
-- **x** (`Number`): | Vector | NDArray The input value.
+- **x** (`Number | Vector | NDArray`): The input value.
 
 - **na_ignore** (`Bool`): Whether to preserve NA values in inputs. Default is false.
 
 
 ## Returns
 
-| Vector | NDArray The absolute value.
+The absolute value.
 
 ## Examples
 
@@ -23742,12 +23746,12 @@ Compute inverse hyperbolic cosine.
 
 ## Parameters
 
-- **x** (`Number`): | Vector | NDArray Numeric input.
+- **x** (`Number | Vector | NDArray`): Numeric input.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -23761,12 +23765,12 @@ Compute arccosine.
 
 ## Parameters
 
-- **x** (`Number`): | Vector | NDArray Numeric input.
+- **x** (`Number | Vector | NDArray`): Numeric input.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -23817,12 +23821,12 @@ Returns true for Date values and for Datetime values whose hour is earlier than 
 
 ## Parameters
 
-- **x** (`Date`): | Datetime | Vector The temporal value(s).
+- **x** (`Date | Datetime | Vector`): The temporal value(s).
 
 
 ## Returns
 
-| Vector[Bool] True if before noon.
+True if before noon.
 
 
 
@@ -24012,12 +24016,12 @@ Compute inverse hyperbolic sine.
 
 ## Parameters
 
-- **x** (`Number`): | Vector | NDArray Numeric input.
+- **x** (`Number | Vector | NDArray`): Numeric input.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -24031,12 +24035,12 @@ Compute arcsine.
 
 ## Parameters
 
-- **x** (`Number`): | Vector | NDArray Numeric input.
+- **x** (`Number | Vector | NDArray`): Numeric input.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -24212,14 +24216,14 @@ Compute `atan2(y, x)` with quadrant-aware angle.
 
 ## Parameters
 
-- **y** (`Number`): | List | Vector | NDArray Y coordinate(s).
+- **y** (`Number | List | Vector | NDArray`): Y coordinate(s).
 
 - **x** (`Number`): Scalar X coordinate.
 
 
 ## Returns
 
-| Vector | NDArray Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -24233,12 +24237,12 @@ Compute inverse hyperbolic tangent.
 
 ## Parameters
 
-- **x** (`Number`): | Vector | NDArray Numeric input.
+- **x** (`Number | Vector | NDArray`): Numeric input.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -24252,12 +24256,12 @@ Compute arctangent.
 
 ## Parameters
 
-- **x** (`Number`): | Vector | NDArray Numeric input.
+- **x** (`Number | Vector | NDArray`): Numeric input.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -24296,7 +24300,7 @@ Returns the implementation body of a function. For T functions, it returns the b
 
 ## Returns
 
-| String The function body or implementation info.
+The function body or implementation info.
 
 ## Examples
 
@@ -24385,7 +24389,7 @@ Calls `nix-build` on the generated `pipeline.nix` file. Extracts the store path 
 
 ## Returns
 
-| DataFrame The output Nix store path or the dry-run DataFrame.
+The output Nix store path or the dry-run DataFrame.
 
 
 
@@ -24412,7 +24416,7 @@ Shorthand for `populate_pipeline(p, build = true)`. Materializes all nodes of th
 
 ## Returns
 
-| DataFrame A BuildLog of the build, or a planned-actions DataFrame when `dry_run` is set.
+A BuildLog of the build, or a planned-actions DataFrame when `dry_run` is set.
 
 ## Examples
 
@@ -24505,14 +24509,14 @@ Rounds Date or Datetime values up to the requested unit boundary.
 
 ## Parameters
 
-- **x** (`Date`): | Datetime | Vector The temporal value(s).
+- **x** (`Date | Datetime | Vector`): The temporal value(s).
 
 - **unit** (`String`): The unit boundary ("second", "minute", "hour", "day", "month", "year").
 
 
 ## Returns
 
-| Datetime | Vector The ceiled value(s).
+The ceiled value(s).
 
 
 
@@ -24526,12 +24530,12 @@ Return smallest integer greater than or equal to input.
 
 ## Parameters
 
-- **x** (`Number`): | Vector | NDArray Numeric input.
+- **x** (`Number | Vector | NDArray`): Numeric input.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -24626,12 +24630,12 @@ Standardizes column names using a snake_case convention. Removes special charact
 
 ## Parameters
 
-- **x** (`DataFrame`): | List[String] The object with names to clean.
+- **x** (`DataFrame | List[String]`): The object with names to clean.
 
 
 ## Returns
 
-| List[String] The object with cleaned names.
+The object with cleaned names.
 
 ## See Also
 
@@ -24668,7 +24672,7 @@ Returns the first non-NA value at each position across inputs. All inputs must b
 
 ## Parameters
 
-- **...** (`Vector`): | List Vectors to coalesce in priority order.
+- **...** (`Vector | List`): Vectors to coalesce in priority order.
 
 
 ## Returns
@@ -24839,7 +24843,7 @@ Turns implicit missing values into explicit missing values. Supports nesting() t
 
 - **df** (`DataFrame`): The DataFrame.
 
-- **...** (`Symbol`): | Call Variable number of column names (use $col syntax) or nesting(...) calls.
+- **...** (`Symbol | Call`): Variable number of column names (use $col syntax) or nesting(...) calls.
 
 - **fill** (`Dict`): (Optional) A dictionary supplying a single value to use instead of NA for missing combinations.
 
@@ -24943,13 +24947,13 @@ Computes the correlation coefficient between two vectors. `method = "pearson"` (
 
 ## Parameters
 
-- **x** (`Vector`): | List First numeric vector.
+- **x** (`Vector | List`): First numeric vector.
 
-- **y** (`Vector`): | List Second numeric vector.
+- **y** (`Vector | List`): Second numeric vector.
 
 - **na_rm** (`Bool`): (Optional) Should missing values be removed? Default is false.
 
-- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights (Pearson only).
+- **weights** (`Vector[Float] | List[Float]`): = NA Optional non-negative observation weights (Pearson only).
 
 - **method** (`String`): = "pearson" Correlation method: "pearson" or "spearman".
 
@@ -24976,12 +24980,12 @@ Compute hyperbolic cosine.
 
 ## Parameters
 
-- **x** (`Number`): | Vector | NDArray Numeric input.
+- **x** (`Number | Vector | NDArray`): Numeric input.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -24995,12 +24999,12 @@ Compute cosine (radians).
 
 ## Parameters
 
-- **x** (`Number`): | Vector | NDArray Numeric input.
+- **x** (`Number | Vector | NDArray`): Numeric input.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -25045,18 +25049,18 @@ Compute sample covariance of two numeric vectors.
 
 ## Parameters
 
-- **x** (`Vector`): | List First numeric input.
+- **x** (`Vector | List`): First numeric input.
 
-- **y** (`Vector`): | List Second numeric input.
+- **y** (`Vector | List`): Second numeric input.
 
 - **na_rm** (`Bool`): = false Pairwise remove NA values.
 
-- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights.
+- **weights** (`Vector[Float] | List[Float]`): = NA Optional non-negative observation weights.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -25070,7 +25074,7 @@ crossing() generates all unique combinations of its inputs. Unlike expand_grid()
 
 ## Parameters
 
-- **...** (`Vector`): | List Named or unnamed inputs to combine.
+- **...** (`Vector | List`): Named or unnamed inputs to combine.
 
 
 ## Returns
@@ -25342,9 +25346,9 @@ Splits a numeric vector into intervals.
 
 ## Parameters
 
-- **x** (`Vector[Number]`): | List[Number] The vector to discretize.
+- **x** (`Vector[Number] | List[Number]`): The vector to discretize.
 
-- **breaks** (`Int`): | Vector[Number] | List[Number] Number of bins or specific cut points.
+- **breaks** (`Int | Vector[Number] | List[Number]`): Number of bins or specific cut points.
 
 
 ## Returns
@@ -25370,16 +25374,16 @@ Compute sample sd divided by mean.
 
 ## Parameters
 
-- **x** (`Vector`): | List Numeric input.
+- **x** (`Vector | List`): Numeric input.
 
 - **na_rm** (`Bool`): = false Remove NA values first.
 
-- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights.
+- **weights** (`Vector[Float] | List[Float]`): = NA Optional non-negative observation weights.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -25432,12 +25436,12 @@ Returns the day-of-month component from Date or Datetime values.
 
 ## Parameters
 
-- **x** (`Date`): | Datetime | Vector The temporal value(s).
+- **x** (`Date | Datetime | Vector`): The temporal value(s).
 
 
 ## Returns
 
-| Vector[Int] The day(s).
+The day(s).
 
 
 
@@ -25451,14 +25455,14 @@ Returns the number of days in the month described by a date, datetime, or explic
 
 ## Parameters
 
-- **x** (`Date`): | Datetime | Vector | Int The date or year.
+- **x** (`Date | Datetime | Vector | Int`): The date or year.
 
 - **month** (`Int`): (Optional) The month (if first arg was year).
 
 
 ## Returns
 
-| Vector[Int] The number of days.
+The number of days.
 
 
 
@@ -25763,14 +25767,14 @@ Parses DMY-ordered strings to Datetime values. Vectorized over vectors. Unparsea
 
 ## Parameters
 
-- **value** (`String`): | Vector The datetime string(s) to parse.
+- **value** (`String | Vector`): The datetime string(s) to parse.
 
 - **tz** (`String`): (Optional) Timezone label.
 
 
 ## Returns
 
-| Vector The parsed datetime(s).
+The parsed datetime(s).
 
 ## Examples
 
@@ -25790,12 +25794,12 @@ Parses strings in DMY order to Date values. Vectorized over vectors. Unparseable
 
 ## Parameters
 
-- **value** (`String`): | Vector The date string(s) to parse.
+- **value** (`String | Vector`): The date string(s) to parse.
 
 
 ## Returns
 
-| Vector The parsed date(s).
+The parsed date(s).
 
 ## Examples
 
@@ -25958,7 +25962,7 @@ Retrieves the value of an environment variable.
 
 ## Returns
 
-| NA The value of the variable, or null if not set.
+The value of the variable, or null if not set.
 
 ## Examples
 
@@ -26170,7 +26174,7 @@ Generates all unique combinations of the provided columns or expressions. Suppor
 
 - **df** (`DataFrame`): The DataFrame.
 
-- **...** (`Symbol`): | Vector | Call Specification of columns to expand.
+- **...** (`Symbol | Vector | Call`): Specification of columns to expand.
 
 
 ## Returns
@@ -26199,7 +26203,7 @@ Patterned nodes using `map_pattern(dep)`, `cross_pattern(...)`, `slice_pattern(d
 
 - **p** (`Pipeline`): The pipeline to expand.
 
-- **to_script** (`String`): | NA = NA Optional file path to write the expanded pipeline script.
+- **to_script** (`String | NA`): = NA Optional file path to write the expanded pipeline script.
 
 
 ## Returns
@@ -26226,11 +26230,11 @@ Passes if the numeric value or vector elements fall inside [min, max].
 
 ## Parameters
 
-- **actual** (`Int`): | Float | Vector The numeric value or vector to check.
+- **actual** (`Int | Float | Vector`): The numeric value or vector to check.
 
-- **min** (`Int`): | Float Lower bound (inclusive).
+- **min** (`Int | Float`): Lower bound (inclusive).
 
-- **max** (`Int`): | Float Upper bound (inclusive).
+- **max** (`Int | Float`): Upper bound (inclusive).
 
 
 ## Returns
@@ -26261,7 +26265,7 @@ Passes if the DataFrame column names match the given list of strings exactly (or
 
 - **df** (`DataFrame`): The DataFrame to check.
 
-- **names** (`List`): | Vector A list or vector of expected column name strings.
+- **names** (`List | Vector`): A list or vector of expected column name strings.
 
 
 ## Returns
@@ -26292,7 +26296,7 @@ Passes if the specified DataFrame columns match the expected type strings.
 
 - **df** (`DataFrame`): The DataFrame to check.
 
-- **expected_types** (`Dict`): | List Column name -> expected type string map.
+- **expected_types** (`Dict | List`): Column name -> expected type string map.
 
 
 ## Returns
@@ -26321,7 +26325,7 @@ Passes if the node is computed and has a finished value.
 
 ## Parameters
 
-- **node** (`ComputedNode`): | NodeResult The node to check.
+- **node** (`ComputedNode | NodeResult`): The node to check.
 
 
 ## Returns
@@ -26404,7 +26408,7 @@ Passes if a List, Dict, Vector, String, or DataFrame is empty (0 elements/rows/l
 
 ## Parameters
 
-- **actual** (`List`): | Dict | Vector | String | DataFrame The container to check.
+- **actual** (`List | Dict | Vector | String | DataFrame`): The container to check.
 
 
 ## Returns
@@ -26591,9 +26595,9 @@ Passes if a Dict's keys or a named List's labels match the given list of strings
 
 ## Parameters
 
-- **x** (`Dict`): | List The Dict or named List to inspect.
+- **x** (`Dict | List`): The Dict or named List to inspect.
 
-- **names** (`List`): | Vector A list or vector of expected field name strings.
+- **names** (`List | Vector`): A list or vector of expected field name strings.
 
 
 ## Returns
@@ -26622,9 +26626,9 @@ Passes if `a >= b` for numeric arguments (Int or Float).
 
 ## Parameters
 
-- **a** (`Int`): | Float The left-hand numeric value.
+- **a** (`Int | Float`): The left-hand numeric value.
 
-- **b** (`Int`): | Float The right-hand numeric value.
+- **b** (`Int | Float`): The right-hand numeric value.
 
 
 ## Returns
@@ -26654,9 +26658,9 @@ Passes if `a > b` for numeric arguments (Int or Float).
 
 ## Parameters
 
-- **a** (`Int`): | Float The left-hand numeric value.
+- **a** (`Int | Float`): The left-hand numeric value.
 
-- **b** (`Int`): | Float The right-hand numeric value.
+- **b** (`Int | Float`): The right-hand numeric value.
 
 
 ## Returns
@@ -26685,9 +26689,9 @@ Passes if the DataFrame, Dict, or named List contains at least all of the expect
 
 ## Parameters
 
-- **data** (`DataFrame`): | Dict | List The container to check.
+- **data** (`DataFrame | Dict | List`): The container to check.
 
-- **names** (`String`): | List | Vector The required column/field name or list/vector of required names.
+- **names** (`String | List | Vector`): The required column/field name or list/vector of required names.
 
 
 ## Returns
@@ -26746,7 +26750,7 @@ Passes if `x` (or every element of a Vector/List `x`) is present in `values`. Ch
 
 - **x** (`Any`): A scalar value, Vector, or List to look for.
 
-- **values** (`Vector`): | List The haystack collection to search in.
+- **values** (`Vector | List`): The haystack collection to search in.
 
 - **tolerance** (`Float`): = 1e-9 Absolute tolerance used for Float comparisons.
 
@@ -26778,7 +26782,7 @@ Passes if the length/size/row-count of `x` equals `n`. Supports Vector, List, St
 
 ## Parameters
 
-- **x** (`Vector`): | List | String | DataFrame | Dict The container to measure.
+- **x** (`Vector | List | String | DataFrame | Dict`): The container to measure.
 
 - **n** (`Int`): Expected length.
 
@@ -26810,9 +26814,9 @@ Passes if `a <= b` for numeric arguments (Int or Float).
 
 ## Parameters
 
-- **a** (`Int`): | Float The left-hand numeric value.
+- **a** (`Int | Float`): The left-hand numeric value.
 
-- **b** (`Int`): | Float The right-hand numeric value.
+- **b** (`Int | Float`): The right-hand numeric value.
 
 
 ## Returns
@@ -26842,9 +26846,9 @@ Passes if `a < b` for numeric arguments (Int or Float). Returns `Expect_hold` wh
 
 ## Parameters
 
-- **a** (`Int`): | Float The left-hand numeric value.
+- **a** (`Int | Float`): The left-hand numeric value.
 
-- **b** (`Int`): | Float The right-hand numeric value.
+- **b** (`Int | Float`): The right-hand numeric value.
 
 
 ## Returns
@@ -26967,7 +26971,7 @@ Passes if a pipeline contains exactly the expected node names (including dynamic
 
 - **p** (`Pipeline`): The pipeline to check.
 
-- **expected_names** (`List`): | Vector Expected node names.
+- **expected_names** (`List | Vector`): Expected node names.
 
 
 ## Returns
@@ -27142,9 +27146,9 @@ Passes if all non-NA cell values in a numeric DataFrame column fall within [min,
 
 - **col** (`String`): Column name to check.
 
-- **min** (`Int`): | Float Lower bound (inclusive).
+- **min** (`Int | Float`): Lower bound (inclusive).
 
-- **max** (`Int`): | Float Upper bound (inclusive).
+- **max** (`Int | Float`): Upper bound (inclusive).
 
 
 ## Returns
@@ -27231,9 +27235,9 @@ Passes if two Lists or Vectors contain the exact same unique elements regardless
 
 ## Parameters
 
-- **list1** (`List`): | Vector First collection.
+- **list1** (`List | Vector`): First collection.
 
-- **list2** (`List`): | Vector Second collection.
+- **list2** (`List | Vector`): Second collection.
 
 
 ## Returns
@@ -27293,7 +27297,7 @@ Summarizes a List or Dict of Expect values / check results into a DataFrame repo
 
 ## Parameters
 
-- **checks** (`Dict`): | List A dictionary or list of expectation check results.
+- **checks** (`Dict | List`): A dictionary or list of expectation check results.
 
 
 ## Returns
@@ -27447,7 +27451,7 @@ Passes if all elements in a Vector, List, or DataFrame are distinct. Returns `Ex
 
 ## Parameters
 
-- **x** (`Vector`): | List | DataFrame The container or vector to check for uniqueness.
+- **x** (`Vector | List | DataFrame`): The container or vector to check for uniqueness.
 
 
 ## Returns
@@ -27481,7 +27485,7 @@ Passes if all cell values in a DataFrame column belong to an allowed set of valu
 
 - **col** (`String`): Column name to check.
 
-- **allowed_values** (`List`): | Vector Set of allowed values.
+- **allowed_values** (`List | Vector`): Set of allowed values.
 
 
 ## Returns
@@ -27510,7 +27514,7 @@ Passes if the node's diagnostics contain at least one warning. Optionally filter
 
 ## Parameters
 
-- **node** (`NodeResult`): | ComputedNode The computed node to inspect.
+- **node** (`NodeResult | ComputedNode`): The computed node to inspect.
 
 - **kind** (`String`): = "" Optional warning kind to match exactly (e.g. "NAExcluded").
 
@@ -27598,14 +27602,14 @@ Calculates e raised to the power of x.
 
 ## Parameters
 
-- **x** (`Number`): | Vector | NDArray The input value.
+- **x** (`Number | Vector | NDArray`): The input value.
 
 - **na_ignore** (`Bool`): Whether to preserve NA values in inputs. Default is false.
 
 
 ## Returns
 
-| Vector | NDArray The exponential.
+The exponential.
 
 ## Examples
 
@@ -27870,9 +27874,9 @@ Keeps selected factor levels and maps the rest to an "Other" bucket.
 
 - **x** (`Vector[Factor]`): A factor vector.
 
-- **keep** (`Vector[String]`): | List[String] Levels to preserve.
+- **keep** (`Vector[String] | List[String]`): Levels to preserve.
 
-- **drop** (`Vector[String]`): | List[String] Levels to drop (mutually exclusive with keep).
+- **drop** (`Vector[String] | List[String]`): Levels to drop (mutually exclusive with keep).
 
 - **other_level** (`String`): = "Other" Name for the catch-all level.
 
@@ -28025,7 +28029,7 @@ Downloads a file from a URL. In the REPL, wraps curl. In a pipeline, creates a n
 
 ## Returns
 
-| Node In REPL mode, returns the file path as a String. In pipeline mode, returns a Node value.
+In REPL mode, returns the file path as a String. In pipeline mode, returns a Node value.
 
 ## Examples
 
@@ -28186,7 +28190,7 @@ Returns a tidy DataFrame of model-level statistics (e.g. R-squared, AIC, BIC). S
 
 ## Parameters
 
-- **x** (`Model`): | List[Model] | Dict[String, Model] The model(s) to inspect.
+- **x** (`Model | List[Model] | Dict[String, Model]`): The model(s) to inspect.
 
 
 ## Returns
@@ -28218,16 +28222,16 @@ Return min, Q1, median, Q3, max.
 
 ## Parameters
 
-- **x** (`Vector`): | List Numeric input.
+- **x** (`Vector | List`): Numeric input.
 
 - **na_rm** (`Bool`): = false Remove NA values first.
 
-- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights.
+- **weights** (`Vector[Float] | List[Float]`): = NA Optional non-negative observation weights.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -28272,14 +28276,14 @@ Rounds Date or Datetime values down to the requested unit boundary.
 
 ## Parameters
 
-- **x** (`Date`): | Datetime | Vector The temporal value(s).
+- **x** (`Date | Datetime | Vector`): The temporal value(s).
 
 - **unit** (`String`): The unit boundary ("second", "minute", "hour", "day", "month", "year").
 
 
 ## Returns
 
-| Datetime | Vector The floored value(s).
+The floored value(s).
 
 
 
@@ -28293,12 +28297,12 @@ Return greatest integer less than or equal to input.
 
 ## Parameters
 
-- **x** (`Number`): | Vector | NDArray Numeric input.
+- **x** (`Number | Vector | NDArray`): Numeric input.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -28312,14 +28316,14 @@ Reinterprets local clock components under a new timezone label.
 
 ## Parameters
 
-- **x** (`Datetime`): | Vector The temporal value(s).
+- **x** (`Datetime | Vector`): The temporal value(s).
 
 - **tz** (`String`): The new timezone label.
 
 
 ## Returns
 
-| Vector[Datetime] The relabeled datetime(s).
+The relabeled datetime(s).
 
 
 
@@ -28333,14 +28337,14 @@ Formats Date values with a user-supplied format string.
 
 ## Parameters
 
-- **x** (`Date`): | Datetime | Vector The temporal value(s).
+- **x** (`Date | Datetime | Vector`): The temporal value(s).
 
 - **format** (`String`): The strftime-style format string.
 
 
 ## Returns
 
-| Vector[String] The formatted string(s).
+The formatted string(s).
 
 
 
@@ -28354,14 +28358,14 @@ Formats Datetime values with a user-supplied format string.
 
 ## Parameters
 
-- **x** (`Date`): | Datetime | Vector The temporal value(s).
+- **x** (`Date | Datetime | Vector`): The temporal value(s).
 
 - **format** (`String`): The strftime-style format string.
 
 
 ## Returns
 
-| Vector[String] The formatted string(s).
+The formatted string(s).
 
 
 
@@ -28514,14 +28518,14 @@ Returns the first n items from a List, Vector, or DataFrame. For DataFrames, it 
 
 ## Parameters
 
-- **data** (`DataFrame`): | List | Vector The collection to slice.
+- **data** (`DataFrame | List | Vector`): The collection to slice.
 
 - **n** (`Int`): = 5 Number of items to return.
 
 
 ## Returns
 
-| List | Vector A subset of the input containing the first n items.
+A subset of the input containing the first n items.
 
 ## Examples
 
@@ -28562,7 +28566,7 @@ Prints the help documentation for the specified function, including signature, p
 
 ## Parameters
 
-- **name** (`String`): | Symbol The name of the function to document.
+- **name** (`String | Symbol`): The name of the function to document.
 
 
 ## Returns
@@ -28592,12 +28596,12 @@ Returns the hour component from Datetime values.
 
 ## Parameters
 
-- **x** (`Datetime`): | Vector The temporal value(s).
+- **x** (`Datetime | Vector`): The temporal value(s).
 
 
 ## Returns
 
-| Vector[Int] The hour(s).
+The hour(s).
 
 
 
@@ -28636,14 +28640,14 @@ Compute Huber loss for residuals and positive delta.
 
 ## Parameters
 
-- **x** (`Number`): | Vector | List Residual value(s).
+- **x** (`Number | Vector | List`): Residual value(s).
 
 - **delta** (`Number`): Positive threshold.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -29477,9 +29481,9 @@ Builds an interval from two Date or Datetime endpoints.
 
 ## Parameters
 
-- **start** (`Date`): | Datetime The start of the interval.
+- **start** (`Date | Datetime`): The start of the interval.
 
-- **end** (`Date`): | Datetime The end of the interval.
+- **end** (`Date | Datetime`): The end of the interval.
 
 
 ## Returns
@@ -29551,16 +29555,16 @@ Compute Q3 - Q1 using quantiles.
 
 ## Parameters
 
-- **x** (`Vector`): | List Numeric input.
+- **x** (`Vector | List`): Numeric input.
 
 - **na_rm** (`Bool`): = false Remove NA values first.
 
-- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights.
+- **weights** (`Vector[Float] | List[Float]`): = NA Optional non-negative observation weights.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -29739,12 +29743,12 @@ Returns true when the supplied year or date falls in a leap year.
 
 ## Parameters
 
-- **x** (`Int`): | Date | Datetime | Vector The year or temporal value(s).
+- **x** (`Int | Date | Datetime | Vector`): The year or temporal value(s).
 
 
 ## Returns
 
-| Vector[Bool] True if it is a leap year.
+True if it is a leap year.
 
 
 
@@ -29808,12 +29812,12 @@ Returns the ISO week number for Date or Datetime values.
 
 ## Parameters
 
-- **x** (`Date`): | Datetime | Vector The temporal value(s).
+- **x** (`Date | Datetime | Vector`): The temporal value(s).
 
 
 ## Returns
 
-| Vector[Int] The ISO week number(s).
+The ISO week number(s).
 
 
 
@@ -29827,12 +29831,12 @@ Returns the ISO week-based year for Date or Datetime values.
 
 ## Parameters
 
-- **x** (`Date`): | Datetime | Vector The temporal value(s).
+- **x** (`Date | Datetime | Vector`): The temporal value(s).
 
 
 ## Returns
 
-| Vector[Int] The ISO year(s).
+The ISO year(s).
 
 
 
@@ -29879,9 +29883,9 @@ A convenience wrapper around `node()` with `runtime = "Julia"`. Used directly wi
 
 - **deserializer** (`Strategy`): (Optional) Deserializer strategy: same closed set as `serializer`. Default is `default`.
 
-- **functions** (`String`): | List[String] (Optional) Julia files to source before execution.
+- **functions** (`String | List[String]`): (Optional) Julia files to source before execution.
 
-- **include** (`String`): | List[String] (Optional) Additional files for the sandbox.
+- **include** (`String | List[String]`): (Optional) Additional files for the sandbox.
 
 - **noop** (`Bool`): (Optional) Whether to skip execution and generate a stub. Default = false.
 
@@ -29971,16 +29975,16 @@ Compute fourth standardized moment minus 3.
 
 ## Parameters
 
-- **x** (`Vector`): | List Numeric input.
+- **x** (`Vector | List`): Numeric input.
 
 - **na_rm** (`Bool`): = false Remove NA values first.
 
-- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights.
+- **weights** (`Vector[Float] | List[Float]`): = NA Optional non-negative observation weights.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -30089,7 +30093,7 @@ Returns the number of elements in a collection (List, Vector, Dict). This functi
 
 ## Parameters
 
-- **x** (`List`): | Vector | Dict The collection to measure.
+- **x** (`List | Vector | Dict`): The collection to measure.
 
 
 ## Returns
@@ -30188,7 +30192,7 @@ Fits a linear regression model using Ordinary Least Squares (OLS).
 
 - **formula** (`Formula`): The model formula (e.g., mpg ~ wt + hp).
 
-- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights for weighted least squares.
+- **weights** (`Vector[Float] | List[Float]`): = NA Optional non-negative observation weights for weighted least squares.
 
 
 ## Returns
@@ -30218,14 +30222,14 @@ Calculates the natural logarithm (base e) of x. Returns a ValueError value for n
 
 ## Parameters
 
-- **x** (`Number`): | Vector | NDArray The input value (must be positive).
+- **x** (`Number | Vector | NDArray`): The input value (must be positive).
 
 - **na_ignore** (`Bool`): Whether to preserve NA values in inputs. Default is false.
 
 
 ## Returns
 
-| Vector | NDArray The natural logarithm.
+The natural logarithm.
 
 ## Examples
 
@@ -30250,14 +30254,14 @@ Compute scaled MAD: 1.4826 * median(|x - median(x)|).
 
 ## Parameters
 
-- **x** (`Vector`): | List Numeric input.
+- **x** (`Vector | List`): Numeric input.
 
 - **na_rm** (`Bool`): = false Remove NA values first.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -30435,7 +30439,7 @@ Returns the maximum value in a vector or list.
 
 ## Parameters
 
-- **x** (`Vector`): | List The numeric data.
+- **x** (`Vector | List`): The numeric data.
 
 - **na_rm** (`Bool`): Whether to remove NA values. Default is false.
 
@@ -30467,14 +30471,14 @@ Parses MDY-ordered strings to Datetime values. Vectorized over vectors. Unparsea
 
 ## Parameters
 
-- **value** (`String`): | Vector The datetime string(s) to parse.
+- **value** (`String | Vector`): The datetime string(s) to parse.
 
 - **tz** (`String`): (Optional) Timezone label.
 
 
 ## Returns
 
-| Vector The parsed datetime(s).
+The parsed datetime(s).
 
 ## Examples
 
@@ -30494,12 +30498,12 @@ Parses strings in MDY order to Date values. Vectorized over vectors. Unparseable
 
 ## Parameters
 
-- **value** (`String`): | Vector The date string(s) to parse.
+- **value** (`String | Vector`): The date string(s) to parse.
 
 
 ## Returns
 
-| Vector The parsed date(s).
+The parsed date(s).
 
 ## Examples
 
@@ -30519,16 +30523,16 @@ The mean is the sum of values divided by the count. This function handles NA val
 
 ## Parameters
 
-- **x** (`Vector[Float]`): | List[Float] Input numeric data. Must contain at least one value.
+- **x** (`Vector[Float] | List[Float]`): Input numeric data. Must contain at least one value.
 
 - **na_rm** (`Bool`): = false Remove NA values before computation.
 
-- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights.
+- **weights** (`Vector[Float] | List[Float]`): = NA Optional non-negative observation weights.
 
 
 ## Returns
 
-| NA The arithmetic mean, or NA if input contains NA and na_rm is false
+The arithmetic mean, or NA if input contains NA and na_rm is false
 
 ## Examples
 
@@ -30557,16 +30561,16 @@ Compute median of numeric values.
 
 ## Parameters
 
-- **x** (`Vector`): | List Numeric input.
+- **x** (`Vector | List`): Numeric input.
 
 - **na_rm** (`Bool`): = false Remove NA values first.
 
-- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights.
+- **weights** (`Vector[Float] | List[Float]`): = NA Optional non-negative observation weights.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -30655,7 +30659,7 @@ Returns the minimum value in a vector or list.
 
 ## Parameters
 
-- **x** (`Vector`): | List The numeric data.
+- **x** (`Vector | List`): The numeric data.
 
 - **na_rm** (`Bool`): Whether to remove NA values. Default is false.
 
@@ -30717,12 +30721,12 @@ Returns the minute component from Datetime values.
 
 ## Parameters
 
-- **x** (`Datetime`): | Vector The temporal value(s).
+- **x** (`Datetime | Vector`): The temporal value(s).
 
 
 ## Returns
 
-| Vector[Int] The minute(s).
+The minute(s).
 
 
 
@@ -30761,7 +30765,7 @@ Return most frequent value.
 
 ## Parameters
 
-- **x** (`Vector`): | List Input values.
+- **x** (`Vector | List`): Input values.
 
 
 ## Returns
@@ -30801,14 +30805,14 @@ Returns the month number, or month labels when requested, from Date or Datetime 
 
 ## Parameters
 
-- **x** (`Date`): | Datetime | Vector The temporal value(s).
+- **x** (`Date | Datetime | Vector`): The temporal value(s).
 
 - **label** (`Bool`): = false If true, returns abbreviated month names.
 
 
 ## Returns
 
-| String | Vector The month(s).
+The month(s).
 
 
 
@@ -31075,7 +31079,7 @@ Creates a new NDArray from a list or vector of data, optionally specifying the s
 
 ## Parameters
 
-- **data** (`List`): | Vector The data to populate the array. Can be nested lists.
+- **data** (`List | Vector`): The data to populate the array. Can be nested lists.
 
 - **shape** (`List[Int]`): (Optional) The dimensions of the array.
 
@@ -31107,7 +31111,7 @@ Returns the number of distinct values in a vector or list. Inside `summarize()`,
 
 ## Parameters
 
-- **x** (`Vector`): | List The input values.
+- **x** (`Vector | List`): The input values.
 
 - **na_rm** (`Bool`): = false Exclude NA values from the count.
 
@@ -31242,9 +31246,9 @@ Compares the artifact produced by a named node across two historical builds of t
 
 - **node_b** (`ComputedNode`): The "after" node.
 
-- **log_a** (`String`): | Int Build log selector for node_a (default "latest"). Accepts a timestamp prefix, regex, or 1-indexed integer.
+- **log_a** (`String | Int`): Build log selector for node_a (default "latest"). Accepts a timestamp prefix, regex, or 1-indexed integer.
 
-- **log_b** (`String`): | Int Build log selector for node_b (default "latest"). Same format as log_a.
+- **log_b** (`String | Int`): Build log selector for node_b (default "latest"). Same format as log_a.
 
 - **key** (`List[Symbol]`): For DataFrames: natural key column(s) for row alignment (default []).
 
@@ -31331,9 +31335,9 @@ Configure execution settings such as the runtime and custom serialized methods f
 
 - **args** (`Dict`): (Optional) Runtime/tool arguments. For Quarto, use this to pass CLI arguments such as `subcommand`, `path`, and additional options. `output_dir` is reserved and managed automatically so the rendered result is stored as the node artifact.
 
-- **functions** (`String`): | List[String] (Optional) Files to source before execution.
+- **functions** (`String | List[String]`): (Optional) Files to source before execution.
 
-- **include** (`String`): | List[String] (Optional) Additional files for the sandbox.
+- **include** (`String | List[String]`): (Optional) Additional files for the sandbox.
 
 - **noop** (`Bool`): (Optional) Whether to skip execution and generate a stub. Default = false.
 
@@ -31406,12 +31410,12 @@ Min-max normalize values to [0, 1].
 
 ## Parameters
 
-- **x** (`Vector`): | List Numeric input.
+- **x** (`Vector | List`): Numeric input.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -31444,7 +31448,7 @@ Returns the number of rows in a DataFrame or the length of a vector.
 
 ## Parameters
 
-- **x** (`DataFrame`): | Vector The input data.
+- **x** (`DataFrame | Vector`): The input data.
 
 
 ## Returns
@@ -31498,9 +31502,9 @@ Creates factor vectors marked as ordered for ordinal comparisons.
 
 ## Parameters
 
-- **x** (`Vector`): | List | Any The values to convert to an ordered factor.
+- **x** (`Vector | List | Any`): The values to convert to an ordered factor.
 
-- **levels** (`Vector[String]`): | List[String] (Optional) Explicit level order.
+- **levels** (`Vector[String] | List[String]`): (Optional) Explicit level order.
 
 
 ## Returns
@@ -31633,14 +31637,14 @@ Parses strings or string vectors into Date values using an explicit format strin
 
 ## Parameters
 
-- **x** (`String`): | Vector[String] The string(s) to parse.
+- **x** (`String | Vector[String]`): The string(s) to parse.
 
 - **format** (`String`): The strptime-style format string.
 
 
 ## Returns
 
-| Vector[Date] The parsed date(s).
+The parsed date(s).
 
 
 
@@ -31654,7 +31658,7 @@ Parses strings or string vectors into Datetime values using an explicit format s
 
 ## Parameters
 
-- **x** (`String`): | Vector[String] The string(s) to parse.
+- **x** (`String | Vector[String]`): The string(s) to parse.
 
 - **format** (`String`): The strptime-style format string.
 
@@ -31663,7 +31667,7 @@ Parses strings or string vectors into Datetime values using an explicit format s
 
 ## Returns
 
-| Vector[Datetime] The parsed datetime(s).
+The parsed datetime(s).
 
 
 
@@ -31779,7 +31783,7 @@ Get file extension
 
 ## Returns
 
-| NA The file extension including the leading dot, or null if none.
+The file extension including the leading dot, or null if none.
 
 ## Examples
 
@@ -32861,12 +32865,12 @@ Returns true for Datetime values whose hour is 12 or later.
 
 ## Parameters
 
-- **x** (`Date`): | Datetime | Vector The temporal value(s).
+- **x** (`Date | Datetime | Vector`): The temporal value(s).
 
 
 ## Returns
 
-| Vector[Bool] True if after noon.
+True if after noon.
 
 
 
@@ -32899,7 +32903,7 @@ Generates a basis of polynomial terms for a numeric vector.
 
 ## Parameters
 
-- **x** (`Vector[Number]`): | List[Number] The vector to expand.
+- **x** (`Vector[Number] | List[Number]`): The vector to expand.
 
 - **degree** (`Int`): The degree of the polynomial.
 
@@ -32943,7 +32947,7 @@ Writes the pipeline's Nix expression into `_pipeline/` and, when `build = true`,
 
 ## Returns
 
-| BuildLog | DataFrame Success message, BuildLog, or planned-actions DataFrame.
+Success message, BuildLog, or planned-actions DataFrame.
 
 ## Examples
 
@@ -32968,7 +32972,7 @@ Calculates base raised to the power of exponent.
 
 ## Parameters
 
-- **base** (`Number`): | Vector | NDArray The base.
+- **base** (`Number | Vector | NDArray`): The base.
 
 - **exponent** (`Number`): The exponent.
 
@@ -32977,7 +32981,7 @@ Calculates base raised to the power of exponent.
 
 ## Returns
 
-| Vector | NDArray The result of base ^ exponent.
+The result of base ^ exponent.
 
 ## Examples
 
@@ -33009,7 +33013,7 @@ Calculates predicted values for a model object. Standardized on JPMML as the sol
 
 ## Returns
 
-| DataFrame The predicted values. For JPMML-backed PMML models (e.g. classification),
+The predicted values. For JPMML-backed PMML models (e.g. classification),
 
 ## See Also
 
@@ -33256,9 +33260,9 @@ Returns a generator spec that draws a Date uniformly between `start` and `end` (
 
 ## Parameters
 
-- **start** (`Date`): | Datetime Lower bound (inclusive).
+- **start** (`Date | Datetime`): Lower bound (inclusive).
 
-- **end** (`Date`): | Datetime Upper bound (inclusive).
+- **end** (`Date | Datetime`): Upper bound (inclusive).
 
 
 ## Returns
@@ -33598,7 +33602,7 @@ Returns a generator spec that picks one value uniformly at random from `values` 
 
 ## Parameters
 
-- **values** (`List[Any]`): | Vector[Any] The candidate values.
+- **values** (`List[Any] | Vector[Any]`): The candidate values.
 
 
 ## Returns
@@ -34040,9 +34044,9 @@ A convenience wrapper around `node()` with `runtime = "Python"`. Used directly w
 
 - **deserializer** (`Strategy`): (Optional) Deserializer strategy: same closed set as `serializer`. Default is `default`.
 
-- **functions** (`String`): | List[String] (Optional) Python files to source before execution.
+- **functions** (`String | List[String]`): (Optional) Python files to source before execution.
 
-- **include** (`String`): | List[String] (Optional) Additional files for the sandbox.
+- **include** (`String | List[String]`): (Optional) Additional files for the sandbox.
 
 - **noop** (`Bool`): (Optional) Whether to skip execution and generate a stub. Default = false.
 
@@ -34135,9 +34139,9 @@ A convenience wrapper around `node()` with `runtime = "Quarto"`. Used directly w
 
 - **args** (`Dict`): (Optional) Runtime/tool arguments. Use this to pass Quarto CLI arguments such as `subcommand`, `path`, `to`, and additional options. `output_dir` is reserved and managed automatically so the rendered result is stored as the node artifact.
 
-- **functions** (`String`): | List[String] (Optional) Files to source before execution.
+- **functions** (`String | List[String]`): (Optional) Files to source before execution.
 
-- **include** (`String`): | List[String] (Optional) Additional files for the sandbox.
+- **include** (`String | List[String]`): (Optional) Additional files for the sandbox.
 
 - **noop** (`Bool`): (Optional) Whether to skip execution and generate a stub. Default = false.
 
@@ -34221,13 +34225,13 @@ Computes the quantile of a distribution at a specified probability.
 
 ## Parameters
 
-- **x** (`Vector`): | List The numeric data.
+- **x** (`Vector | List`): The numeric data.
 
 - **probs** (`Float`): The probability (0 to 1).
 
 - **na_rm** (`Bool`): (Optional) Should missing values be removed? Default is false.
 
-- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights.
+- **weights** (`Vector[Float] | List[Float]`): = NA Optional non-negative observation weights.
 
 
 ## Returns
@@ -34257,12 +34261,12 @@ Returns the quarter number for Date or Datetime values.
 
 ## Parameters
 
-- **x** (`Date`): | Datetime | Vector The temporal value(s).
+- **x** (`Date | Datetime | Vector`): The temporal value(s).
 
 
 ## Returns
 
-| Vector[Int] The quarter(s).
+The quarter(s).
 
 
 
@@ -34331,14 +34335,14 @@ Return min and max as a length-2 vector.
 
 ## Parameters
 
-- **x** (`Vector`): | List Numeric input.
+- **x** (`Vector | List`): Numeric input.
 
 - **na_rm** (`Bool`): = false Remove NA values first.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -34812,7 +34816,7 @@ Removes one or more variables from the current environment by name. Supports bar
 
 ## Parameters
 
-- **...** (`Symbol`): | String One or more variables to remove.
+- **...** (`Symbol | String`): One or more variables to remove.
 
 - **list** (`List[String]`): (Optional) A list of variable names to remove.
 
@@ -34855,9 +34859,9 @@ A convenience wrapper around `node()` with `runtime = "R"`. Used directly within
 
 - **deserializer** (`Strategy`): (Optional) Deserializer strategy: same closed set as `serializer`. Default is `default`.
 
-- **functions** (`String`): | List[String] (Optional) R scripts to source before execution.
+- **functions** (`String | List[String]`): (Optional) R scripts to source before execution.
 
-- **include** (`String`): | List[String] (Optional) Additional files for the sandbox.
+- **include** (`String | List[String]`): (Optional) Additional files for the sandbox.
 
 - **noop** (`Bool`): (Optional) Whether to skip execution and generate a stub. Default = false.
 
@@ -34884,14 +34888,14 @@ Rounds Date or Datetime values to the nearest requested unit boundary.
 
 ## Parameters
 
-- **x** (`Date`): | Datetime | Vector The temporal value(s).
+- **x** (`Date | Datetime | Vector`): The temporal value(s).
 
 - **unit** (`String`): The unit boundary ("second", "minute", "hour", "day", "month", "year").
 
 
 ## Returns
 
-| Datetime | Vector The rounded value(s).
+The rounded value(s).
 
 
 
@@ -34905,14 +34909,14 @@ Round numbers to a specified number of decimal digits.
 
 ## Parameters
 
-- **x** (`Number`): | Vector | NDArray Numeric input.
+- **x** (`Number | Vector | NDArray`): Numeric input.
 
 - **digits** (`Int`): = 0 Decimal digits.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -35008,7 +35012,7 @@ Draws a random sample of size n from a vector or list, with or without replaceme
 
 ## Parameters
 
-- **x** (`Vector`): | List The input data.
+- **x** (`Vector | List`): The input data.
 
 - **n** (`Int`): = 1 Sample size.
 
@@ -35017,7 +35021,7 @@ Draws a random sample of size n from a vector or list, with or without replaceme
 
 ## Returns
 
-| List The random sample.
+The random sample.
 
 ## Examples
 
@@ -35098,12 +35102,12 @@ Standardize to z-scores using sample standard deviation.
 
 ## Parameters
 
-- **x** (`Vector`): | List Numeric input.
+- **x** (`Vector | List`): Numeric input.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -35144,11 +35148,11 @@ Calculates the sample standard deviation of a numeric vector. With `weights`, us
 
 ## Parameters
 
-- **x** (`Vector`): | List The numeric data.
+- **x** (`Vector | List`): The numeric data.
 
 - **na_rm** (`Bool`): (Optional) logical. Should missing values be removed? Default is false.
 
-- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights.
+- **weights** (`Vector[Float] | List[Float]`): = NA Optional non-negative observation weights.
 
 
 ## Returns
@@ -35178,12 +35182,12 @@ Returns the second component from Datetime values.
 
 ## Parameters
 
-- **x** (`Datetime`): | Vector The temporal value(s).
+- **x** (`Datetime | Vector`): The temporal value(s).
 
 
 ## Returns
 
-| Vector[Float] The second(s).
+The second(s).
 
 
 
@@ -35285,12 +35289,12 @@ Returns 1 for the first half of the year and 2 for the second half.
 
 ## Parameters
 
-- **x** (`Date`): | Datetime | Vector The temporal value(s).
+- **x** (`Date | Datetime | Vector`): The temporal value(s).
 
 
 ## Returns
 
-| Vector[Int] The semester(s).
+The semester(s).
 
 
 
@@ -35501,7 +35505,7 @@ Pure function that returns a new pipeline with the given defaults merged into no
 
 - **functions** (`Dict`): (Optional) Combine (prepend). Runtime-shorthand to
 
-- **include** (`String`): | List[String] (Optional) Combine (prepend). File
+- **include** (`String | List[String]`): (Optional) Combine (prepend). File
 
 - **env_vars** (`Dict`): (Optional) Combine (prepend). Environment variables.
 
@@ -35515,15 +35519,15 @@ Pure function that returns a new pipeline with the given defaults merged into no
 
 - **shell** (`String`): (Optional) Override. Shell interpreter.
 
-- **shell_args** (`String`): | List[String] (Optional) Combine (prepend). Shell
+- **shell_args** (`String | List[String]`): (Optional) Combine (prepend). Shell
 
 - **flake** (`String`): (Optional) Override. Nix flake path.
 
-- **dependencies** (`String`): | List[String] (Optional) Combine (prepend).
+- **dependencies** (`String | List[String]`): (Optional) Combine (prepend).
 
-- **runtimes** (`String`): | List[String] (Optional) Scope the merge to nodes
+- **runtimes** (`String | List[String]`): (Optional) Scope the merge to nodes
 
-- **nodes** (`String`): | List[String] (Optional) Scope the merge to exactly
+- **nodes** (`String | List[String]`): (Optional) Scope the merge to exactly
 
 
 ## Returns
@@ -35610,15 +35614,15 @@ A convenience wrapper around `node()` with `runtime = "sh"`. Use `shn()` inside 
 
 - **deserializer** (`Strategy`): (Optional) Deserializer strategy: same closed set as `serializer`. Default is `default`.
 
-- **args** (`Dict`): | List (Optional) Runtime arguments. Lists become positional CLI arguments for exec-style nodes.
+- **args** (`Dict | List`): (Optional) Runtime arguments. Lists become positional CLI arguments for exec-style nodes.
 
 - **shell** (`String`): (Optional) Shell interpreter to invoke for shell-string mode or script-backed nodes. Default = "sh".
 
 - **shell_args** (`List[String]`): (Optional) Additional arguments passed to the shell interpreter.
 
-- **functions** (`String`): | List[String] (Optional) Additional files to include in the sandbox before execution.
+- **functions** (`String | List[String]`): (Optional) Additional files to include in the sandbox before execution.
 
-- **include** (`String`): | List[String] (Optional) Additional files for the sandbox.
+- **include** (`String | List[String]`): (Optional) Additional files for the sandbox.
 
 - **noop** (`Bool`): (Optional) Whether to skip execution and generate a stub. Default = false.
 
@@ -35698,14 +35702,14 @@ Round to a fixed number of significant digits.
 
 ## Parameters
 
-- **x** (`Number`): | Vector | NDArray Numeric input.
+- **x** (`Number | Vector | NDArray`): Numeric input.
 
 - **digits** (`Int`): Number of significant digits (> 0).
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -35719,12 +35723,12 @@ Return -1, 0, or 1 depending on sign.
 
 ## Parameters
 
-- **x** (`Number`): | Vector | NDArray Numeric input.
+- **x** (`Number | Vector | NDArray`): Numeric input.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -35738,12 +35742,12 @@ Compute hyperbolic sine.
 
 ## Parameters
 
-- **x** (`Number`): | Vector | NDArray Numeric input.
+- **x** (`Number | Vector | NDArray`): Numeric input.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -35757,12 +35761,12 @@ Compute sine (radians).
 
 ## Parameters
 
-- **x** (`Number`): | Vector | NDArray Numeric input.
+- **x** (`Number | Vector | NDArray`): Numeric input.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -35776,16 +35780,16 @@ Compute third standardized moment.
 
 ## Parameters
 
-- **x** (`Vector`): | List Numeric input.
+- **x** (`Vector | List`): Numeric input.
 
 - **na_rm** (`Bool`): = false Remove NA values first.
 
-- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights.
+- **weights** (`Vector[Float] | List[Float]`): = NA Optional non-negative observation weights.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -35959,14 +35963,14 @@ Calculates the square root of x. Returns a ValueError value for negative input.
 
 ## Parameters
 
-- **x** (`Number`): | Vector | NDArray The input value (must be non-negative).
+- **x** (`Number | Vector | NDArray`): The input value (must be non-negative).
 
 - **na_ignore** (`Bool`): Whether to preserve NA values in inputs. Default is false.
 
 
 ## Returns
 
-| Vector | NDArray The square root.
+The square root.
 
 ## Examples
 
@@ -35991,12 +35995,12 @@ Alias behavior for z-score standardization.
 
 ## Parameters
 
-- **x** (`Vector`): | List Numeric input.
+- **x** (`Vector | List`): Numeric input.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -36083,7 +36087,7 @@ Substitutes {name} placeholders using values from a Dict or named List. Use {{ a
 
 - **fmt** (`String`): The format string with {name} placeholders.
 
-- **values** (`Dict`): | List The named values to substitute.
+- **values** (`Dict | List`): The named values to substitute.
 
 
 ## Returns
@@ -36106,7 +36110,7 @@ Concatenates items of a List or Vector into a single string, separated by `sep`.
 
 ## Parameters
 
-- **items** (`List`): | Vector The items to join.
+- **items** (`List | Vector`): The items to join.
 
 - **sep** (`String`): [Optional] The separator string. Defaults to "".
 
@@ -36140,7 +36144,7 @@ Splits on \n or \r\n. Strips trailing newline. Accepts ShellResult.
 
 ## Parameters
 
-- **s** (`String`): | ShellResult
+- **s** (`String | ShellResult`): 
 
 
 ## Returns
@@ -36163,12 +36167,12 @@ Returns the number of characters (Unicode code points) in a string. Multi-byte U
 
 ## Parameters
 
-- **x** (`String`): | Vector[String] The input string(s).
+- **x** (`String | Vector[String]`): The input string(s).
 
 
 ## Returns
 
-| Vector[Int] The number of characters.
+The number of characters.
 
 
 
@@ -36234,7 +36238,7 @@ Splits a string into a list of substrings on each occurrence of `sep`. If `sep` 
 
 ## Parameters
 
-- **x** (`String`): | ShellResult The string to split.
+- **x** (`String | ShellResult`): The string to split.
 
 - **sep** (`String`): The delimiter to split on.
 
@@ -36398,7 +36402,7 @@ Splits on whitespace, collapsing consecutive spaces. Accepts ShellResult. Note: 
 
 ## Parameters
 
-- **s** (`String`): | ShellResult
+- **s** (`String | ShellResult`): 
 
 
 ## Returns
@@ -36514,14 +36518,14 @@ Calculates the sum of values in a List or Vector.
 
 ## Parameters
 
-- **x** (`List[Number]`): | Vector[Number] The collection to sum.
+- **x** (`List[Number] | Vector[Number]`): The collection to sum.
 
 - **na_rm** (`Bool`): = false Remove NA values before summing.
 
 
 ## Returns
 
-| NA The sum of values.
+The sum of values.
 
 ## Examples
 
@@ -36623,14 +36627,14 @@ Returns the last n items from a List, Vector, or DataFrame. For DataFrames, it r
 
 ## Parameters
 
-- **data** (`DataFrame`): | List | Vector The collection to slice.
+- **data** (`DataFrame | List | Vector`): The collection to slice.
 
 - **n** (`Int`): = 5 Number of items to return.
 
 
 ## Returns
 
-| List | Vector A subset of the input containing the last n items.
+A subset of the input containing the last n items.
 
 ## Examples
 
@@ -36671,12 +36675,12 @@ Compute hyperbolic tangent.
 
 ## Parameters
 
-- **x** (`Number`): | Vector | NDArray Numeric input.
+- **x** (`Number | Vector | NDArray`): Numeric input.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -36690,12 +36694,12 @@ Compute tangent (radians).
 
 ## Parameters
 
-- **x** (`Number`): | Vector | NDArray Numeric input.
+- **x** (`Number | Vector | NDArray`): Numeric input.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -36890,7 +36894,7 @@ Coerces a value to a boolean. Recognizes 'TRUE'/'FALSE', 'T'/'F', non-zero numbe
 
 ## Returns
 
-| NA The converted boolean.
+The converted boolean.
 
 
 
@@ -36950,7 +36954,7 @@ Converts strings, datetimes, and related temporal values to Date values.
 
 ## Returns
 
-| Vector[Date] The converted date(s).
+The converted date(s).
 
 
 
@@ -36973,7 +36977,7 @@ Converts strings, dates, and related temporal values to Datetime values.
 
 ## Returns
 
-| Vector[Datetime] The converted datetime(s).
+The converted datetime(s).
 
 
 
@@ -37073,9 +37077,9 @@ Converts values to factor-encoded vectors with derived or explicit levels.
 
 ## Parameters
 
-- **x** (`Vector`): | List | Any The values to convert to factors.
+- **x** (`Vector | List | Any`): The values to convert to factors.
 
-- **levels** (`Vector[String]`): | List[String] (Optional) Explicit level order. Defaults to sorted unique values.
+- **levels** (`Vector[String] | List[String]`): (Optional) Explicit level order. Defaults to sorted unique values.
 
 - **ordered** (`Bool`): = false Mark the factor as ordered for ordinal comparisons.
 
@@ -37108,7 +37112,7 @@ Coerces a value to a float robustly. Handles strings with spaces, percentages, c
 
 ## Returns
 
-| NA The converted float.
+The converted float.
 
 ## Examples
 
@@ -37135,7 +37139,7 @@ Coerces a value to an integer robustly. Handles strings with spaces, percentages
 
 ## Returns
 
-| NA The converted integer.
+The converted integer.
 
 ## Examples
 
@@ -37206,7 +37210,7 @@ Creates a Symbol from a string so it can be injected into quoted code with `!!`.
 
 ## Parameters
 
-- **x** (`String`): | Symbol The name to convert.
+- **x** (`String | Symbol`): The name to convert.
 
 
 ## Returns
@@ -37379,18 +37383,18 @@ Compute mean after trimming both tails by fraction.
 
 ## Parameters
 
-- **x** (`Vector`): | List Numeric input.
+- **x** (`Vector | List`): Numeric input.
 
 - **trim** (`Float`): Trim proportion in [0, 0.5).
 
 - **na_rm** (`Bool`): = false Remove NA values first.
 
-- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights.
+- **weights** (`Vector[Float] | List[Float]`): = NA Optional non-negative observation weights.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -37421,12 +37425,12 @@ Truncate fractional component toward zero.
 
 ## Parameters
 
-- **x** (`Number`): | Vector | NDArray Numeric input.
+- **x** (`Number | Vector | NDArray`): Numeric input.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -37474,7 +37478,7 @@ Evaluates a PMML model against a DataFrame using the JPMML-evaluator library. Re
 
 ## Returns
 
-| DataFrame The model predictions.
+The model predictions.
 
 
 
@@ -37621,12 +37625,12 @@ Returns the timezone string attached to a Datetime value.
 
 ## Parameters
 
-- **x** (`Datetime`): | Vector The temporal value(s).
+- **x** (`Datetime | Vector`): The temporal value(s).
 
 
 ## Returns
 
-| Vector[String] The timezone label(s).
+The timezone label(s).
 
 
 
@@ -37810,16 +37814,16 @@ Compute sample variance.
 
 ## Parameters
 
-- **x** (`Vector`): | List Numeric input.
+- **x** (`Vector | List`): Numeric input.
 
 - **na_rm** (`Bool`): = false Remove NA values first.
 
-- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights.
+- **weights** (`Vector[Float] | List[Float]`): = NA Optional non-negative observation weights.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -37907,7 +37911,7 @@ Returns weekday numbers, or weekday labels when requested, from Date or Datetime
 
 ## Parameters
 
-- **x** (`Date`): | Datetime | Vector The temporal value(s).
+- **x** (`Date | Datetime | Vector`): The temporal value(s).
 
 - **label** (`Bool`): = false If true, returns abbreviated weekday names.
 
@@ -37916,7 +37920,7 @@ Returns weekday numbers, or weekday labels when requested, from Date or Datetime
 
 ## Returns
 
-| String | Vector The weekday(s).
+The weekday(s).
 
 
 
@@ -37930,12 +37934,12 @@ Returns the week number for Date or Datetime values.
 
 ## Parameters
 
-- **x** (`Date`): | Datetime | Vector The temporal value(s).
+- **x** (`Date | Datetime | Vector`): The temporal value(s).
 
 
 ## Returns
 
-| Vector[Int] The week number(s).
+The week number(s).
 
 
 
@@ -38017,18 +38021,18 @@ Clamp tails to specified quantile limits.
 
 ## Parameters
 
-- **x** (`Vector`): | List Numeric input.
+- **x** (`Vector | List`): Numeric input.
 
-- **limits** (`Float`): | Vector[Float] One-sided or (lo, hi) limits in [0, 0.5).
+- **limits** (`Float | Vector[Float]`): One-sided or (lo, hi) limits in [0, 0.5).
 
 - **na_rm** (`Bool`): = false Remove NA values first.
 
-- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights used to determine the cut points.
+- **weights** (`Vector[Float] | List[Float]`): = NA Optional non-negative observation weights used to determine the cut points.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -38036,20 +38040,20 @@ Clamp tails to specified quantile limits.
 
 # %within%
 
-Test interval membership
+Check if a date/datetime is within an interval
 
-Returns true when a Date or Datetime value falls inside an interval.
+Returns true if the given instant falls within the specified interval (inclusive).
 
 ## Parameters
 
-- **x** (`Date`): | Datetime | Vector The temporal value(s) to check.
+- **x** (`Date | Datetime | Vector`): The instant(s) to check.
 
 - **interval** (`Interval`): The interval to check against.
 
 
 ## Returns
 
-| Vector[Bool] True if value is inside the interval.
+True if x is within the interval.
 
 
 
@@ -38094,14 +38098,14 @@ Retains the instant in time while changing the displayed timezone label.
 
 ## Parameters
 
-- **x** (`Datetime`): | Vector The temporal value(s).
+- **x** (`Datetime | Vector`): The temporal value(s).
 
 - **tz** (`String`): The new timezone label.
 
 
 ## Returns
 
-| Vector[Datetime] The relabeled datetime(s).
+The relabeled datetime(s).
 
 
 
@@ -38252,12 +38256,12 @@ Returns the day-of-year component from Date or Datetime values.
 
 ## Parameters
 
-- **x** (`Date`): | Datetime | Vector The temporal value(s).
+- **x** (`Date | Datetime | Vector`): The temporal value(s).
 
 
 ## Returns
 
-| Vector[Int] The day(s) of the year.
+The day(s) of the year.
 
 
 
@@ -38271,12 +38275,12 @@ Parses strings in YDM order to Date values. Vectorized over vectors. Unparseable
 
 ## Parameters
 
-- **value** (`String`): | Vector The date string(s) to parse.
+- **value** (`String | Vector`): The date string(s) to parse.
 
 
 ## Returns
 
-| Vector The parsed date(s).
+The parsed date(s).
 
 ## Examples
 
@@ -38296,12 +38300,12 @@ Returns the calendar year from Date or Datetime values.
 
 ## Parameters
 
-- **x** (`Date`): | Datetime | Vector The temporal value(s).
+- **x** (`Date | Datetime | Vector`): The temporal value(s).
 
 
 ## Returns
 
-| Vector[Int] The year(s).
+The year(s).
 
 
 
@@ -38340,14 +38344,14 @@ Parses strings to Datetime values, reading year through hour. Vectorized over ve
 
 ## Parameters
 
-- **value** (`String`): | Vector The datetime string(s) to parse.
+- **value** (`String | Vector`): The datetime string(s) to parse.
 
 - **tz** (`String`): (Optional) Timezone label.
 
 
 ## Returns
 
-| Vector The parsed datetime(s).
+The parsed datetime(s).
 
 ## Examples
 
@@ -38367,14 +38371,14 @@ Parses strings to Datetime values, reading year through minute. Vectorized over 
 
 ## Parameters
 
-- **value** (`String`): | Vector The datetime string(s) to parse.
+- **value** (`String | Vector`): The datetime string(s) to parse.
 
 - **tz** (`String`): (Optional) Timezone label.
 
 
 ## Returns
 
-| Vector The parsed datetime(s).
+The parsed datetime(s).
 
 ## Examples
 
@@ -38394,14 +38398,14 @@ Parses strings to Datetime values, reading year through second. Vectorized over 
 
 ## Parameters
 
-- **value** (`String`): | Vector The datetime string(s) to parse.
+- **value** (`String | Vector`): The datetime string(s) to parse.
 
 - **tz** (`String`): (Optional) Timezone label.
 
 
 ## Returns
 
-| Vector The parsed datetime(s).
+The parsed datetime(s).
 
 ## Examples
 
@@ -38421,12 +38425,12 @@ Parses strings in YMD order to Date values. Vectorized over vectors. Unparseable
 
 ## Parameters
 
-- **value** (`String`): | Vector The date string(s) to parse.
+- **value** (`String | Vector`): The date string(s) to parse.
 
 
 ## Returns
 
-| Vector The parsed date(s).
+The parsed date(s).
 
 ## Examples
 

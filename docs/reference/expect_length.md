@@ -6,7 +6,7 @@ Passes if the length/size/row-count of `x` equals `n`. Supports Vector, List, St
 
 ## Parameters
 
-- **x** (`Vector`): | List | String | DataFrame | Dict The container to measure.
+- **x** (`Vector | List | String | DataFrame | Dict`): The container to measure.
 
 - **n** (`Int`): Expected length.
 

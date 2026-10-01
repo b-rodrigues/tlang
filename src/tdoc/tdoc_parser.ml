@@ -67,7 +67,9 @@ let parse_block lines filename line_num =
   (* Helpers to set state *)
   (* Join whitespace-split tokens back into one type while brackets stay
      open, so `Dict[String, Dict]` survives as a single type instead of
-     truncating to `Dict[String,`. Returns the type and the rest. *)
+     truncating to `Dict[String,`. A `|` token continues the union
+     (`Dict | List`), so spaced unions parse whole instead of keeping
+     only the first member. Returns the type and the rest. *)
   let join_bracketed toks =
     let depth s =
       String.fold_left (fun d c ->
@@ -90,12 +92,21 @@ let parse_block lines filename line_num =
         if depth t <= 0 then (t, rest)
         else loop [t] (depth t) rest
   in
+  let rec join_type toks =
+    match join_bracketed toks with
+    | ("", rest) -> ("", rest)
+    | (head, "|" :: more) when more <> [] ->
+        let (tail, rest) = join_type more in
+        if tail = "" then (head, rest)
+        else (head ^ " | " ^ tail, rest)
+    | done_ -> done_
+  in
   let add_param line =
     (* Format: @param <name> :: <type> <desc> OR @param <name> <desc> *)
     let parts = String.split_on_char ' ' (String.trim line) |> List.filter (fun s -> s <> "") in
     match parts with
     | name :: "::" :: type_toks ->
-        let (type_info, rest) = join_bracketed type_toks in
+        let (type_info, rest) = join_type type_toks in
         let desc = String.concat " " rest in
         params := { name; type_info = Some type_info; description = desc } :: !params
     | name :: rest ->
@@ -104,7 +115,7 @@ let parse_block lines filename line_num =
           let parts = String.split_on_char ' ' desc |> List.filter (fun s -> s <> "") in
           (match parts with
            | _ :: type_toks ->
-               let (type_part, rest_toks) = join_bracketed type_toks in
+               let (type_part, rest_toks) = join_type type_toks in
                let real_desc = String.concat " " rest_toks in
                params := { name; type_info = Some type_part; description = real_desc } :: !params
            | [] ->
@@ -118,7 +129,7 @@ let parse_block lines filename line_num =
     let parts = String.split_on_char ' ' (String.trim line) |> List.filter (fun s -> s <> "") in
     match parts with
     | "::" :: type_toks ->
-        let (type_info, rest) = join_bracketed type_toks in
+        let (type_info, rest) = join_type type_toks in
         let desc = String.concat " " rest in
         return_val := Some { type_info = Some type_info; description = desc }
     | _ ->

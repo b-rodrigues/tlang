@@ -6,7 +6,7 @@ Summarizes a List or Dict of Expect values / check results into a DataFrame repo
 
 ## Parameters
 
-- **checks** (`Dict`): | List A dictionary or list of expectation check results.
+- **checks** (`Dict | List`): A dictionary or list of expectation check results.
 
 
 ## Returns

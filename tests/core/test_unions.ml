@@ -171,6 +171,13 @@ match(s) { Circle(r) => r }|}
     {|type ShAE = Circle(Float) | Missing()
 f = \(s) match(s) { Circle(r) => r }|}
     0 None;
+  check_diags "nested branch rebinding stays silent"
+    {|type ShAF = Circle(Float) | Missing()
+type ShAG = Wrap(Float) | Gone()
+s = Circle(1.0)
+if (c) { s := Wrap(1.0) }
+match(s) { Circle(r) => r }|}
+    0 None;
   test_env (fresh ()) "int payload coerces to Float case"
     {|type ShX = Circle(Float) | Missing()
 match(Circle(1)) { Circle(r) => r, Missing() => 0.0 }|}

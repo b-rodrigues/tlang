@@ -6,10 +6,10 @@ Returns the hour component from Datetime values.
 
 ## Parameters
 
-- **x** (`Datetime`): | Vector The temporal value(s).
+- **x** (`Datetime | Vector`): The temporal value(s).
 
 
 ## Returns
 
-| Vector[Int] The hour(s).
+The hour(s).
 

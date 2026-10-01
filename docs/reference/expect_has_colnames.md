@@ -6,9 +6,9 @@ Passes if the DataFrame, Dict, or named List contains at least all of the expect
 
 ## Parameters
 
-- **data** (`DataFrame`): | Dict | List The container to check.
+- **data** (`DataFrame | Dict | List`): The container to check.
 
-- **names** (`String`): | List | Vector The required column/field name or list/vector of required names.
+- **names** (`String | List | Vector`): The required column/field name or list/vector of required names.
 
 
 ## Returns

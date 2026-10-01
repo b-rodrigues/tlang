@@ -6,7 +6,7 @@ Returns the number of rows in a DataFrame or the length of a vector.
 
 ## Parameters
 
-- **x** (`DataFrame`): | Vector The input data.
+- **x** (`DataFrame | Vector`): The input data.
 
 
 ## Returns

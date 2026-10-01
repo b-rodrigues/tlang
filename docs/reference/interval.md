@@ -6,9 +6,9 @@ Builds an interval from two Date or Datetime endpoints.
 
 ## Parameters
 
-- **start** (`Date`): | Datetime The start of the interval.
+- **start** (`Date | Datetime`): The start of the interval.
 
-- **end** (`Date`): | Datetime The end of the interval.
+- **end** (`Date | Datetime`): The end of the interval.
 
 
 ## Returns

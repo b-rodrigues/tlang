@@ -6,10 +6,10 @@ Alias behavior for z-score standardization.
 
 ## Parameters
 
-- **x** (`Vector`): | List Numeric input.
+- **x** (`Vector | List`): Numeric input.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 

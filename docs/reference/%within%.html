@@ -34,19 +34,18 @@
 </nav>
 <div class="container">
 <h1 id="within">%within%</h1>
-<p>Test interval membership</p>
-<p>Returns true when a Date or Datetime value falls inside an
-interval.</p>
+<p>Check if a date/datetime is within an interval</p>
+<p>Returns true if the given instant falls within the specified interval
+(inclusive).</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><p><strong>x</strong> (<code>Date</code>): | Datetime | Vector The
-temporal value(s) to check.</p></li>
+<li><p><strong>x</strong> (<code>Date | Datetime | Vector</code>): The
+instant(s) to check.</p></li>
 <li><p><strong>interval</strong> (<code>Interval</code>): The interval
 to check against.</p></li>
 </ul>
 <h2 id="returns">Returns</h2>
-<div class="line-block">Vector[Bool] True if value is inside the
-interval.</div>
+<p>True if x is within the interval.</p>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

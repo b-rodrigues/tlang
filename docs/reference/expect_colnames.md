@@ -8,7 +8,7 @@ Passes if the DataFrame column names match the given list of strings exactly (or
 
 - **df** (`DataFrame`): The DataFrame to check.
 
-- **names** (`List`): | Vector A list or vector of expected column name strings.
+- **names** (`List | Vector`): A list or vector of expected column name strings.
 
 
 ## Returns

@@ -1176,8 +1176,13 @@ let rec mkdir_p path =
 
 let recursive_files dir =
   let rec walk acc d =
-    let entries = try Sys.readdir d with _ -> [||] in
-    Array.fold_left (fun acc e ->
+    (* Sorted for determinism: duplicate doc names resolve identically on
+       every machine (later paths win in registration order). *)
+    let entries =
+      try Array.to_list (Sys.readdir d) |> List.sort String.compare
+      with _ -> []
+    in
+    List.fold_left (fun acc e ->
       let p = Filename.concat d e in
       if Sys.is_directory p then walk acc p
       else if Filename.check_suffix e ".ml" || Filename.check_suffix e ".t" then p :: acc

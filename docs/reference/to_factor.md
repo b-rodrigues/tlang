@@ -6,9 +6,9 @@ Converts values to factor-encoded vectors with derived or explicit levels.
 
 ## Parameters
 
-- **x** (`Vector`): | List | Any The values to convert to factors.
+- **x** (`Vector | List | Any`): The values to convert to factors.
 
-- **levels** (`Vector[String]`): | List[String] (Optional) Explicit level order. Defaults to sorted unique values.
+- **levels** (`Vector[String] | List[String]`): (Optional) Explicit level order. Defaults to sorted unique values.
 
 - **ordered** (`Bool`): = false Mark the factor as ordered for ordinal comparisons.
 

@@ -6,14 +6,14 @@ Parses strings to Datetime values, reading year through minute. Vectorized over 
 
 ## Parameters
 
-- **value** (`String`): | Vector The datetime string(s) to parse.
+- **value** (`String | Vector`): The datetime string(s) to parse.
 
 - **tz** (`String`): (Optional) Timezone label.
 
 
 ## Returns
 
-| Vector The parsed datetime(s).
+The parsed datetime(s).
 
 ## Examples
 

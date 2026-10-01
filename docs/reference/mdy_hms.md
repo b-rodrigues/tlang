@@ -6,14 +6,14 @@ Parses MDY-ordered strings to Datetime values. Vectorized over vectors. Unparsea
 
 ## Parameters
 
-- **value** (`String`): | Vector The datetime string(s) to parse.
+- **value** (`String | Vector`): The datetime string(s) to parse.
 
 - **tz** (`String`): (Optional) Timezone label.
 
 
 ## Returns
 
-| Vector The parsed datetime(s).
+The parsed datetime(s).
 
 ## Examples
 

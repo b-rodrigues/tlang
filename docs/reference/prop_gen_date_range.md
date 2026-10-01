@@ -6,9 +6,9 @@ Returns a generator spec that draws a Date uniformly between `start` and `end` (
 
 ## Parameters
 
-- **start** (`Date`): | Datetime Lower bound (inclusive).
+- **start** (`Date | Datetime`): Lower bound (inclusive).
 
-- **end** (`Date`): | Datetime Upper bound (inclusive).
+- **end** (`Date | Datetime`): Upper bound (inclusive).
 
 
 ## Returns

@@ -6,9 +6,9 @@ Passes if two Lists or Vectors contain the exact same unique elements regardless
 
 ## Parameters
 
-- **list1** (`List`): | Vector First collection.
+- **list1** (`List | Vector`): First collection.
 
-- **list2** (`List`): | Vector Second collection.
+- **list2** (`List | Vector`): Second collection.
 
 
 ## Returns

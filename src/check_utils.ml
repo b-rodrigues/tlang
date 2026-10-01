@@ -347,10 +347,35 @@ let match_union_diagnostics program filename =
      | _ -> List.iter uses_in_expr (Ast.children_of_stmt s))
   in
   let () = List.iter uses_in_stmt program in
+  (* Every binder name anywhere in the program, including nested
+     statements (blocks, branches) and lambda parameters: a variable
+     scrutinee resolves only when its single top-level binding is the
+     only binding of that name program-wide. A rebinding hidden in a
+     branch (`if (c) { s := ... }`) would otherwise resolve to the
+     wrong union and warn falsely. Silence is always safe here. *)
+  let rec deep_binders_stmt acc s =
+    match s.Ast.node with
+    | Ast.Expression e -> deep_binders_expr acc e
+    | Ast.Assignment { name; expr = e; _ } -> deep_binders_expr (name :: acc) e
+    | Ast.Reassignment { name; expr = e; _ } -> deep_binders_expr (name :: acc) e
+    | _ -> acc
+  and deep_binders_expr acc e =
+    match e.Ast.node with
+    | Ast.Lambda l ->
+        deep_binders_expr (l.Ast.params @ acc) l.Ast.body
+    | Ast.Block stmts ->
+        (* Blocks share scope: nested binders count. (`children_of_expr`
+           would drop the names and keep only right-hand sides.) *)
+        List.fold_left deep_binders_stmt acc stmts
+    | _ ->
+        List.fold_left deep_binders_expr acc (Ast.children_of_expr e)
+  in
+  let all_binders = List.fold_left deep_binders_stmt [] program in
   let assigned_once name =
     List.length (List.filter (( = ) name) !assigned) = 1
     && not (List.mem name !reassigned)
     && not (List.mem name !params)
+    && List.length (List.filter (( = ) name) all_binders) = 1
   in
   let union_var_map =
     List.filter_map (fun (s : Ast.stmt) ->

@@ -18,9 +18,9 @@ Configure execution settings such as the runtime and custom serialized methods f
 
 - **args** (`Dict`): (Optional) Runtime/tool arguments. For Quarto, use this to pass CLI arguments such as `subcommand`, `path`, and additional options. `output_dir` is reserved and managed automatically so the rendered result is stored as the node artifact.
 
-- **functions** (`String`): | List[String] (Optional) Files to source before execution.
+- **functions** (`String | List[String]`): (Optional) Files to source before execution.
 
-- **include** (`String`): | List[String] (Optional) Additional files for the sandbox.
+- **include** (`String | List[String]`): (Optional) Additional files for the sandbox.
 
 - **noop** (`Bool`): (Optional) Whether to skip execution and generate a stub. Default = false.
 

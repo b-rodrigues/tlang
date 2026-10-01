@@ -6,10 +6,10 @@ Return smallest integer greater than or equal to input.
 
 ## Parameters
 
-- **x** (`Number`): | Vector | NDArray Numeric input.
+- **x** (`Number | Vector | NDArray`): Numeric input.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 

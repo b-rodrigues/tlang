@@ -2713,6 +2713,16 @@ p.t_step|}
      | other ->
          incr fail_count; Printf.printf "  ✗ conditional shadow without later read should expand, got %s\n" (Ast.Utils.value_to_string other));
 
+    (* 2d. Mentions inside comments and strings are not reads: a comment
+       naming the dependency after a conditional binding still expands. *)
+    let env_cond_comment = Test_helpers.eval_setup eval_string_env env "test_pipeline:condshadowcomment" "p = pipeline {\n  src = [10, 20, 30]\n  out = rn(command = <{\n  if (flag) src <- 99\n  # see the src node\n  msg <- \"src done\"\n  1\n}>, pattern = map_pattern(src), deserializer = ^json)\n}" in
+    let (v_cond_comment, _) = eval_string_env "expand_pipeline(p)" env_cond_comment in
+    (match v_cond_comment with
+     | VPipeline pe when List.length pe.p_nodes = 4 ->
+         incr pass_count; Printf.printf "  ✓ expand_pipeline ignores comment/string mentions after conditional binding\n"
+     | other ->
+         incr fail_count; Printf.printf "  ✗ comment/string mentions should not trip the rename error, got %s\n" (Ast.Utils.value_to_string other));
+
     (* 3. Test expand_pipeline with single value (length 1) — creates 1 branch *)
     let env_single = Test_helpers.eval_setup eval_string_env env "test_pipeline:2587" "p = pipeline {\n  a = 42\n  b = node(command = <{ a }>, pattern = map_pattern(a))\n}" in
     let (v_single, _) = eval_string_env "expand_pipeline(p)" env_single in

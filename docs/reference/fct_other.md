@@ -8,9 +8,9 @@ Keeps selected factor levels and maps the rest to an "Other" bucket.
 
 - **x** (`Vector[Factor]`): A factor vector.
 
-- **keep** (`Vector[String]`): | List[String] Levels to preserve.
+- **keep** (`Vector[String] | List[String]`): Levels to preserve.
 
-- **drop** (`Vector[String]`): | List[String] Levels to drop (mutually exclusive with keep).
+- **drop** (`Vector[String] | List[String]`): Levels to drop (mutually exclusive with keep).
 
 - **other_level** (`String`): = "Other" Name for the catch-all level.
 

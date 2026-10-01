@@ -21,7 +21,7 @@ Writes the pipeline's Nix expression into `_pipeline/` and, when `build = true`,
 
 ## Returns
 
-| BuildLog | DataFrame Success message, BuildLog, or planned-actions DataFrame.
+Success message, BuildLog, or planned-actions DataFrame.
 
 ## Examples
 

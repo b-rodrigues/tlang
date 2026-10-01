@@ -6,14 +6,14 @@ Calculates the natural logarithm (base e) of x. Returns a ValueError value for n
 
 ## Parameters
 
-- **x** (`Number`): | Vector | NDArray The input value (must be positive).
+- **x** (`Number | Vector | NDArray`): The input value (must be positive).
 
 - **na_ignore** (`Bool`): Whether to preserve NA values in inputs. Default is false.
 
 
 ## Returns
 
-| Vector | NDArray The natural logarithm.
+The natural logarithm.
 
 ## Examples
 

@@ -110,6 +110,7 @@ let rec from_string str =
   | "formula" -> TCustom "Formula"
   | "lens" -> TCustom "Lens"
   | "strategy" -> TCustom "Strategy"
+  | "shellresult" -> TCustom "ShellResult"
   | "factor" -> TCustom "Factor"
   | "noderesult" -> TCustom "NodeResult"
   | "record" -> TCustom "Record"

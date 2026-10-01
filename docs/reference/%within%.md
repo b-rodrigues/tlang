@@ -1,17 +1,17 @@
 # %within%
 
-Test interval membership
+Check if a date/datetime is within an interval
 
-Returns true when a Date or Datetime value falls inside an interval.
+Returns true if the given instant falls within the specified interval (inclusive).
 
 ## Parameters
 
-- **x** (`Date`): | Datetime | Vector The temporal value(s) to check.
+- **x** (`Date | Datetime | Vector`): The instant(s) to check.
 
 - **interval** (`Interval`): The interval to check against.
 
 
 ## Returns
 
-| Vector[Bool] True if value is inside the interval.
+True if x is within the interval.
 

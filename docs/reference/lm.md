@@ -10,7 +10,7 @@ Fits a linear regression model using Ordinary Least Squares (OLS).
 
 - **formula** (`Formula`): The model formula (e.g., mpg ~ wt + hp).
 
-- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights for weighted least squares.
+- **weights** (`Vector[Float] | List[Float]`): = NA Optional non-negative observation weights for weighted least squares.
 
 
 ## Returns

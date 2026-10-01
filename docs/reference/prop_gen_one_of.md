@@ -6,7 +6,7 @@ Returns a generator spec that picks one value uniformly at random from `values` 
 
 ## Parameters
 
-- **values** (`List[Any]`): | Vector[Any] The candidate values.
+- **values** (`List[Any] | Vector[Any]`): The candidate values.
 
 
 ## Returns

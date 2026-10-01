@@ -10,9 +10,9 @@ Passes if all non-NA cell values in a numeric DataFrame column fall within [min,
 
 - **col** (`String`): Column name to check.
 
-- **min** (`Int`): | Float Lower bound (inclusive).
+- **min** (`Int | Float`): Lower bound (inclusive).
 
-- **max** (`Int`): | Float Upper bound (inclusive).
+- **max** (`Int | Float`): Upper bound (inclusive).
 
 
 ## Returns

@@ -8,7 +8,7 @@ Patterned nodes using `map_pattern(dep)`, `cross_pattern(...)`, `slice_pattern(d
 
 - **p** (`Pipeline`): The pipeline to expand.
 
-- **to_script** (`String`): | NA = NA Optional file path to write the expanded pipeline script.
+- **to_script** (`String | NA`): = NA Optional file path to write the expanded pipeline script.
 
 
 ## Returns

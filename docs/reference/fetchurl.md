@@ -19,7 +19,7 @@ Downloads a file from a URL. In the REPL, wraps curl. In a pipeline, creates a n
 
 ## Returns
 
-| Node In REPL mode, returns the file path as a String. In pipeline mode, returns a Node value.
+In REPL mode, returns the file path as a String. In pipeline mode, returns a Node value.
 
 ## Examples
 

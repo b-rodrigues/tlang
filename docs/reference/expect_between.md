@@ -6,11 +6,11 @@ Passes if the numeric value or vector elements fall inside [min, max].
 
 ## Parameters
 
-- **actual** (`Int`): | Float | Vector The numeric value or vector to check.
+- **actual** (`Int | Float | Vector`): The numeric value or vector to check.
 
-- **min** (`Int`): | Float Lower bound (inclusive).
+- **min** (`Int | Float`): Lower bound (inclusive).
 
-- **max** (`Int`): | Float Upper bound (inclusive).
+- **max** (`Int | Float`): Upper bound (inclusive).
 
 
 ## Returns

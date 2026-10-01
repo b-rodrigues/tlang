@@ -213,8 +213,11 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
      map to a concrete semantic type (not Any/Unknown). The floor below
      ratchets: it must never drop (new builtins without types do not fail
      it, but removing types does). Re-measure with this same test.
-     Floor is 372: 373 before the `custom()` builtin was removed. *)
-  let coverage_floor = 384 in
+     Floor is 382: whole spaced unions now parse as written, so the two
+     honest catch-all tails (`to_factor.x`, `ordered.x`, both `Vector |
+     List | Any` against implementations that stringify anything) count
+     as imprecise instead of riding on a truncated first member. *)
+  let coverage_floor = 382 in
   (* The registry fills from --# source comments (same as `t doc
      --parse`); without it every builtin falls back to all-Any and the
      audit would measure nothing. Skip gracefully outside a checkout. *)
@@ -225,8 +228,12 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
       (fun () ->
         if Sys.file_exists "src/packages" && Sys.is_directory "src/packages" then begin
           let rec walk acc dir =
-            let entries = try Sys.readdir dir with Sys_error _ -> [||] in
-            Array.fold_left (fun acc e ->
+            (* Sorted for determinism: see the breakdown walk below. *)
+            let entries =
+              try Array.to_list (Sys.readdir dir) |> List.sort String.compare
+              with Sys_error _ -> []
+            in
+            List.fold_left (fun acc e ->
               let p = Filename.concat dir e in
               if (try Sys.is_directory p with Sys_error _ -> false) then walk acc p
               else if Filename.check_suffix e ".ml" then p :: acc
@@ -234,7 +241,13 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
             ) acc entries
           in
           List.iter (fun f ->
-            List.iter Tdoc_registry.register
+            (* Exported entries only: internal (@private) docs use
+               OCaml-side vocabulary and must not shadow builtins in the
+               registry (last-write-wins would make counts order-
+               dependent). *)
+            List.iter (fun (e : Tdoc_types.doc_entry) ->
+              if e.Tdoc_types.is_export then Tdoc_registry.register e
+            )
               (try Tdoc_parser.parse_file f with _ -> [])
           ) (walk [] "src")
         end else
@@ -292,8 +305,13 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
       end
     in
     let rec walk acc dir =
-      let entries = try Sys.readdir dir with Sys_error _ -> [||] in
-      Array.fold_left (fun acc e ->
+      (* Sorted for determinism: duplicate doc names resolve identically
+         on every machine (later paths win in registration order). *)
+      let entries =
+        try Array.to_list (Sys.readdir dir) |> List.sort String.compare
+        with Sys_error _ -> []
+      in
+      List.fold_left (fun acc e ->
         let p = Filename.concat dir e in
         if (try Sys.is_directory p with Sys_error _ -> false) then walk acc p
         else if Filename.check_suffix e ".ml" then p :: acc
@@ -315,7 +333,7 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
     let deliberate_member w =
       match w with
       | "function" | "error" | "null" | "na" | "verror" | "column"
-      | "selection" | "call" | "keywordargs" -> true
+      | "selection" | "call" | "keywordargs" | "node" -> true
       | _ -> false
     in
     let rec has_unknown = function
@@ -354,15 +372,28 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
           let label = pkg_of_path f in
           let full = entry_full e in
           let note_unknown kind = function
-            | Some s when List.mem e.Tdoc_types.name builtin_names ->
+            | Some s when e.Tdoc_types.is_export && List.mem e.Tdoc_types.name builtin_names ->
                 let members =
                   List.map (fun m -> String.lowercase_ascii (String.trim m))
                     (Semantic_type.split_toplevel_pipe s)
                 in
-                if List.exists (fun m ->
-                     not (deliberate_member m)
-                     && has_unknown (Semantic_type.from_string m)
-                   ) members then
+                (* A member that fails to parse disables checking for that
+                   position, so it is listed. A union that collapses
+                   entirely (`X | Any` absorbs to `Any`) is listed too —
+                   otherwise honest catch-all tails would go silent the
+                   same way. A documented bare `Any` stays quiet. *)
+                let parsed = Semantic_type.from_string s in
+                let absorbed =
+                  Semantic_type.has_toplevel_pipe s
+                  && (match parsed with
+                      | Semantic_type.TAny | Semantic_type.TUnknown -> true
+                      | _ -> false)
+                in
+                if absorbed
+                   || List.exists (fun m ->
+                        not (deliberate_member m)
+                        && has_unknown (Semantic_type.from_string m)
+                      ) members then
                   unknowns := (e.Tdoc_types.name ^ "." ^ kind ^ " :: " ^ s) :: !unknowns
             | _ -> ()
           in

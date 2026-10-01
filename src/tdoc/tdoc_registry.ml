@@ -6,10 +6,43 @@ open Tdoc_types
 let registry : (string, doc_entry) Hashtbl.t = Hashtbl.create 100
 
 (** Register a documentation entry in the in-memory registry.
-    
+
+    Duplicate names resolve deterministically, independent of parse
+    order: an exported entry always beats an internal (@private) one,
+    and otherwise the entry with more *parseable* signature info wins
+    (a fully precise entry beats a partial one at the same count, so
+    coverage counts cannot wobble with readdir order). Presence alone
+    is not enough: more typed-but-garbled fields must never displace
+    fewer good ones. Without this, same-name blocks (re-export stubs,
+    OCaml-internal docs) shadow each other by readdir luck — flipping
+    help() output, reference pages, and coverage counts between runs.
+
     @param entry The doc_entry to add or update. *)
+let precise_type s =
+  match s with
+  | Some s -> (match Semantic_type.from_string s with
+      | Semantic_type.TAny | Semantic_type.TUnknown -> false
+      | _ -> true)
+  | None -> false
+
+let rank_entry (e : doc_entry) =
+  let r = match e.return_value with
+    | Some r -> precise_type r.type_info
+    | None -> false
+  in
+  let ps = List.map (fun (p : param_doc) -> precise_type p.type_info) e.params in
+  let full = r && List.for_all (fun x -> x) ps in
+  ((if full then 1 else 0), List.length (List.filter (fun x -> x) (r :: ps)))
+
 let register entry =
-  Hashtbl.replace registry entry.name entry
+  let better new_ old_ =
+    (new_.is_export && not old_.is_export)
+    || ((new_.is_export = old_.is_export)
+        && compare (rank_entry new_) (rank_entry old_) > 0)
+  in
+  match Hashtbl.find_opt registry entry.name with
+  | None -> Hashtbl.replace registry entry.name entry
+  | Some old -> if better entry old then Hashtbl.replace registry entry.name entry
 
 (** Search the registry for a documentation entry by its function or symbol name.
     
@@ -38,7 +71,12 @@ let restore entries =
     
     @param filename The destination file path. *)
 let to_json_file filename =
-  let entries = get_all () in
+  (* Exported entries only, like the reference pages and index: internal
+     (@private) docs use OCaml-side vocabulary and must not shadow
+     builtins here either (help() resolves by name). *)
+  let entries =
+    List.filter (fun e -> e.is_export) (get_all ())
+  in
   let json = "{\"docs\": [" ^ (String.concat ", " (List.map doc_entry_to_json entries)) ^ "]}" in
   let chan = open_out filename in
   Fun.protect

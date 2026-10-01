@@ -8,7 +8,7 @@ Substitutes {name} placeholders using values from a Dict or named List. Use {{ a
 
 - **fmt** (`String`): The format string with {name} placeholders.
 
-- **values** (`Dict`): | List The named values to substitute.
+- **values** (`Dict | List`): The named values to substitute.
 
 
 ## Returns

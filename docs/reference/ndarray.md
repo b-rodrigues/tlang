@@ -6,7 +6,7 @@ Creates a new NDArray from a list or vector of data, optionally specifying the s
 
 ## Parameters
 
-- **data** (`List`): | Vector The data to populate the array. Can be nested lists.
+- **data** (`List | Vector`): The data to populate the array. Can be nested lists.
 
 - **shape** (`List[Int]`): (Optional) The dimensions of the array.
 

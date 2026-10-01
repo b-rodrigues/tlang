@@ -145,8 +145,8 @@ let mapped_formats_for_runtime runtime =
   List.map fst (io_fns_for_runtime runtime)
 
 let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime serializer deserializer env_vars runtime_args functions includes noop script shell shell_args ~flake_env_name =
-     (* Safety net: only include actual nodes in this pipeline as Nix buildInputs.
-        The evaluator already filters p_deps, but this guards against any edge cases. *)
+  (* Safety net: only include actual nodes in this pipeline as Nix buildInputs.
+     The evaluator already filters p_deps, but this guards against any edge cases. *)
   let deps = List.filter (fun d -> List.mem d all_pipeline_node_names) deps in
   (* Invalid env var names cannot reach this emitter through the normal path:
      eval.ml `lookup_env_vars` rejects them with a TypeError at pipeline

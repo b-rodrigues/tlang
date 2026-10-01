@@ -64,18 +64,33 @@ pipeline_nodes(p)|}
 }
 p|}
     "strategy dict";
-  test_env (fresh ()) "strategy dict without format fails validation"
+  test_env (fresh ()) "snippet-only dict without deps suggests the format key"
     {|p = pipeline {
   a = node(command = 1, serializer = [r_writer: <{ function(obj, path) write.csv(obj, path) }>])
 }
 pipeline_validate(p)|}
-    "format";
+    "missing its `format` key";
   test_env (fresh ()) "strategy dict with unknown key fails validation"
     {|p = pipeline {
   a = node(command = 1, serializer = [format: ^yml, frog: 1])
 }
 pipeline_validate(p)|}
     "frog";
+  test_env (fresh ()) "per-dependency map for nodes named reader/writer validates"
+    {|p = pipeline {
+  reader = node(command = 1)
+  writer = node(command = 2)
+  out = rn(command = <{ reader + writer }>, deserializer = [reader: ^csv, writer: ^json])
+}
+pipeline_validate(p)|}
+    "[]";
+  test_env (fresh ()) "per-dependency map with typo key names valid deps"
+    {|p = pipeline {
+  reader = node(command = 1)
+  out = rn(command = <{ reader + 1 }>, deserializer = [reder: ^csv])
+}
+pipeline_validate(p)|}
+    "Unknown dependency `reder`";
   test_env (fresh ()) "custom format without runtime snippet fails validation"
     {|p = pipeline {
   a = rn(command = <{ 1 }>, serializer = [format: ^yml])

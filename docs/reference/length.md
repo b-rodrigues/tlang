@@ -6,7 +6,7 @@ Returns the number of elements in a collection (List, Vector, Dict). This functi
 
 ## Parameters
 
-- **x** (`List`): | Vector | Dict The collection to measure.
+- **x** (`List | Vector | Dict`): The collection to measure.
 
 
 ## Returns

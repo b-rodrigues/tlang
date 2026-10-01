@@ -58,7 +58,7 @@ per-node <code>noop = true</code>.</p>
 pipeline.</p></li>
 <li><p><strong>functions</strong> (<code>Dict</code>): (Optional)
 Combine (prepend). Runtime-shorthand to</p></li>
-<li><p><strong>include</strong> (<code>String</code>): | List[String]
+<li><p><strong>include</strong> (<code>String | List[String]</code>):
 (Optional) Combine (prepend). File</p></li>
 <li><p><strong>env_vars</strong> (<code>Dict</code>): (Optional) Combine
 (prepend). Environment variables.</p></li>
@@ -72,15 +72,16 @@ If true, nodes become no-ops.</p></li>
 (prepend). Runtime arguments. Per-node</p></li>
 <li><p><strong>shell</strong> (<code>String</code>): (Optional)
 Override. Shell interpreter.</p></li>
-<li><p><strong>shell_args</strong> (<code>String</code>): | List[String]
+<li><p><strong>shell_args</strong> (<code>String | List[String]</code>):
 (Optional) Combine (prepend). Shell</p></li>
 <li><p><strong>flake</strong> (<code>String</code>): (Optional)
 Override. Nix flake path.</p></li>
-<li><p><strong>dependencies</strong> (<code>String</code>): |
-List[String] (Optional) Combine (prepend).</p></li>
-<li><p><strong>runtimes</strong> (<code>String</code>): | List[String]
+<li><p><strong>dependencies</strong>
+(<code>String | List[String]</code>): (Optional) Combine
+(prepend).</p></li>
+<li><p><strong>runtimes</strong> (<code>String | List[String]</code>):
 (Optional) Scope the merge to nodes</p></li>
-<li><p><strong>nodes</strong> (<code>String</code>): | List[String]
+<li><p><strong>nodes</strong> (<code>String | List[String]</code>):
 (Optional) Scope the merge to exactly</p></li>
 </ul>
 <h2 id="returns">Returns</h2>

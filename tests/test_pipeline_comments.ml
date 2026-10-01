@@ -138,6 +138,11 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
   check_bind "sh stmt-start binds" "sh" "x=1\necho $x" ["x"];
   check_bind "sh prefix is not a binding" "sh" "FOO=1 cmd\necho $FOO" [];
   check_bind "sh chained assignments bind" "sh" "A=1 B=2\necho $A $B" ["A"; "B"];
+  check_bind "sh command substitution binds" "sh" "x=$(date +%s)\necho $x" ["x"];
+  check_bind "sh quoted value with command binds nothing" "sh" "FOO=\"a b\" cmd\necho $FOO" [];
+  check_bind "sh quoted value alone binds" "sh" "x=\"a b\"\necho $x" ["x"];
+  check_bind "sh array assignment binds" "sh" "A=(1 2)\necho $A" ["A"];
+  check_bind "sh and-list persists" "sh" "FOO=1 && echo $FOO" ["FOO"];
   check_bind "sh chained prefix binds nothing" "sh" "A=1 B=2 cmd\necho $A" [];
   check_bind "sh export binds" "sh" "export FOO=1\necho $FOO" ["FOO"];
   check_bind "sh export prefix binds nothing" "sh" "export FOO=1 cmd\necho $FOO" [];

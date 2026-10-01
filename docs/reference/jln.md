@@ -14,9 +14,9 @@ A convenience wrapper around `node()` with `runtime = "Julia"`. Used directly wi
 
 - **deserializer** (`Strategy`): (Optional) Deserializer strategy: same closed set as `serializer`. Default is `default`.
 
-- **functions** (`String`): | List[String] (Optional) Julia files to source before execution.
+- **functions** (`String | List[String]`): (Optional) Julia files to source before execution.
 
-- **include** (`String`): | List[String] (Optional) Additional files for the sandbox.
+- **include** (`String | List[String]`): (Optional) Additional files for the sandbox.
 
 - **noop** (`Bool`): (Optional) Whether to skip execution and generate a stub. Default = false.
 

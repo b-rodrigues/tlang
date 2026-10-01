@@ -6,7 +6,7 @@ Splits a string into a list of substrings on each occurrence of `sep`. If `sep` 
 
 ## Parameters
 
-- **x** (`String`): | ShellResult The string to split.
+- **x** (`String | ShellResult`): The string to split.
 
 - **sep** (`String`): The delimiter to split on.
 

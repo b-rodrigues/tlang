@@ -11,5 +11,5 @@ Coerces a value to a boolean. Recognizes 'TRUE'/'FALSE', 'T'/'F', non-zero numbe
 
 ## Returns
 
-| NA The converted boolean.
+The converted boolean.
 

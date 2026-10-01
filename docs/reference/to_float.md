@@ -11,7 +11,7 @@ Coerces a value to a float robustly. Handles strings with spaces, percentages, c
 
 ## Returns
 
-| NA The converted float.
+The converted float.
 
 ## Examples
 

@@ -43,7 +43,7 @@ nominal domain types (<code>Model</code>, <code>Pipeline</code>,
 <code>Date</code>, …), and top-level <code>A | B</code> unions now flow
 from docstrings into inference, with structural compatibility and nested
 widening. A coverage audit with a ratcheting floor tracks precision
-(384/533 fully precise, with per-package breakdown, plus a listed watch
+(382/533 fully precise, with per-package breakdown, plus a listed watch
 for signatures that parse to unknown); generic calls reject inconsistent
 instantiations instead of passing silently. Note: generic consistency is
 strict about <code>Int</code> vs <code>Float</code> (identity, not
@@ -227,6 +227,25 @@ bindings; Julia <code>try</code>/<code>finally</code> bodies and
 Quoted <code>$var</code>, <code>${var}</code>, <code>$(...)</code>,
 backtick, and Python f-string reads in shell, Julia, and Python strings
 now create dependency edges.</li>
+<li><strong>Per-dependency maps read as maps</strong>: a
+<code>serializer</code>/<code>deserializer</code> dict is a strategy
+dict only when it carries <code>format</code>; otherwise it is a
+per-dependency map, so nodes literally named <code>reader</code> or
+<code>writer</code> validate normally. Map keys must name real
+dependencies of the node (with a <code>deps = [...]</code> hint when
+they do not), instead of silently falling back to the default
+strategy.</li>
+<li><strong>Quoted shell values decide persistence correctly</strong>:
+<code>FOO="a b" cmd</code> no longer records a binding, while
+<code>x=$(date +%s)</code>, <code>x="a b"</code>, arrays, and
+<code>&amp;&amp;</code>-continued statements bind as the shell
+does.</li>
+<li><strong>Union exhaustiveness ignores nested rebindings</strong>: a
+variable rebound inside a branch or closure no longer resolves to its
+first union, so no false missing-case warning fires.</li>
+<li><strong>Doc signatures keep spaced unions whole</strong>:
+<code>Dict | List</code> and <code>Dict[String, Dict]</code> now parse
+as written instead of truncating at the first space.</li>
 </ul>
 <h2 id="section">[0.55.4] - 2026-09-29</h2>
 <h3 id="new-features-1">New features</h3>

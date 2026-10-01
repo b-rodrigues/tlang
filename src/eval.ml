@@ -3367,7 +3367,7 @@ and builtin_nominal_names =
   [ "Any"; "NA"; "Function"; "Strategy"; "Pipeline"; "MetaPipeline";
     "Model"; "NDArray"; "Symbol"; "Date"; "Datetime"; "Formula"; "Lens";
     "Expect"; "ComputedNode"; "NodeDef"; "Period"; "Duration"; "Interval";
-    "BuildLog"; "Record" ]
+    "BuildLog"; "Record"; "ShellResult" ]
 
 and is_builtin_nominal tname =
   let lower = String.lowercase_ascii tname in
@@ -3771,7 +3771,9 @@ and eval_call env_ref fn_val raw_args =
                containers keep a union member (`[1, "a"]` is
                `List[Int | String]`); empty containers and non-scalars
                fall back to the shallow mapping. Flexible elements are
-               wildcards, so `[1, NA]` is `List[Int]`. *)
+               wildcards, so `[1, NA]` is `List[Int]`. Distinct members
+               accumulate without a full sort (only a handful of type
+               heads exist), keeping large containers linear. *)
             let rec structural_type_of_value v =
               match v with
               | Ast.VList items -> Ast.TList (Some (elements_type (List.map snd items)))
@@ -3780,11 +3782,15 @@ and eval_call env_ref fn_val raw_args =
                   Ast.TDict (Some Ast.TString, Some (elements_type (List.map snd pairs)))
               | _ -> typ_of_value v
             and elements_type vs =
-              let solid = List.filter_map (fun v ->
-                match structural_type_of_value v with
-                | t when flexible t -> None
-                | t -> Some t) vs in
-              (match List.sort_uniq compare solid with
+              let distinct =
+                List.fold_left (fun acc v ->
+                  match structural_type_of_value v with
+                  | t when flexible t -> acc
+                  | t ->
+                      if List.exists (consistent t) acc then acc else t :: acc
+                ) [] vs
+              in
+              (match List.sort_uniq compare distinct with
                | [] -> Ast.TCustom "Any"
                | [t] -> t
                | ts -> Ast.TUnion ts)

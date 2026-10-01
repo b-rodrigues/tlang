@@ -6,12 +6,12 @@ Parses strings or string vectors into Date values using an explicit format strin
 
 ## Parameters
 
-- **x** (`String`): | Vector[String] The string(s) to parse.
+- **x** (`String | Vector[String]`): The string(s) to parse.
 
 - **format** (`String`): The strptime-style format string.
 
 
 ## Returns
 
-| Vector[Date] The parsed date(s).
+The parsed date(s).
 

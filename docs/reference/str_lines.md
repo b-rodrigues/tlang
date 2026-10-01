@@ -6,7 +6,7 @@ Splits on \n or \r\n. Strips trailing newline. Accepts ShellResult.
 
 ## Parameters
 
-- **s** (`String`): | ShellResult
+- **s** (`String | ShellResult`): 
 
 
 ## Returns

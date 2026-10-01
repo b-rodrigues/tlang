@@ -337,7 +337,7 @@ let read_csv_local (path : string) : (Arrow_table.t, string) result =
 --# @param path :: String The path or URL to the CSV file.
 --# @return :: Result[Table] The loaded Arrow table or an error.
 --# @family arrow_io
---# @export
+--# @private
 *)
 let read_csv (path : string) : (Arrow_table.t, string) result =
   if is_url path then
@@ -398,7 +398,7 @@ let value_to_csv_field ~sep = function
 --# @param sep :: String (Optional) The column separator, defaults to ",".
 --# @return :: Result[Unit] Ok(()) or an error.
 --# @family arrow_io
---# @export
+--# @private
 *)
 let write_csv ?(sep=",") (table : Arrow_table.t) (path : string) : (unit, string) result =
   try

@@ -8,7 +8,7 @@ Turns implicit missing values into explicit missing values. Supports nesting() t
 
 - **df** (`DataFrame`): The DataFrame.
 
-- **...** (`Symbol`): | Call Variable number of column names (use $col syntax) or nesting(...) calls.
+- **...** (`Symbol | Call`): Variable number of column names (use $col syntax) or nesting(...) calls.
 
 - **fill** (`Dict`): (Optional) A dictionary supplying a single value to use instead of NA for missing combinations.
 

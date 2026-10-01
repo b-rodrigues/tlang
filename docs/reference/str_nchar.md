@@ -6,10 +6,10 @@ Returns the number of characters (Unicode code points) in a string. Multi-byte U
 
 ## Parameters
 
-- **x** (`String`): | Vector[String] The input string(s).
+- **x** (`String | Vector[String]`): The input string(s).
 
 
 ## Returns
 
-| Vector[Int] The number of characters.
+The number of characters.
 

@@ -344,12 +344,30 @@ let check_known_formats (p : pipeline_result) : validation_error list =
   let strip_hat s =
     if String.length s > 0 && s.[0] = '^' then String.sub s 1 (String.length s - 1) else s
   in
-  (* A dict is a strategy dict by design when it carries any strategy
-     key (`format` or a snippet key). Anything else is a dependency map
-     ([dep: strategy]) and recurses per value. In particular a dict with
-     snippet keys but no `format` is a malformed strategy, not a map. *)
-  let is_strategy_dict pairs =
-    List.exists (fun k -> List.mem k strategy_dict_keys) (List.map fst pairs)
+  (* A dict is a single strategy dict by design only when it carries
+     `format`. Anything else is a per-dependency map ([dep: strategy])
+     and recurses per value. In particular a dict with snippet keys but
+     no `format` is a map, not a malformed strategy — so a map for nodes
+     literally named `reader`/`writer` validates instead of failing on a
+     missing `format`. *)
+  let is_strategy_dict pairs = List.mem_assoc "format" pairs in
+  (* Per-dependency map keys must name real dependencies of the node.
+     Without this, a misspelled key silently falls back to the default
+     strategy in the emitter. *)
+  let dep_map_key_errors ~role ~name keys =
+    match List.assoc_opt name p.p_deps with
+    | None -> []
+    | Some deps ->
+        List.filter_map (fun k ->
+          if List.mem k deps then None
+          else if deps = [] then
+            Some (None, Printf.sprintf
+              "Node `%s` has no dependencies, so `%s` looks like a strategy dict missing its `format` key. %s"
+              name k strategy_dict_help)
+          else Some (None, Printf.sprintf
+            "Unknown dependency `%s` in %s map on node `%s`. Valid dependencies: %s. If `%s` is a real dependency, add it with deps = [...]."
+            k role name (String.concat ", " deps) k)
+        ) keys
   in
   let bare_message role s name =
     Printf.sprintf "Unknown %s `%s` on node `%s`: bare names are not strategies. Define a strategy dict [format: ^name, ...snippets] (see docs/serializers.md)." role s name
@@ -481,7 +499,9 @@ let check_known_formats (p : pipeline_result) : validation_error list =
     | Value (VString s) | Value (VSymbol s) -> unknown_symbol role (runtime_of name) s name
     | Value (VDict pairs) ->
         if is_strategy_dict pairs then dict_value_errors ~role ~name pairs
-        else List.concat_map (fun (_, v) -> unknown_value role name v) pairs
+        else
+          dep_map_key_errors ~role ~name (List.map fst pairs)
+          @ List.concat_map (fun (_, v) -> unknown_value role name v) pairs
     | Value (VError _) -> []
     | Var v ->
         (* Closed strategies: a bare variable in strategy position can only
@@ -495,8 +515,8 @@ let check_known_formats (p : pipeline_result) : validation_error list =
     | DictLit items ->
         if is_strategy_dict items then dict_expr_errors ~role ~name items
         else
-          List.concat_map (fun (k, e) ->
-            if k = "format" then [] else unknown_in role name e) items
+          dep_map_key_errors ~role ~name (List.map fst items)
+          @ List.concat_map (fun (_, e) -> unknown_in role name e) items
     | _ -> []
   and unknown_value role name v =
     match v with
@@ -507,7 +527,9 @@ let check_known_formats (p : pipeline_result) : validation_error list =
     | VString s | VSymbol s -> unknown_symbol role (runtime_of name) s name
     | VDict pairs ->
         if is_strategy_dict pairs then dict_value_errors ~role ~name pairs
-        else List.concat_map (fun (_, v) -> unknown_value role name v) pairs
+        else
+          dep_map_key_errors ~role ~name (List.map fst pairs)
+          @ List.concat_map (fun (_, v) -> unknown_value role name v) pairs
     | VList items -> List.concat_map (fun (_, v) -> unknown_value role name v) items
     | VError _ -> []
     | _ -> []

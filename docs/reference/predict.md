@@ -13,7 +13,7 @@ Calculates predicted values for a model object. Standardized on JPMML as the sol
 
 ## Returns
 
-| DataFrame The predicted values. For JPMML-backed PMML models (e.g. classification),
+The predicted values. For JPMML-backed PMML models (e.g. classification),
 
 ## See Also
 

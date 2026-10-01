@@ -10,7 +10,7 @@ Pure function that returns a new pipeline with the given defaults merged into no
 
 - **functions** (`Dict`): (Optional) Combine (prepend). Runtime-shorthand to
 
-- **include** (`String`): | List[String] (Optional) Combine (prepend). File
+- **include** (`String | List[String]`): (Optional) Combine (prepend). File
 
 - **env_vars** (`Dict`): (Optional) Combine (prepend). Environment variables.
 
@@ -24,15 +24,15 @@ Pure function that returns a new pipeline with the given defaults merged into no
 
 - **shell** (`String`): (Optional) Override. Shell interpreter.
 
-- **shell_args** (`String`): | List[String] (Optional) Combine (prepend). Shell
+- **shell_args** (`String | List[String]`): (Optional) Combine (prepend). Shell
 
 - **flake** (`String`): (Optional) Override. Nix flake path.
 
-- **dependencies** (`String`): | List[String] (Optional) Combine (prepend).
+- **dependencies** (`String | List[String]`): (Optional) Combine (prepend).
 
-- **runtimes** (`String`): | List[String] (Optional) Scope the merge to nodes
+- **runtimes** (`String | List[String]`): (Optional) Scope the merge to nodes
 
-- **nodes** (`String`): | List[String] (Optional) Scope the merge to exactly
+- **nodes** (`String | List[String]`): (Optional) Scope the merge to exactly
 
 
 ## Returns

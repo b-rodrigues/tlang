@@ -6,7 +6,7 @@ crossing() generates all unique combinations of its inputs. Unlike expand_grid()
 
 ## Parameters
 
-- **...** (`Vector`): | List Named or unnamed inputs to combine.
+- **...** (`Vector | List`): Named or unnamed inputs to combine.
 
 
 ## Returns

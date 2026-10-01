@@ -6,7 +6,7 @@ Passes if all elements in a Vector, List, or DataFrame are distinct. Returns `Ex
 
 ## Parameters
 
-- **x** (`Vector`): | List | DataFrame The container or vector to check for uniqueness.
+- **x** (`Vector | List | DataFrame`): The container or vector to check for uniqueness.
 
 
 ## Returns

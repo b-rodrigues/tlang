@@ -78,12 +78,15 @@ travels as unshaped `Dict`s. Users cannot name their domain types.
   (never mixed); unknown/missing/mistyped fields fail naming the valid
   set; annotations enforce the name at runtime (`Expected Point, got
   Pair`); `t check` needs no new rule (construction errors surface
-  through normal evaluation). Records are T-side contracts: pattern
+  through normal evaluation). Re-declaring a type is rejected naming
+  `rm()` first; removed values keep the old shape, and nominal identity
+  is by name, so old values still satisfy the re-declared name.
+  Records are T-side contracts: pattern
   expansion rejects record-carrying dependencies for foreign runtimes,
   serializers and emitters fail loudly instead of emitting constructor
   text, and T-runtime raw blocks round-trip constructor text honestly.
 - [x] Tagged unions with per-case arms (done): `type Shape =
-  Circle(Float) | Rect(Float, Float) | Missing` declares named cases;
+  Circle(Float) | Rect(Float, Float) | Missing()` declares named cases;
   every case uses call syntax including nullary ones (`Missing()`), so a
   bare pattern name stays a binding and the shadow trap warns instead
   (`did you mean ...()?`). Payload counts and types check at
@@ -174,9 +177,11 @@ statically. Sound (never wrong) but toothless.
 - [x] Closed-strategy dicts (done, `custom("name")` removed): strategy
   positions take built-ins or `[format: ^name, ...snippets]` dicts with
   closed keys. The quoting escape is gone; `t check` teaches the dict
-  form. Coverage now **384/533
+  form. Coverage now **382/533
   (454 returns)**, with an unknown-signature watch listing unparseable
-  positions (live builtins only).
+  positions (live builtins only). The two honest catch-alls
+  (`to_factor`, `ordered`, both `Vector | List | Any`) count as
+  imprecise now that unions parse whole instead of truncating.
 - [x] Nominal domain types (done): `Pipeline`, `Model`, `NDArray`,
   `Symbol`, `Date`, `Datetime`, `Formula`, `Lens`, `Expect`,
   `ComputedNode`, `NodeDef`, `Period`, `Duration`, `Interval` map to

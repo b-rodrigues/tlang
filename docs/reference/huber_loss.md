@@ -6,12 +6,12 @@ Compute Huber loss for residuals and positive delta.
 
 ## Parameters
 
-- **x** (`Number`): | Vector | List Residual value(s).
+- **x** (`Number | Vector | List`): Residual value(s).
 
 - **delta** (`Number`): Positive threshold.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 

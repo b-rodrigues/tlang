@@ -6,7 +6,7 @@ Prints the help documentation for the specified function, including signature, p
 
 ## Parameters
 
-- **name** (`String`): | Symbol The name of the function to document.
+- **name** (`String | Symbol`): The name of the function to document.
 
 
 ## Returns

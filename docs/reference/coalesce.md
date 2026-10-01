@@ -6,7 +6,7 @@ Returns the first non-NA value at each position across inputs. All inputs must b
 
 ## Parameters
 
-- **...** (`Vector`): | List Vectors to coalesce in priority order.
+- **...** (`Vector | List`): Vectors to coalesce in priority order.
 
 
 ## Returns

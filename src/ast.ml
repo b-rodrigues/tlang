@@ -1431,29 +1431,141 @@ let scan_raw_bindings ~runtime text =
          (skip, cond)
        in
        let i = ref 0 in
-       (* An assignment chain from the first `NAME`, position, and `=`: each
-          further `NAME=` continues it. Returns the chain (outer first)
-          when it runs to an empty rest (end of statement), else [None]:
-          `FOO=1 cmd` sets FOO for that command alone, `A=1 B=2` binds
-          both, `A=1 B=2 cmd` binds neither. *)
-       let rec assign_chain nm pos veq =
-         let rec skip_tok t =
-           if t >= n || stripped.[t] = ' ' || stripped.[t] = '\t' || stripped.[t] = '\r'
-              || stripped.[t] = ';' || stripped.[t] = '\n' then t
-           else skip_tok (t + 1)
+       (* Shell assignment persistence, decided on the ORIGINAL text
+          (quotes intact: stripping blanks them, so `"a b"` would look
+          like several tokens there). From just after `=`:
+          - quoted spans, `$(...)`, backticks, `${...}` and `\x` escapes
+            belong to the current word; `(` at value start opens an
+            array assignment (balanced);
+          - a word boundary ends the value;
+          - end of input, `;`, newline, `#`-comment, `&`, `|` end the
+            statement: the chain persists;
+          - a `NAME=` word at a boundary continues the chain (recorded);
+          - any other word is a command: the chain is a prefix only.
+          Unbalanced constructs fail safe to prefix (edge kept).
+          Returns the chain (outer first) when it persists, else None:
+          `FOO=1 cmd` binds nothing, `A=1 B=2` binds both, `x=$(date)`
+          binds, `FOO="a b" cmd` binds nothing, `x="a b"` binds. *)
+       let tx_skip_quoted q j =
+         let rec loop k =
+           if k >= n then None
+           else if text.[k] = '\\' then
+             if k + 1 >= n then None else loop (k + 2)
+           else if text.[k] = q then Some (k + 1)
+           else loop (k + 1)
          in
-         let t = skip_spaces (skip_tok (skip_spaces (veq + 1))) in
-         if t >= n || stripped.[t] = ';' || stripped.[t] = '\n' then
-           Some [(nm, pos, veq)]
-         else if is_name_start t && member_guarded t then
-           let (nm2, e) = read_ident t in
-           let e2 = skip_spaces e in
-           if e2 < n && stripped.[e2] = '=' && (e2 + 1 >= n || stripped.[e2 + 1] <> '=') then
-             (match assign_chain nm2 t e2 with
-              | Some rest -> Some ((nm, pos, veq) :: rest)
-              | None -> None)
-           else None
-         else None
+         loop j
+       in
+       let rec tx_skip_balanced open_c close_c depth j =
+         if j >= n then None
+         else if text.[j] = '\\' then
+           if j + 1 >= n then None
+           else tx_skip_balanced open_c close_c depth (j + 2)
+         else if text.[j] = '\'' || text.[j] = '"' then
+           (match tx_skip_quoted text.[j] (j + 1) with
+            | None -> None
+            | Some e -> tx_skip_balanced open_c close_c depth e)
+         else if text.[j] = '`' then
+           (match tx_skip_quoted '`' (j + 1) with
+            | None -> None
+            | Some e -> tx_skip_balanced open_c close_c depth e)
+         else if text.[j] = open_c then
+           tx_skip_balanced open_c close_c (depth + 1) (j + 1)
+         else if text.[j] = close_c then
+           if depth = 0 then Some (j + 1)
+           else tx_skip_balanced open_c close_c (depth - 1) (j + 1)
+         else tx_skip_balanced open_c close_c depth (j + 1)
+       in
+       let tx_is_name_start c =
+         (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c = '_'
+       in
+       let tx_is_name_char c =
+         tx_is_name_start c || (c >= '0' && c <= '9')
+       in
+       let tx_read_name j =
+         let rec loop k =
+           if k < n && tx_is_name_char text.[k] then loop (k + 1) else k
+         in
+         (String.sub text j (loop j - j), loop j)
+       in
+       (* Skip one shell word from [j]; returns the index just past it,
+          or None on unbalanced constructs. *)
+       let rec tx_skip_word j =
+         if j >= n then Some j
+         else match text.[j] with
+         | ' ' | '\t' | '\r' | '\n' | ';' | '&' | '|' -> Some j
+         | '\'' | '"' as q ->
+             (match tx_skip_quoted q (j + 1) with
+              | None -> None
+              | Some e -> tx_skip_word e)
+         | '`' ->
+             (match tx_skip_quoted '`' (j + 1) with
+              | None -> None
+              | Some e -> tx_skip_word e)
+         | '$' ->
+             if j + 1 < n && text.[j + 1] = '(' then
+               (match tx_skip_balanced '(' ')' 0 (j + 2) with
+                | None -> None
+                | Some e -> tx_skip_word e)
+             else if j + 1 < n && text.[j + 1] = '{' then
+               (match tx_skip_balanced '{' '}' 0 (j + 2) with
+                | None -> None
+                | Some e -> tx_skip_word e)
+             else if j + 1 < n && tx_is_name_start text.[j + 1] then
+               let (_, e) = tx_read_name (j + 1) in tx_skip_word e
+             else tx_skip_word (j + 1)
+         | '\\' ->
+             if j + 1 >= n then Some (j + 1) else tx_skip_word (j + 2)
+         | _ -> tx_skip_word (j + 1)
+       in
+       (* Skip blanks and line continuations; classify what follows:
+          [`End] (statement over: persists), [`Word] (a word follows). *)
+       let rec tx_skip_blanks j =
+         if j >= n then `End
+         else match text.[j] with
+         | ' ' | '\t' | '\r' -> tx_skip_blanks (j + 1)
+         | '\\' when j + 1 < n && text.[j + 1] = '\n' -> tx_skip_blanks (j + 2)
+         | '\n' | ';' | '&' | '|' -> `End
+         | '#' -> `End
+         | _ -> `Word j
+       in
+       (* Persistence walk: [acc] holds the chain (outer first).
+          [tx_value] parses one value word after a `=`; [tx_after_value]
+          decides what follows it. *)
+       let rec tx_value acc j =
+         match tx_skip_blanks j with
+         | `End -> Some acc
+         | `Word w ->
+             if text.[w] = '(' then
+               (* Array assignment `A=(...)`: balanced, then re-evaluate. *)
+               (match tx_skip_balanced '(' ')' 0 (w + 1) with
+                | None -> None
+                | Some e -> tx_after_value acc e)
+             else
+               (* Any other single word is the value (bare names included:
+                  `FOO=bar` binds). *)
+               (match tx_skip_word w with
+                | None -> None
+                | Some e -> tx_after_value acc e)
+       (* Just past a value word: blanks, then end (persists), another
+          `NAME=` (chain continues), or a command (prefix). `(` opens a
+          subshell command: prefix. *)
+       and tx_after_value acc j =
+         match tx_skip_blanks j with
+         | `End -> Some acc
+         | `Word w ->
+             if text.[w] = '(' then None
+             else if tx_is_name_start text.[w] then
+               let (nm, e) = tx_read_name w in
+               if e < n && text.[e] = '=' && (e + 1 >= n || text.[e + 1] <> '=') then
+                 tx_value ((nm, w, e) :: acc) (e + 1)
+               else None
+             else None
+       in
+       let sh_persists nm pos veq =
+         match tx_value [(nm, pos, veq)] (veq + 1) with
+         | Some chain -> Some (List.rev chain)
+         | None -> None
        in
        (* Record a whole chain with per-name right-hand spans. *)
        let record_chain chain =
@@ -1668,7 +1780,7 @@ let scan_raw_bindings ~runtime text =
                           && depth.(pos) = 0 && sh_stmt_start pos then begin
                   (* `export NAME=...` (and declare/readonly/local) persist
                      like plain assignments; with a following command they
-                     are prefixes (see assign_rest_binds). Bare `export
+                     are prefixes (see `sh_persists` above). Bare `export
                      NAME` assigns nothing. Regions still apply through
                      `record`, so function bodies stay conditional. *)
                   let j = skip_spaces epos in
@@ -1677,7 +1789,7 @@ let scan_raw_bindings ~runtime text =
                     let e3 = skip_spaces e2 in
                     if e3 < n && stripped.[e3] = '='
                        && (e3 + 1 >= n || stripped.[e3 + 1] <> '=') then
-                      (match assign_chain nm j e3 with
+                      (match sh_persists nm j e3 with
                        | Some chain -> record_chain chain
                        | None -> ())
                   end
@@ -1695,7 +1807,7 @@ let scan_raw_bindings ~runtime text =
                           later reads stay bare. *)
                        all_binders := (word, pos) :: !all_binders
                    | None ->
-                       (match assign_chain word pos epos with
+                       (match sh_persists word pos epos with
                         | Some chain -> record_chain chain
                         | None -> ()))
             | OtherLang -> ());
@@ -1831,7 +1943,12 @@ let has_conditional_shadow_read ~runtime text dep_name =
     else if List.exists (fun b -> b.b_name = dep_name) bs then false
     else
       let first_all = List.fold_left (fun a (_, p) -> min a p) max_int mine in
-      let m = String.length dep_name and n = String.length text in
+      (* Occurrences come from the stripped text (same length, so positions
+         transfer): mentions inside comments and strings are not reads and
+         must not trigger the rename error. The `read_node` exemption
+         below still reads the original text, where quotes are intact. *)
+      let stripped = strip_noncode_spans ~lang:(Some (lang_of_runtime runtime)) text in
+      let m = String.length dep_name and n = String.length stripped in
       let is_id c =
         (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
         || (c >= '0' && c <= '9') || c = '_'
@@ -1855,9 +1972,9 @@ let has_conditional_shadow_read ~runtime text dep_name =
       in
       let rec loop i =
         if i + m > n then false
-        else if String.sub text i m = dep_name
-                && (i = 0 || not (is_id text.[i - 1]))
-                && (i + m >= n || not (is_id text.[i + m]))
+        else if String.sub stripped i m = dep_name
+                && (i = 0 || not (is_id stripped.[i - 1]))
+                && (i + m >= n || not (is_id stripped.[i + m]))
                 && i > first_all
                 && not (in_read_node_literal i) then true
         else loop (i + 1)
@@ -2861,6 +2978,7 @@ let rec is_compatible (v : value) (t : typ) : bool =
   | VNodeResult _, TCustom "NodeResult" -> true
   | VIntent _, TCustom "Intent" -> true
   | VQuo _, TCustom "Quosure" -> true
+  | VShellResult _, TCustom "ShellResult" -> true
 
   (* Closed strategy type (permissive at value level): `Strategy` documents
      the closed set (`default`, `^csv`, `^json`, `^ipc`, `^parquet`, `^pmml`,

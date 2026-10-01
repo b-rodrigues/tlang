@@ -250,7 +250,34 @@ export let helper = 1
             && List.mem "indented_fn(1)" only.examples
         | _ -> false)
     in
-    parse_block_ok && parse_file_ok && parse_indented_closer_ok
+    let spaced_union_ok =
+      let block =
+        Tdoc_parser.parse_block
+          [
+            "Brief line";
+            "@param x :: Dict | List Column map or list";
+            "@return :: Int | Float A number";
+          ]
+          "sample.t"
+          10
+      in
+      let param_ok =
+        match block.params with
+        | [ p ] -> p.type_info = Some "Dict | List"
+        | _ -> false
+      in
+      let return_ok =
+        match block.return_value with
+        | Some r -> r.type_info = Some "Int | Float"
+        | None -> false
+      in
+      param_ok && return_ok
+      && Semantic_type.from_string "Dict | List"
+           = Semantic_type.TUnion
+               [ Semantic_type.TDict (Semantic_type.TString, Semantic_type.TAny);
+                 Semantic_type.TList Semantic_type.TAny ]
+    in
+    parse_block_ok && parse_file_ok && parse_indented_closer_ok && spaced_union_ok
   );
   print_newline ();
 

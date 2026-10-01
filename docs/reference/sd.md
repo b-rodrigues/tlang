@@ -6,11 +6,11 @@ Calculates the sample standard deviation of a numeric vector. With `weights`, us
 
 ## Parameters
 
-- **x** (`Vector`): | List The numeric data.
+- **x** (`Vector | List`): The numeric data.
 
 - **na_rm** (`Bool`): (Optional) logical. Should missing values be removed? Default is false.
 
-- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights.
+- **weights** (`Vector[Float] | List[Float]`): = NA Optional non-negative observation weights.
 
 
 ## Returns
