@@ -1,0 +1,145 @@
+{
+	"Type": "File",
+	"Pos": {
+		"Offset": 0,
+		"Line": 1,
+		"Col": 1
+	},
+	"End": {
+		"Offset": 9,
+		"Line": 1,
+		"Col": 10
+	},
+	"Stmts": [
+		{
+			"Pos": {
+				"Offset": 0,
+				"Line": 1,
+				"Col": 1
+			},
+			"End": {
+				"Offset": 9,
+				"Line": 1,
+				"Col": 10
+			},
+			"Cmd": {
+				"Type": "CallExpr",
+				"Pos": {
+					"Offset": 0,
+					"Line": 1,
+					"Col": 1
+				},
+				"End": {
+					"Offset": 9,
+					"Line": 1,
+					"Col": 10
+				},
+				"Assigns": [
+					{
+						"Pos": {
+							"Offset": 0,
+							"Line": 1,
+							"Col": 1
+						},
+						"End": {
+							"Offset": 9,
+							"Line": 1,
+							"Col": 10
+						},
+						"Name": {
+							"Pos": {
+								"Offset": 0,
+								"Line": 1,
+								"Col": 1
+							},
+							"End": {
+								"Offset": 3,
+								"Line": 1,
+								"Col": 4
+							},
+							"ValuePos": {
+								"Offset": 0,
+								"Line": 1,
+								"Col": 1
+							},
+							"ValueEnd": {
+								"Offset": 3,
+								"Line": 1,
+								"Col": 4
+							},
+							"Value": "FOO"
+						},
+						"Value": {
+							"Pos": {
+								"Offset": 4,
+								"Line": 1,
+								"Col": 5
+							},
+							"End": {
+								"Offset": 9,
+								"Line": 1,
+								"Col": 10
+							},
+							"Parts": [
+								{
+									"Type": "DblQuoted",
+									"Pos": {
+										"Offset": 4,
+										"Line": 1,
+										"Col": 5
+									},
+									"End": {
+										"Offset": 9,
+										"Line": 1,
+										"Col": 10
+									},
+									"Left": {
+										"Offset": 4,
+										"Line": 1,
+										"Col": 5
+									},
+									"Right": {
+										"Offset": 8,
+										"Line": 1,
+										"Col": 9
+									},
+									"Parts": [
+										{
+											"Type": "Lit",
+											"Pos": {
+												"Offset": 5,
+												"Line": 1,
+												"Col": 6
+											},
+											"End": {
+												"Offset": 8,
+												"Line": 1,
+												"Col": 9
+											},
+											"ValuePos": {
+												"Offset": 5,
+												"Line": 1,
+												"Col": 6
+											},
+											"ValueEnd": {
+												"Offset": 8,
+												"Line": 1,
+												"Col": 9
+											},
+											"Value": "a b"
+										}
+									]
+								}
+							]
+						}
+					}
+				]
+			},
+			"Position": {
+				"Offset": 0,
+				"Line": 1,
+				"Col": 1
+			}
+		}
+	]
+}

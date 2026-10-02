@@ -1,0 +1,229 @@
+{
+	"Type": "File",
+	"Pos": {
+		"Offset": 0,
+		"Line": 1,
+		"Col": 1
+	},
+	"End": {
+		"Offset": 13,
+		"Line": 1,
+		"Col": 14
+	},
+	"Stmts": [
+		{
+			"Pos": {
+				"Offset": 0,
+				"Line": 1,
+				"Col": 1
+			},
+			"End": {
+				"Offset": 13,
+				"Line": 1,
+				"Col": 14
+			},
+			"Cmd": {
+				"Type": "CallExpr",
+				"Pos": {
+					"Offset": 0,
+					"Line": 1,
+					"Col": 1
+				},
+				"End": {
+					"Offset": 13,
+					"Line": 1,
+					"Col": 14
+				},
+				"Assigns": [
+					{
+						"Pos": {
+							"Offset": 0,
+							"Line": 1,
+							"Col": 1
+						},
+						"End": {
+							"Offset": 13,
+							"Line": 1,
+							"Col": 14
+						},
+						"Name": {
+							"Pos": {
+								"Offset": 0,
+								"Line": 1,
+								"Col": 1
+							},
+							"End": {
+								"Offset": 1,
+								"Line": 1,
+								"Col": 2
+							},
+							"ValuePos": {
+								"Offset": 0,
+								"Line": 1,
+								"Col": 1
+							},
+							"ValueEnd": {
+								"Offset": 1,
+								"Line": 1,
+								"Col": 2
+							},
+							"Value": "x"
+						},
+						"Value": {
+							"Pos": {
+								"Offset": 2,
+								"Line": 1,
+								"Col": 3
+							},
+							"End": {
+								"Offset": 13,
+								"Line": 1,
+								"Col": 14
+							},
+							"Parts": [
+								{
+									"Type": "CmdSubst",
+									"Pos": {
+										"Offset": 2,
+										"Line": 1,
+										"Col": 3
+									},
+									"End": {
+										"Offset": 13,
+										"Line": 1,
+										"Col": 14
+									},
+									"Left": {
+										"Offset": 2,
+										"Line": 1,
+										"Col": 3
+									},
+									"Right": {
+										"Offset": 12,
+										"Line": 1,
+										"Col": 13
+									},
+									"Stmts": [
+										{
+											"Pos": {
+												"Offset": 4,
+												"Line": 1,
+												"Col": 5
+											},
+											"End": {
+												"Offset": 12,
+												"Line": 1,
+												"Col": 13
+											},
+											"Cmd": {
+												"Type": "CallExpr",
+												"Pos": {
+													"Offset": 4,
+													"Line": 1,
+													"Col": 5
+												},
+												"End": {
+													"Offset": 12,
+													"Line": 1,
+													"Col": 13
+												},
+												"Args": [
+													{
+														"Pos": {
+															"Offset": 4,
+															"Line": 1,
+															"Col": 5
+														},
+														"End": {
+															"Offset": 8,
+															"Line": 1,
+															"Col": 9
+														},
+														"Parts": [
+															{
+																"Type": "Lit",
+																"Pos": {
+																	"Offset": 4,
+																	"Line": 1,
+																	"Col": 5
+																},
+																"End": {
+																	"Offset": 8,
+																	"Line": 1,
+																	"Col": 9
+																},
+																"ValuePos": {
+																	"Offset": 4,
+																	"Line": 1,
+																	"Col": 5
+																},
+																"ValueEnd": {
+																	"Offset": 8,
+																	"Line": 1,
+																	"Col": 9
+																},
+																"Value": "date"
+															}
+														]
+													},
+													{
+														"Pos": {
+															"Offset": 9,
+															"Line": 1,
+															"Col": 10
+														},
+														"End": {
+															"Offset": 12,
+															"Line": 1,
+															"Col": 13
+														},
+														"Parts": [
+															{
+																"Type": "Lit",
+																"Pos": {
+																	"Offset": 9,
+																	"Line": 1,
+																	"Col": 10
+																},
+																"End": {
+																	"Offset": 12,
+																	"Line": 1,
+																	"Col": 13
+																},
+																"ValuePos": {
+																	"Offset": 9,
+																	"Line": 1,
+																	"Col": 10
+																},
+																"ValueEnd": {
+																	"Offset": 12,
+																	"Line": 1,
+																	"Col": 13
+																},
+																"Value": "+%s"
+															}
+														]
+													}
+												]
+											},
+											"Position": {
+												"Offset": 4,
+												"Line": 1,
+												"Col": 5
+											}
+										}
+									]
+								}
+							]
+						}
+					}
+				]
+			},
+			"Position": {
+				"Offset": 0,
+				"Line": 1,
+				"Col": 1
+			}
+		}
+	]
+}

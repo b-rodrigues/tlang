@@ -42,6 +42,8 @@
     test_lens
     test_serializers
     test_pipeline_comments
+    test_shell_diff
+    test_julia_diff
     test_nix_emit
     test_explicit_deps
     test_structural_integrity
@@ -64,7 +66,7 @@
       test_factor_grouping
      test_trig_hyperbolic test_misc_functions
   )
-  (libraries t_lang menhirLib otoml unix str)
+  (libraries t_lang menhirLib otoml unix str yojson)
 )
 
 (executable

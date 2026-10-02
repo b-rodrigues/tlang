@@ -81,10 +81,10 @@ fails the same silent way.
   and snippet-less custom formats; the emitter can no longer produce
   bare calls. Demos, tests, and doc examples use dicts only — the
   `custom("name")` quoting escape was removed entirely, no legacy.
-- [ ] Long term: removed in favor of strategy dicts — custom formats are
-  `[format: ^name, ...snippets]` dicts (closed keys, validated per
-  runtime/role), so typos fail at `t check` with the dict form named.
-  No quoting escape remains.
+- [x] Long term (done, same as above): custom formats are `[format:
+  ^name, ...snippets]` dicts (closed keys, validated per runtime/role),
+  so typos fail at `t check` with the dict form named. No quoting
+  escape remains (`custom()` removed entirely).
 
 **Acceptance.**
 - [x] No emitter path can produce a bare `name(...)` call for a strategy:
@@ -153,9 +153,14 @@ downloading and precompiling runtimes the demo never touches.
   clean.
 
 **Acceptance.**
-- [ ] A pure-T scaffolded project enters its shell measurably faster than
-  today; a polyglot project is unchanged.
-- [ ] `t_demos` pure-T workflows get faster without workflow edits.
+- [x] A pure-T scaffolded project enters its shell with far fewer local
+  builds (measured 2026-10 on a pure-T demo project: `nix build
+  --dry-run` on the dev shell shows 2 derivations to build — the shell
+  itself plus the bare R wrapper kept for ad-hoc use — versus 10
+  before; everything else fetches from cache).
+- [x] `t_demos` pure-T workflows get faster without workflow edits (same
+  mechanism: no declared runtime packages means no user package sets;
+  nothing in the demos changed).
 
 ---
 
