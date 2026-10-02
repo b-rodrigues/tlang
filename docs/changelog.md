@@ -39,7 +39,7 @@
 - **Union variable resolution counts match patterns**: a pattern variable shadowing a top-level union variable vetoes the variable resolution, so a nested `match` over the shadowing name stays silent instead of warning against the wrong union's cases.
 - **Strategy errors name the `format` ambiguity**: when `format` is also a real dependency of the node, the unknown-key error says that any map with a `format` key reads as a strategy dict — a dependency literally named `format` cannot be keyed in map form and must be renamed.
 - **Per-dependency strategy maps survive pattern expansion**: expanded branch entries key the renamed branch dependencies (`mid` → `mid_branch_1`), so the chosen strategies keep applying instead of silently falling back to `default`.
-- **Julia transpose no longer blinds dependency inference**: a postfix `'` (adjoint) after a value is an operator, not a string opener — reads after it now register as dependencies instead of being silently dropped. Char literals (including escapes), and triple-single-quoted strings behave as before.
+- **Julia transpose no longer blinds dependency inference**: a postfix `'` (adjoint) after an expression-ending character is an operator, not a string opener — reads after it now register as dependencies instead of being silently dropped, including after `)` as in `(A')'`. Char literals (including escapes) still blank. Julia has no triple-single-quoted strings, so `A'''` is three transposes.
 
 ## [0.55.4] - 2026-09-29
 

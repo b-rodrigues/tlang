@@ -649,6 +649,10 @@ let expand_pipeline_internal (p : pipeline_result) (env : value Env.t) (to_scrip
                 { e with node = DictLit (List.map (fun (k, v) -> (rename k, v)) pairs) }
             | Value (VDict pairs) when not (List.mem_assoc "format" pairs) ->
                 { e with node = Value (VDict (List.map (fun (k, v) -> (rename k, v)) pairs)) }
+            (* Named list items cannot arise from surface syntax (the
+               parser makes pure [k: v] a DictLit and rejects mixes), so
+               this only ever fires on empty lists; rename for symmetry
+               with the emitter's per-dependency lookup. *)
             | ListLit items ->
                 { e with node = ListLit (List.map (fun (n, v) -> (Option.map rename n, v)) items) }
             | _ -> e

@@ -628,23 +628,31 @@ let strip_noncode_spans ?(lang : raw_lang option = None) text =
     (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c = '_'
   in
   let is_name_char c = is_name_start c || (c >= '0' && c <= '9') in
-  (* End index (exclusive) past a Julia single-quoted span at [i], or
-     `Transpose when the quote is the postfix adjoint operator. Julia
-     `'` is either a char literal (exactly one char or one escape between
-     quotes), a triple-quoted string, or transpose (`A'`, `A''`,
-     `f(x)'`). Only the clear literal shapes blank; ambiguity stays
-     visible so a missed literal errs toward a phantom edge, never a
-     dropped dependency. *)
+  (* Previous significant character on the same line (blanks skipped),
+     or None at line start. *)
+  let prev_sig k =
+    let rec loop j =
+      if j < 0 then None
+      else match text.[j] with
+      | ' ' | '\t' | '\r' -> loop (j - 1)
+      | '\n' -> None
+      | c -> Some c
+    in
+    loop k
+  in
+  (* Julia single-quote end: transpose after an expression-ending
+     character (name, digit, bracket, paren, double quote or dot),
+     as in `A'`, `A''`, `f(x)'` or `(A')'`; otherwise a char literal
+     opens. Julia has no triple-single-quoted strings. *)
   let julia_squote_end i =
-    if i + 2 < n && text.[i + 1] = '\'' && text.[i + 2] = '\'' then begin
-      let rec loop k =
-        if k >= n then n
-        else if text.[k] = '\\' then loop (k + 2)
-        else if text.[k] = '\'' && k + 2 < n && text.[k + 1] = '\'' && text.[k + 2] = '\'' then k + 3
-        else loop (k + 1)
-      in
-      `String (loop (i + 3))
-    end else if i + 2 < n && text.[i + 1] <> '\\' && text.[i + 1] <> '\n' && text.[i + 2] = '\'' then
+    let transpose_prev = match prev_sig (i - 1) with
+      | Some c -> (match c with
+          | 'a'..'z' | 'A'..'Z' | '_' | '0'..'9' | ']' | ')' | '"' | '\'' | '.' -> true
+          | _ -> false)
+      | None -> false
+    in
+    if transpose_prev then `Transpose
+    else if i + 2 < n && text.[i + 1] <> '\\' && text.[i + 1] <> '\n' && text.[i + 2] = '\'' then
       `String (i + 3)
     else if i + 1 < n && text.[i + 1] = '\\' then
       let j = i + 2 in
@@ -663,7 +671,16 @@ let strip_noncode_spans ?(lang : raw_lang option = None) text =
         in
         if k >= 0 && k < n && text.[k] = '\'' then `String (k + 1) else `Transpose
       else `Transpose
-    else `Transpose
+    else
+      (* Malformed open: legacy fallback, blank to the next quote. Only
+         reachable on invalid Julia. *)
+      let rec loop k =
+        if k >= n then n
+        else if text.[k] = '\\' then loop (k + 2)
+        else if text.[k] = '\'' then k + 1
+        else loop (k + 1)
+      in
+      `String (loop (i + 1))
   in
   (* End index (exclusive) past a balanced opener at [j], honouring
      nested quotes, backticks and backslash escapes. Returns [n] when
@@ -758,10 +775,9 @@ let strip_noncode_spans ?(lang : raw_lang option = None) text =
                scan_fstring (i + 1) false q
              end
          | '\'' when julia ->
-             (* Julia `'` is the transpose operator unless a char
-                literal or triple-quoted string opens here: a bare
-                transpose must not blank the rest of the block and
-                drop dependency reads. *)
+             (* Julia `'` is the transpose operator unless it opens a char
+                literal here: a bare transpose must not blank the rest of
+                the block and drop dependency reads. *)
              (match julia_squote_end i with
               | `String e ->
                   Buffer.add_string buf (String.make (e - i) ' ');

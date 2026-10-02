@@ -209,7 +209,8 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
   check_shadowed "Julia double transpose keeps reads" "Julia" "print(A'' + src)\nsrc = 1" [];
   check_shadowed "Julia transpose inside interpolation keeps reads" "Julia" "s = \"v $(A' + src + B')\"\nsrc = 1" ["s"];
   check_shadowed "Julia char literal hides contents" "Julia" "print('x')\nx = 1" ["x"];
-  check_shadowed "Julia triple-single string hides contents" "Julia" "print('''src''')\nsrc = 1" ["src"];
+  check_shadowed "Julia triple transpose keeps reads" "Julia" "print('''src''')\nsrc = 1" [];
+  check_shadowed "Julia paren after transpose still binds" "Julia" "print((A')')\nx = 1\nuse(x)" ["x"];
 
   (* Test 3: pipeline-level repro — bar/baz/qux must not depend on foo. *)
   let code3 = {|

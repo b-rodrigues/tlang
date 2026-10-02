@@ -5,6 +5,22 @@ open Tdoc_types
 
 let registry : (string, doc_entry) Hashtbl.t = Hashtbl.create 100
 
+let precise_type s =
+  match s with
+  | Some s -> (match Semantic_type.from_string s with
+      | Semantic_type.TAny | Semantic_type.TUnknown -> false
+      | _ -> true)
+  | None -> false
+
+let rank_entry (e : doc_entry) =
+  let r = match e.return_value with
+    | Some r -> precise_type r.type_info
+    | None -> false
+  in
+  let ps = List.map (fun (p : param_doc) -> precise_type p.type_info) e.params in
+  let full = r && List.for_all (fun x -> x) ps in
+  ((if full then 1 else 0), List.length (List.filter (fun x -> x) (r :: ps)))
+
 (** Register a documentation entry in the in-memory registry.
 
     Duplicate names resolve deterministically, independent of parse
@@ -23,22 +39,6 @@ let registry : (string, doc_entry) Hashtbl.t = Hashtbl.create 100
     walk), so winners are identical on every machine.
 
     @param entry The doc_entry to add. *)
-let precise_type s =
-  match s with
-  | Some s -> (match Semantic_type.from_string s with
-      | Semantic_type.TAny | Semantic_type.TUnknown -> false
-      | _ -> true)
-  | None -> false
-
-let rank_entry (e : doc_entry) =
-  let r = match e.return_value with
-    | Some r -> precise_type r.type_info
-    | None -> false
-  in
-  let ps = List.map (fun (p : param_doc) -> precise_type p.type_info) e.params in
-  let full = r && List.for_all (fun x -> x) ps in
-  ((if full then 1 else 0), List.length (List.filter (fun x -> x) (r :: ps)))
-
 let register entry =
   let better new_ old_ =
     (new_.is_export && not old_.is_export)
