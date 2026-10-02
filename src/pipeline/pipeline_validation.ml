@@ -404,10 +404,21 @@ let check_known_formats (p : pipeline_result) : validation_error list =
   let check_dict_shape ~role ~name ~runtime keys find fmt_of code_of =
     let errs = ref [] in
     let add m = errs := m :: !errs in
+    (* A dependency literally named `format` forces the strategy-dict
+       reading, so its siblings fail below as unknown keys. Name the
+       ambiguity only when it applies. *)
+    let format_is_dep =
+      match List.assoc_opt name p.p_deps with
+      | Some deps -> List.mem "format" deps
+      | None -> false
+    in
     List.iter (fun k ->
       if not (List.mem k strategy_dict_keys) then
-        add (Printf.sprintf "Unknown key `%s` in %s strategy dict on node `%s`. Valid keys: %s."
-          k role name (String.concat ", " strategy_dict_keys))
+        add (Printf.sprintf "Unknown key `%s` in %s strategy dict on node `%s`. Valid keys: %s.%s"
+          k role name (String.concat ", " strategy_dict_keys)
+          (if format_is_dep then
+             " Note: `format` is also a dependency of this node, but any map with a `format` key is read as a strategy dict — a dependency literally named `format` cannot be keyed in map form. Rename it to use per-dependency strategies."
+           else ""))
     ) keys;
     (match find "format" with
      | None ->

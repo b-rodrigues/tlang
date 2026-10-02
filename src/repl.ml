@@ -1177,7 +1177,7 @@ let rec mkdir_p path =
 let recursive_files dir =
   let rec walk acc d =
     (* Sorted for determinism: duplicate doc names resolve identically on
-       every machine (later paths win in registration order). *)
+       every machine (ties keep the first registration in this order). *)
     let entries =
       try Array.to_list (Sys.readdir d) |> List.sort String.compare
       with _ -> []

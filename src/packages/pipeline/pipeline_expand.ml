@@ -624,6 +624,42 @@ let expand_pipeline_internal (p : pipeline_result) (env : value Env.t) (to_scrip
               | None -> None
             ) branches
           in
+          (* Per-dependency strategy maps key real dependency names, so
+             they go stale when expansion renames branch deps (`src` ->
+             `src_branch_1`) and the emitter silently falls back to
+             `default`. Rewrite map keys per branch exactly like
+             `make_branch_deps` renames deps; whole strategy dicts
+             (carrying `format`) apply to every dep and pass through
+             untouched. Top level only: snippet sub-dicts are data. *)
+          let rename_dep_for_branch b dep =
+            match List.find_opt (fun (orig, _) -> orig = dep) !expanded_map with
+            | Some (_, branch_names) ->
+                (match List.nth_opt branch_names (dep_index_for_branch b dep) with
+                 | Some name -> name
+                 | None -> raise (BranchIndexError
+                     (Printf.sprintf
+                        "expand_pipeline: branch index for strategy key '%s' of node '%s' out of range (branch_names length = %d)"
+                        dep b.branch_name (List.length branch_names))))
+            | None -> dep
+          in
+          let rewrite_strategy_keys b e =
+            let rename = rename_dep_for_branch b in
+            match e.node with
+            | DictLit pairs when not (List.mem_assoc "format" pairs) ->
+                { e with node = DictLit (List.map (fun (k, v) -> (rename k, v)) pairs) }
+            | Value (VDict pairs) when not (List.mem_assoc "format" pairs) ->
+                { e with node = Value (VDict (List.map (fun (k, v) -> (rename k, v)) pairs)) }
+            | ListLit items ->
+                { e with node = ListLit (List.map (fun (n, v) -> (Option.map rename n, v)) items) }
+            | _ -> e
+          in
+          let make_branch_strategy_entries lst =
+            List.filter_map (fun b ->
+              match copy_entry b.orig_name lst with
+              | Some v -> Some (b.branch_name, rewrite_strategy_keys b v)
+              | None -> None
+            ) branches
+          in
 
           (match
              try
@@ -641,8 +677,8 @@ let expand_pipeline_internal (p : pipeline_result) (env : value Env.t) (to_scrip
                  p_deps           = List.filter (fun (n, _) -> not (is_removed n)) p.p_deps @ branch_deps;
                  p_imports        = p.p_imports;
                  p_runtimes       = List.filter (fun (n, _) -> not (is_removed n)) p.p_runtimes @ make_branch_entries p.p_runtimes;
-                 p_serializers    = List.filter (fun (n, _) -> not (is_removed n)) p.p_serializers @ make_branch_entries p.p_serializers;
-                 p_deserializers  = List.filter (fun (n, _) -> not (is_removed n)) p.p_deserializers @ make_branch_entries p.p_deserializers;
+                 p_serializers    = List.filter (fun (n, _) -> not (is_removed n)) p.p_serializers @ make_branch_strategy_entries p.p_serializers;
+                 p_deserializers  = List.filter (fun (n, _) -> not (is_removed n)) p.p_deserializers @ make_branch_strategy_entries p.p_deserializers;
                  p_env_vars       = List.filter (fun (n, _) -> not (is_removed n)) p.p_env_vars @ make_branch_entries p.p_env_vars;
                  p_args           = List.filter (fun (n, _) -> not (is_removed n)) p.p_args @ make_branch_entries p.p_args;
                  p_shells         = List.filter (fun (n, _) -> not (is_removed n)) p.p_shells @ make_branch_entries p.p_shells;

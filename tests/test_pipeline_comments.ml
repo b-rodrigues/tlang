@@ -204,6 +204,12 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
   check_shadowed "sh transform-in-place keeps edge" "sh" "x=$x" [];
   check_shadowed "Julia pure shadow subtracts" "Julia" "x = 1\nx + 1" ["x"];
   check_shadowed "Julia transform-in-place keeps edge" "Julia" "x = x + 1" [];
+  check_shadowed "Julia transpose keeps own-rhs reads" "Julia" "z = A' + z" [];
+  check_shadowed "Julia transpose keeps reads before binding" "Julia" "print(A' + src)\nsrc = 1" [];
+  check_shadowed "Julia double transpose keeps reads" "Julia" "print(A'' + src)\nsrc = 1" [];
+  check_shadowed "Julia transpose inside interpolation keeps reads" "Julia" "s = \"v $(A' + src + B')\"\nsrc = 1" ["s"];
+  check_shadowed "Julia char literal hides contents" "Julia" "print('x')\nx = 1" ["x"];
+  check_shadowed "Julia triple-single string hides contents" "Julia" "print('''src''')\nsrc = 1" ["src"];
 
   (* Test 3: pipeline-level repro — bar/baz/qux must not depend on foo. *)
   let code3 = {|
@@ -347,6 +353,12 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
     {|p = pipeline {
       src = 1
       out = jln(command = <{ x = "$src" }>, deserializer = ^json)
+    }|} "out" ["src"];
+  check_deps "Julia transpose keeps later reads"
+    {|p = pipeline {
+      src = 1
+      out = jln(command = <{ t = [1, 2]
+z = t' + src }>, deserializer = [src: ^json])
     }|} "out" ["src"];
   check_deps "Python f-string interpolation keeps edge"
     {|p = pipeline {

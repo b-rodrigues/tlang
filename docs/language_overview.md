@@ -75,7 +75,7 @@ p = Point(x = 1.0, y = 2.0)
 p.x -- 1.0
 ```
 
-Construction takes all-positional or all-named arguments (never a mix). Unknown, missing, or mistyped fields fail with an error naming the field and the valid set. Annotations accept record names (`\(p: Point -> Point) p`), enforced at runtime like all annotations. Records match `_` and variable arms in `match`. Records are T-side contracts: they cannot cross into foreign node code or serializers — use plain data across the boundary instead. The leading word `type` is contextual, so the `type()` builtin keeps working.
+Construction takes all-positional or all-named arguments (never a mix). Unknown, missing, or mistyped fields fail with an error naming the field and the valid set. Annotations accept record names (`\(p: Point -> Point) p`), enforced at runtime like all annotations. Records match `_` and variable arms in `match`. Records are T-side contracts: they cannot cross into foreign node code or serializers — use plain data across the boundary instead. The leading word `type` is contextual, so the `type()` builtin keeps working. Built-in type names (`Model`, `Pipeline`, `Date`, `Period`, `Interval`, and the rest) are reserved for every `type` declaration, records and unions alike — shadowing is never allowed, so a declaration with one of these names fails naming the full set.
 
 ### User-Defined Tagged Unions
 

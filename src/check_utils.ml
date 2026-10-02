@@ -348,11 +348,24 @@ let match_union_diagnostics program filename =
   in
   let () = List.iter uses_in_stmt program in
   (* Every binder name anywhere in the program, including nested
-     statements (blocks, branches) and lambda parameters: a variable
-     scrutinee resolves only when its single top-level binding is the
-     only binding of that name program-wide. A rebinding hidden in a
-     branch (`if (c) { s := ... }`) would otherwise resolve to the
-     wrong union and warn falsely. Silence is always safe here. *)
+     statements (blocks, branches), lambda parameters, and match arm
+     patterns: a variable scrutinee resolves only when its single
+     top-level binding is the only binding of that name program-wide.
+     A rebinding hidden in a branch (`if (c) { s := ... }`) or a
+     shadowing arm pattern would otherwise resolve to the wrong union
+     and warn falsely. Silence is always safe here. *)
+  (* Every name a match pattern binds: bare variables, list tails,
+     error payloads, and union case payloads at any depth. *)
+  let rec pattern_binders p =
+    match p with
+    | Ast.PVar s -> [s]
+    | Ast.PList (ps, rest) ->
+        List.concat_map pattern_binders ps
+        @ (match rest with Some s -> [s] | None -> [])
+    | Ast.PError (Some s) -> [s]
+    | Ast.PUnion { pu_args; _ } -> List.concat_map pattern_binders pu_args
+    | Ast.PWildcard | Ast.PNA | Ast.PError None -> []
+  in
   let rec deep_binders_stmt acc s =
     match s.Ast.node with
     | Ast.Expression e -> deep_binders_expr acc e
@@ -367,6 +380,14 @@ let match_union_diagnostics program filename =
         (* Blocks share scope: nested binders count. (`children_of_expr`
            would drop the names and keep only right-hand sides.) *)
         List.fold_left deep_binders_stmt acc stmts
+    | Ast.Match { scrutinee; cases } ->
+        (* Arm patterns bind names too (`children_of_expr` keeps only
+           the scrutinee and arm bodies): a pattern variable shadowing
+           a top-level union variable vetoes the variable resolution. *)
+        let acc = deep_binders_expr acc scrutinee in
+        List.fold_left (fun acc (p, body) ->
+          deep_binders_expr (pattern_binders p @ acc) body
+        ) acc cases
     | _ ->
         List.fold_left deep_binders_expr acc (Ast.children_of_expr e)
   in

@@ -153,6 +153,11 @@ match(Circle(1.0)) { Circle => 1.0, _ => 0.0 }|}
     {|type ShW = Circle(Float) | Missing()
 match(s) { Missing() => 1.0 }|}
     0 None;
+  check_diags "pattern variable shadowing union variable stays silent"
+    {|type ShPX = Circle(Float) | Missing()
+s = Circle(1.0)
+match(s) { s => match(s) { Square(a) => a, _ => 0.0 }, _ => 0.0 }|}
+    0 None;
   check_diags "no unions means no warnings"
     {|match(1) { NA => "missing" }|}
     0 None;

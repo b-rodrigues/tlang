@@ -2692,6 +2692,36 @@ p.t_step|}
      | other ->
          incr fail_count; Printf.printf "  ✗ expand_pipeline should return VPipeline, got %s\n" (Ast.Utils.value_to_string other));
 
+    (* 2a. Per-dependency strategy map keys follow branch renaming.
+       Chained patterns rename the dep itself (`mid` → `mid_branch_N`);
+       without the rewrite the emitter looks up the branch dep in a map
+       keyed by the pre-expansion name and silently falls back to
+       `default`. *)
+    let env_map = Test_helpers.eval_setup eval_string_env env "test_pipeline:strategymap" "p = pipeline {\n  src = [10, 20]\n  mid = node(command = <{ src + 1 }>, pattern = map_pattern(src))\n  out = rn(command = <{ mid + 1 }>, pattern = map_pattern(mid), deserializer = [mid: ^csv])\n}" in
+    let (v_map, _) = eval_string_env "expand_pipeline(p)" env_map in
+    (match v_map with
+     | VPipeline pe_map ->
+         (* Node construction evaluates the map, so entries are values. *)
+         let key_of n =
+           let keys_of e = match e.Ast.node with
+             | Ast.DictLit pairs -> List.map fst pairs
+             | Ast.Value (Ast.VDict pairs) -> List.map fst pairs
+             | _ -> []
+           in
+           match List.assoc_opt n pe_map.p_deserializers with
+           | Some e -> keys_of e
+           | None -> []
+         in
+         let show l = "[" ^ String.concat "; " l ^ "]" in
+         if key_of "out_branch_1" = ["mid_branch_1"] && key_of "out_branch_2" = ["mid_branch_2"] then begin
+           incr pass_count; Printf.printf "  ✓ expanded strategy map keys renamed per branch\n"
+         end else begin
+           incr fail_count; Printf.printf "  ✗ expanded strategy map keys not renamed (b1=%s b2=%s)\n"
+             (show (key_of "out_branch_1")) (show (key_of "out_branch_2"))
+         end
+     | other ->
+         incr fail_count; Printf.printf "  ✗ expand_pipeline should return VPipeline, got %s\n" (Ast.Utils.value_to_string other));
+
     (* 2b. Conditional shadow with a later read fails loudly instead of
        expanding branches that would mix per-branch slices with the whole
        artifact. *)

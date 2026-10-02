@@ -36,6 +36,10 @@
 - **Quoted shell values decide persistence correctly**: `FOO="a b" cmd` no longer records a binding, while `x=$(date +%s)`, `x="a b"`, arrays, and `&&`-continued statements bind as the shell does.
 - **Union exhaustiveness ignores nested rebindings**: a variable rebound inside a branch or closure no longer resolves to its first union, so no false missing-case warning fires.
 - **Doc signatures keep spaced unions whole**: `Dict | List` and `Dict[String, Dict]` now parse as written instead of truncating at the first space.
+- **Union variable resolution counts match patterns**: a pattern variable shadowing a top-level union variable vetoes the variable resolution, so a nested `match` over the shadowing name stays silent instead of warning against the wrong union's cases.
+- **Strategy errors name the `format` ambiguity**: when `format` is also a real dependency of the node, the unknown-key error says that any map with a `format` key reads as a strategy dict — a dependency literally named `format` cannot be keyed in map form and must be renamed.
+- **Per-dependency strategy maps survive pattern expansion**: expanded branch entries key the renamed branch dependencies (`mid` → `mid_branch_1`), so the chosen strategies keep applying instead of silently falling back to `default`.
+- **Julia transpose no longer blinds dependency inference**: a postfix `'` (adjoint) after a value is an operator, not a string opener — reads after it now register as dependencies instead of being silently dropped. Char literals (including escapes), and triple-single-quoted strings behave as before.
 
 ## [0.55.4] - 2026-09-29
 

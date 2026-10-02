@@ -91,6 +91,14 @@ pipeline_validate(p)|}
 }
 pipeline_validate(p)|}
     "Unknown dependency `reder`";
+  test_env (fresh ()) "dependency literally named format names the ambiguity"
+    {|p = pipeline {
+  format = node(command = 1)
+  other = node(command = 2)
+  out = rn(command = <{ format + other }>, deserializer = [format: ^csv, other: ^json])
+}
+pipeline_validate(p)|}
+    "cannot be keyed in map form";
   test_env (fresh ()) "custom format without runtime snippet fails validation"
     {|p = pipeline {
   a = rn(command = <{ 1 }>, serializer = [format: ^yml])

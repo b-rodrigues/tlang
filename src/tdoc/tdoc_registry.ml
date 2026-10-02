@@ -16,8 +16,13 @@ let registry : (string, doc_entry) Hashtbl.t = Hashtbl.create 100
     fewer good ones. Without this, same-name blocks (re-export stubs,
     OCaml-internal docs) shadow each other by readdir luck — flipping
     help() output, reference pages, and coverage counts between runs.
+    Ties keep the first registration: a later entry with equal export
+    status and rank is silently dropped, so re-registering a name
+    (test seams, user `--#` blocks in `.t` files) never overrides the
+    winner. Registration order itself is deterministic (sorted file
+    walk), so winners are identical on every machine.
 
-    @param entry The doc_entry to add or update. *)
+    @param entry The doc_entry to add. *)
 let precise_type s =
   match s with
   | Some s -> (match Semantic_type.from_string s with

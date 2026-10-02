@@ -110,6 +110,10 @@ node(command = ..., serializer = my_log_serializer)
 
 For a complete example of a cross-language custom serializer (YAML), see the [Custom Polyglot Serializer Demo](https://github.com/b-rodrigues/t_demos/blob/master/custom_polyglot_serializer_t/src/pipeline.t) in the `t_demos` repository.
 
+### Per-Dependency Maps
+
+A dict without a `format` key is a per-dependency map (`[reader: ^csv, writer: ^json]`): each key must name a real dependency of the node, otherwise validation fails naming the valid set. Two naming rules apply. A map with a `format` key is always a strategy dict, never a per-dependency map — even when `format` is also a dependency name, so a dependency literally named `format` cannot be keyed in map form (rename it). Map keys track pattern expansion: after `expand_pipeline` renames branch dependencies (`mid` → `mid_branch_1`), each branch entry keys the renamed dependency, so the chosen strategies keep applying instead of falling back to `default`.
+
 ## 4. Static Coherence Checks
 
 One of the most powerful features of T's serializer system is the **static coherence check**. When you build a pipeline, T verifies that the format produced by a source node matches the format expected by the consumer node.

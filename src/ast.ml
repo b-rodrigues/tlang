@@ -628,10 +628,47 @@ let strip_noncode_spans ?(lang : raw_lang option = None) text =
     (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c = '_'
   in
   let is_name_char c = is_name_start c || (c >= '0' && c <= '9') in
+  (* End index (exclusive) past a Julia single-quoted span at [i], or
+     `Transpose when the quote is the postfix adjoint operator. Julia
+     `'` is either a char literal (exactly one char or one escape between
+     quotes), a triple-quoted string, or transpose (`A'`, `A''`,
+     `f(x)'`). Only the clear literal shapes blank; ambiguity stays
+     visible so a missed literal errs toward a phantom edge, never a
+     dropped dependency. *)
+  let julia_squote_end i =
+    if i + 2 < n && text.[i + 1] = '\'' && text.[i + 2] = '\'' then begin
+      let rec loop k =
+        if k >= n then n
+        else if text.[k] = '\\' then loop (k + 2)
+        else if text.[k] = '\'' && k + 2 < n && text.[k + 1] = '\'' && text.[k + 2] = '\'' then k + 3
+        else loop (k + 1)
+      in
+      `String (loop (i + 3))
+    end else if i + 2 < n && text.[i + 1] <> '\\' && text.[i + 1] <> '\n' && text.[i + 2] = '\'' then
+      `String (i + 3)
+    else if i + 1 < n && text.[i + 1] = '\\' then
+      let j = i + 2 in
+      if j < n && text.[j] <> '\n' then
+        let k =
+          if text.[j] = 'u' || text.[j] = 'U' then
+            let digits = if text.[j] = 'u' then 4 else 8 in
+            let t = ref (j + 1) in
+            while !t < n && !t < j + 1 + digits
+                  && (match text.[!t] with '0'..'9' | 'a'..'f' | 'A'..'F' -> true | _ -> false) do
+              incr t
+            done;
+            (* Short escapes are invalid Julia: stay visible (fail loud). *)
+            if !t = j + 1 + digits then !t else -1
+          else j + 1
+        in
+        if k >= 0 && k < n && text.[k] = '\'' then `String (k + 1) else `Transpose
+      else `Transpose
+    else `Transpose
+  in
   (* End index (exclusive) past a balanced opener at [j], honouring
      nested quotes, backticks and backslash escapes. Returns [n] when
      unbalanced. *)
-  let balanced_end open_c close_c j =
+  let balanced_end ?(julia=false) open_c close_c j =
     let rec skip_quoted q k =
       if k >= n then n
       else if text.[k] = '\\' then skip_quoted q (k + 2)
@@ -641,6 +678,10 @@ let strip_noncode_spans ?(lang : raw_lang option = None) text =
     let rec loop k d =
       if k >= n then n
       else if text.[k] = '\\' then loop (k + 2) d
+      else if julia && text.[k] = '\'' then
+        (match julia_squote_end k with
+         | `String e -> loop e d
+         | `Transpose -> loop (k + 1) d)
       else if text.[k] = '\'' || text.[k] = '"' || text.[k] = '`' then
         loop (skip_quoted text.[k] (k + 1)) d
       else if text.[k] = open_c then loop (k + 1) (d + 1)
@@ -716,6 +757,18 @@ let strip_noncode_spans ?(lang : raw_lang option = None) text =
                Buffer.add_char buf ' ';
                scan_fstring (i + 1) false q
              end
+         | '\'' when julia ->
+             (* Julia `'` is the transpose operator unless a char
+                literal or triple-quoted string opens here: a bare
+                transpose must not blank the rest of the block and
+                drop dependency reads. *)
+             (match julia_squote_end i with
+              | `String e ->
+                  Buffer.add_string buf (String.make (e - i) ' ');
+                  scan e None
+              | `Transpose ->
+                  Buffer.add_char buf '\'';
+                  scan (i + 1) None)
          | '\'' | '"' as q ->
              Buffer.add_char buf ' ';
              scan (i + 1) (Some q)
@@ -756,7 +809,7 @@ let strip_noncode_spans ?(lang : raw_lang option = None) text =
     | '$' ->
         let j = i + 1 in
         if j < n && text.[j] = '(' then
-          let e = balanced_end '(' ')' (j + 1) in
+          let e = balanced_end ~julia '(' ')' (j + 1) in
           Buffer.add_substring buf text i (e - i);
           scan_interp e triple
         else if j < n && text.[j] = '{' && not julia then begin
