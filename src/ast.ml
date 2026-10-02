@@ -606,6 +606,17 @@ let lang_of_runtime = function
   | "sh" -> ShLang
   | _ -> OtherLang
 
+(* Reserved words that never end an expression: a quote directly after
+   one opens a literal (return 'x'), never a transpose. Value-capable
+   words (end, true, false) and contextual ones (outer, type) are
+   deliberately absent: they can end an expression. *)
+let julia_hard_keywords =
+  [ "baremodule"; "begin"; "break"; "catch"; "const"; "continue"; "do";
+    "else"; "elseif"; "export"; "for"; "function"; "global"; "if";
+    "import"; "in"; "isa"; "let"; "local"; "macro"; "module"; "mutable";
+    "new"; "primitive"; "quote"; "return"; "struct"; "using"; "while";
+    "try"; "finally" ]
+
 let strip_noncode_spans ?(lang : raw_lang option = None) text =
   let n = String.length text in
   let buf = Buffer.create n in
@@ -628,28 +639,40 @@ let strip_noncode_spans ?(lang : raw_lang option = None) text =
     (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c = '_'
   in
   let is_name_char c = is_name_start c || (c >= '0' && c <= '9') in
-  (* Previous significant character on the same line (blanks skipped),
-     or None at line start. *)
-  let prev_sig k =
-    let rec loop j =
+  (* Julia single-quote end: transpose after an expression-ending
+     character, as in `A'`, `A''`, `f(x)'` or `(A')'`; otherwise a char
+     literal opens, including after hard keywords that never end an
+     expression (`return 'x'`). Non-ASCII bytes transpose (Unicode
+     identifiers). Only clear literal shapes blank; ambiguity stays
+     visible. Julia has no triple-single-quoted strings. *)
+  let julia_squote_end i =
+    let is_word_byte c =
+      match c with
+      | 'a'..'z' | 'A'..'Z' | '_' | '0'..'9' | '\x80'..'\xFF' -> true
+      | _ -> false
+    in
+    let rec prev_pos j =
       if j < 0 then None
       else match text.[j] with
-      | ' ' | '\t' | '\r' -> loop (j - 1)
+      | ' ' | '\t' | '\r' -> prev_pos (j - 1)
       | '\n' -> None
-      | c -> Some c
+      | _ -> Some j
     in
-    loop k
-  in
-  (* Julia single-quote end: transpose after an expression-ending
-     character (name, digit, bracket, paren, double quote or dot),
-     as in `A'`, `A''`, `f(x)'` or `(A')'`; otherwise a char literal
-     opens. Julia has no triple-single-quoted strings. *)
-  let julia_squote_end i =
-    let transpose_prev = match prev_sig (i - 1) with
-      | Some c -> (match c with
-          | 'a'..'z' | 'A'..'Z' | '_' | '0'..'9' | ']' | ')' | '"' | '\'' | '.' -> true
-          | _ -> false)
+    let transpose_prev =
+      match prev_pos (i - 1) with
       | None -> false
+      | Some j ->
+          (match text.[j] with
+           | ']' | ')' | '"' | '\'' | '.' -> true
+           | c when is_word_byte c ->
+               let rec start k =
+                 if k < 0 then 0
+                 else if is_word_byte text.[k] then start (k - 1)
+                 else k + 1
+               in
+               let w = String.sub text (start j) (j - start j + 1) in
+               not (List.mem w julia_hard_keywords)
+           | _ -> false)
     in
     if transpose_prev then `Transpose
     else if i + 2 < n && text.[i + 1] <> '\\' && text.[i + 1] <> '\n' && text.[i + 2] = '\'' then
