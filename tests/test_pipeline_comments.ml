@@ -147,6 +147,12 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
   check_bind "sh pipe never persists" "sh" "FOO=1 | cat\necho $FOO" [];
   check_bind "sh redirect persists" "sh" "FOO=1 > out.txt\necho $FOO" ["FOO"];
   check_bind "sh fd redirect persists" "sh" "FOO=1 2>err.txt\necho $FOO" ["FOO"];
+  check_bind "sh fd-dup redirect persists" "sh" "FOO=1 2>&1\necho $FOO" ["FOO"];
+  check_bind "sh combined redirect persists" "sh" "FOO=1 &>out.txt\necho $FOO" ["FOO"];
+  check_bind "sh heredoc bails, edge stays" "sh" "FOO=1 <<EOF\necho $FOO" [];
+  check_bind "sh abutting equals is value, not chain" "sh" "x=a=b\necho $a" ["x"];
+  check_bind "sh chained assignment still binds both" "sh" "x= A=1\necho $A" ["x"; "A"];
+  check_bind "sh pipeline tail never persists" "sh" "cat | FOO=1\necho $FOO" [];
   check_bind "sh chained prefix binds nothing" "sh" "A=1 B=2 cmd\necho $A" [];
   check_bind "sh export binds" "sh" "export FOO=1\necho $FOO" ["FOO"];
   check_bind "sh export prefix binds nothing" "sh" "export FOO=1 cmd\necho $FOO" [];

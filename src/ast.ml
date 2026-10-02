@@ -1078,7 +1078,14 @@ let scan_raw_bindings ~runtime text =
          let rec back j =
            if j < 0 then true
            else match stripped.[j] with
-             | '\n' | ';' | '&' | '|' | '(' | '{' | '}' | '!' -> true
+             | '\n' | ';' | '(' | '{' | '}' | '!' -> true
+             (* Lone `|` pipes the element into a subshell, so an
+                assignment there never persists (`||` still separates
+                statements). `|&` (pipe stderr) likewise. A lone `&`
+                backgrounds the previous job but the next statement runs
+                in the current shell, so it still starts one. *)
+             | '&' -> not (j > 0 && stripped.[j - 1] = '|')
+             | '|' -> j > 0 && stripped.[j - 1] = '|'
              | ' ' | '\t' | '\r' -> back (j - 1)
              | _ ->
                  let rec wstart k =
@@ -1344,8 +1351,8 @@ let scan_raw_bindings ~runtime text =
           below. *)
        (* Julia: end-matched scope stack of (scoping, conditional, depth).
           Only function/macro/struct/module/let/quote/do scope; if/for/
-          while/catch bodies are conditional (may never execute);
-          begin/try/finally bodies count. *)
+          while/try/catch/finally bodies are conditional (may never
+          execute); only begin bodies count. *)
        let jl_stack = ref [] in
        let jl_in_scope () = List.exists (fun (_, s, _, _) -> s) !jl_stack in
        let jl_in_cond () = List.exists (fun (_, _, c, _) -> c) !jl_stack in
@@ -1522,14 +1529,17 @@ let scan_raw_bindings ~runtime text =
           [`End] (statement over, a completed `&&`/`||`, or a `#`
           comment: the assignment already ran), [`BgPipe] (lone `&`/`|`
           runs in a background job or pipeline subshell: no persist),
-          [`Word] (a word follows). *)
+          [`Word] (a word follows, including the `&>` redirect). *)
        let rec tx_skip_blanks j =
          if j >= n then `End
          else match text.[j] with
          | ' ' | '\t' | '\r' -> tx_skip_blanks (j + 1)
          | '\\' when j + 1 < n && text.[j + 1] = '\n' -> tx_skip_blanks (j + 2)
          | '\n' | ';' | '#' -> `End
-         | '&' -> if j + 1 < n && text.[j + 1] = '&' then `End else `BgPipe
+         | '&' ->
+             if j + 1 < n && text.[j + 1] = '&' then `End
+             else if j + 1 < n && text.[j + 1] = '>' then `Word j
+             else `BgPipe
          | '|' -> if j + 1 < n && text.[j + 1] = '|' then `End else `BgPipe
          | _ -> `Word j
        in
@@ -1567,9 +1577,18 @@ let scan_raw_bindings ~runtime text =
                incr k;
                tx_redirect_target !k
              end
+         | '&' ->
+             (* `&>` / `&>>` redirect stdout and stderr together. *)
+             if !k + 1 < n && text.[!k + 1] = '>' then begin
+               k := !k + 2;
+               if !k < n && text.[!k] = '>' then incr k;
+               tx_redirect_target !k
+             end else None
          | _ -> None
-       (* After a redirect operator: blanks, then one target word (any
-          shape, even `&2` or `-`); anything else is malformed. *)
+       (* After a redirect operator: blanks, then one target word. A
+          leading `&` starts an fd target (`>&2`, `>&-`) or a combined
+          file (`>&log`); consume past it so the redirect is skipped
+          whole. Anything else malformed bails (None): the edge stays. *)
        and tx_redirect_target k =
          let rec blanks t =
            if t >= n then None
@@ -1581,13 +1600,20 @@ let scan_raw_bindings ~runtime text =
          in
          match blanks k with
          | None -> None
-         | Some t -> tx_skip_word t
+         | Some t ->
+             if text.[t] = '&' then
+               if t + 1 >= n then None
+               else (match tx_skip_word (t + 1) with
+                | Some e when e > t + 1 -> Some e
+                | _ -> None)
+             else tx_skip_word t
        (* Persistence from just past `=` (chain [acc], outer first).
           `(` abutting `=` opens an array assignment (balanced, then
           re-evaluate). Otherwise blanks decide: end persists (possibly
-          empty value); a redirect skips to after its target; a bare
-          `NAME=` extends the chain; an abutting word is the value;
-          anything else is a command (prefix only). *)
+          empty value); a redirect skips to after its target; a
+          blank-separated `NAME=` extends the chain; an abutting word
+          (even `foo=bar`) is the value; anything else after a blank is
+          a command (prefix only). *)
        and tx_after_eq acc j =
          if j < n && text.[j] = '(' then
            (match tx_skip_balanced '(' ')' 0 (j + 1) with
@@ -1604,7 +1630,10 @@ let scan_raw_bindings ~runtime text =
                  | None ->
                      if tx_is_name_start text.[w] then
                        let (nm, e) = tx_read_name w in
-                       if e < n && text.[e] = '=' && (e + 1 >= n || text.[e + 1] <> '=') then
+                       (* A chain link needs a blank before it: an abutting
+                          `foo=bar` is the value (`x=foo=bar` binds only
+                          `x`), while `x= A=1` extends the chain. *)
+                       if blank && e < n && text.[e] = '=' && (e + 1 >= n || text.[e + 1] <> '=') then
                          tx_after_eq ((nm, w, e) :: acc) (e + 1)
                        else if blank then None
                        else
