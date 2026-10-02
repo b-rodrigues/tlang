@@ -609,7 +609,9 @@ let lang_of_runtime = function
 (* Reserved words that never end an expression: a quote directly after
    one opens a literal (return 'x'), never a transpose. Value-capable
    words (end, true, false) and contextual ones (outer, type) are
-   deliberately absent: they can end an expression. *)
+   deliberately absent: they can end an expression. If Julia gains
+   reserved words, add them here; the Julia manual keeps the full
+   reserved-words list. *)
 let julia_hard_keywords =
   [ "baremodule"; "begin"; "break"; "catch"; "const"; "continue"; "do";
     "else"; "elseif"; "export"; "for"; "function"; "global"; "if";
@@ -644,7 +646,12 @@ let strip_noncode_spans ?(lang : raw_lang option = None) text =
      literal opens, including after hard keywords that never end an
      expression (`return 'x'`). Non-ASCII bytes transpose (Unicode
      identifiers). Only clear literal shapes blank; ambiguity stays
-     visible. Julia has no triple-single-quoted strings. *)
+     visible. Julia has no triple-single-quoted strings. Known gap:
+     byte ranges cannot separate Unicode letters from Unicode operators,
+     so a literal right after a Unicode operator reads as transpose;
+     that spot needs a quote or hash literal to matter, which is rare.
+     Fixing it means decoding the previous UTF-8 character and checking
+     a small operator set. *)
   let julia_squote_end i =
     let is_word_byte c =
       match c with
