@@ -1519,51 +1519,124 @@ let scan_raw_bindings ~runtime text =
          | _ -> tx_skip_word (j + 1)
        in
        (* Skip blanks and line continuations; classify what follows:
-          [`End] (statement over: persists), [`Word] (a word follows). *)
+          [`End] (statement over, a completed `&&`/`||`, or a `#`
+          comment: the assignment already ran), [`BgPipe] (lone `&`/`|`
+          runs in a background job or pipeline subshell: no persist),
+          [`Word] (a word follows). *)
        let rec tx_skip_blanks j =
          if j >= n then `End
          else match text.[j] with
          | ' ' | '\t' | '\r' -> tx_skip_blanks (j + 1)
          | '\\' when j + 1 < n && text.[j + 1] = '\n' -> tx_skip_blanks (j + 2)
-         | '\n' | ';' | '&' | '|' -> `End
-         | '#' -> `End
+         | '\n' | ';' | '#' -> `End
+         | '&' -> if j + 1 < n && text.[j + 1] = '&' then `End else `BgPipe
+         | '|' -> if j + 1 < n && text.[j + 1] = '|' then `End else `BgPipe
          | _ -> `Word j
        in
-       (* Persistence walk: [acc] holds the chain (outer first).
-          [tx_value] parses one value word after a `=`; [tx_after_value]
-          decides what follows it. *)
-       let rec tx_value acc j =
-         match tx_skip_blanks j with
-         | `End -> Some acc
-         | `Word w ->
-             if text.[w] = '(' then
-               (* Array assignment `A=(...)`: balanced, then re-evaluate. *)
-               (match tx_skip_balanced '(' ')' 0 (w + 1) with
-                | None -> None
-                | Some e -> tx_after_value acc e)
-             else
-               (* Any other single word is the value (bare names included:
-                  `FOO=bar` binds). *)
-               (match tx_skip_word w with
-                | None -> None
-                | Some e -> tx_after_value acc e)
-       (* Just past a value word: blanks, then end (persists), another
-          `NAME=` (chain continues), or a command (prefix). `(` opens a
-          subshell command: prefix. *)
+       (* Skip blanks, reporting whether any were skipped. *)
+       let skip_blanks_nb j =
+         let rec loop k blank =
+           if k >= n then (k, blank)
+           else match text.[k] with
+           | ' ' | '\t' | '\r' -> loop (k + 1) true
+           | '\\' when k + 1 < n && text.[k + 1] = '\n' -> loop (k + 2) true
+           | _ -> (k, blank)
+         in
+         loop j false
+       in
+       (* Skip one I/O redirect starting at word [w]: optional fd digits,
+          `<`/`>`/`>>`, then a target word. `<<` heredocs bail (None):
+          bodies are out of scope, so the edge stays. `<(` consumes the
+          balanced substitution as its own target. A bare `&` never
+          reaches here (background). Returns the index past the target,
+          or None when malformed. *)
+       let rec tx_redirect w =
+         let k = ref w in
+         while !k < n && text.[!k] >= '0' && text.[!k] <= '9' do incr k done;
+         if !k >= n then None
+         else match text.[!k] with
+         | '>' ->
+             incr k;
+             if !k < n && text.[!k] = '>' then incr k;
+             tx_redirect_target !k
+         | '<' ->
+             if !k + 1 < n && text.[!k + 1] = '<' then None
+             else if !k + 1 < n && text.[!k + 1] = '(' then
+               tx_skip_balanced '(' ')' 0 (!k + 2)
+             else begin
+               incr k;
+               tx_redirect_target !k
+             end
+         | _ -> None
+       (* After a redirect operator: blanks, then one target word (any
+          shape, even `&2` or `-`); anything else is malformed. *)
+       and tx_redirect_target k =
+         let rec blanks t =
+           if t >= n then None
+           else match text.[t] with
+           | ' ' | '\t' | '\r' -> blanks (t + 1)
+           | '\\' when t + 1 < n && text.[t + 1] = '\n' -> blanks (t + 2)
+           | '#' -> None
+           | _ -> Some t
+         in
+         match blanks k with
+         | None -> None
+         | Some t -> tx_skip_word t
+       (* Persistence from just past `=` (chain [acc], outer first).
+          `(` abutting `=` opens an array assignment (balanced, then
+          re-evaluate). Otherwise blanks decide: end persists (possibly
+          empty value); a redirect skips to after its target; a bare
+          `NAME=` extends the chain; an abutting word is the value;
+          anything else is a command (prefix only). *)
+       and tx_after_eq acc j =
+         if j < n && text.[j] = '(' then
+           (match tx_skip_balanced '(' ')' 0 (j + 1) with
+            | None -> None
+            | Some e -> tx_after_value acc e)
+         else
+           let (b, blank) = skip_blanks_nb j in
+           (match tx_skip_blanks b with
+            | `End -> Some acc
+            | `BgPipe -> None
+            | `Word w ->
+                (match tx_redirect w with
+                 | Some e -> tx_after_value acc e
+                 | None ->
+                     if tx_is_name_start text.[w] then
+                       let (nm, e) = tx_read_name w in
+                       if e < n && text.[e] = '=' && (e + 1 >= n || text.[e + 1] <> '=') then
+                         tx_after_eq ((nm, w, e) :: acc) (e + 1)
+                       else if blank then None
+                       else
+                         (match tx_skip_word w with
+                          | None -> None
+                          | Some e2 -> tx_after_value acc e2)
+                     else if blank then None
+                     else
+                       (match tx_skip_word w with
+                        | None -> None
+                        | Some e2 -> tx_after_value acc e2)))
+       (* Just past a value/array/redirect: blanks, then end (persists),
+          a redirect (skip, re-evaluate), another `NAME=` (chain), or a
+          command/subshell (prefix). `(` opens a subshell: prefix. *)
        and tx_after_value acc j =
          match tx_skip_blanks j with
          | `End -> Some acc
+         | `BgPipe -> None
          | `Word w ->
-             if text.[w] = '(' then None
-             else if tx_is_name_start text.[w] then
-               let (nm, e) = tx_read_name w in
-               if e < n && text.[e] = '=' && (e + 1 >= n || text.[e + 1] <> '=') then
-                 tx_value ((nm, w, e) :: acc) (e + 1)
-               else None
-             else None
+             (match tx_redirect w with
+              | Some e -> tx_after_value acc e
+              | None ->
+                  if text.[w] = '(' then None
+                  else if tx_is_name_start text.[w] then
+                    let (nm, e) = tx_read_name w in
+                    if e < n && text.[e] = '=' && (e + 1 >= n || text.[e + 1] <> '=') then
+                      tx_after_eq ((nm, w, e) :: acc) (e + 1)
+                    else None
+                  else None)
        in
        let sh_persists nm pos veq =
-         match tx_value [(nm, pos, veq)] (veq + 1) with
+         match tx_after_eq [(nm, pos, veq)] (veq + 1) with
          | Some chain -> Some (List.rev chain)
          | None -> None
        in
