@@ -217,7 +217,7 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
      honest catch-all tails (`to_factor.x`, `ordered.x`, both `Vector |
      List | Any` against implementations that stringify anything) count
      as imprecise instead of riding on a truncated first member. *)
-  let coverage_floor = 405 in
+  let coverage_floor = 410 in
   (* The registry fills from --# source comments (same as `t doc
      --parse`); without it every builtin falls back to all-Any and the
      audit would measure nothing. Skip gracefully outside a checkout. *)
