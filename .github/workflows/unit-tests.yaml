@@ -48,6 +48,12 @@ jobs:
       - name: Build T
         run: nix develop --accept-flake-config --command dune build
 
+      - name: Probe Julia toolchain (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          nix develop --accept-flake-config --command bash -c 'which julia && julia --version'
+          nix show-config | grep -i sandbox || true
+
       - name: Run test suite
         run: nix develop --accept-flake-config --command dune test
 

@@ -197,6 +197,8 @@ If you use a custom format name (e.g., `format: "myformat"`), you should ensure 
 
 For ONNX specifically, Julia nodes read model artifacts through `ONNXRunTime.jl` via the built-in `jl_read_onnx()` helper. Julia ONNX export is not supported yet, so `jl_write_onnx()` fails explicitly instead of silently falling back to another format.
 
+Python scikit-learn export stamps opset 21 (`target_opset=21` in `convert_sklearn`). Newer `skl2onnx` defaults to opset 22, which `ONNXRunTime` rejects (official support ends at 21), so the pin keeps artifacts loadable in every supported consumer, including T-native `predict`.
+
 ---
 
 ## Next Steps
