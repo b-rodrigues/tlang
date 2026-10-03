@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.56.0] - unreleased
+
+### New features
+
+### Fixes
+
 ## [0.55.5] - 2026-10-03
 
 ### New features
