@@ -1,0 +1,145 @@
+{
+	"Type": "File",
+	"Pos": {
+		"Offset": 0,
+		"Line": 1,
+		"Col": 1
+	},
+	"End": {
+		"Offset": 11,
+		"Line": 1,
+		"Col": 12
+	},
+	"Stmts": [
+		{
+			"Pos": {
+				"Offset": 0,
+				"Line": 1,
+				"Col": 1
+			},
+			"End": {
+				"Offset": 11,
+				"Line": 1,
+				"Col": 12
+			},
+			"Cmd": {
+				"Type": "CallExpr",
+				"Pos": {
+					"Offset": 0,
+					"Line": 1,
+					"Col": 1
+				},
+				"End": {
+					"Offset": 11,
+					"Line": 1,
+					"Col": 12
+				},
+				"Args": [
+					{
+						"Pos": {
+							"Offset": 0,
+							"Line": 1,
+							"Col": 1
+						},
+						"End": {
+							"Offset": 4,
+							"Line": 1,
+							"Col": 5
+						},
+						"Parts": [
+							{
+								"Type": "Lit",
+								"Pos": {
+									"Offset": 0,
+									"Line": 1,
+									"Col": 1
+								},
+								"End": {
+									"Offset": 4,
+									"Line": 1,
+									"Col": 5
+								},
+								"ValuePos": {
+									"Offset": 0,
+									"Line": 1,
+									"Col": 1
+								},
+								"ValueEnd": {
+									"Offset": 4,
+									"Line": 1,
+									"Col": 5
+								},
+								"Value": "echo"
+							}
+						]
+					},
+					{
+						"Pos": {
+							"Offset": 5,
+							"Line": 1,
+							"Col": 6
+						},
+						"End": {
+							"Offset": 11,
+							"Line": 1,
+							"Col": 12
+						},
+						"Parts": [
+							{
+								"Type": "ParamExp",
+								"Pos": {
+									"Offset": 5,
+									"Line": 1,
+									"Col": 6
+								},
+								"End": {
+									"Offset": 11,
+									"Line": 1,
+									"Col": 12
+								},
+								"Dollar": {
+									"Offset": 5,
+									"Line": 1,
+									"Col": 6
+								},
+								"Rbrace": {
+									"Offset": 10,
+									"Line": 1,
+									"Col": 11
+								},
+								"Param": {
+									"Pos": {
+										"Offset": 7,
+										"Line": 1,
+										"Col": 8
+									},
+									"End": {
+										"Offset": 10,
+										"Line": 1,
+										"Col": 11
+									},
+									"ValuePos": {
+										"Offset": 7,
+										"Line": 1,
+										"Col": 8
+									},
+									"ValueEnd": {
+										"Offset": 10,
+										"Line": 1,
+										"Col": 11
+									},
+									"Value": "src"
+								}
+							}
+						]
+					}
+				]
+			},
+			"Position": {
+				"Offset": 0,
+				"Line": 1,
+				"Col": 1
+			}
+		}
+	]
+}
