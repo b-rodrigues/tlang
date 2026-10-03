@@ -1473,7 +1473,7 @@ def py_write_onnx(model, path):
         from skl2onnx.common.data_types import FloatTensorType
         n_features = _infer_n_features(model)
         initial_types = [("input", FloatTensorType([None, n_features]))]
-        onnx_model = convert_sklearn(model, initial_types=initial_types)
+        onnx_model = convert_sklearn(model, initial_types=initial_types, target_opset=21)
         with open(path, "wb") as f:
             f.write(onnx_model.SerializeToString())
         return path
