@@ -182,26 +182,31 @@ dune runtest
 Add a short line per reviewed module below, in order.
 Use format: `- [x] <MODULE>: <result>`.
 Result is one of: `OK`, `REPAIRED`, `SPLIT`, `REMOVED`.
-Example: `- [x] Test_arithmetic: REPAIRED, 3 weak assertions fixed`.
+Method: modules 1-22 read fully line by line; modules 23-109 verified
+passing (in `--only` batches, not strictly one module at a time) plus
+placeholder and weak-pattern scans, with full reads for flagged modules
+(`test_na.ml`, `test_converters.ml`, `test_property.ml`,
+`test_explain_tests.ml`, `test_unions.ml`). Entries marked "part of N
+pass batch" mean pass-verified plus scans, not a full line-by-line read.
 
 Start of log:
 
-- [x] Test_arithmetic: REPAIRED, unary minus test used binary 0-5, changed to true unary -5; strengthened with float negate double negation negated parens
-- [x] Test_comparisons: OK, 7 tests exercise comparison operators, minimal but valid; strengthened to 20 tests with false branches mixed string error NA date factor
+- [x] Test_arithmetic: REPAIRED, unary minus test used binary 0-5, changed to true unary -5; strengthened with float negate double negation negated parens; converted to exact test_env matching
+- [x] Test_comparisons: OK, 7 tests exercise comparison operators, minimal but valid; strengthened to 24 tests with false branches mixed string error NA date factor string-order error date equality chained-parse error; converted to exact test_env matching
 - [x] Test_logical: OK, short-circuit with 1/0 proves laziness, broadcast and identical strong
 - [x] Test_in: OK, scalar vector error NA cases strong
 - [x] Test_operators: OK, 70+ tests cover arithmetic compare logic broadcast NA, Negate Int confirms unary fix
 - [x] Test_scalar_strictness: OK, scalar vs broadcast error hints strong
-- [x] Test_typing_mode: OK, typed generic lambdas plus manual OCaml checks justified, coverage floor 382 holds
+- [x] Test_typing_mode: OK, typed generic lambdas plus manual OCaml checks justified; floor raised 382 to 444 over this branch, verbose queue flag added
 - [x] Test_bitwise_error: OK, scalar-only error hints strong
 - [x] Test_variables: OK, immutability := NA error propagation valid
 - [x] Test_functions: OK, lambda closure autoquote arity strong
 - [x] Test_strings: OK, 100+ tests unicode vector error cases strong
 - [x] Test_pipe: OK, pipe vs maybe-pipe error forward strong
-- [x] Test_ifelse: OK, minimal 3 tests valid; strengthened to 8 tests with NA non-bool error propagation nested else-if
+- [x] Test_ifelse: OK, minimal 3 tests valid; strengthened to 8 tests with NA non-bool error propagation nested else-if; converted to exact test_env matching
 - [x] Test_match: OK, pattern arms plus manual exhaustiveness checks justified
 - [x] Test_lists: OK, head tail slicing arity edge cases strong
-- [x] Test_dicts: OK, literal access missing key strong; strengthened with nested access nested missing key length
+- [x] Test_dicts: OK, literal access missing key strong; strengthened with nested access nested missing key length; converted to exact test_env matching
 - [x] Test_builtins: OK, seq sum map filesystem path introspection strong
 - [x] Test_chrono: OK, dates plus manual yojson checks justified
 - [x] Test_rng: OK, sample slice_sample plus determinism env checks justified
@@ -213,7 +218,7 @@ Start of log:
 - [x] Test_na_edge_cases: OK, passes in batch 484/484
 - [x] Test_errors: OK, error constructors propagation strong
 - [x] Test_records: OK, record literals access strong
-- [x] Test_unions: OK, union type handling strong
+- [x] Test_unions: OK, record and union construction plus match_union_diagnostics cases (missing unknown shadow catch-all) strong
 - [x] Test_expect_equal: OK, equality assertion framework strong
 - [x] Test_expect_more: OK, extended matchers strong
 - [x] Test_expect_condition: OK, condition checks strong
@@ -252,7 +257,7 @@ Start of log:
 - [x] Test_pmml_lightgbm: OK, part of 186 pass batch
 - [x] Test_onnx_native: OK, part of 186 pass batch
 - [x] Test_broom_golden: OK, part of 186 pass batch
-- [x] Test_explain_tests: REPAIRED, builtin arg name needed help(explain) to load docs, was order-dependent arg1 vs x
+- [x] Test_explain_tests: REPAIRED, product bug fixed in t_explain.ml (explain now calls ensure_docs, deterministic x); test reverted to direct form, 58 pass in isolation
 - [x] Test_cli: OK, part of 186 pass batch
 - [x] Test_demo: OK, part of 186 pass batch
 - [x] Test_golden: OK, part of 169 pass batch
@@ -269,7 +274,7 @@ Start of log:
 - [x] Test_package_manager: OK, part of 337 pass batch
 - [x] Test_toml_parser: OK, part of 337 pass batch
 - [x] Test_lens: OK, part of 337 pass batch
-- [x] Test_serializers: OK, onnx placeholder throws descriptive error, no silent magic
+- [x] Test_serializers: OK, onnx writer is an explicit descriptive error (documents an unsupported path, not a stub test), no silent magic
 - [x] Test_quotation: OK, part of 337 pass batch
 - [x] Test_pipeline_ops: OK, part of 301 pass batch
 - [x] Test_explicit_deps: OK, part of 301 pass batch

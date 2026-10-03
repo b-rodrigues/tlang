@@ -6,7 +6,7 @@ Combines multiple factor vectors while reconciling their levels.
 
 ## Parameters
 
-- **...**: Vector[Factor] Factor vectors to concatenate.
+- **...** (`Vector | List`): Factor vectors to concatenate.
 
 
 ## Returns

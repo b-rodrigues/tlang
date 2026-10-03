@@ -216,7 +216,7 @@ statically. Sound (never wrong) but toothless.
   are honest by design: true-`Any` contracts (`is_*`, `expect_*`,
   `print`, `get`), bottom/descriptive positions (`NA`, `Null`, `Error`,
   `VError` — deliberately excluded), and `Any`-absorbed unions
-  (`ifelse`, `to_factor`, `ordered` catch-alls). Cap sits near 444.
+  (`ifelse`, `to_factor`, `ordered` catch-alls). Cap sits at 444.
   `TLANG_TYPING_VERBOSE=1` prints the per-builtin queue.
 
 **Acceptance.**

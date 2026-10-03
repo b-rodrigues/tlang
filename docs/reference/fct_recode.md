@@ -8,7 +8,7 @@ Recodes existing factor levels using named replacements.
 
 - **x** (`Vector[Factor]`): A factor vector.
 
-- **...**: Named replacements in the form `new_name = old_name`.
+- **...** (`String`): Named replacements in the form `new_name = old_name`.
 
 
 ## Returns
