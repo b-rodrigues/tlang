@@ -151,6 +151,8 @@ and analyze_stmt_for_pipeline_call stmt =
   | Assignment { expr; _ }
   | Reassignment { expr; _ } ->
       analyze_expr_for_pipeline_call expr
+  (* Static type declarations never build pipelines. *)
+  | TypeDecl _ -> MissingPipelineBuildCall
   | Import _
   | ImportPackage _
   | ImportFrom _

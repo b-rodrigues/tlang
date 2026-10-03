@@ -6,7 +6,7 @@ Passes if a List, Dict, Vector, String, or DataFrame is empty (0 elements/rows/l
 
 ## Parameters
 
-- **actual** (`List`): | Dict | Vector | String | DataFrame The container to check.
+- **actual** (`List | Dict | Vector | String | DataFrame`): The container to check.
 
 
 ## Returns

@@ -11,7 +11,7 @@ Coerces a value to an integer robustly. Handles strings with spaces, percentages
 
 ## Returns
 
-| NA The converted integer.
+The converted integer.
 
 ## Examples
 

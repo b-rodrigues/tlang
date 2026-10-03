@@ -309,6 +309,11 @@ let run_test_file ?(base_env : Ast.environment option) (file : string) : test_re
     { file; success = false;
       error_msg = Some msg;
       duration }
+  | Ast.Invalid_type_declaration msg ->
+    let duration = Unix.gettimeofday () -. start in
+    { file; success = false;
+      error_msg = Some msg;
+      duration }
   | Sys_error msg ->
     let duration = Unix.gettimeofday () -. start in
     { file; success = false;

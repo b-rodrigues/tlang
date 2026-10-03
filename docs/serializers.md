@@ -36,9 +36,7 @@ node(..., serializer = my_ser)
 ```
 
 > [!IMPORTANT]
-> **String literals (e.g., `serializer = "ipc"`) are strictly disallowed in node constructors** (`rn()`, `pyn()`, `jln()`, `shn()`, `qn()`, `node()`). You must use either a symbol with the `^` prefix for built-ins or a variable name for custom serializers. Using a string literal in a node constructor will result in a `TypeError`.
->
-> `mutate_node()` and `set_pipeline_global_options()` accept both strings and symbols: `mutate_node($serializer = "pmml")` and `set_pipeline_global_options(p, serializer = ^pmml)` are both valid.
+> **String literals (e.g., `serializer = "ipc"`) are strictly disallowed in strategy positions** (`rn()`, `pyn()`, `jln()`, `shn()`, `qn()`, `node()`, `mutate_node()`, `set_pipeline_global_options()`, `fetchurl()`). You must use either a symbol with the `^` prefix for built-ins or a strategy dict for custom formats. Using a string literal will result in a `TypeError`.
 
 
 ### Implicit Serialization
@@ -95,26 +93,26 @@ type serializer = {
 
 ### Custom Serializers
 
-You can create a custom serializer by defining a record that matches the required interface. Note that the `format` field should use a **Symbol** (starting with `^`) to remain consistent with T's symbol-based serialization mandate.
+You can create a custom serializer with a strategy dict. The dict has closed keys: `format` (always present, a `^`-prefixed symbol) plus inline `<{ ... }>` code snippets per runtime (`r_writer`, `r_reader`, `py_writer`, `py_reader`, `julia_writer`, `julia_reader`). `t check` and pipeline validation enforce the shape: unknown keys, a missing `format`, non-code snippets, and custom formats without a snippet for the node's runtime are all errors. Custom formats are not supported on `T` nodes (builtins only) or on `sh` and `fetchurl` nodes, and `Quarto` nodes take no serializer or deserializer at all.
 
 ```t
-my_log_serializer = {
+my_log_serializer = [
   format: ^log,
-  writer: \(path, val) {
-    -- custom logic to write log
-    Ok(NA)
-  },
-  reader: \(path) {
-    -- custom logic to read log
-    Ok("log content")
-  }
-}
+  r_writer: <{ function(obj, path) writeLines(obj, path) }>,
+  r_reader: <{ function(path) readLines(path) }>,
+  py_writer: <{ lambda obj, path: open(path, 'w').write(str(obj)) }>,
+  py_reader: <{ lambda path: open(path).read() }>
+]
 
--- Usage: Pass the variable name (no ^ hat on the variable itself!)
+-- Usage: pass the variable name (no ^ hat on the variable itself!)
 node(command = ..., serializer = my_log_serializer)
 ```
 
 For a complete example of a cross-language custom serializer (YAML), see the [Custom Polyglot Serializer Demo](https://github.com/b-rodrigues/t_demos/blob/master/custom_polyglot_serializer_t/src/pipeline.t) in the `t_demos` repository.
+
+### Per-Dependency Maps
+
+A dict without a `format` key is a per-dependency map (`[reader: ^csv, writer: ^json]`): each key must name a real dependency of the node, otherwise validation fails naming the valid set. Two naming rules apply. A map with a `format` key is always a strategy dict, never a per-dependency map — even when `format` is also a dependency name, so a dependency literally named `format` cannot be keyed in map form (rename it). Map keys track pattern expansion: after `expand_pipeline` renames branch dependencies (`mid` → `mid_branch_1`), each branch entry keys the renamed dependency, so the chosen strategies keep applying instead of falling back to `default`.
 
 ## 4. Static Coherence Checks
 
@@ -137,7 +135,7 @@ This prevents runtime errors after long-running computations by catching interch
 
 ## 5. Serializer Runtime Dependencies
 
-When you build a pipeline, T scans every node's serializer and runtime to determine which packages are needed, then checks `tproject.toml` for those packages. If any are missing, T **prompts you** with the exact `[r-dependencies]`, `[py-dependencies]`, and `[jl-dependencies]` entries to add before proceeding. You must then run `t update` and re-enter `nix develop` for the packages to become available. (Set `TLANG_AUTO_ADD_PIPELINE_DEPS=1` to skip the prompt in CI — T auto-appends the missing entries and exits with instructions to rerun the build.)
+When you build a pipeline, T scans every node's serializer and runtime to determine which packages are needed, then checks `tproject.toml` for those packages. If any are missing, T **prompts you** with the exact `[r-dependencies]`, `[py-dependencies]`, and `[jl-dependencies]` entries to add before proceeding. You must then run `t update` and re-enter `nix develop` for the packages to become available. (Set `TLANG_AUTO_ADD_PIPELINE_DEPS=1` to skip the prompt in CI — T auto-appends the missing entries and exits with instructions to rerun the build. Per-command equivalents: `t run --yes <file.t>` answers yes, `t run --no <file.t>` declines; `--no` always wins, and `--yes` still requires `tproject.toml` to exist.)
 
 The table below shows which packages each format pulls in per runtime:
 
@@ -198,6 +196,8 @@ When T processes a node with an `R` runtime and the above serializer:
 If you use a custom format name (e.g., `format: "myformat"`), you should ensure that your R or Python scripts have the necessary libraries loaded to handle that format. You can do this by adding the libraries to your `tproject.toml` or using the `functions` / `includes` parameters in the node definition.
 
 For ONNX specifically, Julia nodes read model artifacts through `ONNXRunTime.jl` via the built-in `jl_read_onnx()` helper. Julia ONNX export is not supported yet, so `jl_write_onnx()` fails explicitly instead of silently falling back to another format.
+
+Python scikit-learn export stamps opset 21 (`target_opset=21` in `convert_sklearn`). Newer `skl2onnx` defaults to opset 22, which `ONNXRunTime` rejects (official support ends at 21), so the pin keeps artifacts loadable in every supported consumer, including T-native `predict`.
 
 ---
 

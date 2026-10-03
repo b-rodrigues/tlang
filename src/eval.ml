@@ -53,6 +53,8 @@ and desugar_nse_stmt stmt =
   | Expression e -> Ast.mk_stmt ?loc (Expression (desugar_nse_expr e))
   | Assignment { name; typ; expr } -> Ast.mk_stmt ?loc (Assignment { name; typ; expr = desugar_nse_expr expr })
   | Reassignment { name; expr } -> Ast.mk_stmt ?loc (Reassignment { name; expr = desugar_nse_expr expr })
+  (* Type declarations hold static annotations only; nothing to desugar. *)
+  | TypeDecl _ -> stmt
   | Import _ | ImportPackage _ | ImportFrom _ | ImportFileFrom _ -> stmt
 
 let rec expr_uses_named_scope_fields fields (expr : Ast.expr) : bool =
@@ -84,6 +86,8 @@ let rec expr_uses_named_scope_fields fields (expr : Ast.expr) : bool =
         | Expression e -> expr_uses_named_scope_fields fields e
         | Assignment { expr; _ } | Reassignment { expr; _ } ->
             expr_uses_named_scope_fields fields expr
+        (* Static annotations never reference row scopes. *)
+        | TypeDecl _ -> false
         | Import _ | ImportPackage _ | ImportFrom _ | ImportFileFrom _ -> false
       ) stmts
   | Lambda _ | Value _ | RawCode _ | ShellExpr _ -> false
@@ -185,6 +189,8 @@ let rec desugar_named_scope_expr ~root ~fields (expr : Ast.expr) : Ast.expr =
                          name;
                          expr = desugar_named_scope_expr ~root ~fields expr;
                        })
+                (* Static annotations need no scope rewrite. *)
+                | TypeDecl _ -> stmt
                 | Import _ | ImportPackage _ | ImportFrom _ | ImportFileFrom _ -> stmt)
               stmts))
   | Unquote e ->
@@ -480,6 +486,8 @@ and uses_nse_stmt stmt =
   | Expression e -> uses_nse e
   | Assignment { expr; _ } -> uses_nse expr
   | Reassignment { expr; _ } -> uses_nse expr
+  (* Static annotations contain no column references. *)
+  | TypeDecl _ -> false
   | Import _ | ImportPackage _ | ImportFrom _ | ImportFileFrom _ -> false
 
 let is_standard_package = function
@@ -942,6 +950,20 @@ let rec match_pattern (pattern : Ast.match_pattern) (value : Ast.value)
         | Some name -> Some [ (name, VString err.message) ]
         | None -> Some []
       end
+  | PUnion { pu_case; pu_args }, VUnion u when u.un_case = pu_case ->
+      let rec match_payloads pats vals bindings =
+        match pats, vals with
+        | [], [] -> Some bindings
+        | _ :: _, [] | [], _ :: _ -> None
+        | pat :: rest_pats, v :: rest_vals ->
+            (match match_pattern pat v with
+             | None -> None
+             | Some matched ->
+                 (match merge_match_bindings bindings matched with
+                  | None -> None
+                  | Some combined -> match_payloads rest_pats rest_vals combined))
+      in
+      match_payloads pu_args u.un_payload []
   | PList (patterns, rest_name), VList items ->
       let rec match_list remaining_patterns remaining_items bindings =
         match remaining_patterns, remaining_items with
@@ -1007,10 +1029,30 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
     | Var s ->
         (match Env.find_opt s !env_ref with
         | Some v -> v
-        | None -> 
+        | None ->
             (match !Ast.node_resolver s with
              | Some v -> v
-             | None -> name_error_with_lazy_suggestion s env_ref))
+             | None ->
+                 (* First-class union cases: an unbound name owned by exactly
+                    one union type resolves to its constructor, so cases pass
+                    as values (`map(Circle)`, `f = Circle`). Bound variables
+                    always win (normal scoping); shared case names fail
+                    naming every owner type, as at call sites. *)
+                 (match find_union_case !env_ref s with
+                  | [(tname, payload_types)] ->
+                      Ast.make_builtin_named ~name:(tname ^ "." ^ s)
+                        (List.length payload_types) (fun named_args _env ->
+                          if List.exists (fun (n, _) -> n <> None) named_args then
+                            Error.make_error Ast.ArityError
+                              (Printf.sprintf "Case `%s` of `%s` takes positional arguments only." s tname)
+                          else
+                            construct_union_case tname s payload_types (List.map snd named_args))
+                  | (_, _) :: _ as candidates ->
+                      let owners = List.map fst candidates |> List.sort_uniq String.compare in
+                      Error.make_error Ast.ArityError
+                        (Printf.sprintf "Case `%s` is defined by types %s. Rename one case."
+                           s (String.concat ", " owners))
+                  | [] -> name_error_with_lazy_suggestion s env_ref)))
     
     | ColumnRef field ->
         (match Env.find_opt ("$" ^ field) !env_ref with
@@ -1129,10 +1171,22 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
         let lookup_serializer_arg name default =
           match List.assoc_opt (Some name) args with
           | Some e ->
-            let v = eval_expr env_ref e in
-            (match validate_no_strings name v with
-             | Some err -> Ast.mk_expr (Ast.Value err)
-             | None -> Ast.mk_expr (Ast.Value v))
+            (* Closed strategies: a bare unbound name is never a strategy.
+               Bound names (variables holding a strategy, `default`, runtime
+               words) evaluate normally; anything unbound fails here naming
+               the valid set and the strategy-dict form, instead of
+               surfacing as a bare NameError far from the contract. *)
+            (match e.node with
+             | Var v when Env.find_opt v !env_ref = None && !Ast.node_resolver v = None ->
+                 let valid = String.concat ", " (List.map (fun f -> "^" ^ f) Pipeline_validation.known_serializer_formats) in
+                 Ast.mk_expr (Ast.Value (Error.type_error
+                   (Printf.sprintf "Unknown strategy `%s` for `%s`. Valid built-in formats: %s. For a custom format, define a strategy dict [format: ^name, ...snippets] (see docs/serializers.md)."
+                      v name valid)))
+             | _ ->
+                 let v = eval_expr env_ref e in
+                 (match validate_no_strings name v with
+                  | Some err -> Ast.mk_expr (Ast.Value err)
+                  | None -> Ast.mk_expr (Ast.Value v)))
           | None -> default
         in
         let lookup_env_vars () =
@@ -1468,7 +1522,7 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                         let buf = Bytes.create n in
                         really_input ic buf 0 n;
                         Bytes.to_string buf)
-                      in Ast.extract_identifiers content
+                      in Ast.extract_identifiers ~lang:(Some (Ast.lang_of_runtime runtime)) content
                     with Sys_error _ | End_of_file -> []
                     in (Ast.mk_expr (RawCode { raw_text = ""; raw_identifiers = ids }), Some path)
                 | None -> (command, None)
@@ -1483,13 +1537,23 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                if runtime = "Quarto" && un_script = None then
                 Error.make_error TypeError
                   "Node with runtime `Quarto` requires `script` or `args.path`/`args.file`/`args.qmd_file`/`args.input` to point to a `.qmd` file."
-              else if runtime <> "T" && runtime <> "Quarto" then
+              else
+                (* Strategy errors (unknown bare names, string literals)
+                   fail the node() call itself so they surface at
+                   construction and check time, instead of lying buried
+                   inside the serializer field until build time. *)
+                let ser_expr = lookup_serializer_arg "serializer" default_serializer in
+                let des_expr = lookup_serializer_arg "deserializer" default_deserializer in
+                (match ser_expr.node, des_expr.node with
+                 | Value (VError e), _ | _, Value (VError e) -> VError e
+                 | _ ->
+              if runtime <> "T" && runtime <> "Quarto" then
                 match un_command.node with
                 | RawCode _ ->
                     VNode {
                       un_command; un_script; un_runtime = runtime;
-                      un_serializer = lookup_serializer_arg "serializer" default_serializer;
-                      un_deserializer = lookup_serializer_arg "deserializer" default_deserializer;
+                      un_serializer = ser_expr;
+                      un_deserializer = des_expr;
                       un_env_vars; un_args;
                       un_shell = shell_opt;
                       un_shell_args = shell_args;
@@ -1506,8 +1570,8 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                 | Value (VString _) | Value (VSymbol _) | Value ((VNA NAGeneric)) when runtime = "sh" ->
                     VNode {
                       un_command; un_script; un_runtime = runtime;
-                      un_serializer = lookup_serializer_arg "serializer" default_serializer;
-                      un_deserializer = lookup_serializer_arg "deserializer" default_deserializer;
+                      un_serializer = ser_expr;
+                      un_deserializer = des_expr;
                       un_env_vars; un_args;
                       un_shell = shell_opt;
                       un_shell_args = shell_args;
@@ -1524,8 +1588,8 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                 | _ when Option.is_some un_script ->
                     VNode {
                       un_command; un_script; un_runtime = runtime;
-                      un_serializer = lookup_serializer_arg "serializer" default_serializer;
-                      un_deserializer = lookup_serializer_arg "deserializer" default_deserializer;
+                      un_serializer = ser_expr;
+                      un_deserializer = des_expr;
                       un_env_vars; un_args;
                       un_shell = shell_opt;
                       un_shell_args = shell_args;
@@ -1545,8 +1609,8 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
               else
                 VNode {
                   un_command; un_script; un_runtime = runtime;
-                  un_serializer = lookup_serializer_arg "serializer" default_serializer;
-                  un_deserializer = lookup_serializer_arg "deserializer" default_deserializer;
+                  un_serializer = ser_expr;
+                  un_deserializer = des_expr;
                   un_env_vars; un_args;
                   un_shell = shell_opt;
                   un_shell_args = shell_args;
@@ -1557,11 +1621,38 @@ and eval_expr (env_ref : environment ref) (expr : Ast.expr) : value =
                   un_pattern;
                   un_iteration;
                   un_flake;
-                }
+                })
 )
     | Call { fn; args } ->
-        let fn_val = Utils.unwrap_value (eval_expr env_ref fn) in
-        eval_call env_ref fn_val args
+        (match fn.node with
+         | Var fname when not (Env.mem fname !env_ref) ->
+             (* Unbound call head: it may be a union case (`Circle(1.0)`).
+                Bound names always resolve normally (never reach here), so
+                no shadowing surprise. Zero candidate cases fall through to
+                the ordinary path (same NameError with suggestions as
+                before); several candidates fail naming every owner type. *)
+             (match find_union_case !env_ref fname with
+              | [] ->
+                  let fn_val = Utils.unwrap_value (eval_expr env_ref fn) in
+                  eval_call env_ref fn_val args
+              | [(tname, payload_types)] ->
+                  (* Case payloads are positional (records own the named
+                     style). A named argument here names nothing, so it
+                     fails instead of silently dropping the name. *)
+                  (match List.find_opt (fun (n, _) -> n <> None) args with
+                   | Some _ ->
+                       Error.make_error Ast.ArityError
+                         (Printf.sprintf "Case `%s` of `%s` takes positional arguments only." fname tname)
+                   | None ->
+                       let arg_vals = List.map (fun (_, e) -> eval_expr env_ref e) args in
+                       construct_union_case tname fname payload_types arg_vals)
+              | candidates ->
+                  let owners = String.concat ", " (List.map fst candidates |> List.sort_uniq String.compare) in
+                  Error.make_error Ast.NameError
+                    (Printf.sprintf "Case `%s` is defined by types %s. Rename one case." fname owners))
+         | _ ->
+             let fn_val = Utils.unwrap_value (eval_expr env_ref fn) in
+             eval_call env_ref fn_val args)
 
     | Lambda l -> VLambda { l with env = Some !env_ref } (* Capture the current environment *)
 
@@ -1636,6 +1727,7 @@ and free_vars (expr : Ast.expr) : string list =
             | PVar name -> [name]
             | PError None -> []
             | PError (Some name) -> [name]
+            | PUnion { pu_args; _ } -> List.concat_map bound_vars pu_args
             | PList (patterns, rest) ->
                 let names = List.concat_map bound_vars patterns in
                 match rest with
@@ -1675,6 +1767,8 @@ and free_vars (expr : Ast.expr) : string list =
         let fv = collect false bound expr in
         (fv, name :: bound)
     | { node = Reassignment { expr; _ }; _ } -> (collect false bound expr, bound)
+    (* A type declaration binds its name with no free variables. *)
+    | { node = TypeDecl { tname; _ }; _ } -> ([], tname :: bound)
     | { node = Import _ | ImportPackage _ | ImportFrom _ | ImportFileFrom _; _ } -> ([], bound)
   in
   let vars = collect false [] expr in
@@ -2055,6 +2149,28 @@ and eval_pipeline ?(verbose=true) env_ref (nodes : (string * Ast.expr) list) : v
                  compute_deps ((name, explicit) :: acc) rest
          | None ->
              let fv = free_vars un.un_command in
+             (* For foreign blocks, subtract only purely shadowed names
+                (Ast.extract_shadowed_locals) before matching siblings, so a
+                local that shadows a sibling name cannot wire a phantom edge
+                (which could surface as a false dependency cycle). Names read
+                before (or inside the right-hand side of) their binding keep
+                a real edge. Uses inside those locals still count via the
+                identifiers pass, and read_node("name") literals are always
+                kept (the Quarto emitter rewrites them). Script-file nodes
+                carry no text, so they keep the previous behavior. *)
+             let fv =
+               match un.un_command.node with
+               | RawCode { raw_text; _ } when raw_text <> "" ->
+                   let code = Ast.extract_code_identifiers
+                     ~lang:(Some (Ast.lang_of_runtime un.un_runtime)) raw_text in
+                   let shadowed =
+                     Ast.extract_shadowed_locals ~runtime:un.un_runtime raw_text
+                   in
+                   let rnn = Ast.extract_read_node_names raw_text in
+                   List.sort_uniq String.compare
+                     (List.filter (fun v -> not (List.mem v shadowed)) code @ rnn)
+               | _ -> fv
+             in
              let is_raw = match un.un_command.node with RawCode _ -> true | _ -> false in
              let has_self_ref = List.exists (fun v -> v = name) fv in
              if has_self_ref && not is_raw then
@@ -2932,6 +3048,16 @@ and eval_dot_access_val env_ref target_val field =
     List.exists (fun (n, _) -> String.starts_with ~prefix:pfx n) p.p_exprs
   in
   match target_val with
+  | VRecord r ->
+      (* Closed record: exactly the declared fields exist. Anything else
+         names the valid set instead of guessing. *)
+      (match List.assoc_opt field r.rec_fields with
+       | Some v -> v
+       | None ->
+           Error.make_error KeyError
+             (Printf.sprintf "Field `%s` not found in `%s`. Valid fields: %s."
+                field r.rec_type
+                (String.concat ", " (List.map fst r.rec_fields))))
   | VDict pairs ->
       (match List.assoc_opt field pairs with
       | Some v -> v
@@ -3152,6 +3278,8 @@ and expand_autoquoted_unquotes (env_ref : environment ref) (expr : Ast.expr) : A
     | Expression e -> Ast.mk_stmt ?loc:stmt_loc (Expression (expand e))
     | Assignment { name; typ; expr = e } -> Ast.mk_stmt ?loc:stmt_loc (Assignment { name; typ; expr = expand e })
     | Reassignment { name; expr = e } -> Ast.mk_stmt ?loc:stmt_loc (Reassignment { name; expr = expand e })
+    (* Type declarations hold static annotations only; nothing to expand. *)
+    | TypeDecl _ -> stmt
     | Import _ | ImportPackage _ | ImportFrom _ | ImportFileFrom _ -> stmt
   in
   match expr.node with
@@ -3193,6 +3321,148 @@ and expand_autoquoted_unquotes (env_ref : environment ref) (expr : Ast.expr) : A
       Ast.mk_expr ?loc (Block (List.map expand_stmt stmts))
   | Value _ | Var _ | ColumnRef _ | RawCode _ | ShellExpr _ -> expr
 
+(** Find union types in scope defining `case_name`: every `(type_name,
+    payload_types)` pair. Used for union case construction, where an
+    unbound call head resolves to a case. Bound variables always win
+    (normal scoping); this runs only for names with no binding. *)
+and find_union_case (env : environment) (case_name : string)
+    : (string * Ast.typ list) list =
+  List.filter_map (fun (_, v) ->
+    match v with
+    | VTypeDef { td_name; td_def = Ast.UnionDef { ud_cases } } ->
+        (match List.assoc_opt case_name ud_cases with
+         | Some payload -> Some (td_name, payload)
+         | None -> None)
+    | _ -> None
+  ) (Env.bindings env)
+
+(** Coerce an Int payload to Float where the declared field type is Float.
+    Construction accepts Int for Float (relaxed numeric matching), but
+    storing the raw Int would break later generic-consistency checks that
+    treat Int and Float as distinct kinds. Recurses through List, Dict,
+    Vector, and Tuple positions; unions keep the payload as given (member
+    choice is ambiguous, and a perfect member must never be rewritten). *)
+and coerce_value ftyp v =
+  match ftyp, v with
+  | Ast.TFloat, Ast.VInt n -> Ast.VFloat (float_of_int n)
+  | Ast.TList (Some et), Ast.VList items ->
+      Ast.VList (List.map (fun (n, ev) -> (n, coerce_value et ev)) items)
+  | Ast.TList (Some et), Ast.VVector arr ->
+      Ast.VVector (Array.map (fun ev -> coerce_value et ev) arr)
+  | Ast.TDict (Some kt, Some vt), Ast.VDict pairs ->
+      Ast.VDict (List.map (fun (k, pv) ->
+        let k' = match coerce_value kt (Ast.VString k) with
+          | Ast.VString s -> s | _ -> k in
+        (k', coerce_value vt pv)) pairs)
+  | Ast.TTuple ts, Ast.VList items when List.length ts = List.length items ->
+      Ast.VList (List.map2 (fun t (_, ev) -> (None, coerce_value t ev)) ts items)
+  | _ -> v
+and coerce_float_field ftyp v = coerce_value ftyp v
+
+(** Built-in nominal type names: a user declaration with one of these
+    names (any case) would satisfy existing annotations through the
+    nominal `TCustom` rules — e.g. a user `Model` record would fit
+    `Model` parameters. Reject them at declaration instead. *)
+and builtin_nominal_names =
+  [ "Any"; "NA"; "Function"; "Strategy"; "Pipeline"; "MetaPipeline";
+    "Model"; "NDArray"; "Symbol"; "Date"; "Datetime"; "Formula"; "Lens";
+    "Expect"; "ComputedNode"; "NodeDef"; "Period"; "Duration"; "Interval";
+    "BuildLog"; "Record"; "ShellResult" ]
+
+and is_builtin_nominal tname =
+  let lower = String.lowercase_ascii tname in
+  List.exists (fun b -> String.lowercase_ascii b = lower) builtin_nominal_names
+
+(** Construct a union case value from evaluated arguments. Payload count
+    must equal the declared arity; each payload must satisfy its declared
+    type (NA flows through, as everywhere; error payloads fail
+    construction instead of building a union that carries the error). *)
+and construct_union_case tname cname payload_types (args : Ast.value list) : Ast.value =
+  if List.length args <> List.length payload_types then
+    Error.make_error Ast.ArityError
+      (Printf.sprintf "Case `%s` of `%s` expects %d argument(s), got %d."
+         cname tname (List.length payload_types) (List.length args))
+  else
+    (* Errors are bottom values: a failing payload fails construction
+       instead of building a union that carries the error. *)
+    (match List.find_opt Error.is_error_value args with
+     | Some e -> e
+     | None ->
+         (match List.find_opt (fun (ptyp, v) -> not (Ast.is_compatible v ptyp))
+                  (List.combine payload_types args) with
+          | Some (ptyp, v) ->
+              Error.type_error
+                (Printf.sprintf "Expected %s for `%s` of `%s`, got %s"
+                   (Ast.Utils.typ_to_string ptyp) cname tname (Ast.Utils.type_name v))
+          | None ->
+              Ast.VUnion { un_type = tname; un_case = cname;
+                           un_payload = List.map2 coerce_float_field payload_types args }))
+
+(** Construct a nominal closed record from evaluated call arguments.
+    Either every argument is positional (matched in field order) or every
+    argument is named (matched by field name) — mixing the two is an
+    explicit arity error, since a half-named call hides which field each
+    position fills. Unknown or missing fields name the valid set. *)
+and construct_record tname fields (named_args : (string option * Ast.value) list) : Ast.value =
+  let field_names = List.map fst fields in
+  let want_list = String.concat ", " field_names in
+  let all_positional = List.for_all (fun (n, _) -> n = None) named_args in
+  let all_named = List.for_all (fun (n, _) -> n <> None) named_args in
+  if not (all_positional || all_named) then
+    Error.make_error Ast.ArityError
+      (Printf.sprintf "Type `%s` takes either all positional or all named arguments, not a mix. Fields: %s."
+         tname want_list)
+  else if all_positional then
+    if List.length named_args <> List.length fields then
+      Error.make_error Ast.ArityError
+        (Printf.sprintf "Type `%s` expects %d argument(s) (fields: %s), got %d."
+           tname (List.length fields) want_list (List.length named_args))
+    else
+      let vals = List.map snd named_args in
+      (match List.find_opt Error.is_error_value vals with
+       | Some e -> e
+       | None ->
+           (match List.find_opt (fun ((_, ftyp), v) -> not (Ast.is_compatible v ftyp))
+                    (List.combine fields vals) with
+            | Some ((fname, ftyp), v) ->
+                Error.type_error
+                  (Printf.sprintf "Expected %s for field `%s` of `%s`, got %s"
+                     (Ast.Utils.typ_to_string ftyp) fname tname (Ast.Utils.type_name v))
+            | None ->
+                let ftyps = List.map snd fields in
+                Ast.VRecord { rec_type = tname;
+                              rec_fields = List.combine field_names
+                                (List.map2 coerce_float_field ftyps vals) }))
+  else
+    let given =
+      List.filter_map (fun (n, v) -> match n with Some s -> Some (s, v) | None -> None) named_args
+    in
+    (match List.find_opt (fun (n, _) -> not (List.mem n field_names)) given with
+     | Some (n, _) ->
+         Error.make_error Ast.ArityError
+           (Printf.sprintf "Unknown field `%s` for type `%s`. Valid fields: %s." n tname want_list)
+     | None ->
+         (match List.find_opt (fun n -> not (List.mem_assoc n given)) field_names with
+          | Some n ->
+              Error.make_error Ast.ArityError
+                (Printf.sprintf "Missing field `%s` for type `%s`. Valid fields: %s." n tname want_list)
+          | None ->
+               let given_vals = List.map (fun n -> List.assoc n given) field_names in
+               (match List.find_opt Error.is_error_value given_vals with
+                | Some e -> e
+                | None ->
+                    (match List.find_opt (fun (fname, ftyp) ->
+                              not (Ast.is_compatible (List.assoc fname given) ftyp)) fields with
+                     | Some (fname, ftyp) ->
+                         Error.type_error
+                           (Printf.sprintf "Expected %s for field `%s` of `%s`, got %s"
+                              (Ast.Utils.typ_to_string ftyp) fname tname
+                              (Ast.Utils.type_name (List.assoc fname given)))
+                     | None ->
+                         let ftyps = List.map snd fields in
+                         Ast.VRecord { rec_type = tname;
+                                       rec_fields = List.combine field_names
+                                         (List.map2 coerce_float_field ftyps given_vals) }))))
 and eval_call env_ref fn_val raw_args =
   let current_builtin_name =
     match fn_val with
@@ -3441,6 +3711,150 @@ and eval_call env_ref fn_val raw_args =
                 Some (Printf.sprintf "Expected %s, got %s" expected got)
             | _ -> None
           ) (List.combine fixed_args param_types) in
+          (* Generic consistency: a type variable occurring in several
+             parameter positions must receive the same kind of value.
+             Compared by type head only (constructors, payloads ignored),
+             so the check can never reject two values of the same kind;
+             custom types additionally compare by name (`Model` vs
+             `Pipeline` differ). Flexible positions (`Any`, including
+             reified NA and error values) never constrain and never bind:
+             the first *solid* value wins, so the check is order
+             independent (`(NA, 1, "s")` and `(1, "s", NA)` agree).
+             Nested type variables (e.g. inside List[T]) unify
+             structurally (see `consistent`, `unify` below).
+             Note: unlike [types_compatible], `Int` vs `Float` is a
+             mismatch here by design — widening answers "does this fit",
+             consistency asks "are these identical", and silent numeric
+             merging would be the wrong default. *)
+          let generic_errors =
+            let head_of = function
+              | Ast.TInt -> 1 | Ast.TFloat -> 2 | Ast.TBool -> 3
+              | Ast.TString -> 4 | Ast.TList _ -> 5 | Ast.TDict _ -> 6
+              | Ast.TTuple _ -> 7 | Ast.TVar _ -> 8 | Ast.TCustom _ -> 9
+              | Ast.TComputedNode -> 10 | Ast.TSerializer -> 11 | Ast.TExpr -> 12
+              | Ast.TArrow _ -> 13 | Ast.TDataFrame _ -> 14 | Ast.TUnion _ -> 15
+              | Ast.TUnknown -> 16
+            in
+            (* Flexible positions never bind and never constrain: `Any`,
+               `TVar`, and `TUnknown` (including reified NA and error
+               values) are wildcards, so the check is order independent. *)
+            let flexible t = match t with
+              | Ast.TCustom "Any" | Ast.TVar _ | Ast.TUnknown -> true
+              | _ -> false
+            in
+            (* Deep consistency: same head (custom types compare by name;
+               `Int` vs `Float` mismatch by design, as before), recursing
+               into List/Dict/Tuple positions. Unions, arrows, and frames
+               compare by head only, as before. Either side flexible
+               always agrees. *)
+            let rec consistent a b =
+              if flexible a || flexible b then true
+              else match a, b with
+              | Ast.TCustom s1, Ast.TCustom s2 -> String.equal s1 s2
+              | Ast.TList x, Ast.TList y -> opt_consistent x y
+              | Ast.TDict (a1, a2), Ast.TDict (b1, b2) ->
+                  opt_consistent a1 b1 && opt_consistent a2 b2
+              | Ast.TTuple xs, Ast.TTuple ys ->
+                  List.length xs = List.length ys && List.for_all2 consistent xs ys
+              | _ -> head_of a = head_of b
+            and opt_consistent x y = match x, y with
+              | None, _ | _, None -> true
+              | Some x, Some y -> consistent x y
+            in
+            let typ_of_value v =
+              match Symbol_table.value_to_semantic_type v with
+              | Some st -> Semantic_type.to_ast_typ st
+              | None -> Ast.TCustom "Any"
+            in
+            (* Structural value type: containers contribute homogeneous
+               element structure (`[1, 2]` is `List[Int]`); heterogeneous
+               containers keep a union member (`[1, "a"]` is
+               `List[Int | String]`); empty containers and non-scalars
+               fall back to the shallow mapping. Flexible elements are
+               wildcards, so `[1, NA]` is `List[Int]`. Distinct members
+               accumulate without a full sort (only a handful of type
+               heads exist), keeping large containers linear. *)
+            let rec structural_type_of_value v =
+              match v with
+              | Ast.VList items -> Ast.TList (Some (elements_type (List.map snd items)))
+              | Ast.VVector arr -> Ast.TList (Some (elements_type (Array.to_list arr)))
+              | Ast.VDict pairs ->
+                  Ast.TDict (Some Ast.TString, Some (elements_type (List.map snd pairs)))
+              | _ -> typ_of_value v
+            and elements_type vs =
+              let distinct =
+                List.fold_left (fun acc v ->
+                  match structural_type_of_value v with
+                  | t when flexible t -> acc
+                  | t ->
+                      if List.exists (consistent t) acc then acc else t :: acc
+                ) [] vs
+              in
+              (match List.sort_uniq compare distinct with
+               | [] -> Ast.TCustom "Any"
+               | [t] -> t
+               | ts -> Ast.TUnion ts)
+            in
+            (* Bind or compare one variable against a value subtree,
+               descending through matching List/Dict/Tuple positions so
+               nested variables (e.g. `T` in `List[T]`) unify too.
+               Mismatched shapes stop silently: the head check already
+               ran, and only variables constrain here. *)
+            let bound = Hashtbl.create 4 in
+            let errors = ref [] in
+            let bind_var name got =
+              (match Hashtbl.find_opt bound name with
+               | None -> if not (flexible got) then Hashtbl.add bound name got
+               | Some prev ->
+                   if flexible got then ()
+                   else if flexible prev then Hashtbl.replace bound name got
+                   else if not (consistent prev got) then
+                     errors := Printf.sprintf
+                       "Type variable `%s` has inconsistent types: %s vs %s"
+                       name (Ast.Utils.typ_to_string prev) (Ast.Utils.typ_to_string got)
+                       :: !errors)
+            in
+            let rec unify param_t value_t =
+              match param_t with
+              | Ast.TVar name -> bind_var name value_t
+              | Ast.TList (Some p) ->
+                  (match value_t with Ast.TList (Some v) -> unify p v | _ -> ())
+              | Ast.TDict ((Some kp), (Some vp)) ->
+                  (match value_t with
+                   | Ast.TDict ((Some kv), (Some vv)) ->
+                       unify kp kv; unify vp vv
+                   | _ -> ())
+              | Ast.TTuple ps ->
+                  (match value_t with
+                   | Ast.TTuple vs when List.length ps = List.length vs ->
+                       List.iter2 unify ps vs
+                   | _ -> ())
+              | _ -> ()
+            in
+            let has_tvar =
+              let rec go t =
+                match t with
+                | Ast.TVar _ -> true
+                | Ast.TList (Some t) -> go t
+                | Ast.TDict (x, y) ->
+                    (match x with Some t -> go t | None -> false)
+                    || (match y with Some t -> go t | None -> false)
+                | Ast.TTuple ts -> List.exists go ts
+                | Ast.TUnion ts -> List.exists go ts
+                | Ast.TArrow (ps, r) -> List.exists go ps || go r
+                | _ -> false
+              in
+              go
+            in
+            List.iter (fun (v, t_opt) ->
+              match t_opt with
+              | Some pt when has_tvar pt ->
+                  unify pt (structural_type_of_value v)
+              | _ -> ()
+            ) (List.combine fixed_args param_types);
+            List.rev !errors
+          in
+          let type_errors = type_errors @ generic_errors in
           if type_errors <> [] then
             Error.type_error (String.concat "; " type_errors)
           else
@@ -3576,6 +3990,15 @@ and eval_call env_ref fn_val raw_args =
       eval_expr env_to_use q_expr
   | VError _ as e -> e
   | VNA _ -> Error.type_error "Cannot call NA as a function."
+  | VTypeDef { td_name; td_def = Ast.RecordDef { rd_fields } } ->
+      construct_record td_name rd_fields named_args
+  | VTypeDef { td_name; td_def = Ast.UnionDef { ud_cases } } ->
+      (* A union type itself is not constructible; exactly one of its
+         cases is. Naming the cases keeps the choice explicit. *)
+      Error.type_error
+        (Printf.sprintf "Type `%s` is a union and cannot be constructed directly. Construct one of its cases: %s."
+           td_name
+           (String.concat ", " (List.map fst ud_cases)))
   | _ -> Error.not_callable_error (Utils.type_name fn_val)
   end
 
@@ -3791,7 +4214,72 @@ and eval_statement (env : environment) (stmt : stmt) : value * environment =
             (match v with
              | VError _ -> (v, new_env)
              | _ -> ((VNA NAGeneric), new_env))
-     | Import filename ->
+     | TypeDecl { tname; tdef } ->
+        if is_builtin_nominal tname then
+          let msg = Printf.sprintf "Type `%s` uses a built-in type name. Built-in nominal types: %s. Choose another name."
+            tname (String.concat ", " builtin_nominal_names) in
+          (make_error NameError msg, env)
+        else if Env.mem tname env then
+          let msg = Printf.sprintf "Type `%s` is already defined and cannot be redefined (existing values keep the old shape). Use rm(`%s`) to remove it first, then declare again." tname tname in
+          (make_error NameError msg, env)
+        else
+          (match tdef with
+           | RecordDef { rd_fields } ->
+               let names = List.map fst rd_fields in
+               let dup =
+                 List.find_opt (fun n ->
+                   List.length (List.filter (( = ) n) names) > 1
+                 ) names
+               in
+               (match dup with
+                | Some n ->
+                    (Error.value_error
+                       (Printf.sprintf "Duplicate field `%s` in type `%s`." n tname), env)
+                | None ->
+                    let new_env = Env.add tname (VTypeDef { td_name = tname; td_def = tdef }) env in
+                    ((VNA NAGeneric), new_env))
+           | UnionDef { ud_cases } ->
+               let cnames = List.map fst ud_cases in
+               let dup =
+                 List.find_opt (fun n ->
+                   List.length (List.filter (( = ) n) cnames) > 1
+                 ) cnames
+               in
+               (match dup with
+                | Some n ->
+                    (Error.value_error
+                       (Printf.sprintf "Duplicate case `%s` in type `%s`." n tname), env)
+                | None ->
+                    (* Cross-type clashes fail here at declaration instead
+                       of at first use: a case name already owned by another
+                       union would make every call ambiguous. *)
+                    let clash =
+                      List.find_opt (fun c ->
+                        List.exists (fun (_, v) ->
+                          match v with
+                          | Ast.VTypeDef { td_def = Ast.UnionDef { ud_cases = theirs }; _ } ->
+                              List.mem_assoc c theirs
+                          | _ -> false
+                        ) (Env.bindings env)
+                      ) cnames
+                    in
+                    (match clash with
+                     | Some c ->
+                         let owners =
+                           List.sort_uniq String.compare (tname :: List.filter_map (fun (_, v) ->
+                             match v with
+                             | Ast.VTypeDef { td_name; td_def = Ast.UnionDef { ud_cases = theirs } }
+                               when List.mem_assoc c theirs -> Some td_name
+                             | _ -> None
+                           ) (Env.bindings env))
+                         in
+                         (Error.value_error
+                            (Printf.sprintf "Case `%s` is defined by types %s. Rename one case."
+                               c (String.concat ", " owners)), env)
+                     | None ->
+                         let new_env = Env.add tname (VTypeDef { td_name = tname; td_def = tdef }) env in
+                         ((VNA NAGeneric), new_env))))
+    | Import filename ->
         (try
           let ch = open_in filename in
           let content = really_input_string ch (in_channel_length ch) in
@@ -3826,6 +4314,13 @@ and eval_statement (env : environment) (stmt : stmt) : value * environment =
                  "Mixed bracket literal (found both single elements and key-value pairs)",
                env)
           | Ast.Invalid_match_pattern msg ->
+              let pos = Lexing.lexeme_start_p lexbuf in
+              (make_error
+                 ~location:(source_location ~file:filename pos)
+                 SyntaxError
+                 msg,
+               env)
+          | Ast.Invalid_type_declaration msg ->
               let pos = Lexing.lexeme_start_p lexbuf in
               (make_error
                  ~location:(source_location ~file:filename pos)
@@ -3912,6 +4407,13 @@ and eval_statement (env : environment) (stmt : stmt) : value * environment =
                  "Mixed bracket literal (found both single elements and key-value pairs)",
                env)
           | Ast.Invalid_match_pattern msg ->
+              let pos = Lexing.lexeme_start_p lexbuf in
+              (make_error
+                 ~location:(source_location ~file:filename pos)
+                 SyntaxError
+                 msg,
+               env)
+          | Ast.Invalid_type_declaration msg ->
               let pos = Lexing.lexeme_start_p lexbuf in
               (make_error
                  ~location:(source_location ~file:filename pos)

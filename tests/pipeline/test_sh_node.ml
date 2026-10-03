@@ -165,6 +165,117 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
         begin incr fail_count; Printf.printf "  ✗ default serializer emission wrong (bare default call or missing deserialize)\n" end
   | _ ->
       incr fail_count; Printf.printf "  ✗ default serializer fixture failed\n");
+  (* text has no read_text builtin: the reader must be read_file, never a
+     bare text(...) call to nothing (same hang class as default). *)
+  (let (v_text_nix, _) = eval_string_env
+    {|pipeline {
+      a = node(command = "hi")
+      b = node(command = a, deserializer = ^text)
+    }|}
+    (Packages.init_env ()) in
+  match v_text_nix with
+  | Ast.VPipeline p ->
+      let nix = Nix_emit_pipeline.emit_pipeline p in
+      if contains_substring nix "__dep_a = read_file("
+         && not (contains_substring nix "= text(") then
+        begin incr pass_count; Printf.printf "  ✓ text deserializer emits read_file\n" end
+      else
+        begin incr fail_count; Printf.printf "  ✗ text deserializer emission wrong\n" end
+  | _ ->
+      incr fail_count; Printf.printf "  ✗ text deserializer fixture failed\n");
+  (* Every runtime maps ^default to a real writer: no runtime may emit a
+     bare `default(...)` call (the silent-hang class). *)
+  List.iter (fun (label, rt, body, writer) ->
+    let code = Printf.sprintf
+      {|pipeline {
+        a = node(command = 1)
+        b = node(command = %s, deserializer = ^default, serializer = ^default, runtime = %s)
+      }|} body rt in
+    match eval_string_env code (Packages.init_env ()) with
+    | (Ast.VPipeline p, _) ->
+        let nix = Nix_emit_pipeline.emit_pipeline p in
+        (* Space-prefixed `" writer("`: R/Julia writers sit at line start
+           (`  saveRDS(`), T/Python after `=` (`res1 = serialize(`); the
+           space rules out matching inside `deserialize(`. *)
+        if contains_substring nix (" " ^ writer ^ "(")
+           && not (contains_substring nix "= default(") then
+          begin incr pass_count; Printf.printf "  ✓ %s maps default to %s\n" label writer end
+        else
+          begin incr fail_count; Printf.printf "  ✗ %s default mapping wrong\n" label end
+    | _ ->
+        incr fail_count; Printf.printf "  ✗ %s default fixture failed\n" label
+  ) [("T", "T", "a + 1", "serialize"); ("R", "R", "<{ a + 1 }>", "saveRDS");
+     ("Python", "Python", "<{ a + 1 }>", "serialize");
+     ("Julia", "Julia", "<{ a + 1 }>", "jl_serialize")];
+  (* The emitter must never silently emit a bare call for a known
+     format: `^bin` is only valid for fetchurl nodes, so an R node with a
+     `^bin` deserializer has no reader mapping. Expect a loud failure
+     naming the format (`bin`), the role, and the runtime — not a
+     `bin(...)` call that would hang at build time. (Contrast `^text`,
+     which resolves through the serializer registry to a real `readLines`
+     reader and keeps working.) Custom function names still pass through
+     for resolution against `functions` files at build time. *)
+  (let (v_text_r, _) = eval_string_env
+    {|pipeline {
+      a = rn(command = <{ 1 }>)
+      b = rn(command = <{ a }>, deserializer = ^bin)
+    }|}
+    (Packages.init_env ()) in
+  match v_text_r with
+  | Ast.VPipeline p ->
+      (match (try let _ = Nix_emit_pipeline.emit_pipeline p in None
+              with Invalid_argument msg -> Some msg) with
+       | Some msg
+         when contains_substring msg "bin"
+              && contains_substring msg "reader"
+              && contains_substring msg "R" ->
+           incr pass_count; Printf.printf "  ✓ unmapped known format fails loud with valid set\n"
+       | Some msg ->
+           incr fail_count; Printf.printf "  ✗ loud failure missing format/runtime: %s\n" msg
+       | None ->
+           incr fail_count; Printf.printf "  ✗ unmapped known format emitted silently\n")
+  | _ ->
+      incr fail_count; Printf.printf "  ✗ text-on-R fixture failed\n");
+  (let (v_tlang, _) = eval_string_env
+    {|pipeline {
+      a = node(command = 1, serializer = ^tlang)
+    }|}
+    (Packages.init_env ()) in
+  match v_tlang with
+  | Ast.VPipeline p ->
+      let nix =
+        (try Some (Nix_emit_pipeline.emit_pipeline p)
+         with Invalid_argument msg -> Some ("INVALID_ARGUMENT: " ^ msg))
+      in
+      (match nix with
+       | Some s when contains_substring s "serialize(" ->
+           incr pass_count; Printf.printf "  ✓ tlang emits as the runtime default\n"
+       | Some s ->
+           incr fail_count; Printf.printf "  ✗ tlang emission missing default call: %s\n"
+             (String.sub s 0 (min 200 (String.length s)))
+       | None ->
+           incr fail_count; Printf.printf "  ✗ tlang emission failed\n")
+  | _ ->
+      incr fail_count; Printf.printf "  ✗ tlang fixture failed\n");
+  (let (v_custom, _) = eval_string_env
+    {|pipeline {
+      a = rn(command = <{ 1 }>)
+      b = rn(command = <{ a }>, deserializer = [a: [format: ^yml, r_reader: <{ function(path) readRDS(path) }>]], serializer = [format: ^yml, r_writer: <{ function(obj, path) saveRDS(obj, path) }>])
+    }|}
+    (Packages.init_env ()) in
+  match v_custom with
+  | Ast.VPipeline p ->
+      let nix =
+        (try Some (Nix_emit_pipeline.emit_pipeline p)
+         with Invalid_argument _ -> None)
+      in
+      (match nix with
+       | Some s when contains_substring s "saveRDS(obj, path)" && contains_substring s "readRDS(path)" ->
+           incr pass_count; Printf.printf "  ✓ strategy dict snippets pass through\n"
+       | _ ->
+           incr fail_count; Printf.printf "  ✗ strategy dict snippets blocked or missing\n")
+  | _ ->
+      incr fail_count; Printf.printf "  ✗ strategy dict fixture failed\n");
   (* Regression: UV nodes need system BLAS/Fortran, nixpkgs nodes must stay
      pristine (foreign BLAS breaks scipy/seaborn). The node derivation picks
      the libs only when the project resolver is uv. This fixture has no

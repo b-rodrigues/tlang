@@ -6,12 +6,12 @@ Standardizes column names using a snake_case convention. Removes special charact
 
 ## Parameters
 
-- **x** (`DataFrame`): | List[String] The object with names to clean.
+- **x** (`DataFrame | List[String]`): The object with names to clean.
 
 
 ## Returns
 
-| List[String] The object with cleaned names.
+The object with cleaned names.
 
 ## See Also
 

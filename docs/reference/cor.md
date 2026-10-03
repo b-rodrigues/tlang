@@ -6,13 +6,13 @@ Computes the correlation coefficient between two vectors. `method = "pearson"` (
 
 ## Parameters
 
-- **x** (`Vector`): | List First numeric vector.
+- **x** (`Vector | List`): First numeric vector.
 
-- **y** (`Vector`): | List Second numeric vector.
+- **y** (`Vector | List`): Second numeric vector.
 
 - **na_rm** (`Bool`): (Optional) Should missing values be removed? Default is false.
 
-- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights (Pearson only).
+- **weights** (`Vector[Float] | List[Float]`): = NA Optional non-negative observation weights (Pearson only).
 
 - **method** (`String`): = "pearson" Correlation method: "pearson" or "spearman".
 

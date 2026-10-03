@@ -36,7 +36,8 @@
 <h1 id="list_files">list_files</h1>
 <p>List files in directory</p>
 <p>Returns a list of files and directories in the specified path.
-Supports an optional regex pattern for filtering.</p>
+Supports an optional regex pattern for filtering. Returns a FileError
+value when the directory cannot be read.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
 <li><p><strong>path</strong> (<code>String</code>): [Optional] The

@@ -115,4 +115,25 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
     "type(make_period())"
     {|"Period"|};
   print_newline ();
+
+  Printf.printf "  documented constructor and extractor signatures:\n";
+  test "period constructor rejects non-Int"
+    "days(\"x\")"
+    {|Error(TypeError: "Function `days` expects an Int.")|};
+  test "period extractor rejects non-Period"
+    "period_days(7)"
+    {|Error(TypeError: "Function `period_days` expects a Period.")|};
+  test "date parser returns Date"
+    "type(ymd(\"2024-01-15\"))"
+    {|"Date"|};
+  test "datetime parser returns Datetime"
+    "type(ymd_hms(\"2024-01-15 10:30:45\"))"
+    {|"Datetime"|};
+  test "is_date distinguishes Date from Int"
+    "is_date(ymd(\"2024-01-15\")) && !is_date(42)"
+    "true";
+  test "period extractor round-trips constructor"
+    "period_days(days(7))"
+    "7";
+  print_newline ();
   print_newline ()

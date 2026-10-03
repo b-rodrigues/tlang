@@ -6,13 +6,13 @@ Computes the quantile of a distribution at a specified probability.
 
 ## Parameters
 
-- **x** (`Vector`): | List The numeric data.
+- **x** (`Vector | List`): The numeric data.
 
 - **probs** (`Float`): The probability (0 to 1).
 
 - **na_rm** (`Bool`): (Optional) Should missing values be removed? Default is false.
 
-- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights.
+- **weights** (`Vector[Float] | List[Float]`): = NA Optional non-negative observation weights.
 
 
 ## Returns

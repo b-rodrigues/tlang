@@ -6,7 +6,7 @@ Returns a tidy DataFrame of model-level statistics (e.g. R-squared, AIC, BIC). S
 
 ## Parameters
 
-- **x** (`Model`): | List[Model] | Dict[String, Model] The model(s) to inspect.
+- **x** (`Model | List[Model] | Dict[String, Model]`): The model(s) to inspect.
 
 
 ## Returns

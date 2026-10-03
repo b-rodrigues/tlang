@@ -271,8 +271,18 @@ let check_bin_only_for_fetchurl (p : pipeline_result) : validation_error list =
         let s = String.lowercase_ascii (if String.starts_with ~prefix:"^" s then String.sub s 1 (String.length s - 1) else s) in
         s = "bin"
     | Value (VSerializer s) -> s.s_format = "bin"
+    | Value (VDict pairs) -> List.exists (fun (_, v) -> is_bin_value v) pairs
     | ListLit items -> List.exists (fun (_, e) -> is_bin_format e) items
     | DictLit items -> List.exists (fun (_, e) -> is_bin_format e) items
+    | _ -> false
+  and is_bin_value = function
+    | VString s -> String.lowercase_ascii s = "bin"
+    | VSymbol s ->
+        let s = String.lowercase_ascii (if String.starts_with ~prefix:"^" s then String.sub s 1 (String.length s - 1) else s) in
+        s = "bin"
+    | VSerializer s -> s.s_format = "bin"
+    | VDict pairs -> List.exists (fun (_, v) -> is_bin_value v) pairs
+    | VList items -> List.exists (fun (_, v) -> is_bin_value v) items
     | _ -> false
   in
   List.filter_map (fun (name, _) ->
@@ -291,45 +301,248 @@ let check_bin_only_for_fetchurl (p : pipeline_result) : validation_error list =
 
 (** Built-in serializer/deserializer formats. Mirrors
     [Serialization_registry.init_builtins] plus the [Builder_populate]
-    strategy list: anything outside this set (and outside the node's
-    declared `functions`) cannot resolve to a reader/writer and dies at
-    build time with `could not find function "<format>"`. *)
+    strategy list: anything outside this set needs a strategy dict with
+    inline snippets (see docs/serializers.md). Custom formats can never
+    be bare names — there is no quoting escape. *)
 let known_serializer_formats =
   [ "pmml"; "ipc"; "parquet"; "json"; "csv"; "default"; "onnx"; "bin"; "text"; "tlang";
     (* Legacy spellings that resolve today: "serialize" is the T-native
        default writer (see nix_emit_node ser_call fallback). *) "serialize" ]
 
+(** Closed keys for a strategy dict. A dict in strategy position is a
+    strategy by design (not by accident): exactly these keys, with
+    `format` always present and snippet values as inline <{ ... }> code. *)
+let strategy_dict_keys =
+  [ "format"; "writer"; "reader";
+    "r_writer"; "r_reader"; "py_writer"; "py_reader";
+    "julia_writer"; "julia_reader" ]
+
+let strategy_dict_help =
+  "Define a strategy dict: [format: ^name, r_writer: <{ ... }>, r_reader: <{ ... }>, ...] (see docs/serializers.md)."
+
 (** Unknown-format check: every serializer/deserializer strategy must be a
-    known built-in format or be backed by the node's declared `functions`
-    (custom strategies resolve against those files at build time, mirroring
-    the [Builder_populate] warning logic). Catches renames without aliases
+    known built-in format or a well-formed strategy dict (closed keys,
+    `format` present, custom formats carrying an inline snippet for the
+    node's runtime and role). Catches renames without aliases
     (notably `^arrow`, renamed to `^ipc` in 0.55.0) and typos at validation
     time instead of build time, where they die with
     `could not find function "<format>"`. *)
 let check_known_formats (p : pipeline_result) : validation_error list =
-  let has_functions name =
-    match List.assoc_opt name p.p_functions with
-    | Some (_ :: _) -> true
-    | _ -> false
+  let runtime_of name =
+    match List.assoc_opt name p.p_runtimes with Some r -> r | None -> "T"
+  in
+  let snippet_key_for runtime role =
+    match runtime, role with
+    | "R", "serializer" -> Some "r_writer"
+    | "R", _ -> Some "r_reader"
+    | "Python", "serializer" -> Some "py_writer"
+    | "Python", _ -> Some "py_reader"
+    | "Julia", "serializer" -> Some "julia_writer"
+    | "Julia", _ -> Some "julia_reader"
+    | _ -> None
+  in
+  let strip_hat s =
+    if String.length s > 0 && s.[0] = '^' then String.sub s 1 (String.length s - 1) else s
+  in
+  (* A dict is a single strategy dict by design only when it carries
+     `format`. Anything else is a per-dependency map ([dep: strategy])
+     and recurses per value. In particular a dict with snippet keys but
+     no `format` is a map, not a malformed strategy — so a map for nodes
+     literally named `reader`/`writer` validates instead of failing on a
+     missing `format`. *)
+  let is_strategy_dict pairs = List.mem_assoc "format" pairs in
+  (* Per-dependency map keys must name real dependencies of the node.
+     Without this, a misspelled key silently falls back to the default
+     strategy in the emitter. *)
+  let dep_map_key_errors ~role ~name keys =
+    match List.assoc_opt name p.p_deps with
+    | None -> []
+    | Some deps ->
+        List.filter_map (fun k ->
+          if List.mem k deps then None
+          else if deps = [] then
+            Some (None, Printf.sprintf
+              "Node `%s` has no dependencies, so `%s` looks like a strategy dict missing its `format` key. %s"
+              name k strategy_dict_help)
+          else Some (None, Printf.sprintf
+            "Unknown dependency `%s` in %s map on node `%s`. Valid dependencies: %s. If `%s` is a real dependency, add it with deps = [...]."
+            k role name (String.concat ", " deps) k)
+        ) keys
+  in
+  let bare_message role s name =
+    Printf.sprintf "Unknown %s `%s` on node `%s`: bare names are not strategies. Define a strategy dict [format: ^name, ...snippets] (see docs/serializers.md)." role s name
+  in
+  let text_error role runtime fmt name =
+    if fmt = "text" && not (List.mem runtime ["T"; "sh"; "fetchurl"]) then
+      [(Some "text", Printf.sprintf "Format `^text` on node `%s` (%s) is only supported for T and sh nodes (raw bytes). R, Python, and Julia nodes cannot use it." name role)]
+    else []
+  in
+  let is_hat s = String.length s > 0 && s.[0] = '^' in
+  (* Caret-prefixed unknowns used strategy syntax with an unknown format
+     (typo or removed name): keep the "format" wording plus the hint.
+     Truly bare names never were strategies: teach the dict form.
+     `^text` is real but runtime-bound (raw bytes for T and sh only):
+     reject it on runtimes whose tables carry no text reader/writer so it
+     fails here with an ordinary error instead of an emitter
+     `Invalid_argument`. *)
+  let unknown_symbol role runtime s name =
+    let fmt = String.lowercase_ascii (strip_hat s) in
+    if List.mem fmt known_serializer_formats then
+      if fmt = "text" && not (List.mem runtime ["T"; "sh"; "fetchurl"]) then
+        [(Some fmt, Printf.sprintf "Format `^text` on node `%s` (%s) is only supported for T and sh nodes (raw bytes). R, Python, and Julia nodes cannot use it." name role)]
+      else []
+    else if is_hat s then
+      [(Some fmt, Printf.sprintf "Unknown %s format `%s` on node `%s`." role s name)]
+    else [(Some fmt, bare_message role s name)]
+  in
+  (* Closed-shape check shared by literal and evaluated strategy dicts.
+     [fmt_of] classifies the `format` field and [code_of] any other field:
+     [`Ok] carries the canonical value, [`Blind] marks indirection the
+     checker cannot see through (Var/VError — skipped, surfaced
+     elsewhere), [`Bad] marks malformed input. Returns complete messages
+     (no format hint attached). *)
+  let check_dict_shape ~role ~name ~runtime keys find fmt_of code_of =
+    let errs = ref [] in
+    let add m = errs := m :: !errs in
+    (* A dependency literally named `format` forces the strategy-dict
+       reading, so its siblings fail below as unknown keys. Name the
+       ambiguity only when it applies. *)
+    let format_is_dep =
+      match List.assoc_opt name p.p_deps with
+      | Some deps -> List.mem "format" deps
+      | None -> false
+    in
+    List.iter (fun k ->
+      if not (List.mem k strategy_dict_keys) then
+        add (Printf.sprintf "Unknown key `%s` in %s strategy dict on node `%s`. Valid keys: %s.%s"
+          k role name (String.concat ", " strategy_dict_keys)
+          (if format_is_dep then
+             " Note: `format` is also a dependency of this node, but any map with a `format` key is read as a strategy dict — a dependency literally named `format` cannot be keyed in map form. Rename it to use per-dependency strategies."
+           else ""))
+    ) keys;
+    (match find "format" with
+     | None ->
+         add (Printf.sprintf "Strategy dict on node `%s` (%s) is missing the `format` key. %s"
+           name role strategy_dict_help)
+     | Some fv ->
+         (match fmt_of fv with
+          | `Ok fmt when List.mem fmt known_serializer_formats -> ()
+          | `Ok fmt ->
+              (match runtime with
+               | "T" ->
+                   add (Printf.sprintf "Custom format `^%s` on node `%s` (%s) needs R, Python, or Julia snippets, but node runtime is T. T nodes support built-in formats only."
+                     fmt name role)
+               | "R" | "Python" | "Julia" ->
+                   (match snippet_key_for runtime role with
+                    | Some key ->
+                        (match find key with
+                         | None ->
+                             add (Printf.sprintf "Custom format `^%s` on node `%s` (%s) is missing `%s`. Provide it as an inline <{ ... }> block."
+                               fmt name role key)
+                         | Some _ -> ())
+                    | None -> ())
+               | "Quarto" -> ()
+               | rt ->
+                   add (Printf.sprintf "Custom format `^%s` on node `%s` (%s) is not supported for runtime `%s`. Use a built-in format."
+                     fmt name role rt))
+          | `Bad ->
+              add (Printf.sprintf "Strategy dict `format` on node `%s` (%s) must be a ^-prefixed symbol (e.g. ^yaml). %s"
+                name role strategy_dict_help)
+          | `Blind -> ()));
+    List.iter (fun k ->
+      if k <> "format" then
+        match find k with
+        | Some sv -> (match code_of sv with
+            | `Bad ->
+                add (Printf.sprintf "Key `%s` in %s strategy dict on node `%s` must be an inline <{ ... }> code block."
+                  k role name)
+            | _ -> ())
+        | None -> ()
+    ) keys;
+    !errs
+  in
+  let expr_fmt_of e =
+    match e.node with
+    | Value (VSymbol s) | Value (VString s) ->
+        let f = String.lowercase_ascii (strip_hat s) in
+        if f = "" then `Bad else `Ok f
+    | Value (VSerializer s) -> `Ok s.s_format
+    | Var _ -> `Blind
+    | Value (VError _) -> `Blind
+    | _ -> `Bad
+  and expr_code_of e =
+    match e.node with
+    | RawCode _ -> `Ok
+    | Var _ -> `Blind
+    | Value (VError _) -> `Blind
+    | _ -> `Bad
+  and value_fmt_of v =
+    match v with
+    | VSymbol s | VString s ->
+        let f = String.lowercase_ascii (strip_hat s) in
+        if f = "" then `Bad else `Ok f
+    | VSerializer s -> `Ok s.s_format
+    | VError _ -> `Blind
+    | _ -> `Bad
+  and value_code_of = function
+    | VRawCode _ -> `Ok
+    | VError _ -> `Blind
+    | _ -> `Bad
+  in
+  let dict_expr_errors ~role ~name pairs =
+    List.map (fun m -> (None, m))
+      (check_dict_shape ~role ~name ~runtime:(runtime_of name)
+         (List.map fst pairs) (fun k -> List.assoc_opt k pairs)
+         expr_fmt_of expr_code_of)
+  in
+  let dict_value_errors ~role ~name pairs =
+    List.map (fun m -> (None, m))
+      (check_dict_shape ~role ~name ~runtime:(runtime_of name)
+         (List.map fst pairs) (fun k -> List.assoc_opt k pairs)
+         value_fmt_of value_code_of)
   in
   let rec unknown_in role name expr =
     match expr.node with
     | Value (VSerializer s) ->
-        if List.mem s.s_format known_serializer_formats then []
-        else [(s.s_format, Printf.sprintf "Unknown %s format `%s` on node `%s`." role s.s_format name)]
-    | Value (VString s) | Value (VSymbol s) ->
-        let bare = if String.length s > 0 && s.[0] = '^' then String.sub s 1 (String.length s - 1) else s in
-        let fmt = String.lowercase_ascii bare in
-        if List.mem fmt known_serializer_formats || has_functions name then []
-        else [(fmt, Printf.sprintf "Unknown %s format `%s` on node `%s`." role s name)]
+        if List.mem s.s_format known_serializer_formats then
+          text_error role (runtime_of name) s.s_format name
+        else [(Some s.s_format, Printf.sprintf "Unknown %s format `%s` on node `%s`." role s.s_format name)]
+    | Value (VString s) | Value (VSymbol s) -> unknown_symbol role (runtime_of name) s name
+    | Value (VDict pairs) ->
+        if is_strategy_dict pairs then dict_value_errors ~role ~name pairs
+        else
+          dep_map_key_errors ~role ~name (List.map fst pairs)
+          @ List.concat_map (fun (_, v) -> unknown_value role name v) pairs
+    | Value (VError _) -> []
+    | Var v ->
+        (* Closed strategies: a bare variable in strategy position can only
+           be an indirection that validation cannot see through statically.
+           Closed members (`default`, `^csv`, …) pass through for the
+           default sentinels and literal-equivalent indirections;
+           anything else fails naming the strategy-dict form — the same
+           contract node() construction enforces after evaluation. *)
+        unknown_symbol role (runtime_of name) v name
     | ListLit items -> List.concat_map (fun (_, e) -> unknown_in role name e) items
     | DictLit items ->
-        (* A literal "format" key marks an inline custom serializer dict
-           (mirroring the emitter, which reads strategy from that key and
-           snippets from its siblings). Its value is user-supplied by
-           definition, so it is never an unknown built-in. *)
-        List.concat_map (fun (k, e) ->
-          if k = "format" then [] else unknown_in role name e) items
+        if is_strategy_dict items then dict_expr_errors ~role ~name items
+        else
+          dep_map_key_errors ~role ~name (List.map fst items)
+          @ List.concat_map (fun (_, e) -> unknown_in role name e) items
+    | _ -> []
+  and unknown_value role name v =
+    match v with
+    | VSerializer s ->
+        if List.mem s.s_format known_serializer_formats then
+          text_error role (runtime_of name) s.s_format name
+        else [(Some s.s_format, Printf.sprintf "Unknown %s format `%s` on node `%s`." role s.s_format name)]
+    | VString s | VSymbol s -> unknown_symbol role (runtime_of name) s name
+    | VDict pairs ->
+        if is_strategy_dict pairs then dict_value_errors ~role ~name pairs
+        else
+          dep_map_key_errors ~role ~name (List.map fst pairs)
+          @ List.concat_map (fun (_, v) -> unknown_value role name v) pairs
+    | VList items -> List.concat_map (fun (_, v) -> unknown_value role name v) items
+    | VError _ -> []
     | _ -> []
   in
   let hint fmt =
@@ -343,12 +556,40 @@ let check_known_formats (p : pipeline_result) : validation_error list =
     let des = match List.assoc_opt name p.p_deserializers with
       | Some e -> e | None -> mk_expr (Var "default")
     in
-    List.map (fun (fmt, m) ->
+    List.map (fun (fmt_opt, m) ->
+      let suffix = match fmt_opt with None -> "" | Some fmt -> hint fmt in
       { ve_kind = "TypeError";
-        ve_message = m ^ hint fmt;
+        ve_message = m ^ suffix;
         ve_node = Some name })
       (unknown_in "serializer" name ser
        @ unknown_in "deserializer" name des)
+  ) p.p_exprs
+
+(** Quarto nodes render documents: strategies are undefined for them.
+    Any explicit non-default serializer/deserializer is a TypeError
+    instead of a silently ignored argument. Unset positions (absent or
+    `default`) stay silent. *)
+let check_quarto_strategies (p : pipeline_result) : validation_error list =
+  let explicit_non_default = function
+    | None -> false
+    | Some e -> not (Ast.Utils.is_default_serializer_expr ~runtime:"Quarto" e)
+  in
+  List.filter_map (fun (name, _) ->
+    match List.assoc_opt name p.p_runtimes with
+    | Some "Quarto" ->
+        let ser_set = explicit_non_default (List.assoc_opt name p.p_serializers) in
+        let des_set = explicit_non_default (List.assoc_opt name p.p_deserializers) in
+        (match ser_set, des_set with
+         | false, false -> None
+         | true, _ ->
+             Some { ve_kind = "TypeError";
+                    ve_message = Printf.sprintf "serializer for quarto undefined: node `%s` sets a serializer, but Quarto nodes render documents and take no serializer. Remove the `serializer` argument." name;
+                    ve_node = Some name }
+         | _, true ->
+             Some { ve_kind = "TypeError";
+                    ve_message = Printf.sprintf "deserializer for quarto undefined: node `%s` sets a deserializer, but Quarto nodes render documents and take no deserializer. Remove the `deserializer` argument." name;
+                    ve_node = Some name })
+    | _ -> None
   ) p.p_exprs
 
 (** Serializer-related errors (multi-dep strategies, coherence, ^bin). *)
@@ -357,6 +598,7 @@ let serializer_errors (p : pipeline_result) : validation_error list =
   @ check_serializer_coherence p
   @ check_bin_only_for_fetchurl p
   @ check_known_formats p
+  @ check_quarto_strategies p
 
 (** All structural errors in deterministic order: missing files, invalid
     runtimes, missing deps, cycles, cross-runtime deserializer, then the

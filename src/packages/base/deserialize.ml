@@ -3,7 +3,8 @@ open Ast
 (*
 --# Deserialize Value
 --#
---# Deserializes a value from a `.tobj` file.
+--# Deserializes a value from a `.tobj` file. Returns a FileError value
+--# when the file cannot be read.
 --#
 --# @name deserialize
 --# @param path :: String Input file path.

@@ -39,4 +39,5 @@ node_modules/
 .t_python_guard/
 .t_r_profile/
 .tlang-pipeline-*/
+t-demo-*/
 .opencode/

@@ -6,7 +6,7 @@ Calls `nix-build` on the generated `pipeline.nix` file. Extracts the store path 
 
 ## Parameters
 
-- **p** (`PipelineResult`): The pipeline AST structure.
+- **p** (`Pipeline`): The pipeline AST structure.
 
 
 ## Returns

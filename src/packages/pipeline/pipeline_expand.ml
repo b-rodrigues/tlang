@@ -51,7 +51,7 @@ let slice_value (v : value) (index : int) : value =
       else VNA NAGeneric
   | _ -> v
 
-let value_to_literal (v : value) : string =
+let value_to_literal ~runtime (v : value) : string =
   match v with
   | VInt n -> string_of_int n
   | VFloat f ->
@@ -62,14 +62,38 @@ let value_to_literal (v : value) : string =
   | VString s -> "\"" ^ String.escaped s ^ "\""
   | VSymbol s -> s
   | VNA _ -> "NA"
+  (* Unreachable for foreign runtimes: `resolve_map_deps` rejects records,
+     unions, and type definitions at any depth first (see `record_desc_of`
+     in pipeline_expand.ml). For T runtimes the arms below never fire.
+     Kept as a loud backstop instead of silent constructor text. *)
+  | VRecord r when runtime <> "T" ->
+      invalid_arg (Printf.sprintf
+        "expand_pipeline: record `%s` cannot be inlined as %s code text; records are T-side contracts. Pass plain data across the boundary instead."
+        r.rec_type runtime)
+  | VUnion u when runtime <> "T" ->
+      invalid_arg (Printf.sprintf
+        "expand_pipeline: union value `%s` of `%s` cannot be inlined as %s code text; unions are T-side contracts. Pass plain data across the boundary instead."
+        u.un_case u.un_type runtime)
+  | VTypeDef t when runtime <> "T" ->
+      invalid_arg (Printf.sprintf
+        "expand_pipeline: type `%s` itself cannot be inlined as %s code text." t.td_name runtime)
+  (* T-runtime raw blocks are T code, so constructor text (`Point(x = 1.)`)
+     re-parses to the same value — no boundary is crossed. *)
   | other -> Utils.value_to_string other
 
+(** Runtime of a node for raw-block scope analysis during expansion.
+    Unknown runtimes fall back to ["T"], for which no bindings are ever
+    spotted, preserving the legacy whole-text substitution. *)
+let runtime_of_node (p : Ast.pipeline_result) name =
+  match List.assoc_opt name p.Ast.p_runtimes with Some r -> r | None -> "T"
+
 let rec substitute_vars_in_expr
+    ~runtime
     (substs : (string * value) list)
     (index : int)
     (expr : Ast.expr)
     : Ast.expr =
-  let subst = substitute_vars_in_expr substs index in
+  let subst = substitute_vars_in_expr ~runtime substs index in
   match expr.node with
   | Var s ->
       (match List.find_opt (fun (name, _) -> name = s) substs with
@@ -103,14 +127,33 @@ let rec substitute_vars_in_expr
       (* Runtime-agnostic: identifier substitution via raw_identifiers list and
          \bname\b word-boundary regex is safe across all runtimes (R, Python,
          Julia, sh, etc.) — only identifiers explicitly detected by the parser
-         are replaced. *)
+         are replaced. When the block binds the name itself, only occurrences
+         resolving to the dependency are replaced (before shadowing, plus the
+         binding's own right-hand side); binders and later local reads stay
+         untouched. Positions are recomputed per dependency on the current
+         text, mirroring the legacy sequential fold. *)
+      let splice_spans text spans literal_str =
+        let buf = Buffer.create (String.length text + 32) in
+        let rec go pos = function
+          | [] ->
+              Buffer.add_substring buf text pos (String.length text - pos)
+          | (s, len) :: rest ->
+              Buffer.add_substring buf text pos (s - pos);
+              Buffer.add_string buf literal_str;
+              go (s + len) rest
+        in
+        go 0 spans;
+        Buffer.contents buf
+      in
       let new_text = List.fold_left (fun text (dep_name, dep_value) ->
         if List.mem dep_name raw_identifiers then
-          let literal_str = value_to_literal (slice_value dep_value index) in
-          Str.global_replace
-            (Str.regexp ("\\b" ^ Str.quote dep_name ^ "\\b"))
-            literal_str
-            text
+          let literal_str = value_to_literal ~runtime (slice_value dep_value index) in
+          match Ast.dep_substitution_spans ~runtime text dep_name with
+          | None ->
+              Str.global_replace
+                (Str.regexp ("\\b" ^ Str.quote dep_name ^ "\\b"))
+                literal_str text
+          | Some spans -> splice_spans text spans literal_str
         else text
       ) raw_text substs in
       Ast.mk_expr (Ast.RawCode { raw_text = new_text; raw_identifiers })
@@ -165,20 +208,69 @@ let resolve_map_deps
         VVector (Array.of_list (List.map (fun b -> VSymbol b) branches))
     | None -> resolve_dep_value p env dep_name
   ) dep_names in
-  let has_missing = List.exists (fun v -> match v with VNA _ -> true | _ -> false) dep_values in
-  if has_missing then
-    Error (Error.type_error (Printf.sprintf "expand_pipeline: dependency value not found for node '%s'." name))
-  else
-    let lengths = List.map value_length dep_values in
-    let branch_count = match lengths with h :: _ -> h | [] -> 0 in
-    let lengths_match = List.for_all (fun l -> l = branch_count) lengths in
-    if not lengths_match then
-      let details = String.concat ", " (List.map2 (fun d l -> d ^ "=" ^ string_of_int l) dep_names lengths) in
-      Error (Error.type_error (Printf.sprintf "expand_pipeline: dependencies for node '%s' have mismatched lengths (%s)." name details))
-    else if branch_count = 0 then
-      Error (Error.type_error (Printf.sprintf "expand_pipeline: dependencies for node '%s' have zero length." name))
-    else
-      Ok (dep_values, branch_count)
+  (* Records are T-side contracts: they cannot be inlined as foreign code
+     text during pattern expansion. Slices take list/vector elements and
+     whole dict values, so the check walks to any depth — a record nested
+     anywhere would otherwise reach `value_to_literal` (which raises) or,
+     worse, render as silent constructor text. T-runtime nodes never hit
+     this gate with raw text (their substitutions stay values). *)
+  let rec record_desc_of = function
+    | VRecord r -> Some r.rec_type
+    | VUnion u -> Some (u.un_case ^ " of " ^ u.un_type)
+    | VTypeDef t -> Some ("type " ^ t.td_name)
+    | VNodeResult { v; _ } -> record_desc_of v
+    | VList items -> List.find_map (fun (_, v) -> record_desc_of v) items
+    | VVector arr -> Array.to_seq arr |> Seq.find_map record_desc_of
+    | VDict pairs -> List.find_map (fun (_, v) -> record_desc_of v) pairs
+    | _ -> None
+  in
+  (* Conditional shadows with later reads would resolve to the whole
+     artifact instead of the per-branch slice (see
+     Ast.has_conditional_shadow_read): fail loudly and ask for a rename
+     instead of expanding silently inconsistent branches. T commands
+     substitute values structurally, so only raw foreign blocks apply. *)
+  let shadow_err =
+    match get_node_command p name with
+    | Some e ->
+        (match e.node with
+         | RawCode { raw_text; _ } ->
+             let runtime = runtime_of_node p name in
+             (match List.find_opt (fun d -> Ast.has_conditional_shadow_read ~runtime raw_text d) dep_names with
+              | None -> Ok ()
+              | Some d ->
+                  Error (Error.value_error
+                    (Printf.sprintf "expand_pipeline: node `%s` conditionally binds `%s` and reads it later. Later reads would see the whole artifact instead of the per-branch slice. Rename the local variable so every `%s` read means the dependency."
+                       name d d)))
+         | _ -> Ok ())
+    | None -> Ok ()
+  in
+  let record_hit =
+    List.find_map (fun (d, v) ->
+      match record_desc_of v with Some r -> Some (d, r) | None -> None
+    ) (List.combine dep_names dep_values)
+  in
+  (match record_hit with
+   | Some (d, r) when runtime_of_node p name <> "T" ->
+       Error (Error.value_error
+         (Printf.sprintf "expand_pipeline: dependency `%s` of node `%s` carries %s, which cannot cross into %s code. Pass plain data across the boundary instead."
+            d name r (runtime_of_node p name)))
+   | _ ->
+       let has_missing = List.exists (fun v -> match v with VNA _ -> true | _ -> false) dep_values in
+       if has_missing then
+         Error (Error.type_error (Printf.sprintf "expand_pipeline: dependency value not found for node '%s'." name))
+       else
+         let lengths = List.map value_length dep_values in
+         let branch_count = match lengths with h :: _ -> h | [] -> 0 in
+         let lengths_match = List.for_all (fun l -> l = branch_count) lengths in
+         if not lengths_match then
+           let details = String.concat ", " (List.map2 (fun d l -> d ^ "=" ^ string_of_int l) dep_names lengths) in
+           Error (Error.type_error (Printf.sprintf "expand_pipeline: dependencies for node '%s' have mismatched lengths (%s)." name details))
+         else if branch_count = 0 then
+           Error (Error.type_error (Printf.sprintf "expand_pipeline: dependencies for node '%s' have zero length." name))
+         else
+            (match shadow_err with
+             | Error _ as e -> e
+             | Ok () -> Ok (dep_values, branch_count)))
 
 let make_branch (name : string) (orig_name : string) (i : int) (value_idx : int) (dep_indices : (string * int) list) (command_expr : Ast.expr) : branch_info =
   let branch_name = name ^ "_branch_" ^ string_of_int (i + 1) in
@@ -214,7 +306,7 @@ let process_map
           let substs = List.combine dep_names dep_values in
           Ok (List.init branch_count (fun i ->
             let dep_indices = List.map (fun d -> (d, i)) dep_names in
-            let substituted_command = substitute_vars_in_expr substs i command_expr in
+            let substituted_command = substitute_vars_in_expr ~runtime:(runtime_of_node p name) substs i command_expr in
             make_branch name name i i dep_indices substituted_command
           ))
       | None -> Error (Error.type_error (Printf.sprintf "expand_pipeline: node '%s' not found in pipeline." name))
@@ -270,7 +362,7 @@ let process_cross
             let dep_indices = List.concat (List.map2 (fun (dep_names, _, _) elem_idx ->
               List.map (fun dep_name -> (dep_name, elem_idx)) dep_names
             ) resolved_subs indices) in
-            let substituted_command = substitute_vars_in_expr substs 0 command_expr in
+            let substituted_command = substitute_vars_in_expr ~runtime:(runtime_of_node p name) substs 0 command_expr in
             make_branch name name i i dep_indices substituted_command
           ))
 
@@ -290,7 +382,7 @@ let process_slice
         (match get_node_command p name with
          | Some command_expr ->
              Ok (List.mapi (fun branch_idx value_idx ->
-                 let substituted_command = substitute_vars_in_expr [(dep, dep_value)] value_idx command_expr in
+                 let substituted_command = substitute_vars_in_expr ~runtime:(runtime_of_node p name) [(dep, dep_value)] value_idx command_expr in
                  make_branch name name branch_idx value_idx [(dep, value_idx)] substituted_command
                ) indices)
          | None -> Error (Error.type_error (Printf.sprintf "expand_pipeline: node '%s' not found in pipeline." name)))
@@ -307,7 +399,7 @@ let process_head
       (match get_node_command p name with
        | Some command_expr ->
              Ok (List.init actual_n (fun i ->
-               let substituted_command = substitute_vars_in_expr [(dep, dep_value)] i command_expr in
+               let substituted_command = substitute_vars_in_expr ~runtime:(runtime_of_node p name) [(dep, dep_value)] i command_expr in
                make_branch name name i i [(dep, i)] substituted_command
              ))
         | None -> Error (Error.type_error (Printf.sprintf "expand_pipeline: node '%s' not found in pipeline." name)))
@@ -326,7 +418,7 @@ let process_tail
        | Some command_expr ->
             Ok (List.init actual_n (fun i ->
               let value_idx = start + i in
-               let substituted_command = substitute_vars_in_expr [(dep, dep_value)] value_idx command_expr in
+               let substituted_command = substitute_vars_in_expr ~runtime:(runtime_of_node p name) [(dep, dep_value)] value_idx command_expr in
                make_branch name name i value_idx [(dep, value_idx)] substituted_command
              ))
         | None -> Error (Error.type_error (Printf.sprintf "expand_pipeline: node '%s' not found in pipeline." name)))
@@ -350,7 +442,7 @@ let process_sample
       (match get_node_command p name with
        | Some command_expr ->
              Ok (List.mapi (fun branch_idx value_idx ->
-               let substituted_command = substitute_vars_in_expr [(dep, dep_value)] value_idx command_expr in
+               let substituted_command = substitute_vars_in_expr ~runtime:(runtime_of_node p name) [(dep, dep_value)] value_idx command_expr in
                make_branch name name branch_idx value_idx [(dep, value_idx)] substituted_command
              ) chosen)
                | None -> Error (Error.type_error (Printf.sprintf "expand_pipeline: node '%s' not found in pipeline." name)))
@@ -532,6 +624,46 @@ let expand_pipeline_internal (p : pipeline_result) (env : value Env.t) (to_scrip
               | None -> None
             ) branches
           in
+          (* Per-dependency strategy maps key real dependency names, so
+             they go stale when expansion renames branch deps (`src` ->
+             `src_branch_1`) and the emitter silently falls back to
+             `default`. Rewrite map keys per branch exactly like
+             `make_branch_deps` renames deps; whole strategy dicts
+             (carrying `format`) apply to every dep and pass through
+             untouched. Top level only: snippet sub-dicts are data. *)
+          let rename_dep_for_branch b dep =
+            match List.find_opt (fun (orig, _) -> orig = dep) !expanded_map with
+            | Some (_, branch_names) ->
+                (match List.nth_opt branch_names (dep_index_for_branch b dep) with
+                 | Some name -> name
+                 | None -> raise (BranchIndexError
+                     (Printf.sprintf
+                        "expand_pipeline: branch index for strategy key '%s' of node '%s' out of range (branch_names length = %d)"
+                        dep b.branch_name (List.length branch_names))))
+            | None -> dep
+          in
+          let rewrite_strategy_keys b e =
+            let rename = rename_dep_for_branch b in
+            match e.node with
+            | DictLit pairs when not (List.mem_assoc "format" pairs) ->
+                { e with node = DictLit (List.map (fun (k, v) -> (rename k, v)) pairs) }
+            | Value (VDict pairs) when not (List.mem_assoc "format" pairs) ->
+                { e with node = Value (VDict (List.map (fun (k, v) -> (rename k, v)) pairs)) }
+            (* Named list items cannot arise from surface syntax (the
+               parser makes pure [k: v] a DictLit and rejects mixes), so
+               this only ever fires on empty lists; rename for symmetry
+               with the emitter's per-dependency lookup. *)
+            | ListLit items ->
+                { e with node = ListLit (List.map (fun (n, v) -> (Option.map rename n, v)) items) }
+            | _ -> e
+          in
+          let make_branch_strategy_entries lst =
+            List.filter_map (fun b ->
+              match copy_entry b.orig_name lst with
+              | Some v -> Some (b.branch_name, rewrite_strategy_keys b v)
+              | None -> None
+            ) branches
+          in
 
           (match
              try
@@ -549,8 +681,8 @@ let expand_pipeline_internal (p : pipeline_result) (env : value Env.t) (to_scrip
                  p_deps           = List.filter (fun (n, _) -> not (is_removed n)) p.p_deps @ branch_deps;
                  p_imports        = p.p_imports;
                  p_runtimes       = List.filter (fun (n, _) -> not (is_removed n)) p.p_runtimes @ make_branch_entries p.p_runtimes;
-                 p_serializers    = List.filter (fun (n, _) -> not (is_removed n)) p.p_serializers @ make_branch_entries p.p_serializers;
-                 p_deserializers  = List.filter (fun (n, _) -> not (is_removed n)) p.p_deserializers @ make_branch_entries p.p_deserializers;
+                 p_serializers    = List.filter (fun (n, _) -> not (is_removed n)) p.p_serializers @ make_branch_strategy_entries p.p_serializers;
+                 p_deserializers  = List.filter (fun (n, _) -> not (is_removed n)) p.p_deserializers @ make_branch_strategy_entries p.p_deserializers;
                  p_env_vars       = List.filter (fun (n, _) -> not (is_removed n)) p.p_env_vars @ make_branch_entries p.p_env_vars;
                  p_args           = List.filter (fun (n, _) -> not (is_removed n)) p.p_args @ make_branch_entries p.p_args;
                  p_shells         = List.filter (fun (n, _) -> not (is_removed n)) p.p_shells @ make_branch_entries p.p_shells;

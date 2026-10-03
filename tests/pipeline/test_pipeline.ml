@@ -154,8 +154,9 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   Printf.printf "Phase 3 — Block shadowing in node commands:\n";
   (* A block-local assignment shadows an outer env var: later references must
      stay local instead of inlining the outer value (substitute_env_vars walks
-     statements left to right; reassignment adds no new name). Assert on the
-     emitted node script so no Nix build is needed. *)
+     statements left to right; reassignment binds from that point on, while
+     reassigning a captured outer data variable is rejected, see below).
+     Assert on the emitted node script so no Nix build is needed. *)
   let (_, env_shadow) = eval_string_env "x = 100" (Packages.init_env ()) in
   let (v_shadow, _) = eval_string_env
     {|pipeline { a = node(command = { x = 1; x + 1 }) }|}
@@ -172,6 +173,41 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
    | other ->
        incr fail_count; Printf.printf "  ✗ block shadowing fixture failed: %s\n"
          (Ast.Utils.value_to_string other));
+  (* Outer data inlines as a frozen literal; outer lambdas stay symbolic
+     (share code via functions, not bare references). *)
+  let (_, env_cap) = eval_string_env "x = 41" (Packages.init_env ()) in
+  let (v_frozen, _) = eval_string_env
+    {|pipeline { a = node(command = x + 1) }|}
+    env_cap in
+  (match v_frozen with
+   | Ast.VPipeline p ->
+       let nix = Nix_emit_pipeline.emit_pipeline p in
+       let has s = try ignore (Str.search_forward (Str.regexp_string s) nix 0); true
+                   with Not_found -> false in
+       if has "(41 + 1)" then
+         begin incr pass_count; Printf.printf "  ✓ outer data inlines as frozen literal\n" end
+       else
+         begin incr fail_count; Printf.printf "  ✗ outer data not inlined\n" end
+   | other ->
+       incr fail_count; Printf.printf "  ✗ frozen fixture failed: %s\n"
+         (Ast.Utils.value_to_string other));
+  let (_, env_lam) = eval_string_env "f = \\(n: Int -> Int) n + 1" (Packages.init_env ()) in
+  let (v_lam, _) = eval_string_env
+    {|pipeline { a = node(command = f(41)) }|}
+    env_lam in
+  (match v_lam with
+   | Ast.VPipeline p ->
+       let nix = Nix_emit_pipeline.emit_pipeline p in
+       let has s = try ignore (Str.search_forward (Str.regexp_string s) nix 0); true
+                   with Not_found -> false in
+       if has "f(41)" && not (has "n + 1") then
+         begin incr pass_count; Printf.printf "  ✓ outer lambda stays symbolic\n" end
+       else
+         begin incr fail_count; Printf.printf "  ✗ outer lambda not symbolic\n" end
+   | other ->
+       incr fail_count; Printf.printf "  ✗ lambda fixture failed: %s\n"
+         (Ast.Utils.value_to_string other));
+  print_newline ();
   (* Reassigning a captured outer variable is rejected at construction: the
      node script runs in a fresh environment, so the target would dangle and
      a trailing read would inline the stale outer value (100 instead of 2). *)
@@ -1234,8 +1270,8 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   let explicit_node_code = {|
 p_cross = pipeline {
   a = 10
-  b = node(command = <{ a * 2 }>, runtime = R, serializer = write_rds, deserializer = read_rds, functions = "my_utils.R")
-  c = node(command = <{ b + 1 }>, runtime = Python, serializer = write_pkl, deserializer = read_pkl, functions = ["my_utils.py", "my_serializer.py"], include = "data.csv")
+  b = node(command = <{ a * 2 }>, runtime = R, serializer = ^csv, deserializer = ^csv)
+  c = node(command = <{ b + 1 }>, runtime = Python, serializer = ^json, deserializer = ^json, include = "data.csv")
 }
   |} in
   let env_cross = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_pipeline:1155" explicit_node_code in
@@ -2656,6 +2692,67 @@ p.t_step|}
      | other ->
          incr fail_count; Printf.printf "  ✗ expand_pipeline should return VPipeline, got %s\n" (Ast.Utils.value_to_string other));
 
+    (* 2a. Per-dependency strategy map keys follow branch renaming.
+       Chained patterns rename the dep itself (`mid` → `mid_branch_N`);
+       without the rewrite the emitter looks up the branch dep in a map
+       keyed by the pre-expansion name and silently falls back to
+       `default`. *)
+    let env_map = Test_helpers.eval_setup eval_string_env env "test_pipeline:strategymap" "p = pipeline {\n  src = [10, 20]\n  mid = node(command = <{ src + 1 }>, pattern = map_pattern(src))\n  out = rn(command = <{ mid + 1 }>, pattern = map_pattern(mid), deserializer = [mid: ^csv])\n}" in
+    let (v_map, _) = eval_string_env "expand_pipeline(p)" env_map in
+    (match v_map with
+     | VPipeline pe_map ->
+         (* Node construction evaluates the map, so entries are values. *)
+         let key_of n =
+           let keys_of e = match e.Ast.node with
+             | Ast.DictLit pairs -> List.map fst pairs
+             | Ast.Value (Ast.VDict pairs) -> List.map fst pairs
+             | _ -> []
+           in
+           match List.assoc_opt n pe_map.p_deserializers with
+           | Some e -> keys_of e
+           | None -> []
+         in
+         let show l = "[" ^ String.concat "; " l ^ "]" in
+         if key_of "out_branch_1" = ["mid_branch_1"] && key_of "out_branch_2" = ["mid_branch_2"] then begin
+           incr pass_count; Printf.printf "  ✓ expanded strategy map keys renamed per branch\n"
+         end else begin
+           incr fail_count; Printf.printf "  ✗ expanded strategy map keys not renamed (b1=%s b2=%s)\n"
+             (show (key_of "out_branch_1")) (show (key_of "out_branch_2"))
+         end
+     | other ->
+         incr fail_count; Printf.printf "  ✗ expand_pipeline should return VPipeline, got %s\n" (Ast.Utils.value_to_string other));
+
+    (* 2b. Conditional shadow with a later read fails loudly instead of
+       expanding branches that would mix per-branch slices with the whole
+       artifact. *)
+    let env_cond = Test_helpers.eval_setup eval_string_env env "test_pipeline:condshadow" "p = pipeline {\n  src = [10, 20, 30]\n  out = rn(command = <{\n  if (flag) src <- 99\n  use(src)\n}>, pattern = map_pattern(src), deserializer = ^json)\n}" in
+    let (v_cond, _) = eval_string_env "expand_pipeline(p)" env_cond in
+    (match v_cond with
+     | VError err when Test_helpers.contains err.message "conditionally binds" ->
+         incr pass_count; Printf.printf "  ✓ expand_pipeline rejects conditional shadow with later read\n"
+     | other ->
+         incr fail_count; Printf.printf "  ✗ conditional shadow should fail loudly, got %s\n" (Ast.Utils.value_to_string other));
+
+    (* 2c. Conditional shadow with no later read still expands: nothing
+       after the binder can observe the inconsistency. *)
+    let env_cond_ok = Test_helpers.eval_setup eval_string_env env "test_pipeline:condshadowok" "p = pipeline {\n  src = [10, 20, 30]\n  out = rn(command = <{\n  if (flag) src <- 99\n  1\n}>, pattern = map_pattern(src), deserializer = ^json)\n}" in
+    let (v_cond_ok, _) = eval_string_env "expand_pipeline(p)" env_cond_ok in
+    (match v_cond_ok with
+     | VPipeline pe when List.length pe.p_nodes = 4 ->
+         incr pass_count; Printf.printf "  ✓ expand_pipeline allows conditional shadow without later read\n"
+     | other ->
+         incr fail_count; Printf.printf "  ✗ conditional shadow without later read should expand, got %s\n" (Ast.Utils.value_to_string other));
+
+    (* 2d. Mentions inside comments and strings are not reads: a comment
+       naming the dependency after a conditional binding still expands. *)
+    let env_cond_comment = Test_helpers.eval_setup eval_string_env env "test_pipeline:condshadowcomment" "p = pipeline {\n  src = [10, 20, 30]\n  out = rn(command = <{\n  if (flag) src <- 99\n  # see the src node\n  msg <- \"src done\"\n  1\n}>, pattern = map_pattern(src), deserializer = ^json)\n}" in
+    let (v_cond_comment, _) = eval_string_env "expand_pipeline(p)" env_cond_comment in
+    (match v_cond_comment with
+     | VPipeline pe when List.length pe.p_nodes = 4 ->
+         incr pass_count; Printf.printf "  ✓ expand_pipeline ignores comment/string mentions after conditional binding\n"
+     | other ->
+         incr fail_count; Printf.printf "  ✗ comment/string mentions should not trip the rename error, got %s\n" (Ast.Utils.value_to_string other));
+
     (* 3. Test expand_pipeline with single value (length 1) — creates 1 branch *)
     let env_single = Test_helpers.eval_setup eval_string_env env "test_pipeline:2587" "p = pipeline {\n  a = 42\n  b = node(command = <{ a }>, pattern = map_pattern(a))\n}" in
     let (v_single, _) = eval_string_env "expand_pipeline(p)" env_single in
@@ -2748,6 +2845,50 @@ p.t_step|}
      | other ->
          incr fail_count; Printf.printf "  ✗ expand_pipeline with non-T runtime should return VPipeline, got %s\n"
            (Ast.Utils.value_to_string other));
+
+    (* 9. Test pattern expansion respects block-local shadowing in raw code:
+       only occurrences resolving to the dependency are substituted — the
+       binder itself and later local reads stay bare. *)
+    let branch_raw_text (pe : Ast.pipeline_result) name =
+      match List.assoc_opt name pe.Ast.p_nodes with
+      | Some (Ast.VNode un) ->
+          (match un.un_command.node with
+           | Ast.RawCode { raw_text; _ } -> Some raw_text
+           | _ -> None)
+      | _ -> None
+    in
+    let check_branch_text name code branch expected =
+      let env_b = Test_helpers.eval_setup eval_string_env env ("test_pipeline:" ^ name) code in
+      (match eval_string_env "expand_pipeline(p)" env_b with
+       | (Ast.VPipeline pe, _) ->
+           (match branch_raw_text pe branch with
+            | Some text when text = expected ->
+                incr pass_count; Printf.printf "  ✓ %s\n" name
+            | Some text ->
+                incr fail_count; Printf.printf "  ✗ %s\n    Expected: %s\n    Got:      %s\n" name expected text
+            | None ->
+                incr fail_count; Printf.printf "  ✗ %s: branch %s has no raw command\n" name branch)
+       | (other, _) ->
+           incr fail_count; Printf.printf "  ✗ %s: expansion failed: %s\n" name (Ast.Utils.value_to_string other))
+    in
+    check_branch_text "expansion substitutes RHS but keeps binder and later reads"
+      "p = pipeline {\n\
+       \  a = [10, 20]\n\
+       \  b = rn(command = <{ a <- a + 1; a }>, deserializer = ^json, pattern = map_pattern(a))\n\
+       }"
+      "b_branch_1" "a <- 10 + 1; a";
+    check_branch_text "expansion substitutes pre-binding reads only"
+      "p = pipeline {\n\
+       \  a = [10, 20]\n\
+       \  b = rn(command = <{ print(a); a <- 1; a }>, deserializer = ^json, pattern = map_pattern(a))\n\
+       }"
+      "b_branch_1" "print(10); a <- 1; a";
+    check_branch_text "expansion respects shadowing in Python blocks"
+      "p = pipeline {\n\
+       \  a = [10, 20]\n\
+       \  b = pyn(command = <{ a = a + 1\na }>, deserializer = ^json, pattern = map_pattern(a))\n\
+       }"
+      "b_branch_1" "a = 10 + 1\na";
 
     ()
   in
@@ -3301,7 +3442,7 @@ p.t_step|}
      p = pipeline {
        n1 = rn(command = <{ 1 + 1 }>, deserializer = ^json)
      }
-     q = set_pipeline_global_options(p, deserializer = "csv")
+     q = set_pipeline_global_options(p, deserializer = ^csv)
    |} in
     let (vq, _) = eval_string_env "q" env in
     match vq with
@@ -3478,7 +3619,7 @@ p.t_step|}
    (* Test 18: Type error for wrong serializer type *)
    test "set_pipeline_global_options serializer type error"
      {|set_pipeline_global_options((pipeline { n1 = node(command = 1) }), serializer = 42)|}
-     {|Error(TypeError: "set_pipeline_global_options: expected a string or symbol for serializer/deserializer, but got Int.")|};
+     {|Error(TypeError: "set_pipeline_global_options: expected a symbol or strategy dict for serializer/deserializer, but got Int.")|};
 
    (* Test 19: Type error for wrong dependencies type *)
    test "set_pipeline_global_options dependencies type error"

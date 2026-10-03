@@ -194,5 +194,34 @@ let register_string env =
     ))
     env
 
+(*
+--# Convert record to Dict
+--#
+--# Converts a user-defined record to a plain Dict with one entry per
+--# field, so record data can cross into foreign node code (records
+--# themselves are T-side contracts and never cross). Shallow: nested
+--# records stay records; call `to_dict` on them first if needed.
+--#
+--# @name to_dict
+--# @param x :: Record The record to convert.
+--# @return :: Dict A Dict mapping field names to values.
+--# @example
+--#   to_dict(Point(x = 1.0, y = 2.0))
+--# @family core
+--# @export
+*)
+let register_dict env =
+  Env.add "to_dict"
+    (make_builtin ~name:"to_dict" 1 (fun args _env ->
+      let convert v = match v with
+        | VRecord r -> VDict r.rec_fields
+        | VNA _ as na -> na
+        | VError _ as e -> e
+        | _ -> Error.type_error (Printf.sprintf "Function `to_dict` expects a record, got %s. Convert with to_dict(r) before crossing into foreign code." (Utils.type_name v))
+      in
+      lift_unary_converter "to_dict" convert args
+    ))
+    env
+
 let register env =
-  env |> register_integer |> register_float |> register_sym |> register_bool |> register_string
+  env |> register_integer |> register_float |> register_sym |> register_bool |> register_string |> register_dict

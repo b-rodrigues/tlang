@@ -6,7 +6,7 @@ Return most frequent value.
 
 ## Parameters
 
-- **x** (`Vector`): | List Input values.
+- **x** (`Vector | List`): Input values.
 
 
 ## Returns

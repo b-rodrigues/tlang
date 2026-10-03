@@ -2,7 +2,7 @@
 
 Serialize Value
 
-Serializes a value to a `.tobj` file.
+Serializes a value to a `.tobj` file. Returns a FileError value when the file cannot be written.
 
 ## Parameters
 

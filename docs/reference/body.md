@@ -11,7 +11,7 @@ Returns the implementation body of a function. For T functions, it returns the b
 
 ## Returns
 
-| String The function body or implementation info.
+The function body or implementation info.
 
 ## Examples
 

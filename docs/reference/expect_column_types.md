@@ -8,7 +8,7 @@ Passes if the specified DataFrame columns match the expected type strings.
 
 - **df** (`DataFrame`): The DataFrame to check.
 
-- **expected_types** (`Dict`): | List Column name -> expected type string map.
+- **expected_types** (`Dict | List`): Column name -> expected type string map.
 
 
 ## Returns

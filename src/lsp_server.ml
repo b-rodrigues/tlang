@@ -177,6 +177,8 @@ module Server = struct
            diagnostics := [ diagnostic_at_lexeme lexbuf "Mixed bracket literal (found both single elements and key-value pairs)" ]
         | Ast.Invalid_match_pattern msg ->
            diagnostics := [ diagnostic_at_lexeme lexbuf msg ]
+        | Ast.Invalid_type_declaration msg ->
+           diagnostics := [ diagnostic_at_lexeme lexbuf msg ]
       | Lexer.SyntaxError msg ->
           diagnostics :=
             [ diagnostic_at_lexeme lexbuf (Printf.sprintf "Lexer error: %s" msg) ]

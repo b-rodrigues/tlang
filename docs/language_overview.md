@@ -1,6 +1,6 @@
 # T Language Overview
 
-> **Version**: 0.55.4
+> **Version**: 0.55.5
 
 T is a functional programming language designed for declarative, tabular data manipulation. It combines the pipeline-driven style of R's tidyverse with OCaml's type discipline, producing a small, focused language for data wrangling and basic statistics.
 
@@ -64,6 +64,34 @@ T supports the following value types:
 | `Symbol`    | `$mpg`                   | Name reference (NSE, DataFrames)    |
 | `Expression`| `to_expr(1 + 2)`            | Captured code (for metaprogramming) |
 | `Intent`    | `intent { ... }`         | LLM-friendly metadata block         |
+
+### User-Defined Record Types
+
+T supports nominal, closed record types for naming domain shapes. A record is never a `Dict` and never another record type, even with an identical field shape — the type name is identity.
+
+```t
+type Point = { x: Float, y: Float }
+p = Point(x = 1.0, y = 2.0)
+p.x -- 1.0
+```
+
+Construction takes all-positional or all-named arguments (never a mix). Unknown, missing, or mistyped fields fail with an error naming the field and the valid set. Annotations accept record names (`\(p: Point -> Point) p`), enforced at runtime like all annotations. Records match `_` and variable arms in `match`. Records are T-side contracts: they cannot cross into foreign node code or serializers — use plain data across the boundary instead. The leading word `type` is contextual, so the `type()` builtin keeps working. Built-in type names (`Model`, `Pipeline`, `Date`, `Period`, `Interval`, and the rest) are reserved for every `type` declaration, records and unions alike — shadowing is never allowed, so a declaration with one of these names fails naming the full set.
+
+### User-Defined Tagged Unions
+
+Unions name related cases with positional payloads. Every case uses call syntax, including nullary ones — a bare name in a pattern is always a binding, never a case test.
+
+```t
+type Shape = Circle(Float) | Rect(Float, Float) | Missing()
+s = Circle(1.0)
+match(s) {
+  Circle(r) => r,
+  Rect(w, h) => w * h,
+  Missing() => 0.0
+} -- 1.0
+```
+
+Cases resolve only for unbound names: an ordinary variable with the same name always wins. A case shared by two unions in scope fails naming every owner type — rename one case. Payload counts and types are checked at construction; calling the union type itself fails naming its cases. `t check` warns on missing cases, unknown case names, and bare variables shadowing a case name. Unions are T-side contracts like records.
 
 ### Variables and Assignment
 

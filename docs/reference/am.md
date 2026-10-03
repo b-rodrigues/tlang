@@ -6,10 +6,10 @@ Returns true for Date values and for Datetime values whose hour is earlier than 
 
 ## Parameters
 
-- **x** (`Date`): | Datetime | Vector The temporal value(s).
+- **x** (`Date | Datetime | Vector`): The temporal value(s).
 
 
 ## Returns
 
-| Vector[Bool] True if before noon.
+True if before noon.
 

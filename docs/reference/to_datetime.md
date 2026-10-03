@@ -15,5 +15,5 @@ Converts strings, dates, and related temporal values to Datetime values.
 
 ## Returns
 
-| Vector[Datetime] The converted datetime(s).
+The converted datetime(s).
 

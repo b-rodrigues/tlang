@@ -2,7 +2,7 @@
 
 Read Value from JSON
 
-Deserializes a T value from a JSON file. Automatically handles type conversion for scalars, lists, and dictionaries.
+Deserializes a T value from a JSON file. Automatically handles type conversion for scalars, lists, and dictionaries. Returns a FileError value when the file cannot be read.
 
 ## Parameters
 

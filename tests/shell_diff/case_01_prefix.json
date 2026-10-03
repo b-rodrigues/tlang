@@ -1,0 +1,160 @@
+{
+	"Type": "File",
+	"Pos": {
+		"Offset": 0,
+		"Line": 1,
+		"Col": 1
+	},
+	"End": {
+		"Offset": 9,
+		"Line": 1,
+		"Col": 10
+	},
+	"Stmts": [
+		{
+			"Pos": {
+				"Offset": 0,
+				"Line": 1,
+				"Col": 1
+			},
+			"End": {
+				"Offset": 9,
+				"Line": 1,
+				"Col": 10
+			},
+			"Cmd": {
+				"Type": "CallExpr",
+				"Pos": {
+					"Offset": 0,
+					"Line": 1,
+					"Col": 1
+				},
+				"End": {
+					"Offset": 9,
+					"Line": 1,
+					"Col": 10
+				},
+				"Assigns": [
+					{
+						"Pos": {
+							"Offset": 0,
+							"Line": 1,
+							"Col": 1
+						},
+						"End": {
+							"Offset": 5,
+							"Line": 1,
+							"Col": 6
+						},
+						"Name": {
+							"Pos": {
+								"Offset": 0,
+								"Line": 1,
+								"Col": 1
+							},
+							"End": {
+								"Offset": 3,
+								"Line": 1,
+								"Col": 4
+							},
+							"ValuePos": {
+								"Offset": 0,
+								"Line": 1,
+								"Col": 1
+							},
+							"ValueEnd": {
+								"Offset": 3,
+								"Line": 1,
+								"Col": 4
+							},
+							"Value": "FOO"
+						},
+						"Value": {
+							"Pos": {
+								"Offset": 4,
+								"Line": 1,
+								"Col": 5
+							},
+							"End": {
+								"Offset": 5,
+								"Line": 1,
+								"Col": 6
+							},
+							"Parts": [
+								{
+									"Type": "Lit",
+									"Pos": {
+										"Offset": 4,
+										"Line": 1,
+										"Col": 5
+									},
+									"End": {
+										"Offset": 5,
+										"Line": 1,
+										"Col": 6
+									},
+									"ValuePos": {
+										"Offset": 4,
+										"Line": 1,
+										"Col": 5
+									},
+									"ValueEnd": {
+										"Offset": 5,
+										"Line": 1,
+										"Col": 6
+									},
+									"Value": "1"
+								}
+							]
+						}
+					}
+				],
+				"Args": [
+					{
+						"Pos": {
+							"Offset": 6,
+							"Line": 1,
+							"Col": 7
+						},
+						"End": {
+							"Offset": 9,
+							"Line": 1,
+							"Col": 10
+						},
+						"Parts": [
+							{
+								"Type": "Lit",
+								"Pos": {
+									"Offset": 6,
+									"Line": 1,
+									"Col": 7
+								},
+								"End": {
+									"Offset": 9,
+									"Line": 1,
+									"Col": 10
+								},
+								"ValuePos": {
+									"Offset": 6,
+									"Line": 1,
+									"Col": 7
+								},
+								"ValueEnd": {
+									"Offset": 9,
+									"Line": 1,
+									"Col": 10
+								},
+								"Value": "cmd"
+							}
+						]
+					}
+				]
+			},
+			"Position": {
+				"Offset": 0,
+				"Line": 1,
+				"Col": 1
+			}
+		}
+	]
+}

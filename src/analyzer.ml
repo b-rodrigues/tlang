@@ -10,6 +10,11 @@ module Definition_map = Map.Make (String)
 
 type analysis_result = {
   definitions : Ast.source_location Definition_map.t;
+  (* Inferred right-hand-side type per top-level statement index, recorded
+     in visit order. Lets consumers (annotation checks) compare each
+     statement against the type it actually had, instead of the
+     post-analysis scope where later reassignments already overwrote it. *)
+  stmt_types : (int, Semantic_type.t) Hashtbl.t;
 }
 
 let csv_cache = Hashtbl.create 10
@@ -233,14 +238,21 @@ and add_definition definitions name = function
     @param scope The symbol table scope.
     @param definitions The definition map reference to update.
     @param stmt The statement to analyze. *)
-and analyze_stmt scope definitions stmt =
+and analyze_stmt ?stmt_index scope definitions stmt =
+  let record ty =
+    match stmt_index with
+    | Some (tbl, i) -> Hashtbl.replace tbl i ty
+    | None -> ()
+  in
   match stmt.node with
   | Assignment { name; expr; _ } ->
       let ty = infer_type scope expr in
+      record ty;
       Symbol_table.add scope { name; kind = Variable; typ = Some ty; doc = None };
       add_definition definitions name stmt.loc
   | Reassignment { name; expr } ->
       let ty = infer_type scope expr in
+      record ty;
       Symbol_table.add scope { name; kind = Variable; typ = Some ty; doc = None }
   | ImportPackage pkg_name ->
       (match List.find_opt (fun p -> p.Packages.name = pkg_name) Packages.all_packages with
@@ -273,5 +285,6 @@ and analyze_stmt scope definitions stmt =
     @return An [analysis_result] containing all resolved symbol definitions. *)
 let analyze program scope =
   let definitions = ref Definition_map.empty in
-  List.iter (analyze_stmt scope definitions) program;
-  { definitions = !definitions }
+  let stmt_types = Hashtbl.create 16 in
+  List.iteri (fun i stmt -> analyze_stmt ~stmt_index:(stmt_types, i) scope definitions stmt) program;
+  { definitions = !definitions; stmt_types }

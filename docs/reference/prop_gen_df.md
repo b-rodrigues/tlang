@@ -6,7 +6,7 @@ Returns a generator spec producing a DataFrame with one column per entry in `col
 
 ## Parameters
 
-- **columns** (`Dict[String,`): Dict] Column name -> generator spec.
+- **columns** (`Dict[String, Dict]`): Column name -> generator spec.
 
 - **nrows** (`Int`): = 30 Number of rows.
 

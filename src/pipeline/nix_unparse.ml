@@ -79,6 +79,8 @@ and unparse_expr expr =
         | PNA -> "NA"
         | PError None -> "Error"
         | PError (Some field) -> Printf.sprintf "Error { %s }" field
+        | PUnion { pu_case; pu_args } ->
+            pu_case ^ "(" ^ String.concat ", " (List.map unparse_pattern pu_args) ^ ")"
         | PList (patterns, rest) ->
             let items =
               List.map unparse_pattern patterns
@@ -134,6 +136,14 @@ and unparse_stmt stmt =
   | Expression e -> unparse_expr e
   | Assignment { name; expr; _ } -> name ^ " = " ^ unparse_expr expr
   | Reassignment { name; expr } -> name ^ " := " ^ unparse_expr expr
+  | TypeDecl { tname; tdef = Ast.RecordDef { rd_fields } } ->
+      "type " ^ tname ^ " = { "
+      ^ String.concat ", " (List.map (fun (n, t) -> n ^ ": " ^ Ast.Utils.typ_to_string t) rd_fields)
+      ^ " }"
+  | TypeDecl { tname; tdef = Ast.UnionDef { ud_cases } } ->
+      "type " ^ tname ^ " = "
+      ^ String.concat " | " (List.map (fun (c, ts) ->
+            c ^ "(" ^ String.concat ", " (List.map Ast.Utils.typ_to_string ts) ^ ")") ud_cases)
   | Import filename -> Printf.sprintf "import \"%s\"" filename
   | ImportPackage pkg -> Printf.sprintf "import %s" pkg
   | ImportFrom { package; names } -> 

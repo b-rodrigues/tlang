@@ -4,6 +4,7 @@ open Ast
 --# Write Parquet file
 --#
 --# Writes a DataFrame to a Parquet file using the native parquet-glib writer.
+--# Returns a FileError value when the file cannot be written.
 --#
 --# Prefer Parquet for compressed, long-term storage of large datasets or when
 --# sharing data with external analytics tooling. For the fastest possible

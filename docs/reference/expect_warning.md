@@ -6,7 +6,7 @@ Passes if the node's diagnostics contain at least one warning. Optionally filter
 
 ## Parameters
 
-- **node** (`NodeResult`): | ComputedNode The computed node to inspect.
+- **node** (`NodeResult | ComputedNode`): The computed node to inspect.
 
 - **kind** (`String`): = "" Optional warning kind to match exactly (e.g. "NAExcluded").
 

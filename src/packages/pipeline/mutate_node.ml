@@ -7,8 +7,8 @@ open Ast
 --# argument to scope changes to a subset of nodes. Without `where`, all
 --# nodes are affected.
 --#
---# Mutable metadata fields: `noop` (Bool), `serializer` (String),
---# `deserializer` (String), `runtime` (String), `deps` (List[String]),
+--# Mutable metadata fields: `noop` (Bool), `serializer` (Strategy),
+--# `deserializer` (Strategy), `runtime` (String), `deps` (List[String]),
 --# `functions` (List[String]), `include` (List[String]),
 --# `env_vars` (Dict), `args` (Dict), `shell` (String), `shell_args` (List[String]),
 --# `flake` (String).
@@ -22,7 +22,7 @@ open Ast
 --# @return :: Pipeline A new pipeline with updated node metadata.
 --# @example
 --#   p |> mutate_node($noop = true)
---#   p |> mutate_node($serializer = "pmml", where = $runtime == "R")
+--#   p |> mutate_node($serializer = ^pmml, where = $runtime == "R")
 --# @family pipeline
 --# @seealso filter_node, rename_node
 --# @export
@@ -77,25 +77,35 @@ let register ~eval_call env =
           let new_serializers =
             match List.assoc_opt (Some "serializer") mutations with
             | None -> p.p_serializers
-            | Some (VString v) ->
+            | Some (VSymbol _ as v) | Some (VSerializer _ as v) | Some (VDict _ as v) ->
                 List.map (fun (n, old) ->
-                  if matches n then (n, Ast.mk_expr (Ast.Value (Ast.VString v))) else (n, old)
+                  if matches n then (n, Ast.mk_expr (Ast.Value v)) else (n, old)
                 ) p.p_serializers
+            | Some (VString s) ->
+                if !first_error = None then
+                  first_error := Some (Error.type_error
+                    (Printf.sprintf "Function `mutate_node`: `serializer` expects a Strategy (^%s or a strategy dict), got String. Use a ^-prefixed symbol instead." s));
+                p.p_serializers
             | Some v ->
                 if !first_error = None then
-                  first_error := Some (Error.type_error (check "serializer" v "String"));
+                  first_error := Some (Error.type_error (check "serializer" v "Strategy"));
                 p.p_serializers
           in
           let new_deserializers =
             match List.assoc_opt (Some "deserializer") mutations with
             | None -> p.p_deserializers
-            | Some (VString v) ->
+            | Some (VSymbol _ as v) | Some (VSerializer _ as v) | Some (VDict _ as v) ->
                 List.map (fun (n, old) ->
-                  if matches n then (n, Ast.mk_expr (Ast.Value (Ast.VString v))) else (n, old)
+                  if matches n then (n, Ast.mk_expr (Ast.Value v)) else (n, old)
                 ) p.p_deserializers
+            | Some (VString s) ->
+                if !first_error = None then
+                  first_error := Some (Error.type_error
+                    (Printf.sprintf "Function `mutate_node`: `deserializer` expects a Strategy (^%s or a strategy dict), got String. Use a ^-prefixed symbol instead." s));
+                p.p_deserializers
             | Some v ->
                 if !first_error = None then
-                  first_error := Some (Error.type_error (check "deserializer" v "String"));
+                  first_error := Some (Error.type_error (check "deserializer" v "Strategy"));
                 p.p_deserializers
           in
           let new_explicit_deps, new_p_deps =

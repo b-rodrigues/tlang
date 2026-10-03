@@ -37,7 +37,8 @@
 <p>Write Value to JSON</p>
 <p>Serializes a T value to a JSON file. This is used as the universal
 baseline for object transport between runtimes in the sandbox
-interchange protocol.</p>
+interchange protocol. Returns a FileError value when the file cannot be
+written.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
 <li><p><strong>value</strong> (<code>Any</code>): The value to

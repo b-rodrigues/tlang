@@ -6,7 +6,7 @@ Passes if the node is computed and has a finished value.
 
 ## Parameters
 
-- **node** (`ComputedNode`): | NodeResult The node to check.
+- **node** (`ComputedNode | NodeResult`): The node to check.
 
 
 ## Returns

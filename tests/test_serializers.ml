@@ -226,10 +226,10 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env _test 
     {|p = pipeline { a = node(command = <{ 1 }>, serializer = ^ipc) }
       pipeline_validate(p)|}
     [] ["Unknown"];
-  check_unknown_format "Custom strategy with functions passes validation"
+  check_unknown_format "Caret custom format without dict is rejected"
     {|p = pipeline { a = node(command = <{ 1 }>, serializer = ^myser, functions = ["my.R"]) }
       pipeline_validate(p)|}
-    [] ["Unknown serializer format"];
+    ["Unknown serializer format"; "^myser"] [];
   check_unknown_format "Custom strategy without functions is rejected"
     {|p = pipeline { a = node(command = <{ 1 }>, serializer = ^myser) }
       pipeline_validate(p)|}

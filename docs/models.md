@@ -206,10 +206,10 @@ The **Predictive Model Markup Language (PMML)** is the bridge between $T$ and ot
 **ONNX** is the preferred interchange format when you want broad ML model coverage or faster native inference through ONNX Runtime. It allows:
 1. **Python ML Export**: `scikit-learn` models via `skl2onnx`.
 2. **Native T Loading**: Reading models with `t_read_onnx(path)` and scoring them with `predict(data, model)`.
-3. **R/Python/Julia Runtime Loading**: Reading models via the `onnx` R package, Python `onnxruntime`, or Julia `ONNXRunTime`.
+3. **R/Python/Julia Runtime Loading**: Reading models via the `onnx` R package, Python `onnxruntime`, or Julia `ONNXRunTime`. Note: the R `onnx` package needs Python through `reticulate`, which T's Nix R nodes do not ship — R-side ONNX reading and scoring fails there, so use Python directly (`onnxruntime`) or T-native scoring (`t_read_onnx` plus `predict`) instead.
 4. **Broader Coverage**: Neural-network and non-PMML model families that PMML cannot represent well.
 
-Use `^pmml` when you want T's hand-written classical-model evaluator. Use `^onnx` when you want a portable model artifact with native ONNX Runtime inference in T or cross-runtime execution in Python, R, or Julia. $T$ ensures that ONNX models trained in Python (Scikit-Learn) or Julia (Flux) produce consistent results when evaluated natively in $T$.
+Use `^pmml` when you want T's hand-written classical-model evaluator. Use `^onnx` when you want a portable model artifact with native ONNX Runtime inference in T or cross-runtime execution in Python or Julia (R nodes cannot run ONNX artifacts for the reason above). $T$ ensures that ONNX models trained in Python (Scikit-Learn) or Julia (Flux) produce consistent results when evaluated natively in $T$.
 
 > [!NOTE]
 > **Julia World Age**: When using Julia libraries that generate code at runtime (like Flux or Zygote), $T$ automatically wraps execution in `Base.invokelatest` to prevent "World Age" errors. This makes Julia nodes as robust as Python or R nodes for complex modeling tasks.

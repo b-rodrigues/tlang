@@ -36,7 +36,8 @@
 <h1 id="t_read_json">t_read_json</h1>
 <p>Read Value from JSON</p>
 <p>Deserializes a T value from a JSON file. Automatically handles type
-conversion for scalars, lists, and dictionaries.</p>
+conversion for scalars, lists, and dictionaries. Returns a FileError
+value when the file cannot be read.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
 <li><strong>path</strong> (<code>String</code>): Path to the JSON

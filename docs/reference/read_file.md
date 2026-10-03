@@ -2,7 +2,7 @@
 
 Read file contents
 
-Reads the entire content of a file into a string.
+Reads the entire content of a file into a string. Returns a FileError value when the file cannot be read.
 
 ## Parameters
 

@@ -11,8 +11,8 @@ open Ast
 --# The returned Dict has the following keys:
 --# - `name` — the node name (String)
 --# - `runtime` — one of "T", "R", "Python", "Julia", "Quarto", "sh" (String)
---# - `serializer` — e.g. "default", "pmml" (String)
---# - `deserializer` — e.g. "default", "pmml" (String)
+--# - `serializer` — resolved strategy value (a Symbol like ^csv, a strategy Dict, or "default" for unset)
+--# - `deserializer` — resolved strategy value, same shapes as `serializer`
 --# - `noop` — whether the node is a no-op (Bool)
 --# - `deps` — names of nodes this node depends on (List of String)
 --# - `depth` — topological depth in the DAG (Int); roots are depth 0

@@ -5,6 +5,7 @@
 let pass_count = ref 0
 let fail_count = ref 0
 let failures = ref []
+let failed_modules = ref []
 
 (* Strict mode: detect modules that produce 0 assertions *)
 let strict_mode = try Sys.getenv "TLANG_TEST_STRICT" = "1" with Not_found -> false
@@ -14,6 +15,9 @@ let run_module name fn =
   let before_pass = !pass_count in
   let before_fail = !fail_count in
   fn ();
+  let module_fails = !fail_count - before_fail in
+  if module_fails > 0 then
+    failed_modules := (name, module_fails) :: !failed_modules;
   let assertions = (!pass_count - before_pass) + (!fail_count - before_fail) in
   if strict_mode && assertions = 0 then begin
     Printf.printf "  ⚠ STRICT: %s produced 0 assertions\n" name;
@@ -169,6 +173,8 @@ let () =
   run "Test_na" Test_na.run_tests;
   run "Test_na_edge_cases" Test_na_edge_cases.run_tests;
   run_with_env "Test_errors" Test_errors.run_tests;
+  run_with_env "Test_records" Test_records.run_tests;
+  run_with_env "Test_unions" Test_unions.run_tests;
   run "Test_expect_equal" Test_expect_equal.run_tests;
   run "Test_expect_more" Test_expect_more.run_tests;
   run "Test_expect_condition" Test_expect_condition.run_tests;
@@ -194,6 +200,9 @@ let () =
   (* Domain-specific tests *)
   run_with_env "Test_dataframe" Test_dataframe.run_tests;
   run "Test_pipeline" Test_pipeline.run_tests;
+  run "Test_shell_diff" Test_shell_diff.run_tests;
+  run "Test_julia_diff" Test_julia_diff.run_tests;
+  run_with_env "Test_strategy_closed" Test_strategy_closed.run_tests;
   run_with_env "Test_colcraft" Test_colcraft.run_tests;
   run "Test_colcraft_coverage" Test_colcraft_coverage.run_tests;
   run "Test_window" Test_window.run_tests;
@@ -294,6 +303,11 @@ let () =
   if !fail_count > 0 then begin
     Printf.printf "\nFAILURE SUMMARY:\n";
     List.iter (fun msg -> Printf.printf "%s\n" msg) (List.rev !failures);
+    if !failed_modules <> [] then begin
+      Printf.printf "Failed modules:\n";
+      List.iter (fun (m, n) -> Printf.printf "  - %s (%d failed)\n" m n)
+        (List.rev !failed_modules)
+    end;
     Printf.printf "FAILED: %d tests failed\n" !fail_count;
     exit 1
   end else

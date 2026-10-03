@@ -10,7 +10,7 @@ Passes if all cell values in a DataFrame column belong to an allowed set of valu
 
 - **col** (`String`): Column name to check.
 
-- **allowed_values** (`List`): | Vector Set of allowed values.
+- **allowed_values** (`List | Vector`): Set of allowed values.
 
 
 ## Returns

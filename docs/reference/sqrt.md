@@ -2,18 +2,18 @@
 
 Square root
 
-Calculates the square root of x.
+Calculates the square root of x. Returns a ValueError value for negative input.
 
 ## Parameters
 
-- **x** (`Number`): | Vector | NDArray The input value (must be non-negative).
+- **x** (`Number | Vector | NDArray`): The input value (must be non-negative).
 
 - **na_ignore** (`Bool`): Whether to preserve NA values in inputs. Default is false.
 
 
 ## Returns
 
-| Vector | NDArray The square root.
+The square root.
 
 ## Examples
 

@@ -8,7 +8,7 @@ Passes if `x` (or every element of a Vector/List `x`) is present in `values`. Ch
 
 - **x** (`Any`): A scalar value, Vector, or List to look for.
 
-- **values** (`Vector`): | List The haystack collection to search in.
+- **values** (`Vector | List`): The haystack collection to search in.
 
 - **tolerance** (`Float`): = 1e-9 Absolute tolerance used for Float comparisons.
 

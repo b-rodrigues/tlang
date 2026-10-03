@@ -19,7 +19,7 @@ Shorthand for `populate_pipeline(p, build = true)`. Materializes all nodes of th
 
 ## Returns
 
-| DataFrame A BuildLog of the build, or a planned-actions DataFrame when `dry_run` is set.
+A BuildLog of the build, or a planned-actions DataFrame when `dry_run` is set.
 
 ## Examples
 

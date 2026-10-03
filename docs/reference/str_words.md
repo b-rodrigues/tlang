@@ -6,7 +6,7 @@ Splits on whitespace, collapsing consecutive spaces. Accepts ShellResult. Note: 
 
 ## Parameters
 
-- **s** (`String`): | ShellResult
+- **s** (`String | ShellResult`): 
 
 
 ## Returns

@@ -6,14 +6,14 @@ Returns the absolute value of a number or vector/ndarray elements. Raises a Type
 
 ## Parameters
 
-- **x** (`Number`): | Vector | NDArray The input value.
+- **x** (`Number | Vector | NDArray`): The input value.
 
 - **na_ignore** (`Bool`): Whether to preserve NA values in inputs. Default is false.
 
 
 ## Returns
 
-| Vector | NDArray The absolute value.
+The absolute value.
 
 ## Examples
 

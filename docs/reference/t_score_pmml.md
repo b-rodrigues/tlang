@@ -13,5 +13,5 @@ Evaluates a PMML model against a DataFrame using the JPMML-evaluator library. Re
 
 ## Returns
 
-| DataFrame The model predictions.
+The model predictions.
 

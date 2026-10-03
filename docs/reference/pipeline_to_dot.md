@@ -10,7 +10,7 @@ Returns a string containing a Graphviz DOT representation of the pipeline or met
 
 - **flatten** (`Bool`): = false Flatten meta-pipeline subgraphs into a single level.
 
-- **title** (`Str`): = None Optional graph title. Auto-detected from tproject.toml when omitted.
+- **title** (`String`): = None Optional graph title. Auto-detected from tproject.toml when omitted.
 
 
 ## Returns

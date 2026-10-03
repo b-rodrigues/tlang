@@ -51,6 +51,9 @@ jobs:
       - name: Run test suite
         run: nix develop --accept-flake-config --command dune test
 
+      - name: Check docs determinism
+        run: nix develop --accept-flake-config --command bash scripts/check_docs_determinism.sh
+
       - name: Upload T executable as artifact
         uses: actions/upload-artifact@v4
         with:

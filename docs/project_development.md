@@ -65,7 +65,7 @@ my_stats = { git = "https://github.com/user/my-stats", tag = "v0.1.0" }
 data_utils = { git = "https://github.com/user/data-utils", tag = "v0.2.0" }
 
 [t]
-min_version = "0.55.4"
+min_version = "0.55.5"
 ```
 
 > **Important**: `[dependencies]` entries **must** be `{ git, tag }` inline tables pointing to T packages. Version-constraint strings (e.g. `tlang = ">=0.52.0"`) and array values (e.g. `python = ["polars"]`) are **not valid** and will produce a hard error from `t update`. To declare runtime-language packages, use the dedicated sections:
@@ -106,7 +106,7 @@ Syncing 2 dependency(ies) from tproject.toml → flake.nix...
 Running nix flake update...
 ```
 
-This regenerates `flake.nix` so new dependencies and tools appear as proper flake inputs with locked versions. The tools will be available directly in your shell and automatically provided to any pipeline nodes during execution. When you declare runtime dependencies, the matching `tlang` companion package is also exposed in the project shell (`library(tlang)` for R, `import tlang` for Python, and `using tlang` for Julia). Then re-enter the shell:
+This regenerates `flake.nix` so new dependencies and tools appear as proper flake inputs with locked versions. The tools will be available directly in your shell and automatically provided to any pipeline nodes during execution. When you declare runtime dependencies, the matching `tlang` companion package is also exposed in the project shell (`library(tlang)` for R, `import tlang` for Python, and `using tlang` for Julia). The R wrapper and both companion paths are present even with no declared dependencies: the Python package is stdlib-only, so `import tlang` works in a bare shell; the Julia package needs JSON, which `t update` auto-adds once any Julia dependency is declared. Then re-enter the shell:
 
 ```bash
 $ nix develop
@@ -143,7 +143,7 @@ After editing, run `t update` to include them in `flake.nix`. Packages are avail
 
 #### 3.3.1a Automatic Discovery from R Code
 
-T scans R node code for package usage — roxygen `@import`/`@importFrom` tags, `library()`/`require()`/`requireNamespace()`/`loadNamespace()` calls, and `pkg::fun` qualifiers — and prompts you to add any missing packages to `tproject.toml` before building (or auto-adds them with `TLANG_AUTO_ADD_PIPELINE_DEPS=1`). Base packages are never listed. Names inside string literals and `#` comments are skipped. Discovery only ensures packages are *installed*; your code must still attach them (`library(dplyr)` or `dplyr::mutate`).
+T scans R node code for package usage — roxygen `@import`/`@importFrom` tags, `library()`/`require()`/`requireNamespace()`/`loadNamespace()` calls, and `pkg::fun` qualifiers — and prompts you to add any missing packages to `tproject.toml` before building (or auto-adds them with `TLANG_AUTO_ADD_PIPELINE_DEPS=1`). Base packages are never listed. Names inside string literals and `#` comments are skipped. Discovery only ensures packages are *installed*; your code must still attach them (`library(dplyr)` or `dplyr::mutate`). For non-interactive runs, answer the prompt per command with `t run --yes <file.t>` (updates `tproject.toml`, like typing `y`) or `t run --no <file.t>` (declines, like typing `N`); `--no` always wins over `--yes` and the env vars, and `--yes` never skips a missing `tproject.toml` the way `TLANG_AUTO_ADD_PIPELINE_DEPS=1` alone does.
 
 ```r
 #' @importFrom dplyr mutate filter

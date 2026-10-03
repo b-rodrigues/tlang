@@ -10,13 +10,13 @@ A convenience wrapper around `node()` with `runtime = "Julia"`. Used directly wi
 
 - **script** (`String`): (Optional) Path to an external `.jl` file to execute as the node body. Mutually exclusive with `command`. Sets the runtime to `Julia` automatically.
 
-- **serializer** (`Symbol`): (Optional) Custom serializer strategy. Use `^`-prefixed symbols (e.g., `^csv`, `^json`, `^ipc`, `^parquet`, `^onnx`). Default = runtime-native binary serialization (`jl_serialize`).
+- **serializer** (`Strategy`): (Optional) Serializer strategy: a built-in (`default`, `^csv`, `^json`, `^ipc`, `^parquet`, `^pmml`, `^onnx`, `^bin`, `^text`, `^tlang`) or a strategy dict `[format: ^name, ...snippets]` (see `docs/serializers.md`). Bare function names are rejected. Default is `default`.
 
-- **deserializer** (`Symbol`): (Optional) Custom deserializer strategy. Use `^`-prefixed symbols (e.g., `^csv`, `^json`, `^ipc`, `^parquet`, `^onnx`). Default = runtime-native binary deserialization.
+- **deserializer** (`Strategy`): (Optional) Deserializer strategy: same closed set as `serializer`. Default is `default`.
 
-- **functions** (`String`): | List[String] (Optional) Julia files to source before execution.
+- **functions** (`String | List[String]`): (Optional) Julia files to source before execution.
 
-- **include** (`String`): | List[String] (Optional) Additional files for the sandbox.
+- **include** (`String | List[String]`): (Optional) Additional files for the sandbox.
 
 - **noop** (`Bool`): (Optional) Whether to skip execution and generate a stub. Default = false.
 

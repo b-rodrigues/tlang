@@ -6,9 +6,9 @@ Passes if `a < b` for numeric arguments (Int or Float). Returns `Expect_hold` wh
 
 ## Parameters
 
-- **a** (`Int`): | Float The left-hand numeric value.
+- **a** (`Int | Float`): The left-hand numeric value.
 
-- **b** (`Int`): | Float The right-hand numeric value.
+- **b** (`Int | Float`): The right-hand numeric value.
 
 
 ## Returns

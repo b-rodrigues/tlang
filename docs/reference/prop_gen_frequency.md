@@ -6,7 +6,7 @@ Returns a generator spec that picks one of the supplied generators with probabil
 
 ## Parameters
 
-- **pairs** (`List[[Int,`): Dict]] A list of `[weight, generator]` pairs.
+- **pairs** (`List[List]`): A list of `[weight, generator]` pairs.
 
 
 ## Returns

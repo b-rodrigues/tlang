@@ -6,7 +6,7 @@ Returns a generator spec producing a Dict with one generated value per column. E
 
 ## Parameters
 
-- **columns** (`Dict`): { name :: String : gen_spec :: Dict } A Dict mapping column names to generator specs.
+- **columns** (`Dict`): A Dict mapping column names to generator specs (keys are names, values are gen specs).
 
 - **na_prob** (`Float`): = 0.1 Probability of a column value being NA.
 

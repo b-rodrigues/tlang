@@ -25,6 +25,7 @@ let indent_string s n =
        if String.trim line = "" then ""
        else
          let stripped = if String.length line >= common_indent then String.sub line common_indent (String.length line - common_indent) else line in
+
          indent ^ stripped)
   |> String.concat "\n"
 
@@ -76,6 +77,72 @@ let is_pmml_des e = is_des e "pmml"
 type tlang_tree =
   | Leaf of string
   | Node of (string * tlang_tree) list
+
+(* Per-runtime table mapping a format to its (writer, reader). Top level so
+   tests pin it against validation (see mapped_formats_for_runtime): a
+   built-in format must validate on exactly the runtimes that map it.
+   Readers and writers share it so the two directions cannot disagree.
+   A missing entry once made the emitter fall back to the raw format
+   string, producing bare default(...) calls in node scripts that spun
+   forever (no such builtin exists). *)
+let io_fns_for_runtime runtime =
+  match runtime with
+    | "R" ->
+        [ "json", ("r_write_json", "r_read_json");
+          "ipc", ("r_write_ipc", "r_read_ipc");
+          "parquet", ("r_write_parquet", "r_read_parquet");
+          "pmml", ("r_write_pmml", "r_read_pmml");
+          "onnx", ("r_write_onnx", "r_read_onnx");
+          "csv", ("r_write_csv", "r_read_csv");
+          "default", ("saveRDS", "readRDS");
+          (* `^tlang` is the legacy spelling of the runtime default. *)
+          "tlang", ("saveRDS", "readRDS");
+          (* Legacy spelling for the default writer/reader. *)
+          "serialize", ("saveRDS", "readRDS"); ]
+    | "Python" ->
+        [ "json", ("py_write_json", "py_read_json");
+          "ipc", ("py_write_ipc", "py_read_ipc");
+          "parquet", ("py_write_parquet", "py_read_parquet");
+          "pmml", ("py_write_pmml", "py_read_pmml");
+          "onnx", ("py_write_onnx", "py_read_onnx");
+          "csv", ("py_write_csv", "py_read_csv");
+          "default", ("serialize", "deserialize");
+          (* `^tlang` is the legacy spelling of the runtime default. *)
+          "tlang", ("serialize", "deserialize");
+          (* Legacy spelling for the default writer/reader. *)
+          "serialize", ("serialize", "deserialize"); ]
+    | "Julia" ->
+        [ "json", ("jl_write_json", "jl_read_json");
+          "ipc", ("jl_write_ipc", "jl_read_ipc");
+          "parquet", ("jl_write_parquet", "jl_read_parquet");
+          "pmml", ("jl_write_pmml", "jl_read_pmml");
+          "onnx", ("jl_write_onnx", "jl_read_onnx");
+          "csv", ("jl_write_csv", "jl_read_csv");
+          "default", ("jl_serialize", "deserialize");
+          (* `^tlang` is the legacy spelling of the runtime default. *)
+          "tlang", ("jl_serialize", "deserialize");
+          (* Legacy spelling for the default writer/reader. *)
+          "serialize", ("jl_serialize", "deserialize"); ]
+    | _ ->
+        [ "json", ("t_write_json", "t_read_json");
+          "ipc", ("write_ipc", "read_ipc");
+          "parquet", ("write_parquet", "read_parquet");
+          "pmml", ("t_write_pmml", "t_read_pmml");
+          "onnx", ("t_write_onnx", "t_read_onnx");
+          "csv", ("write_csv", "read_csv");
+          (* Asymmetric by necessity: raw bytes go out via write_text and
+             come back via read_file (no read_text builtin exists; the old
+             fallback emitted a bare text(...) call to nothing). *)
+          "text", ("write_text", "read_file");
+          "default", ("serialize", "deserialize");
+          (* `^tlang` is the legacy spelling of the runtime default. *)
+          "tlang", ("serialize", "deserialize");
+          (* Legacy spelling for the default writer/reader. *)
+          "serialize", ("serialize", "deserialize"); ]
+(* Formats with a reader/writer mapping for a runtime. Test seam:
+    see test_strategy_closed.ml. *)
+let mapped_formats_for_runtime runtime =
+  List.map fst (io_fns_for_runtime runtime)
 
 let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime serializer deserializer env_vars runtime_args functions includes noop script shell shell_args ~flake_env_name =
   (* Safety net: only include actual nodes in this pipeline as Nix buildInputs.
@@ -159,6 +226,30 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
     | _ -> get_format des_val = Some f
   in
 
+  (* Readers and writers share one per-runtime table so the two directions
+     cannot disagree: a missing entry once made the emitter fall back to
+     the raw format string, producing bare default(...) calls in node
+     scripts that spun forever (no such builtin exists). *)
+  let io_fns = io_fns_for_runtime runtime in
+  let lookup_writer fmt =
+    match List.assoc_opt fmt io_fns with Some (w, _) -> Some w | None -> None
+  in
+  let lookup_reader fmt =
+    match List.assoc_opt fmt io_fns with Some (_, r) -> Some r | None -> None
+  in
+  (* A known built-in format with no mapping for this runtime is an
+     internal emitter/validation inconsistency: emitting it raw would call
+     a nonexistent function in the node script (the silent-hang class that
+     `default` once hit). Fail loud, naming the valid set. Anything outside
+     the known set is a custom function name, resolved against the node's
+     `functions` files at build time, and passes through untouched. *)
+  let resolve_known ~role fmt =
+    invalid_arg (Printf.sprintf
+      "Internal error: no %s for format `%s` on runtime `%s`. Valid built-in formats: %s."
+      role fmt runtime
+      (String.concat ", " (List.map (fun f -> "^" ^ f) Pipeline_validation.known_serializer_formats)))
+  in
+
   let ext, extra_input = match runtime with
     | "R" -> 
         "R", "r-env"
@@ -224,6 +315,22 @@ let emit_node (name, expr) deps all_pipeline_node_names import_lines runtime ser
     | Ast.VBool true -> Some "true"
     | Ast.VBool false -> Some "false"
     | Ast.(VNA NAGeneric) -> None
+    (* Unreachable by construction: node `args` values are restricted to
+       scalars and flat lists at construction (see `is_arg_value` in
+       eval.ml), and shell args evaluate in an empty environment where no
+       type constructor is bound. Kept as a loud backstop that names the
+       contract instead of silently dropping the value. *)
+    | Ast.VRecord r ->
+        invalid_arg (Printf.sprintf
+          "Nix emitter: record `%s` cannot cross into node environment/arguments; records are T-side contracts. Pass plain data across the boundary instead."
+          r.rec_type)
+    | Ast.VUnion u ->
+        invalid_arg (Printf.sprintf
+          "Nix emitter: union value `%s` of `%s` cannot cross into node environment/arguments; unions are T-side contracts. Pass plain data across the boundary instead."
+          u.un_case u.un_type)
+    | Ast.VTypeDef t ->
+        invalid_arg (Printf.sprintf
+          "Nix emitter: type `%s` itself cannot cross into node environment/arguments." t.td_name)
     | _ -> None
   in
   let arg_value_to_strings = function
@@ -1366,7 +1473,7 @@ def py_write_onnx(model, path):
         from skl2onnx.common.data_types import FloatTensorType
         n_features = _infer_n_features(model)
         initial_types = [("input", FloatTensorType([None, n_features]))]
-        onnx_model = convert_sklearn(model, initial_types=initial_types)
+        onnx_model = convert_sklearn(model, initial_types=initial_types, target_opset=21)
         with open(path, "wb") as f:
             f.write(onnx_model.SerializeToString())
         return path
@@ -2151,27 +2258,38 @@ Base.setproperty!(ns::TlangNamespace, sym::Symbol, val) = (getfield(ns, :dict)[s
         in
         let strategy_expr = match deserializer.Ast.node with
           | Ast.ListLit items -> (match lookup_in_list dep_name items with Some e -> e | None -> Ast.mk_expr (Ast.Var "default"))
-          | Ast.DictLit items -> (match lookup_in_dict dep_name items with Some e -> e | None -> Ast.mk_expr (Ast.Var "default"))
+          | Ast.DictLit items ->
+              (* A dict carrying `format` is a single strategy dict, not a
+                 per-dependency map: use it directly instead of silently
+                 falling back to `default` (no silent magic). *)
+              if List.mem_assoc "format" items then deserializer
+              else (match lookup_in_dict dep_name items with Some e -> e | None -> Ast.mk_expr (Ast.Var "default"))
           | Ast.Value (Ast.VDict items) ->
-              (match List.assoc_opt dep_name items with
-               | Some v -> Ast.mk_expr (Ast.Value v)
-               | None -> Ast.mk_expr (Ast.Var "default"))
+              if List.mem_assoc "format" items then deserializer
+              else
+                (match List.assoc_opt dep_name items with
+                 | Some v -> Ast.mk_expr (Ast.Value v)
+                 | None -> Ast.mk_expr (Ast.Var "default"))
           | _ -> deserializer
         in
         let strategy = Nix_unparse.expr_to_string strategy_expr in
 
-        let read_fns = match runtime with
-          | "R" -> [ "json", "r_read_json"; "ipc", "r_read_ipc"; "parquet", "r_read_parquet"; "pmml", "r_read_pmml"; "onnx", "r_read_onnx"; "csv", "r_read_csv"; "default", "readRDS"; ]
-          | "Python" -> [ "json", "py_read_json"; "ipc", "py_read_ipc"; "parquet", "py_read_parquet"; "pmml", "py_read_pmml"; "onnx", "py_read_onnx"; "csv", "py_read_csv"; "default", "deserialize"; ]
-          | "Julia" -> [ "json", "jl_read_json"; "ipc", "jl_read_ipc"; "parquet", "jl_read_parquet"; "pmml", "jl_read_pmml"; "onnx", "jl_read_onnx"; "csv", "jl_read_csv"; "default", "deserialize"; ]
-          | _ -> [ "json", "t_read_json"; "ipc", "read_ipc"; "parquet", "read_parquet"; "pmml", "t_read_pmml"; "onnx", "t_read_onnx"; "csv", "read_csv"; "default", "deserialize"; ]
-        in
         let des_node_val = eval_expr_safe strategy_expr in
         let des_fn = match get_format des_node_val with
           | Some fmt ->
               (match get_polyglot_snippet ~lang:runtime ~kind:"reader" des_node_val with
                | Some snippet -> snippet
-               | None -> List.assoc_opt fmt read_fns |> Option.value ~default:fmt)
+               | None ->
+                   (match lookup_reader fmt with
+                    | Some r -> r
+                    | None ->
+                        if List.mem fmt Pipeline_validation.known_serializer_formats then
+                          resolve_known ~role:"reader" fmt
+                        else
+                          raise (Invalid_argument (Printf.sprintf
+                            "Internal error: no reader for strategy format `%s` on runtime `%s`. Valid built-in formats: %s. For a custom format, define a strategy dict with inline snippets (see docs/serializers.md)."
+                            fmt runtime
+                            (String.concat ", " (List.map (fun f -> "^" ^ f) Pipeline_validation.known_serializer_formats))))))
           | None ->
             if strategy = "default" then
               (if runtime = "R" then "readRDS" else if runtime = "Python" then "deserialize" else if runtime = "Julia" then "deserialize" else "deserialize")
@@ -2335,17 +2453,21 @@ EOF|} k (Nix_utils.nix_escape_indented_code expr_str)
   let ser_s = Nix_unparse.expr_to_string serializer in
   let uses_default_serializer = ser_s = "default" || ser_fmt = Some "default" in
   let ser_call =
-    let write_fns = match runtime with
-      | "R" -> [ "json", "r_write_json"; "ipc", "r_write_ipc"; "parquet", "r_write_parquet"; "pmml", "r_write_pmml"; "onnx", "r_write_onnx"; "csv", "r_write_csv"; "default", "saveRDS"; ]
-      | "Python" -> [ "json", "py_write_json"; "ipc", "py_write_ipc"; "parquet", "py_write_parquet"; "pmml", "py_write_pmml"; "onnx", "py_write_onnx"; "csv", "py_write_csv"; "default", "serialize"; ]
-      | "Julia" -> [ "json", "jl_write_json"; "ipc", "jl_write_ipc"; "parquet", "jl_write_parquet"; "pmml", "jl_write_pmml"; "onnx", "jl_write_onnx"; "csv", "jl_write_csv"; "default", "jl_serialize"; ]
-      | _ -> [ "json", "t_write_json"; "ipc", "write_ipc"; "parquet", "write_parquet"; "pmml", "t_write_pmml"; "onnx", "t_write_onnx"; "csv", "write_csv"; "text", "write_text"; "default", "serialize"; ]
-    in
     match get_format ser_val with
     | Some fmt ->
         (match get_polyglot_snippet ~lang:runtime ~kind:"writer" ser_val with
          | Some snippet -> snippet
-         | None -> List.assoc_opt fmt write_fns |> Option.value ~default:fmt)
+         | None ->
+             (match lookup_writer fmt with
+              | Some w -> w
+              | None ->
+                  if List.mem fmt Pipeline_validation.known_serializer_formats then
+                    resolve_known ~role:"writer" fmt
+                  else
+                    raise (Invalid_argument (Printf.sprintf
+                      "Internal error: no writer for strategy format `%s` on runtime `%s`. Valid built-in formats: %s. For a custom format, define a strategy dict with inline snippets (see docs/serializers.md)."
+                      fmt runtime
+                      (String.concat ", " (List.map (fun f -> "^" ^ f) Pipeline_validation.known_serializer_formats))))))
     | None ->
         if ser_s = "default" then
           (if runtime = "R" then "saveRDS" else if runtime = "Python" then "serialize" else if runtime = "Julia" then "jl_serialize" else "serialize")

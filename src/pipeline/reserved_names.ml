@@ -23,8 +23,7 @@ type node_name_kind =
   | RuntimeSymbol
 
 let runtime_symbols =
-  [ "R"; "Python"; "T"; "Julia"; "Quarto"; "sh"; "default"; "write_rds";
-    "read_rds"; "write_pkl"; "read_pkl"; "write_json"; "read_json"; "pmml";
+  [ "R"; "Python"; "T"; "Julia"; "Quarto"; "sh"; "default";
     "bin" ]
 
 let builtin_functions =
@@ -107,7 +106,7 @@ let builtin_functions =
     "str_words"; "subgraph"; "sum"; "summarize"; "summary"; "suppress_warnings";
     "swap"; "tail"; "tail_pattern"; "tan"; "tanh"; "t_check";
     "t_diff"; "t_fix"; "t_gc"; "t_make"; "to_array"; "to_bool";
-    "to_dataframe"; "to_date"; "to_datetime"; "today"; "to_expr"; "to_exprs";
+    "to_dataframe"; "to_date"; "to_datetime"; "to_dict"; "today"; "to_expr"; "to_exprs";
     "to_factor"; "to_float"; "to_integer"; "to_lower"; "to_string"; "to_symbol";
     "to_upper"; "trace_nodes"; "transpose"; "t_read_json"; "t_read_onnx"; "t_read_pmml";
     "trim_end"; "trimmed_mean"; "trim_start"; "trunc"; "t_score_pmml"; "t_write_json";

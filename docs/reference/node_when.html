@@ -47,11 +47,11 @@ unsupported.</p>
 <ul>
 <li><p><strong>condition</strong> (<code>Bool</code>): The condition to
 evaluate.</p></li>
-<li><p><strong>value</strong> (<code>Node</code>): The node value to
+<li><p><strong>value</strong> (<code>Any</code>): The node value to
 include if condition is true.</p></li>
 </ul>
 <h2 id="returns">Returns</h2>
-<div class="line-block">Null The node value or null marker.</div>
+<p>The node value or null marker.</p>
 <h2 id="examples">Examples</h2>
 <pre class="t"><code>p = pipeline {
 model = node_when(env(&quot;CI&quot;) == &quot;1&quot;, pyn(script = &quot;train.py&quot;))

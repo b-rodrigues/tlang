@@ -8,17 +8,17 @@ A convenience wrapper around `node()` with `runtime = "Quarto"`. Used directly w
 
 - **script** (`String`): (Optional) Path to an external `.qmd` file to render. Mutually exclusive with `command`.
 
-- **serializer** (`String`): | Function (Optional) Custom serializer strategy. Built-in values include "default", "ipc", "parquet", and "pmml". Can be a string (e.g., "ipc") or an unquoted function name. Custom functions can also be used. Default = "default".
+- **serializer** (`Strategy`): (Optional) Serializer strategy: a built-in (`default`, `^csv`, `^json`, `^ipc`, `^parquet`, `^pmml`, `^onnx`, `^bin`, `^text`, `^tlang`) or a strategy dict `[format: ^name, ...snippets]` (see `docs/serializers.md`). Bare function names are rejected. Default is `default`.
 
-- **deserializer** (`String`): | Function (Optional) Custom deserializer strategy. Built-in values include "default", "ipc", "parquet", and "pmml". Can be a string (e.g., "ipc") or an unquoted function name. Custom functions can also be used. Default = "default".
+- **deserializer** (`Strategy`): (Optional) Deserializer strategy: same closed set as `serializer`. Default is `default`.
 
 - **env_vars** (`Dict`): (Optional) Environment variables to pass into the sandbox.
 
 - **args** (`Dict`): (Optional) Runtime/tool arguments. Use this to pass Quarto CLI arguments such as `subcommand`, `path`, `to`, and additional options. `output_dir` is reserved and managed automatically so the rendered result is stored as the node artifact.
 
-- **functions** (`String`): | List[String] (Optional) Files to source before execution.
+- **functions** (`String | List[String]`): (Optional) Files to source before execution.
 
-- **include** (`String`): | List[String] (Optional) Additional files for the sandbox.
+- **include** (`String | List[String]`): (Optional) Additional files for the sandbox.
 
 - **noop** (`Bool`): (Optional) Whether to skip execution and generate a stub. Default = false.
 

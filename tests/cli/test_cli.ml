@@ -130,33 +130,61 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
      | Ok { Cli_args.coverage; _ } -> coverage
      | Error _ -> false);
   test_message "validate_cli_flags allows --failfast with test"
-    (match Cli_args.validate_cli_flags ~mode_flag:false ~unsafe_flag:false ~failfast_flag:true ["t"; "test"] with
+    (match Cli_args.validate_cli_flags ~mode_flag:false ~unsafe_flag:false ~failfast_flag:true ~yes_flag:false ~no_flag:false ["t"; "test"] with
      | Ok () -> true
      | Error _ -> false);
   test_message "validate_cli_flags rejects --unsafe outside run"
-    (match Cli_args.validate_cli_flags ~mode_flag:false ~unsafe_flag:true ~failfast_flag:false ["t"; "test"] with
+    (match Cli_args.validate_cli_flags ~mode_flag:false ~unsafe_flag:true ~failfast_flag:false ~yes_flag:false ~no_flag:false ["t"; "test"] with
      | Error msg -> contains msg "--unsafe"
      | Ok _ -> false);
   test_message "validate_cli_flags rejects --unsafe with run --expr"
-    (match Cli_args.validate_cli_flags ~mode_flag:false ~unsafe_flag:true ~failfast_flag:false ["t"; "run"; "--expr"; "1+1"] with
+    (match Cli_args.validate_cli_flags ~mode_flag:false ~unsafe_flag:true ~failfast_flag:false ~yes_flag:false ~no_flag:false ["t"; "run"; "--expr"; "1+1"] with
      | Error msg -> contains msg "run --expr"
      | Ok _ -> false);
   test_message "validate_cli_flags rejects --unsafe with export_artifacts"
-    (match Cli_args.validate_cli_flags ~mode_flag:false ~unsafe_flag:true ~failfast_flag:false ["t"; "export_artifacts"; "src/pipeline.t"; "cache.nar"] with
+    (match Cli_args.validate_cli_flags ~mode_flag:false ~unsafe_flag:true ~failfast_flag:false ~yes_flag:false ~no_flag:false ["t"; "export_artifacts"; "src/pipeline.t"; "cache.nar"] with
      | Error msg -> contains msg "--unsafe"
      | Ok _ -> false);
   test_message "validate_cli_flags treats export_artifacts as a command"
-    (match Cli_args.validate_cli_flags ~mode_flag:false ~unsafe_flag:false ~failfast_flag:false ["t"; "export_artifacts"; "src/pipeline.t"; "cache.nar"] with
+    (match Cli_args.validate_cli_flags ~mode_flag:false ~unsafe_flag:false ~failfast_flag:false ~yes_flag:false ~no_flag:false ["t"; "export_artifacts"; "src/pipeline.t"; "cache.nar"] with
      | Ok () -> true
      | Error _ -> false);
   test_message "validate_cli_flags rejects --mode with test"
-    (match Cli_args.validate_cli_flags ~mode_flag:true ~unsafe_flag:false ~failfast_flag:false ["t"; "test"] with
+    (match Cli_args.validate_cli_flags ~mode_flag:true ~unsafe_flag:false ~failfast_flag:false ~yes_flag:false ~no_flag:false ["t"; "test"] with
      | Error msg -> contains msg "--mode"
      | Ok _ -> false);
   test_message "validate_cli_flags allows --mode with repl"
-    (match Cli_args.validate_cli_flags ~mode_flag:true ~unsafe_flag:false ~failfast_flag:false ["t"; "repl"] with
+    (match Cli_args.validate_cli_flags ~mode_flag:true ~unsafe_flag:false ~failfast_flag:false ~yes_flag:false ~no_flag:false ["t"; "repl"] with
      | Ok () -> true
      | Error _ -> false);
+  test_message "parse_mode_args extracts --yes and strips it from args"
+    (match Cli_args.parse_mode_args ["t"; "run"; "--yes"; "main.t"] with
+     | Ok parsed -> parsed.Cli_args.yes && not parsed.Cli_args.no && parsed.Cli_args.args = ["t"; "run"; "main.t"]
+     | Error _ -> false);
+  test_message "parse_mode_args extracts --no and strips it from args"
+    (match Cli_args.parse_mode_args ["t"; "--no"; "run"; "main.t"] with
+     | Ok parsed -> parsed.Cli_args.no && not parsed.Cli_args.yes && parsed.Cli_args.args = ["t"; "run"; "main.t"]
+     | Error _ -> false);
+  test_message "parse_mode_args defaults yes/no to false"
+    (match Cli_args.parse_mode_args ["t"; "run"; "main.t"] with
+     | Ok parsed -> not parsed.Cli_args.yes && not parsed.Cli_args.no
+     | Error _ -> false);
+  test_message "validate_cli_flags rejects --yes with --no together"
+    (match Cli_args.validate_cli_flags ~mode_flag:false ~unsafe_flag:false ~failfast_flag:false ~yes_flag:true ~no_flag:true ["t"; "run"; "main.t"] with
+     | Error msg -> contains msg "--yes" && contains msg "--no"
+     | Ok _ -> false);
+  test_message "validate_cli_flags allows --yes with run"
+    (match Cli_args.validate_cli_flags ~mode_flag:false ~unsafe_flag:false ~failfast_flag:false ~yes_flag:true ~no_flag:false ["t"; "run"; "main.t"] with
+     | Ok () -> true
+     | Error _ -> false);
+  test_message "validate_cli_flags allows --no with test"
+    (match Cli_args.validate_cli_flags ~mode_flag:false ~unsafe_flag:false ~failfast_flag:false ~yes_flag:false ~no_flag:true ["t"; "test"] with
+     | Ok () -> true
+     | Error _ -> false);
+  test_message "validate_cli_flags rejects --yes with update"
+    (match Cli_args.validate_cli_flags ~mode_flag:false ~unsafe_flag:false ~failfast_flag:false ~yes_flag:true ~no_flag:false ["t"; "update"] with
+     | Error msg -> contains msg "--yes"
+     | Ok _ -> false);
   test_message "init flag parsing rejects unexpected positional arguments"
     (match Scaffold.parse_init_flags ["pkg"; "extra"] with
      | Error msg -> contains msg "Unexpected argument: extra"

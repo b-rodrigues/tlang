@@ -18,7 +18,7 @@ let rec depends_on p target current visited =
 let match_serializer_deserializer expr expected =
   let canonical_str = Nix_unparse.expr_to_string expr in
   match expected with
-  | VString s | VSymbol s -> s = canonical_str
+  | VSymbol s -> s = canonical_str
   | VSerializer s -> s.s_format = canonical_str
   | _ -> false
 
@@ -106,7 +106,7 @@ let match_serializer_deserializer expr expected =
 --# @name expect_serializer
 --# @param p :: Pipeline The pipeline.
 --# @param node_name :: String The node name.
---# @param expected :: String | Symbol The expected serializer.
+--# @param expected :: Symbol The expected serializer.
 --# @return :: Expect `Expect_pass` if matches; `Expect_stop` otherwise.
 --# @example
 --#   assert(expect_serializer(p, "data", ^csv))
@@ -122,7 +122,7 @@ let match_serializer_deserializer expr expected =
 --# @name expect_deserializer
 --# @param p :: Pipeline The pipeline.
 --# @param node_name :: String The node name.
---# @param expected :: String | Symbol The expected deserializer.
+--# @param expected :: Symbol The expected deserializer.
 --# @return :: Expect `Expect_pass` if matches; `Expect_stop` otherwise.
 --# @example
 --#   assert(expect_deserializer(p, "model", ^onnx))
@@ -266,13 +266,16 @@ let register env =
          | [VPipeline p; (VString node_name | VSymbol node_name); expected] ->
              if not (List.mem_assoc node_name p.p_nodes) then
                VExpect (Expect_stop (Printf.sprintf "Node '%s' not found in pipeline." node_name))
-             else
-               let expr = match List.assoc_opt node_name p.p_serializers with Some e -> e | None -> mk_expr (Var "default") in
-               if match_serializer_deserializer expr expected then VExpect Expect_pass
-               else
-                 let actual = Nix_unparse.expr_to_string expr in
-                 let expected_str = match expected with VString s | VSymbol s -> s | other -> Utils.value_to_string other in
-                 VExpect (Expect_stop (Printf.sprintf "Expected node '%s' serializer to be '%s', got '%s'." node_name expected_str actual))
+             else (match expected with
+             | VString s ->
+                 VExpect (Expect_stop (Printf.sprintf "`expected` must be a Symbol (e.g. ^%s), got String. Use a ^-prefixed symbol instead." s))
+             | _ ->
+                 let expr = match List.assoc_opt node_name p.p_serializers with Some e -> e | None -> mk_expr (Var "default") in
+                 if match_serializer_deserializer expr expected then VExpect Expect_pass
+                 else
+                   let actual = Nix_unparse.expr_to_string expr in
+                   let expected_str = match expected with VSymbol s -> s | other -> Utils.value_to_string other in
+                   VExpect (Expect_stop (Printf.sprintf "Expected node '%s' serializer to be '%s', got '%s'." node_name expected_str actual)))
          | [VNA _; _; _] -> VExpect (Expect_hold "`pipeline` is NA")
          | [VError err; _; _] -> VExpect (Expect_stop (Printf.sprintf "`pipeline` is an error: %s" err.message))
          | [other; _; _] -> Error.type_error (Printf.sprintf "Function `expect_serializer` expects a Pipeline, got %s." (Utils.type_name other))
@@ -287,13 +290,16 @@ let register env =
          | [VPipeline p; (VString node_name | VSymbol node_name); expected] ->
              if not (List.mem_assoc node_name p.p_nodes) then
                VExpect (Expect_stop (Printf.sprintf "Node '%s' not found in pipeline." node_name))
-             else
-               let expr = match List.assoc_opt node_name p.p_deserializers with Some e -> e | None -> mk_expr (Var "default") in
-               if match_serializer_deserializer expr expected then VExpect Expect_pass
-               else
-                 let actual = Nix_unparse.expr_to_string expr in
-                 let expected_str = match expected with VString s | VSymbol s -> s | other -> Utils.value_to_string other in
-                 VExpect (Expect_stop (Printf.sprintf "Expected node '%s' deserializer to be '%s', got '%s'." node_name expected_str actual))
+             else (match expected with
+             | VString s ->
+                 VExpect (Expect_stop (Printf.sprintf "`expected` must be a Symbol (e.g. ^%s), got String. Use a ^-prefixed symbol instead." s))
+             | _ ->
+                 let expr = match List.assoc_opt node_name p.p_deserializers with Some e -> e | None -> mk_expr (Var "default") in
+                 if match_serializer_deserializer expr expected then VExpect Expect_pass
+                 else
+                   let actual = Nix_unparse.expr_to_string expr in
+                   let expected_str = match expected with VSymbol s -> s | other -> Utils.value_to_string other in
+                   VExpect (Expect_stop (Printf.sprintf "Expected node '%s' deserializer to be '%s', got '%s'." node_name expected_str actual)))
          | [VNA _; _; _] -> VExpect (Expect_hold "`pipeline` is NA")
          | [VError err; _; _] -> VExpect (Expect_stop (Printf.sprintf "`pipeline` is an error: %s" err.message))
          | [other; _; _] -> Error.type_error (Printf.sprintf "Function `expect_deserializer` expects a Pipeline, got %s." (Utils.type_name other))

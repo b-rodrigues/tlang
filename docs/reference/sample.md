@@ -6,7 +6,7 @@ Draws a random sample of size n from a vector or list, with or without replaceme
 
 ## Parameters
 
-- **x** (`Vector`): | List The input data.
+- **x** (`Vector | List`): The input data.
 
 - **n** (`Int`): = 1 Sample size.
 
@@ -15,7 +15,7 @@ Draws a random sample of size n from a vector or list, with or without replaceme
 
 ## Returns
 
-| List The random sample.
+The random sample.
 
 ## Examples
 

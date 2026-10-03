@@ -10,9 +10,9 @@ Compares the artifact produced by a named node across two historical builds of t
 
 - **node_b** (`ComputedNode`): The "after" node.
 
-- **log_a** (`String`): | Int Build log selector for node_a (default "latest"). Accepts a timestamp prefix, regex, or 1-indexed integer.
+- **log_a** (`String | Int`): Build log selector for node_a (default "latest"). Accepts a timestamp prefix, regex, or 1-indexed integer.
 
-- **log_b** (`String`): | Int Build log selector for node_b (default "latest"). Same format as log_a.
+- **log_b** (`String | Int`): Build log selector for node_b (default "latest"). Same format as log_a.
 
 - **key** (`List[Symbol]`): For DataFrames: natural key column(s) for row alignment (default []).
 

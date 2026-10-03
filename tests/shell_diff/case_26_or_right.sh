@@ -1,0 +1,1 @@
+false || FOO=1

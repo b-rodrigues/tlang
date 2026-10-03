@@ -41,15 +41,15 @@
 ties), then computes Pearson on ranks.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><p><strong>x</strong> (<code>Vector</code>): | List First numeric
+<li><p><strong>x</strong> (<code>Vector | List</code>): First numeric
 vector.</p></li>
-<li><p><strong>y</strong> (<code>Vector</code>): | List Second numeric
+<li><p><strong>y</strong> (<code>Vector | List</code>): Second numeric
 vector.</p></li>
 <li><p><strong>na_rm</strong> (<code>Bool</code>): (Optional) Should
 missing values be removed? Default is false.</p></li>
-<li><p><strong>weights</strong> (<code>Vector[Float]</code>): |
-List[Float] = NA Optional non-negative observation weights (Pearson
-only).</p></li>
+<li><p><strong>weights</strong>
+(<code>Vector[Float] | List[Float]</code>): = NA Optional non-negative
+observation weights (Pearson only).</p></li>
 <li><p><strong>method</strong> (<code>String</code>): = “pearson”
 Correlation method: “pearson” or “spearman”.</p></li>
 </ul>

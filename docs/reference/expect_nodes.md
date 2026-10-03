@@ -8,7 +8,7 @@ Passes if a pipeline contains exactly the expected node names (including dynamic
 
 - **p** (`Pipeline`): The pipeline to check.
 
-- **expected_names** (`List`): | Vector Expected node names.
+- **expected_names** (`List | Vector`): Expected node names.
 
 
 ## Returns

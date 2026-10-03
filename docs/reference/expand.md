@@ -8,7 +8,7 @@ Generates all unique combinations of the provided columns or expressions. Suppor
 
 - **df** (`DataFrame`): The DataFrame.
 
-- **...** (`Symbol`): | Vector | Call Specification of columns to expand.
+- **...** (`Symbol | Vector | Call`): Specification of columns to expand.
 
 
 ## Returns

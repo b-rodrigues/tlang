@@ -6,9 +6,9 @@ Splits a numeric vector into intervals.
 
 ## Parameters
 
-- **x** (`Vector[Number]`): | List[Number] The vector to discretize.
+- **x** (`Vector[Number] | List[Number]`): The vector to discretize.
 
-- **breaks** (`Int`): | Vector[Number] | List[Number] Number of bins or specific cut points.
+- **breaks** (`Int | Vector[Number] | List[Number]`): Number of bins or specific cut points.
 
 
 ## Returns

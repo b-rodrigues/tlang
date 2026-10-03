@@ -9,7 +9,7 @@ Get file extension
 
 ## Returns
 
-| NA The file extension including the leading dot, or null if none.
+The file extension including the leading dot, or null if none.
 
 ## Examples
 

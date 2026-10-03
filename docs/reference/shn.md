@@ -10,19 +10,19 @@ A convenience wrapper around `node()` with `runtime = "sh"`. Use `shn()` inside 
 
 - **script** (`String`): (Optional) Path to an external `.sh` file to execute as the node body. Mutually exclusive with `command`.
 
-- **serializer** (`String`): | Function (Optional) Custom serializer strategy. Built-in values include "default", "ipc", "parquet", and "pmml". Can be a string (e.g., "ipc") or an unquoted function name. Custom functions can also be used. Default = "default".
+- **serializer** (`Strategy`): (Optional) Serializer strategy: a built-in (`default`, `^csv`, `^json`, `^ipc`, `^parquet`, `^pmml`, `^onnx`, `^bin`, `^text`, `^tlang`) or a strategy dict `[format: ^name, ...snippets]` (see `docs/serializers.md`). Bare function names are rejected. Default is `default`.
 
-- **deserializer** (`String`): | Function (Optional) Custom deserializer strategy. Built-in values include "default", "ipc", "parquet", and "pmml". Can be a string (e.g., "ipc") or an unquoted function name. Custom functions can also be used. Default = "default".
+- **deserializer** (`Strategy`): (Optional) Deserializer strategy: same closed set as `serializer`. Default is `default`.
 
-- **args** (`Dict`): | List (Optional) Runtime arguments. Lists become positional CLI arguments for exec-style nodes.
+- **args** (`Dict | List`): (Optional) Runtime arguments. Lists become positional CLI arguments for exec-style nodes.
 
 - **shell** (`String`): (Optional) Shell interpreter to invoke for shell-string mode or script-backed nodes. Default = "sh".
 
 - **shell_args** (`List[String]`): (Optional) Additional arguments passed to the shell interpreter.
 
-- **functions** (`String`): | List[String] (Optional) Additional files to include in the sandbox before execution.
+- **functions** (`String | List[String]`): (Optional) Additional files to include in the sandbox before execution.
 
-- **include** (`String`): | List[String] (Optional) Additional files for the sandbox.
+- **include** (`String | List[String]`): (Optional) Additional files for the sandbox.
 
 - **noop** (`Bool`): (Optional) Whether to skip execution and generate a stub. Default = false.
 

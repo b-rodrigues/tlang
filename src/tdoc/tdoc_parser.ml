@@ -65,20 +65,61 @@ let parse_block lines filename line_num =
   let current_tag = ref `Brief in
   
   (* Helpers to set state *)
-  let add_param line = 
+  (* Join whitespace-split tokens back into one type while brackets stay
+     open, so `Dict[String, Dict]` survives as a single type instead of
+     truncating to `Dict[String,`. A `|` token continues the union
+     (`Dict | List`), so spaced unions parse whole instead of keeping
+     only the first member. Returns the type and the rest. *)
+  let join_bracketed toks =
+    let depth s =
+      String.fold_left (fun d c ->
+        match c with
+        | '[' | '(' | '<' -> d + 1
+        | ']' | ')' | '>' -> d - 1
+        | _ -> d
+      ) 0 s
+    in
+    let rec loop acc d = function
+      | [] -> (String.concat " " (List.rev acc), [])
+      | t :: rest ->
+          let d' = d + depth t in
+          if d' <= 0 then (String.concat " " (List.rev (t :: acc)), rest)
+          else loop (t :: acc) d' rest
+    in
+    match toks with
+    | [] -> ("", [])
+    | t :: rest ->
+        if depth t <= 0 then (t, rest)
+        else loop [t] (depth t) rest
+  in
+  let rec join_type toks =
+    match join_bracketed toks with
+    | ("", rest) -> ("", rest)
+    | (head, "|" :: more) when more <> [] ->
+        let (tail, rest) = join_type more in
+        if tail = "" then (head, rest)
+        else (head ^ " | " ^ tail, rest)
+    | done_ -> done_
+  in
+  let add_param line =
     (* Format: @param <name> :: <type> <desc> OR @param <name> <desc> *)
     let parts = String.split_on_char ' ' (String.trim line) |> List.filter (fun s -> s <> "") in
     match parts with
-    | name :: "::" :: type_info :: rest ->
+    | name :: "::" :: type_toks ->
+        let (type_info, rest) = join_type type_toks in
         let desc = String.concat " " rest in
         params := { name; type_info = Some type_info; description = desc } :: !params
     | name :: rest ->
         let desc = String.concat " " rest in
         if starts_with desc ":: " then
           let parts = String.split_on_char ' ' desc |> List.filter (fun s -> s <> "") in
-          let type_part = match parts with _ :: t :: _ -> t | _ -> "" in
-          let real_desc = match parts with _ :: _ :: rest -> String.concat " " rest | _ -> "" in
-          params := { name; type_info = Some type_part; description = real_desc } :: !params
+          (match parts with
+           | _ :: type_toks ->
+               let (type_part, rest_toks) = join_type type_toks in
+               let real_desc = String.concat " " rest_toks in
+               params := { name; type_info = Some type_part; description = real_desc } :: !params
+           | [] ->
+               params := { name; type_info = Some ""; description = "" } :: !params)
         else
           params := { name; type_info = None; description = desc } :: !params
     | [] -> ()
@@ -87,7 +128,8 @@ let parse_block lines filename line_num =
   let add_return line =
     let parts = String.split_on_char ' ' (String.trim line) |> List.filter (fun s -> s <> "") in
     match parts with
-    | "::" :: type_info :: rest ->
+    | "::" :: type_toks ->
+        let (type_info, rest) = join_type type_toks in
         let desc = String.concat " " rest in
         return_val := Some { type_info = Some type_info; description = desc }
     | _ ->
@@ -167,48 +209,54 @@ let parse_file filename =
   let current_block = ref [] in
   let inside_block = ref false in
   let start_line = ref 0 in
-  
+  let close_block current_trimmed =
+    (* End of block. Try to infer name from the current line (which is the
+       first line of code after the block). *)
+    let inferred_name =
+      (* Normalize common prefixes like "export ", "pub ", "test " before inferring the name *)
+      let code_line =
+        let prefixes = ["export "; "pub "; "test "] in
+        List.fold_left
+          (fun acc prefix ->
+            if starts_with acc prefix then strip_prefix acc prefix else acc
+          )
+          current_trimmed
+          prefixes
+      in
+      if starts_with code_line "let " then
+        (match String.split_on_char ' ' code_line with
+         | _ :: name :: _ -> name
+         | _ -> "unknown")
+      else if starts_with code_line "fn " then
+        (match String.split_on_char ' ' code_line with
+         | _ :: name_part :: _ ->
+           (match String.split_on_char '(' name_part with
+            | hd :: _ -> hd
+            | [] -> "unknown")
+         | _ -> "unknown")
+      else "unknown"
+    in
+    let doc = parse_block (List.rev !current_block) filename !start_line in
+    let final_name = if doc.name <> "unknown" then doc.name else inferred_name in
+    blocks := { doc with name = final_name } :: !blocks;
+    current_block := [];
+    inside_block := false
+  in
   List.iteri (fun i line ->
     let trimmed = String.trim line in
     if starts_with trimmed "--#" then begin
-      if not !inside_block then (inside_block := true; start_line := i + 1);
       let content = strip_prefix trimmed "--#" in
-      current_block := content :: !current_block
-    end else begin
-      if !inside_block then begin
-        (* End of block *)
-        (* Try to infer name from the current line (which is the first line of code after the block) *)
-        let inferred_name =
-          (* Normalize common prefixes like "export ", "pub ", "test " before inferring the name *)
-          let code_line =
-            let prefixes = ["export "; "pub "; "test "] in
-            List.fold_left
-              (fun acc prefix ->
-                if starts_with acc prefix then strip_prefix acc prefix else acc
-              )
-              trimmed
-              prefixes
-          in
-          if starts_with code_line "let " then
-            (match String.split_on_char ' ' code_line with
-             | _ :: name :: _ -> name
-             | _ -> "unknown")
-          else if starts_with code_line "fn " then
-            (match String.split_on_char ' ' code_line with
-             | _ :: name_part :: _ ->
-               (match String.split_on_char '(' name_part with
-                | hd :: _ -> hd
-                | [] -> "unknown")
-             | _ -> "unknown")
-          else "unknown"
-        in
-        
-        let doc = parse_block (List.rev !current_block) filename !start_line in
-        let final_name = if doc.name <> "unknown" then doc.name else inferred_name in
-        blocks := { doc with name = final_name } :: !blocks;
-        current_block := [];
-        inside_block := false
+      if String.trim content = "*)" then begin
+        (* OCaml comment closer: ends the block without becoming content.
+           This covers indented blocks (e.g. inside `let register`), whose
+           closer line would otherwise leak as an example. *)
+        if !inside_block then close_block trimmed
+      end else begin
+        if not !inside_block then (inside_block := true; start_line := i + 1);
+        current_block := content :: !current_block
       end
+    end else begin
+      if !inside_block then close_block trimmed
     end
   ) lines;
   

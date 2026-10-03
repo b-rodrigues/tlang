@@ -10,7 +10,7 @@ Passes if `node_name` deserializer matches the expected deserializer.
 
 - **node_name** (`String`): The node name.
 
-- **expected** (`String`): | Symbol The expected deserializer.
+- **expected** (`Symbol`): The expected deserializer.
 
 
 ## Returns

@@ -14,7 +14,7 @@ Simulations in Julia, ML in Python, statistics in R — or the exact opposite. I
 
 A language for the LLM era, T is designed to be piloted by both humans and AI models. It gives you one hermetic dependency graph where your tools communicate without glue and execute consistently through space and time: on your laptop today, on a cluster tomorrow, and five years from now without bitrot.
 
-**Status:** Version 0.55.4 "L'Ultime combat".
+**Status:** Version 0.55.5 "L'Ultime combat".
 
 ---
 
@@ -42,7 +42,7 @@ A language for the LLM era, T is designed to be piloted by both humans and AI mo
 
 ## Interactive Demo in 30 Seconds
 
-Run `t demo` right in your terminal to see pipeline introspection, hermetic Nix builds, Arrow in-memory inspection, caching, and first-class error handling in action:
+Run `t demo` right in your terminal to see pipeline introspection, hermetic Nix builds, Arrow in-memory inspection, caching, and first-class error handling in action. The demo builds in a scratch directory under your current directory (so it resolves your project's flake) and removes it on exit:
 
 ![T Interactive Demo](demo.gif)
 
@@ -463,7 +463,7 @@ Now that you have your first project set up and understand the folder structure,
 
 # T Language Overview
 
-> **Version**: 0.55.4
+> **Version**: 0.55.5
 
 T is a functional programming language designed for declarative, tabular data manipulation. It combines the pipeline-driven style of R's tidyverse with OCaml's type discipline, producing a small, focused language for data wrangling and basic statistics.
 
@@ -527,6 +527,34 @@ T supports the following value types:
 | `Symbol`    | `$mpg`                   | Name reference (NSE, DataFrames)    |
 | `Expression`| `to_expr(1 + 2)`            | Captured code (for metaprogramming) |
 | `Intent`    | `intent { ... }`         | LLM-friendly metadata block         |
+
+### User-Defined Record Types
+
+T supports nominal, closed record types for naming domain shapes. A record is never a `Dict` and never another record type, even with an identical field shape — the type name is identity.
+
+```t
+type Point = { x: Float, y: Float }
+p = Point(x = 1.0, y = 2.0)
+p.x -- 1.0
+```
+
+Construction takes all-positional or all-named arguments (never a mix). Unknown, missing, or mistyped fields fail with an error naming the field and the valid set. Annotations accept record names (`\(p: Point -> Point) p`), enforced at runtime like all annotations. Records match `_` and variable arms in `match`. Records are T-side contracts: they cannot cross into foreign node code or serializers — use plain data across the boundary instead. The leading word `type` is contextual, so the `type()` builtin keeps working. Built-in type names (`Model`, `Pipeline`, `Date`, `Period`, `Interval`, and the rest) are reserved for every `type` declaration, records and unions alike — shadowing is never allowed, so a declaration with one of these names fails naming the full set.
+
+### User-Defined Tagged Unions
+
+Unions name related cases with positional payloads. Every case uses call syntax, including nullary ones — a bare name in a pattern is always a binding, never a case test.
+
+```t
+type Shape = Circle(Float) | Rect(Float, Float) | Missing()
+s = Circle(1.0)
+match(s) {
+  Circle(r) => r,
+  Rect(w, h) => w * h,
+  Missing() => 0.0
+} -- 1.0
+```
+
+Cases resolve only for unbound names: an ordinary variable with the same name always wins. A case shared by two unions in scope fails naming every owner type — rename one case. Payload counts and types are checked at construction; calling the union type itself fails naming its cases. `t check` warns on missing cases, unknown case names, and bare variables shadowing a case name. Unions are T-side contracts like records.
 
 ### Variables and Assignment
 
@@ -1884,6 +1912,26 @@ to_float("F")          -- 0.0
 to_float(42)             -- 42.0
 to_float("hello")        -- NA(Float)
 to_float(["1", "2"])   -- [1.0, 2.0]
+```
+
+---
+
+### `to_dict(record)`
+
+Convert a user-defined record to a plain `Dict` with one entry per field, so record data can cross into foreign node code (records themselves are T-side contracts and never cross). Shallow: nested records stay records.
+
+**Parameters:**
+
+
+- `record` — Record value
+
+**Returns:**
+
+`Dict` mapping field names to values
+
+**Examples:**
+```t
+to_dict(Point(x = 1.0, y = 2.0))   -- [`x`: 1., `y`: 2.]
 ```
 
 ---
@@ -4427,8 +4475,8 @@ Subsetting nodes in a pipeline. `filter_node` keeps nodes matching a condition; 
 to a subset via the `where` named argument). `rename_node` changes a node's
 label while preserving its dependency edges.
 
-**Mutable fields:** `noop` (Bool), `runtime` (String), `serializer` (String),
-`deserializer` (String), `deps` (List[String]), `functions` (List[String]),
+**Mutable fields:** `noop` (Bool), `runtime` (String), `serializer` (Strategy),
+`deserializer` (Strategy), `deps` (List[String]), `functions` (List[String]),
 `include` (List[String]), `env_vars` (Dict), `args` (Dict), `shell` (String),
 `shell_args` (List[String]), `flake` (String).
 
@@ -4561,11 +4609,11 @@ Merge semantics vary per option:
   Per-node `include` arguments are appended after these global includes.
 - `env_vars` (optional) — Dict of environment variables for every node. Per-node
   `env_vars` override global values for the same key.
-- `serializer` (optional) — String, Symbol, or `^`-prefixed serializer name. Default
-  serializer for every node; replaces any per-node serializer. `"default"` selects
+- `serializer` (optional) — Strategy: a `^`-prefixed built-in name or a strategy dict. Default
+  serializer for every node; replaces any per-node serializer. `default` selects
   the runtime's default.
-- `deserializer` (optional) — String, Symbol, or `^`-prefixed deserializer name. Default
-  deserializer for every node; replaces any per-node deserializer. `"default"` selects
+- `deserializer` (optional) — Strategy: a `^`-prefixed built-in name or a strategy dict. Default
+  deserializer for every node; replaces any per-node deserializer. `default` selects
   the runtime's default.
 - `noop` (optional) — Bool. If true, every node becomes a no-op. Setting false has no
   effect (it cannot un-set a per-node `noop = true`).
@@ -4625,8 +4673,8 @@ The returned Dict has the following keys:
 
 - `name` — the node name (String)
 - `runtime` — one of `"T"`, `"R"`, `"Python"`, `"Julia"`, `"Quarto"`, `"sh"` (String)
-- `serializer` — e.g. `"default"`, `"pmml"` (String)
-- `deserializer` — e.g. `"default"`, `"pmml"` (String)
+- `serializer` — resolved strategy value (a Symbol like ^csv, a strategy Dict, or "default" for unset)
+- `deserializer` — resolved strategy value, same shapes as `serializer`
 - `noop` — whether the node is a no-op (Bool)
 - `deps` — names of nodes this node depends on (List of String)
 - `depth` — topological depth in the DAG (Int); roots are depth 0
@@ -6616,7 +6664,7 @@ Pass if `node_name` serializer matches the expected serializer.
 **Parameters:**
 - `p` — The pipeline to check.
 - `node_name` — The node name.
-- `expected` — Expected serializer (String or Symbol, e.g. `^ipc`, `^csv`).
+- `expected` — Expected serializer (Symbol, e.g. `^ipc`, `^csv`).
 
 **Examples:**
 ```t
@@ -6630,7 +6678,7 @@ Pass if `node_name` deserializer matches the expected deserializer.
 **Parameters:**
 - `p` — The pipeline to check.
 - `node_name` — The node name.
-- `expected` — Expected deserializer (String or Symbol).
+- `expected` — Expected deserializer (Symbol).
 
 **Examples:**
 ```t
@@ -9557,6 +9605,49 @@ Now that you can work with numerical arrays, explore statistical modeling and re
 
 # Changelog
 
+## [0.55.5] - 2026-10-03
+
+### New features
+
+- **Richer static types**: collection types (`List[X]`, `Vector[X]`, `Dict[K, V]`), nominal domain types (`Model`, `Pipeline`, `Date`, …), and top-level `A | B` unions now flow from docstrings into inference, with structural compatibility and nested widening. A coverage audit with a ratcheting floor tracks precision (382/533 fully precise, with per-package breakdown, plus a listed watch for signatures that parse to unknown); generic calls reject inconsistent instantiations instead of passing silently. Note: generic consistency is strict about `Int` vs `Float` (identity, not widening) by design.
+- **`t check` warns on non-exhaustive `match` over known values**: matching a known `Error` value without an `Error` arm, or a known `NA` without an `NA` arm (and no `_` catch-all), now warns at check time instead of failing only at runtime. Matches over variables and other values stay silent, so no existing program gains a warning.
+- **User-defined record types**: `type Point = { x: Float, y: Float }` declares a nominal, closed shape; `Point(x = 1.0)` and `Point(1.0)` construct it, `p.x` reads fields, and annotations (`\(p: Point -> Point)`) enforce it at runtime. Same-shape types still differ (`Point` is never `Pair` and never a `Dict`); unknown, missing, or mistyped fields fail naming the valid set. Records are T-side contracts and cannot cross into foreign node code or serializers — pass plain data across the boundary.
+- **User-defined tagged unions**: `type Shape = Circle(Float) | Rect(Float, Float) | Missing()` declares named cases; every case uses call syntax in declarations, construction, and patterns alike, so a bare name always stays a binding and can never silently mean a case test. Bare-word declarations (including single-case aliases like `type Celsius = Float`) fail with a message teaching the call syntax. Payload counts and types check at construction; shared case names and direct union construction fail naming the owners and cases. `t check` warns on missing cases, unknown case names, and shadowing bare variables. Unions are T-side contracts like records.
+- **Closed serializer strategies**: `serializer`/`deserializer` accept built-ins (`default`, `^csv`, …) or a strategy dict `[format: ^name, ...snippets]` with inline `<{ ... }>` reader/writer snippets (see `docs/serializers.md` and the `custom_polyglot_serializer_t` demo in `t_demos`). Strategy dicts have closed keys (`format` always present, snippets per runtime) and custom formats must carry a snippet for the node's runtime and role — a bare `default` sentinel, `t check`, and the emitter can no longer produce bare `name(...)` calls. Bare function names fail at construction naming the valid set and the dict form; the constructor docs now state the closed set. There is no quoting escape: the old `custom("name")` builtin is removed, use a strategy dict instead.
+- **`--yes` / `--no` flags for unattended prompts**: `t run --yes <file.t>` answers yes to the missing-dependency prompt (updating `tproject.toml`, like typing `y`), and `t run --no <file.t>` declines (like typing `N`). The flags are the per-command form of `TLANG_NO_PROMPT=1` / `TLANG_ASSUME_YES=1`; `--no` always wins over `--yes` and the env vars, the two flags together are an error, and `--yes` still requires `tproject.toml` to exist (unlike `TLANG_AUTO_ADD_PIPELINE_DEPS=1` alone, which also skips the absent-file error).
+- **Union declarations require call syntax**: every case in a `type` declaration now needs parentheses (`Missing()`, never bare `Missing`), matching construction and patterns. Bare-word declarations — including single-case aliases like `type Celsius = Float` — fail at parse time naming the call syntax.
+- **`to_dict(record)`**: converts a user-defined record to a plain `Dict` (one entry per field, shallow) so record data can cross into foreign node code, where records themselves can never go.
+
+### Fixes
+
+- **Reassignment respects annotations in `t check`**: `x: Int = 1` followed by `x := "hello"` now warns once, on the offending line (previously the stale post-analysis type blamed the original binding, or nothing warned at all). Fresh bindings, `Any` annotations, and `rm()` behave as before.
+- **Error values no longer trip type checks**: `VError` is now compatible with every annotation (bottom value, like `NA`), so errors propagate through typed positions instead of being masked — `f(error("boom"))` into `\(x: Int -> Int)` returns the original error, not a spurious `Expected Int` mismatch. Schema inference already treated error paths as unknown; no new type syntax was needed.
+- **Unattended builds never wait on stdin**: the missing-dependency prompt no longer reads from non-terminal stdin (where a held-open pipe would block forever) and gains a `TLANG_NO_PROMPT=1` opt-out that declines before any prompt. A new `TLANG_ASSUME_YES=1` counterpart answers yes (updating `tproject.toml`, like an interactive `y`) for scripts that previously piped one in — note that piping `y` into a build no longer works, since stdin is never read. Scripts and CI fail fast with the actionable fix instead.
+- **Foreign locals no longer wire phantom dependencies**: dependency inference now subtracts names bound by the foreign block itself (R `<-`/`=`/`->`/loop variables, Python assignments/`for`/`def` with suite tracking, Julia assignments/named definitions with scope tracking, shell `name=`/`for`). A shadowed sibling name no longer creates a false edge (or false cycle); genuinely used siblings, keyword arguments, and `read_node("name")` literals still register.
+- **Slim shells for projects without runtime dependencies**: node builds use `pipeline.nix` environments, so a project that declares no R/Python/Julia packages now skips user package sets — a pure-T shell drops from 10 locally-built derivations to 2 (measured via `nix build --dry-run`). The `tlang` companion stays wrapped, so documented `library(tlang)` in ad-hoc shell R sessions keeps working, and the companion paths stay exported for all three runtimes (`import tlang` works bare since the Python package is stdlib-only; `using tlang` needs JSON, auto-added once any Julia dependency is declared). Declaring any dependency restores the full environment on the next `t update`.
+- **`Quarto` nodes take no strategies**: an explicit `serializer` or `deserializer` on a `qn()` node is now a `TypeError` (`serializer/deserializer for quarto undefined`) instead of a silently ignored argument.
+- **Strings rejected in every strategy position**: `mutate_node`, `set_pipeline_global_options`, and `fetchurl` now require `^`-prefixed symbols or strategy dicts — string literals are a `TypeError` naming the `^`-form.
+- **Special nodes reject custom formats**: strategy dicts with non-builtin formats fail fast on `T` (builtins only), `sh`, and `fetchurl` nodes instead of emitting calls that fail downstream.
+- **`t check` reads in source order**: diagnostics across all phases now sort by file location instead of grouping by check category, in both human and JSON output.
+- **Union exhaustiveness follows variables**: `s = Circle(1.0)` followed by `match(s)` now warns on missing cases exactly like a direct `match(Circle(1.0))`. Reassigned variables and lambda parameters stay silent.
+- **`^text` is T/sh-only and `^tlang` means default**: `^text` on R, Python, or Julia nodes is now an ordinary validation error instead of an emitter `Internal error`; `^tlang` emits exactly like the runtime default everywhere.
+- **`expect_serializer` / `expect_deserializer` take Symbols only**: a String `expected` value now stops the check with a message naming the `^`-form instead of matching silently.
+- **Records coerce Int payloads and reject error payloads**: constructing a record or union case with an Int for a Float field now stores a Float, so later generic calls see consistent kinds; an error payload fails construction instead of building a value that carries the error.
+- **Generic consistency checks inside containers**: a type variable shared across arguments must now agree at every level, so `const([1], ["a"])` fails exactly like `const(1, "s")` already did (same for dict values and nested `List[T]` parameters, with `Int` vs `Float` kept distinct throughout). NA elements stay wildcards. Fixed-shape bodies of generic `List[T]`/`Dict[String, T]` functions warn at `t check` when they never use their parameters.
+- **Type declarations guarded at declaration time**: names colliding with built-in nominal types (`Model`, `Pipeline`, `Date`, …) are rejected, and union case names shared across types fail immediately instead of at first use.
+- **Pattern expansion rejects conditional shadows with later reads**: a foreign block that binds a dependency name conditionally and reads it later now fails with an explicit rename request — the later reads would otherwise see the whole artifact instead of the per-branch slice. Records nested at any depth are rejected the same way.
+- **Smarter foreign-block scope inference**: shell env-prefix assignments (`FOO=1 cmd`) and `export` with a following command no longer count as bindings; chained assignments (`A=1 B=2`) bind as a group; `export`/`declare`/`readonly`/`local` with `=` bind normally; `${X:=...}` records conditionally; statement continuations after `&&`, `||`, `|`, and `\` guard same-line bindings; Julia `try`/`finally` bodies and `abstract`/`primitive` types scope correctly. Quoted `$var`, `${var}`, `$(...)`, backtick, and Python f-string reads in shell, Julia, and Python strings now create dependency edges.
+- **Per-dependency maps read as maps**: a `serializer`/`deserializer` dict is a strategy dict only when it carries `format`; otherwise it is a per-dependency map, so nodes literally named `reader` or `writer` validate normally. Map keys must name real dependencies of the node (with a `deps = [...]` hint when they do not), instead of silently falling back to the default strategy.
+- **Quoted shell values decide persistence correctly**: `FOO="a b" cmd` no longer records a binding, while `x=$(date +%s)`, `x="a b"`, arrays, and `&&`-continued statements bind as the shell does.
+- **Union exhaustiveness ignores nested rebindings**: a variable rebound inside a branch or closure no longer resolves to its first union, so no false missing-case warning fires.
+- **Doc signatures keep spaced unions whole**: `Dict | List` and `Dict[String, Dict]` now parse as written instead of truncating at the first space.
+- **Union variable resolution counts match patterns**: a pattern variable shadowing a top-level union variable vetoes the variable resolution, so a nested `match` over the shadowing name stays silent instead of warning against the wrong union's cases.
+- **Strategy errors name the `format` ambiguity**: when `format` is also a real dependency of the node, the unknown-key error says that any map with a `format` key reads as a strategy dict — a dependency literally named `format` cannot be keyed in map form and must be renamed.
+- **Per-dependency strategy maps survive pattern expansion**: expanded branch entries key the renamed branch dependencies (`mid` → `mid_branch_1`), so the chosen strategies keep applying instead of silently falling back to `default`.
+- **R nodes cannot run ONNX models, and the docs now say so**: `docs/models.md` listed R among the runtimes able to read and score ONNX artifacts through the `onnx` R package. That package is a `reticulate` wrapper and needs Python, which T's Nix R nodes do not ship, so such code fails there. The interchange sections now name the limit and point to Python (`onnxruntime`) or T-native scoring (`t_read_onnx` plus `predict`).
+- **ONNX export pins opset 21**: the Python `^onnx` serializer now passes `target_opset=21` to `convert_sklearn` instead of emitting the installed default (now 22), so artifacts load in Julia `ONNXRunTime`, which supports till opset 21. No fallback or option: the pin is unconditional.
+- **Julia transpose no longer blinds dependency inference**: a postfix `'` (adjoint) after an expression-ending character is an operator, not a string opener — reads after it now register as dependencies instead of being silently dropped, including after `)` as in `(A')'`. Char literals (including escapes) still blank. Julia has no triple-single-quoted strings, so `A'''` is three transposes. Non-ASCII identifiers transpose as well, and a quote after a reserved word that never ends an expression (`return 'x'`) opens a literal.
+
 ## [0.55.4] - 2026-09-29
 
 ### New features
@@ -9572,7 +9663,7 @@ Now that you can work with numerical arrays, explore statistical modeling and re
 - **Project shells stay pristine on the `nixpkgs` Python resolver**: the C/C++ runtime libraries (`pkgs.stdenv.cc.cc.lib`, `pkgs.zlib`) now come only from the `py-env` wrapper, as before. The shell-wide `LD_LIBRARY_PATH` export (which also exposed `t`, R, and Julia to the project's `libstdc++`) is gone for `nixpkgs` projects, avoiding `GLIBCXX_* not found` mismatches when the project's `nixpkgs` pin differs from the one `t` was built against.
 - **UV project shells wrap the venv instead of exporting globally**: `mkVirtualEnv` output cannot carry `makeWrapperArgs` (it would be silently ignored), so `py-env` is now a `symlinkJoin` wrapper around a raw `py-venv` binding, prefixing `LD_LIBRARY_PATH` (C/C++ runtimes for editor tooling such as `pyzmq`, BLAS/Fortran for `numpy`) on every venv binary except sourced `activate` files. Verified end to end: `import numpy` works in the shell, the wrapper `LD_LIBRARY_PATH` is visible only to Python processes, and the shell itself carries no project libraries. Node builds are unchanged (raw venv, per-derivation libs).
 - **`R_LIBS_SITE` re-export handles empty output**: when `R` prints nothing, the shell no longer prepends a stray leading `:` to the variable, `R` stderr is silenced, and project/site init files (`--no-init-file --no-site-file`) no longer run on every shell entry.
-- **`t demo` no longer writes into the current project**: the demo builds inside a fresh temporary directory instead of writing `_pipeline/` state into wherever it was launched, and the caching narration no longer claims a cache hit unconditionally. The temp dir is removed on exit, including via the REPL handoff.
+- **`t demo` no longer writes into the current project**: the demo builds inside a fresh temporary directory under the caller's directory (so the project flake resolves) instead of writing `_pipeline/` state into wherever it was launched, and the caching narration no longer claims a cache hit unconditionally. The temp dir is removed on exit, including via the REPL handoff.
 
 - **`sync_version.sh` bumps the extension offline**: a single `npm version` call updates both `package.json` and `package-lock.json` with no network access, so the two files cannot drift after a release.
 
@@ -15687,22 +15778,17 @@ analysis = pipeline {
   raw_data = node(
     command = read_csv("tests/pipeline/data/mtcars.csv", separator = "|"),
     runtime = T,
-    serializer = t_write_csv,
-    functions = "tests/pipeline/iolib.t"
+    serializer = ^csv
   )
 
   summary_r = rn(
     command = <{ raw_data |> dplyr::group_by(cyl) |> dplyr::summarize(avg_mpg = mean(mpg)) }>,
-    serializer = r_write_csv,
-    deserializer = r_read_csv,
-    functions = "tests/pipeline/iolib.R"
+    deserializer = [raw_data: ^csv]
   )
 
   summary_py = pyn(
     command = <{ raw_data.groupby("cyl").agg({"mpg": "mean"}).reset_index().rename(columns={"mpg": "avg_mpg"}) }>,
-    serializer = py_write_csv,
-    deserializer = py_read_csv,
-    functions = "tests/pipeline/iolib.py"
+    deserializer = [raw_data: ^csv]
   )
 
   shell_report = shn(command = <{
@@ -15721,6 +15807,8 @@ cat "$T_NODE_summary_py/artifact"
 
 build_pipeline(analysis)
 ```
+
+For a custom format, define a strategy dict `[format: ^name, ...snippets]` (see `docs/serializers.md` and the `custom_polyglot_serializer_t` demo in `t_demos`).
 
 This exact pattern is exercised end-to-end in `tests/pipeline/polyglot_shell_pipeline.t` and `.github/workflows/polyglot-shell-pipeline.yml`.
 
@@ -18602,10 +18690,10 @@ The **Predictive Model Markup Language (PMML)** is the bridge between $T$ and ot
 **ONNX** is the preferred interchange format when you want broad ML model coverage or faster native inference through ONNX Runtime. It allows:
 1. **Python ML Export**: `scikit-learn` models via `skl2onnx`.
 2. **Native T Loading**: Reading models with `t_read_onnx(path)` and scoring them with `predict(data, model)`.
-3. **R/Python/Julia Runtime Loading**: Reading models via the `onnx` R package, Python `onnxruntime`, or Julia `ONNXRunTime`.
+3. **R/Python/Julia Runtime Loading**: Reading models via the `onnx` R package, Python `onnxruntime`, or Julia `ONNXRunTime`. Note: the R `onnx` package needs Python through `reticulate`, which T's Nix R nodes do not ship — R-side ONNX reading and scoring fails there, so use Python directly (`onnxruntime`) or T-native scoring (`t_read_onnx` plus `predict`) instead.
 4. **Broader Coverage**: Neural-network and non-PMML model families that PMML cannot represent well.
 
-Use `^pmml` when you want T's hand-written classical-model evaluator. Use `^onnx` when you want a portable model artifact with native ONNX Runtime inference in T or cross-runtime execution in Python, R, or Julia. $T$ ensures that ONNX models trained in Python (Scikit-Learn) or Julia (Flux) produce consistent results when evaluated natively in $T$.
+Use `^pmml` when you want T's hand-written classical-model evaluator. Use `^onnx` when you want a portable model artifact with native ONNX Runtime inference in T or cross-runtime execution in Python or Julia (R nodes cannot run ONNX artifacts for the reason above). $T$ ensures that ONNX models trained in Python (Scikit-Learn) or Julia (Flux) produce consistent results when evaluated natively in $T$.
 
 > [!NOTE]
 > **Julia World Age**: When using Julia libraries that generate code at runtime (like Flux or Zygote), $T$ automatically wraps execution in `Base.invokelatest` to prevent "World Age" errors. This makes Julia nodes as robust as Python or R nodes for complex modeling tasks.
@@ -20764,7 +20852,7 @@ A consolidated index of all pipeline reading, inspecting, and build-log function
 | `pipeline_leaves(p)` | `Pipeline` | `List[String]` | Nodes that nothing depends on |
 | `pipeline_depth(p)` | `Pipeline` | `Int` | Maximum topological depth |
 | `pipeline_cycles(p)` | `Pipeline` | `List[String]` | Nodes involved in cycles (empty = valid) |
-| `pipeline_validate(p)` | `Pipeline` | `List[String]` | All structural validation errors (empty = valid); checks missing files, unknown runtimes, missing deps, cycles, cross-runtime deserializer gaps, serializer coherence, multi-dep deserializer strategies, and `^bin`-only-for-fetchurl. Same checks power `populate_pipeline`, `build_pipeline`, and `t check` tier 1 |
+| `pipeline_validate(p)` | `Pipeline` | `List[String]` | All structural validation errors (empty = valid); checks missing files, unknown runtimes, missing deps, cycles, cross-runtime deserializer gaps, serializer coherence, multi-dep deserializer strategies, closed strategy-dict shape with per-runtime snippet checks, strategies on `Quarto` nodes, and `^bin`-only-for-fetchurl. Same checks power `populate_pipeline`, `build_pipeline`, and `t check` tier 1 |
 | `pipeline_assert(p)` | `Pipeline` | `Pipeline` | Throws first error, or returns pipeline unchanged |
 | `pipeline_print(p)` | `Pipeline` | `NA` | Pretty-print node table to stdout |
 | `pipeline_to_dot(p)` | `Pipeline` \| `MetaPipeline` | `String` | Graphviz DOT representation |
@@ -20799,7 +20887,7 @@ A consolidated index of all pipeline reading, inspecting, and build-log function
 
 | Function | Parameters | Returns | What it does |
 |---|---|---|---|
-| `set_pipeline_global_options(p, functions?, include?, env_vars?, serializer?, deserializer?, noop?, args?, shell?, shell_args?, flake?, dependencies?, runtimes?, nodes?)` | `Pipeline` plus optional `Dict`/`String`/`List`/`Bool` settings | `Pipeline` | Returns a new pipeline with global defaults merged into target nodes (all nodes by default). Original unchanged. Merge semantics: `functions`, `include`, `env_vars`, `args`, `shell_args`, `dependencies` prepend global values before per-node values (per-node dict keys win); `serializer`, `deserializer`, `shell`, `flake` override per-node values entirely; `noop = true` forces every node to no-op (`false` has no effect). `runtimes`/`nodes` restrict the merge to a subset (union when both given). |
+| `set_pipeline_global_options(p, functions?, include?, env_vars?, serializer?, deserializer?, noop?, args?, shell?, shell_args?, flake?, dependencies?, runtimes?, nodes?)` | `Pipeline` plus optional `Dict`/`String`/`Symbol`/`List`/`Bool` settings (`serializer`/`deserializer` take `Strategy`: `^`-symbols or strategy dicts, never strings) | `Pipeline` | Returns a new pipeline with global defaults merged into target nodes (all nodes by default). Original unchanged. Merge semantics: `functions`, `include`, `env_vars`, `args`, `shell_args`, `dependencies` prepend global values before per-node values (per-node dict keys win); `serializer`, `deserializer`, `shell`, `flake` override per-node values entirely; `noop = true` forces every node to no-op (`false` has no effect). `runtimes`/`nodes` restrict the merge to a subset (union when both given). |
 | `pipeline_node_options(p, node)` | `Pipeline`, `String` | `Dict` | Read-back: returns the fully resolved configuration of a single node after any global-options merges (runtime, serializer, functions, env_vars, shell, flake, deps, depth, ...). Unknown node is a `TypeError`. |
 
 ---
@@ -22203,7 +22291,7 @@ my_stats = { git = "https://github.com/user/my-stats", tag = "v0.1.0" }
 data_utils = { git = "https://github.com/user/data-utils", tag = "v0.2.0" }
 
 [t]
-min_version = "0.55.4"
+min_version = "0.55.5"
 ```
 
 > **Important**: `[dependencies]` entries **must** be `{ git, tag }` inline tables pointing to T packages. Version-constraint strings (e.g. `tlang = ">=0.52.0"`) and array values (e.g. `python = ["polars"]`) are **not valid** and will produce a hard error from `t update`. To declare runtime-language packages, use the dedicated sections:
@@ -22244,7 +22332,7 @@ Syncing 2 dependency(ies) from tproject.toml → flake.nix...
 Running nix flake update...
 ```
 
-This regenerates `flake.nix` so new dependencies and tools appear as proper flake inputs with locked versions. The tools will be available directly in your shell and automatically provided to any pipeline nodes during execution. When you declare runtime dependencies, the matching `tlang` companion package is also exposed in the project shell (`library(tlang)` for R, `import tlang` for Python, and `using tlang` for Julia). Then re-enter the shell:
+This regenerates `flake.nix` so new dependencies and tools appear as proper flake inputs with locked versions. The tools will be available directly in your shell and automatically provided to any pipeline nodes during execution. When you declare runtime dependencies, the matching `tlang` companion package is also exposed in the project shell (`library(tlang)` for R, `import tlang` for Python, and `using tlang` for Julia). The R wrapper and both companion paths are present even with no declared dependencies: the Python package is stdlib-only, so `import tlang` works in a bare shell; the Julia package needs JSON, which `t update` auto-adds once any Julia dependency is declared. Then re-enter the shell:
 
 ```bash
 $ nix develop
@@ -22281,7 +22369,7 @@ After editing, run `t update` to include them in `flake.nix`. Packages are avail
 
 #### 3.3.1a Automatic Discovery from R Code
 
-T scans R node code for package usage — roxygen `@import`/`@importFrom` tags, `library()`/`require()`/`requireNamespace()`/`loadNamespace()` calls, and `pkg::fun` qualifiers — and prompts you to add any missing packages to `tproject.toml` before building (or auto-adds them with `TLANG_AUTO_ADD_PIPELINE_DEPS=1`). Base packages are never listed. Names inside string literals and `#` comments are skipped. Discovery only ensures packages are *installed*; your code must still attach them (`library(dplyr)` or `dplyr::mutate`).
+T scans R node code for package usage — roxygen `@import`/`@importFrom` tags, `library()`/`require()`/`requireNamespace()`/`loadNamespace()` calls, and `pkg::fun` qualifiers — and prompts you to add any missing packages to `tproject.toml` before building (or auto-adds them with `TLANG_AUTO_ADD_PIPELINE_DEPS=1`). Base packages are never listed. Names inside string literals and `#` comments are skipped. Discovery only ensures packages are *installed*; your code must still attach them (`library(dplyr)` or `dplyr::mutate`). For non-interactive runs, answer the prompt per command with `t run --yes <file.t>` (updates `tproject.toml`, like typing `y`) or `t run --no <file.t>` (declines, like typing `N`); `--no` always wins over `--yes` and the env vars, and `--yes` never skips a missing `tproject.toml` the way `TLANG_AUTO_ADD_PIPELINE_DEPS=1` alone does.
 
 ```r
 #' @importFrom dplyr mutate filter
@@ -23636,14 +23724,14 @@ Returns the absolute value of a number or vector/ndarray elements. Raises a Type
 
 ## Parameters
 
-- **x** (`Number`): | Vector | NDArray The input value.
+- **x** (`Number | Vector | NDArray`): The input value.
 
 - **na_ignore** (`Bool`): Whether to preserve NA values in inputs. Default is false.
 
 
 ## Returns
 
-| Vector | NDArray The absolute value.
+The absolute value.
 
 ## Examples
 
@@ -23664,12 +23752,12 @@ Compute inverse hyperbolic cosine.
 
 ## Parameters
 
-- **x** (`Number`): | Vector | NDArray Numeric input.
+- **x** (`Number | Vector | NDArray`): Numeric input.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -23683,12 +23771,12 @@ Compute arccosine.
 
 ## Parameters
 
-- **x** (`Number`): | Vector | NDArray Numeric input.
+- **x** (`Number | Vector | NDArray`): Numeric input.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -23739,12 +23827,12 @@ Returns true for Date values and for Datetime values whose hour is earlier than 
 
 ## Parameters
 
-- **x** (`Date`): | Datetime | Vector The temporal value(s).
+- **x** (`Date | Datetime | Vector`): The temporal value(s).
 
 
 ## Returns
 
-| Vector[Bool] True if before noon.
+True if before noon.
 
 
 
@@ -23934,12 +24022,12 @@ Compute inverse hyperbolic sine.
 
 ## Parameters
 
-- **x** (`Number`): | Vector | NDArray Numeric input.
+- **x** (`Number | Vector | NDArray`): Numeric input.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -23953,12 +24041,12 @@ Compute arcsine.
 
 ## Parameters
 
-- **x** (`Number`): | Vector | NDArray Numeric input.
+- **x** (`Number | Vector | NDArray`): Numeric input.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -24134,14 +24222,14 @@ Compute `atan2(y, x)` with quadrant-aware angle.
 
 ## Parameters
 
-- **y** (`Number`): | List | Vector | NDArray Y coordinate(s).
+- **y** (`Number | List | Vector | NDArray`): Y coordinate(s).
 
 - **x** (`Number`): Scalar X coordinate.
 
 
 ## Returns
 
-| Vector | NDArray Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -24155,12 +24243,12 @@ Compute inverse hyperbolic tangent.
 
 ## Parameters
 
-- **x** (`Number`): | Vector | NDArray Numeric input.
+- **x** (`Number | Vector | NDArray`): Numeric input.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -24174,12 +24262,12 @@ Compute arctangent.
 
 ## Parameters
 
-- **x** (`Number`): | Vector | NDArray Numeric input.
+- **x** (`Number | Vector | NDArray`): Numeric input.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -24218,7 +24306,7 @@ Returns the implementation body of a function. For T functions, it returns the b
 
 ## Returns
 
-| String The function body or implementation info.
+The function body or implementation info.
 
 ## Examples
 
@@ -24302,7 +24390,7 @@ Calls `nix-build` on the generated `pipeline.nix` file. Extracts the store path 
 
 ## Parameters
 
-- **p** (`PipelineResult`): The pipeline AST structure.
+- **p** (`Pipeline`): The pipeline AST structure.
 
 
 ## Returns
@@ -24334,7 +24422,7 @@ Shorthand for `populate_pipeline(p, build = true)`. Materializes all nodes of th
 
 ## Returns
 
-| DataFrame A BuildLog of the build, or a planned-actions DataFrame when `dry_run` is set.
+A BuildLog of the build, or a planned-actions DataFrame when `dry_run` is set.
 
 ## Examples
 
@@ -24427,14 +24515,14 @@ Rounds Date or Datetime values up to the requested unit boundary.
 
 ## Parameters
 
-- **x** (`Date`): | Datetime | Vector The temporal value(s).
+- **x** (`Date | Datetime | Vector`): The temporal value(s).
 
 - **unit** (`String`): The unit boundary ("second", "minute", "hour", "day", "month", "year").
 
 
 ## Returns
 
-| Datetime | Vector The ceiled value(s).
+The ceiled value(s).
 
 
 
@@ -24448,12 +24536,12 @@ Return smallest integer greater than or equal to input.
 
 ## Parameters
 
-- **x** (`Number`): | Vector | NDArray Numeric input.
+- **x** (`Number | Vector | NDArray`): Numeric input.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -24548,12 +24636,12 @@ Standardizes column names using a snake_case convention. Removes special charact
 
 ## Parameters
 
-- **x** (`DataFrame`): | List[String] The object with names to clean.
+- **x** (`DataFrame | List[String]`): The object with names to clean.
 
 
 ## Returns
 
-| List[String] The object with cleaned names.
+The object with cleaned names.
 
 ## See Also
 
@@ -24590,7 +24678,7 @@ Returns the first non-NA value at each position across inputs. All inputs must b
 
 ## Parameters
 
-- **...** (`Vector`): | List Vectors to coalesce in priority order.
+- **...** (`Vector | List`): Vectors to coalesce in priority order.
 
 
 ## Returns
@@ -24761,7 +24849,7 @@ Turns implicit missing values into explicit missing values. Supports nesting() t
 
 - **df** (`DataFrame`): The DataFrame.
 
-- **...** (`Symbol`): | Call Variable number of column names (use $col syntax) or nesting(...) calls.
+- **...** (`Symbol | Call`): Variable number of column names (use $col syntax) or nesting(...) calls.
 
 - **fill** (`Dict`): (Optional) A dictionary supplying a single value to use instead of NA for missing combinations.
 
@@ -24865,13 +24953,13 @@ Computes the correlation coefficient between two vectors. `method = "pearson"` (
 
 ## Parameters
 
-- **x** (`Vector`): | List First numeric vector.
+- **x** (`Vector | List`): First numeric vector.
 
-- **y** (`Vector`): | List Second numeric vector.
+- **y** (`Vector | List`): Second numeric vector.
 
 - **na_rm** (`Bool`): (Optional) Should missing values be removed? Default is false.
 
-- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights (Pearson only).
+- **weights** (`Vector[Float] | List[Float]`): = NA Optional non-negative observation weights (Pearson only).
 
 - **method** (`String`): = "pearson" Correlation method: "pearson" or "spearman".
 
@@ -24898,12 +24986,12 @@ Compute hyperbolic cosine.
 
 ## Parameters
 
-- **x** (`Number`): | Vector | NDArray Numeric input.
+- **x** (`Number | Vector | NDArray`): Numeric input.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -24917,12 +25005,12 @@ Compute cosine (radians).
 
 ## Parameters
 
-- **x** (`Number`): | Vector | NDArray Numeric input.
+- **x** (`Number | Vector | NDArray`): Numeric input.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -24967,18 +25055,18 @@ Compute sample covariance of two numeric vectors.
 
 ## Parameters
 
-- **x** (`Vector`): | List First numeric input.
+- **x** (`Vector | List`): First numeric input.
 
-- **y** (`Vector`): | List Second numeric input.
+- **y** (`Vector | List`): Second numeric input.
 
 - **na_rm** (`Bool`): = false Pairwise remove NA values.
 
-- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights.
+- **weights** (`Vector[Float] | List[Float]`): = NA Optional non-negative observation weights.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -24992,7 +25080,7 @@ crossing() generates all unique combinations of its inputs. Unlike expand_grid()
 
 ## Parameters
 
-- **...** (`Vector`): | List Named or unnamed inputs to combine.
+- **...** (`Vector | List`): Named or unnamed inputs to combine.
 
 
 ## Returns
@@ -25264,9 +25352,9 @@ Splits a numeric vector into intervals.
 
 ## Parameters
 
-- **x** (`Vector[Number]`): | List[Number] The vector to discretize.
+- **x** (`Vector[Number] | List[Number]`): The vector to discretize.
 
-- **breaks** (`Int`): | Vector[Number] | List[Number] Number of bins or specific cut points.
+- **breaks** (`Int | Vector[Number] | List[Number]`): Number of bins or specific cut points.
 
 
 ## Returns
@@ -25292,16 +25380,16 @@ Compute sample sd divided by mean.
 
 ## Parameters
 
-- **x** (`Vector`): | List Numeric input.
+- **x** (`Vector | List`): Numeric input.
 
 - **na_rm** (`Bool`): = false Remove NA values first.
 
-- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights.
+- **weights** (`Vector[Float] | List[Float]`): = NA Optional non-negative observation weights.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -25354,12 +25442,12 @@ Returns the day-of-month component from Date or Datetime values.
 
 ## Parameters
 
-- **x** (`Date`): | Datetime | Vector The temporal value(s).
+- **x** (`Date | Datetime | Vector`): The temporal value(s).
 
 
 ## Returns
 
-| Vector[Int] The day(s).
+The day(s).
 
 
 
@@ -25373,14 +25461,39 @@ Returns the number of days in the month described by a date, datetime, or explic
 
 ## Parameters
 
-- **x** (`Date`): | Datetime | Vector | Int The date or year.
+- **x** (`Date | Datetime | Vector | Int`): The date or year.
 
 - **month** (`Int`): (Optional) The month (if first arg was year).
 
 
 ## Returns
 
-| Vector[Int] The number of days.
+The number of days.
+
+
+
+# FILE: docs/reference/days.md
+
+# days
+
+Build a day period
+
+Constructs a Period value spanning the given number of days.
+
+## Parameters
+
+- **n** (`Int`): The number of days.
+
+
+## Returns
+
+The period value.
+
+## Examples
+
+```t
+days(7)
+```
 
 
 
@@ -25454,7 +25567,7 @@ Reads a serialized T value from a file. Verifies an integrity digest before unma
 
 ## Returns
 
-String] Value or error.
+Value or error.
 
 
 
@@ -25464,7 +25577,7 @@ String] Value or error.
 
 Deserialize Value
 
-Deserializes a value from a `.tobj` file.
+Deserializes a value from a `.tobj` file. Returns a FileError value when the file cannot be read.
 
 ## Parameters
 
@@ -25650,6 +25763,58 @@ Returns the distinct rows of a DataFrame, optionally using selected columns as u
 
 
 
+# FILE: docs/reference/dmy_hms.md
+
+# dmy_hms
+
+Parse day-first datetimes with second precision
+
+Parses DMY-ordered strings to Datetime values. Vectorized over vectors. Unparseable inputs become NA.
+
+## Parameters
+
+- **value** (`String | Vector`): The datetime string(s) to parse.
+
+- **tz** (`String`): (Optional) Timezone label.
+
+
+## Returns
+
+The parsed datetime(s).
+
+## Examples
+
+```t
+dmy_hms("15-01-2024 10:30:45")
+```
+
+
+
+# FILE: docs/reference/dmy.md
+
+# dmy
+
+Parse day-month-year dates
+
+Parses strings in DMY order to Date values. Vectorized over vectors. Unparseable inputs become NA.
+
+## Parameters
+
+- **value** (`String | Vector`): The date string(s) to parse.
+
+
+## Returns
+
+The parsed date(s).
+
+## Examples
+
+```t
+dmy("15-01-2024")
+```
+
+
+
 # FILE: docs/reference/downstream_of.md
 
 # downstream_of
@@ -25803,13 +25968,34 @@ Retrieves the value of an environment variable.
 
 ## Returns
 
-| NA The value of the variable, or null if not set.
+The value of the variable, or null if not set.
 
 ## Examples
 
 ```t
 env("HOME")
 ```
+
+
+
+# FILE: docs/reference/env_var_lens.md
+
+# env_var_lens
+
+Environment variable lens for a node
+
+Builds a lens focusing an environment variable inside a node's execution environment.
+
+## Parameters
+
+- **node_name** (`String`): The name of the node.
+
+- **var_name** (`String`): The environment variable name.
+
+
+## Returns
+
+A lens for the specified environment variable.
 
 
 
@@ -25994,7 +26180,7 @@ Generates all unique combinations of the provided columns or expressions. Suppor
 
 - **df** (`DataFrame`): The DataFrame.
 
-- **...** (`Symbol`): | Vector | Call Specification of columns to expand.
+- **...** (`Symbol | Vector | Call`): Specification of columns to expand.
 
 
 ## Returns
@@ -26023,7 +26209,7 @@ Patterned nodes using `map_pattern(dep)`, `cross_pattern(...)`, `slice_pattern(d
 
 - **p** (`Pipeline`): The pipeline to expand.
 
-- **to_script** (`String`): | NA = NA Optional file path to write the expanded pipeline script.
+- **to_script** (`String | NA`): = NA Optional file path to write the expanded pipeline script.
 
 
 ## Returns
@@ -26050,11 +26236,11 @@ Passes if the numeric value or vector elements fall inside [min, max].
 
 ## Parameters
 
-- **actual** (`Int`): | Float | Vector The numeric value or vector to check.
+- **actual** (`Int | Float | Vector`): The numeric value or vector to check.
 
-- **min** (`Int`): | Float Lower bound (inclusive).
+- **min** (`Int | Float`): Lower bound (inclusive).
 
-- **max** (`Int`): | Float Upper bound (inclusive).
+- **max** (`Int | Float`): Upper bound (inclusive).
 
 
 ## Returns
@@ -26085,7 +26271,7 @@ Passes if the DataFrame column names match the given list of strings exactly (or
 
 - **df** (`DataFrame`): The DataFrame to check.
 
-- **names** (`List`): | Vector A list or vector of expected column name strings.
+- **names** (`List | Vector`): A list or vector of expected column name strings.
 
 
 ## Returns
@@ -26116,7 +26302,7 @@ Passes if the specified DataFrame columns match the expected type strings.
 
 - **df** (`DataFrame`): The DataFrame to check.
 
-- **expected_types** (`Dict`): | List Column name -> expected type string map.
+- **expected_types** (`Dict | List`): Column name -> expected type string map.
 
 
 ## Returns
@@ -26145,7 +26331,7 @@ Passes if the node is computed and has a finished value.
 
 ## Parameters
 
-- **node** (`ComputedNode`): | NodeResult The node to check.
+- **node** (`ComputedNode | NodeResult`): The node to check.
 
 
 ## Returns
@@ -26203,7 +26389,7 @@ Passes if `node_name` deserializer matches the expected deserializer.
 
 - **node_name** (`String`): The node name.
 
-- **expected** (`String`): | Symbol The expected deserializer.
+- **expected** (`Symbol`): The expected deserializer.
 
 
 ## Returns
@@ -26228,7 +26414,7 @@ Passes if a List, Dict, Vector, String, or DataFrame is empty (0 elements/rows/l
 
 ## Parameters
 
-- **actual** (`List`): | Dict | Vector | String | DataFrame The container to check.
+- **actual** (`List | Dict | Vector | String | DataFrame`): The container to check.
 
 
 ## Returns
@@ -26415,9 +26601,9 @@ Passes if a Dict's keys or a named List's labels match the given list of strings
 
 ## Parameters
 
-- **x** (`Dict`): | List The Dict or named List to inspect.
+- **x** (`Dict | List`): The Dict or named List to inspect.
 
-- **names** (`List`): | Vector A list or vector of expected field name strings.
+- **names** (`List | Vector`): A list or vector of expected field name strings.
 
 
 ## Returns
@@ -26446,9 +26632,9 @@ Passes if `a >= b` for numeric arguments (Int or Float).
 
 ## Parameters
 
-- **a** (`Int`): | Float The left-hand numeric value.
+- **a** (`Int | Float`): The left-hand numeric value.
 
-- **b** (`Int`): | Float The right-hand numeric value.
+- **b** (`Int | Float`): The right-hand numeric value.
 
 
 ## Returns
@@ -26478,9 +26664,9 @@ Passes if `a > b` for numeric arguments (Int or Float).
 
 ## Parameters
 
-- **a** (`Int`): | Float The left-hand numeric value.
+- **a** (`Int | Float`): The left-hand numeric value.
 
-- **b** (`Int`): | Float The right-hand numeric value.
+- **b** (`Int | Float`): The right-hand numeric value.
 
 
 ## Returns
@@ -26509,9 +26695,9 @@ Passes if the DataFrame, Dict, or named List contains at least all of the expect
 
 ## Parameters
 
-- **data** (`DataFrame`): | Dict | List The container to check.
+- **data** (`DataFrame | Dict | List`): The container to check.
 
-- **names** (`String`): | List | Vector The required column/field name or list/vector of required names.
+- **names** (`String | List | Vector`): The required column/field name or list/vector of required names.
 
 
 ## Returns
@@ -26570,7 +26756,7 @@ Passes if `x` (or every element of a Vector/List `x`) is present in `values`. Ch
 
 - **x** (`Any`): A scalar value, Vector, or List to look for.
 
-- **values** (`Vector`): | List The haystack collection to search in.
+- **values** (`Vector | List`): The haystack collection to search in.
 
 - **tolerance** (`Float`): = 1e-9 Absolute tolerance used for Float comparisons.
 
@@ -26602,7 +26788,7 @@ Passes if the length/size/row-count of `x` equals `n`. Supports Vector, List, St
 
 ## Parameters
 
-- **x** (`Vector`): | List | String | DataFrame | Dict The container to measure.
+- **x** (`Vector | List | String | DataFrame | Dict`): The container to measure.
 
 - **n** (`Int`): Expected length.
 
@@ -26634,9 +26820,9 @@ Passes if `a <= b` for numeric arguments (Int or Float).
 
 ## Parameters
 
-- **a** (`Int`): | Float The left-hand numeric value.
+- **a** (`Int | Float`): The left-hand numeric value.
 
-- **b** (`Int`): | Float The right-hand numeric value.
+- **b** (`Int | Float`): The right-hand numeric value.
 
 
 ## Returns
@@ -26666,9 +26852,9 @@ Passes if `a < b` for numeric arguments (Int or Float). Returns `Expect_hold` wh
 
 ## Parameters
 
-- **a** (`Int`): | Float The left-hand numeric value.
+- **a** (`Int | Float`): The left-hand numeric value.
 
-- **b** (`Int`): | Float The right-hand numeric value.
+- **b** (`Int | Float`): The right-hand numeric value.
 
 
 ## Returns
@@ -26791,7 +26977,7 @@ Passes if a pipeline contains exactly the expected node names (including dynamic
 
 - **p** (`Pipeline`): The pipeline to check.
 
-- **expected_names** (`List`): | Vector Expected node names.
+- **expected_names** (`List | Vector`): Expected node names.
 
 
 ## Returns
@@ -26966,9 +27152,9 @@ Passes if all non-NA cell values in a numeric DataFrame column fall within [min,
 
 - **col** (`String`): Column name to check.
 
-- **min** (`Int`): | Float Lower bound (inclusive).
+- **min** (`Int | Float`): Lower bound (inclusive).
 
-- **max** (`Int`): | Float Upper bound (inclusive).
+- **max** (`Int | Float`): Upper bound (inclusive).
 
 
 ## Returns
@@ -27030,7 +27216,7 @@ Passes if `node_name` serializer matches the expected serializer.
 
 - **node_name** (`String`): The node name.
 
-- **expected** (`String`): | Symbol The expected serializer.
+- **expected** (`Symbol`): The expected serializer.
 
 
 ## Returns
@@ -27055,9 +27241,9 @@ Passes if two Lists or Vectors contain the exact same unique elements regardless
 
 ## Parameters
 
-- **list1** (`List`): | Vector First collection.
+- **list1** (`List | Vector`): First collection.
 
-- **list2** (`List`): | Vector Second collection.
+- **list2** (`List | Vector`): Second collection.
 
 
 ## Returns
@@ -27117,7 +27303,7 @@ Summarizes a List or Dict of Expect values / check results into a DataFrame repo
 
 ## Parameters
 
-- **checks** (`Dict`): | List A dictionary or list of expectation check results.
+- **checks** (`Dict | List`): A dictionary or list of expectation check results.
 
 
 ## Returns
@@ -27271,7 +27457,7 @@ Passes if all elements in a Vector, List, or DataFrame are distinct. Returns `Ex
 
 ## Parameters
 
-- **x** (`Vector`): | List | DataFrame The container or vector to check for uniqueness.
+- **x** (`Vector | List | DataFrame`): The container or vector to check for uniqueness.
 
 
 ## Returns
@@ -27305,7 +27491,7 @@ Passes if all cell values in a DataFrame column belong to an allowed set of valu
 
 - **col** (`String`): Column name to check.
 
-- **allowed_values** (`List`): | Vector Set of allowed values.
+- **allowed_values** (`List | Vector`): Set of allowed values.
 
 
 ## Returns
@@ -27334,7 +27520,7 @@ Passes if the node's diagnostics contain at least one warning. Optionally filter
 
 ## Parameters
 
-- **node** (`NodeResult`): | ComputedNode The computed node to inspect.
+- **node** (`NodeResult | ComputedNode`): The computed node to inspect.
 
 - **kind** (`String`): = "" Optional warning kind to match exactly (e.g. "NAExcluded").
 
@@ -27422,14 +27608,14 @@ Calculates e raised to the power of x.
 
 ## Parameters
 
-- **x** (`Number`): | Vector | NDArray The input value.
+- **x** (`Number | Vector | NDArray`): The input value.
 
 - **na_ignore** (`Bool`): Whether to preserve NA values in inputs. Default is false.
 
 
 ## Returns
 
-| Vector | NDArray The exponential.
+The exponential.
 
 ## Examples
 
@@ -27694,9 +27880,9 @@ Keeps selected factor levels and maps the rest to an "Other" bucket.
 
 - **x** (`Vector[Factor]`): A factor vector.
 
-- **keep** (`Vector[String]`): | List[String] Levels to preserve.
+- **keep** (`Vector[String] | List[String]`): Levels to preserve.
 
-- **drop** (`Vector[String]`): | List[String] Levels to drop (mutually exclusive with keep).
+- **drop** (`Vector[String] | List[String]`): Levels to drop (mutually exclusive with keep).
 
 - **other_level** (`String`): = "Other" Name for the catch-all level.
 
@@ -27840,7 +28026,7 @@ Downloads a file from a URL. In the REPL, wraps curl. In a pipeline, creates a n
 
 - **sha256** (`String`): (Optional) Expected SHA-256 hash (required in pipeline mode).
 
-- **serializer** (`String`): (Optional) Serializer format for pipeline mode. Defaults to "bin". Use "text" for plain text files.
+- **serializer** (`Symbol`): (Optional) Serializer format for pipeline mode as a ^-prefixed symbol. Defaults to ^bin. Use ^text for plain text files.
 
 - **output** (`String`): (Optional) Output file path (REPL mode only). Defaults to the basename of the URL.
 
@@ -27849,7 +28035,7 @@ Downloads a file from a URL. In the REPL, wraps curl. In a pipeline, creates a n
 
 ## Returns
 
-| Node In REPL mode, returns the file path as a String. In pipeline mode, returns a Node value.
+In REPL mode, returns the file path as a String. In pipeline mode, returns a Node value.
 
 ## Examples
 
@@ -28010,7 +28196,7 @@ Returns a tidy DataFrame of model-level statistics (e.g. R-squared, AIC, BIC). S
 
 ## Parameters
 
-- **x** (`Model`): | List[Model] | Dict[String, Model] The model(s) to inspect.
+- **x** (`Model | List[Model] | Dict[String, Model]`): The model(s) to inspect.
 
 
 ## Returns
@@ -28042,16 +28228,16 @@ Return min, Q1, median, Q3, max.
 
 ## Parameters
 
-- **x** (`Vector`): | List Numeric input.
+- **x** (`Vector | List`): Numeric input.
 
 - **na_rm** (`Bool`): = false Remove NA values first.
 
-- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights.
+- **weights** (`Vector[Float] | List[Float]`): = NA Optional non-negative observation weights.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -28096,14 +28282,14 @@ Rounds Date or Datetime values down to the requested unit boundary.
 
 ## Parameters
 
-- **x** (`Date`): | Datetime | Vector The temporal value(s).
+- **x** (`Date | Datetime | Vector`): The temporal value(s).
 
 - **unit** (`String`): The unit boundary ("second", "minute", "hour", "day", "month", "year").
 
 
 ## Returns
 
-| Datetime | Vector The floored value(s).
+The floored value(s).
 
 
 
@@ -28117,12 +28303,12 @@ Return greatest integer less than or equal to input.
 
 ## Parameters
 
-- **x** (`Number`): | Vector | NDArray Numeric input.
+- **x** (`Number | Vector | NDArray`): Numeric input.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -28136,14 +28322,14 @@ Reinterprets local clock components under a new timezone label.
 
 ## Parameters
 
-- **x** (`Datetime`): | Vector The temporal value(s).
+- **x** (`Datetime | Vector`): The temporal value(s).
 
 - **tz** (`String`): The new timezone label.
 
 
 ## Returns
 
-| Vector[Datetime] The relabeled datetime(s).
+The relabeled datetime(s).
 
 
 
@@ -28157,14 +28343,14 @@ Formats Date values with a user-supplied format string.
 
 ## Parameters
 
-- **x** (`Date`): | Datetime | Vector The temporal value(s).
+- **x** (`Date | Datetime | Vector`): The temporal value(s).
 
 - **format** (`String`): The strftime-style format string.
 
 
 ## Returns
 
-| Vector[String] The formatted string(s).
+The formatted string(s).
 
 
 
@@ -28178,14 +28364,14 @@ Formats Datetime values with a user-supplied format string.
 
 ## Parameters
 
-- **x** (`Date`): | Datetime | Vector The temporal value(s).
+- **x** (`Date | Datetime | Vector`): The temporal value(s).
 
 - **format** (`String`): The strftime-style format string.
 
 
 ## Returns
 
-| Vector[String] The formatted string(s).
+The formatted string(s).
 
 
 
@@ -28338,14 +28524,14 @@ Returns the first n items from a List, Vector, or DataFrame. For DataFrames, it 
 
 ## Parameters
 
-- **data** (`DataFrame`): | List | Vector The collection to slice.
+- **data** (`DataFrame | List | Vector`): The collection to slice.
 
 - **n** (`Int`): = 5 Number of items to return.
 
 
 ## Returns
 
-| List | Vector A subset of the input containing the first n items.
+A subset of the input containing the first n items.
 
 ## Examples
 
@@ -28386,7 +28572,7 @@ Prints the help documentation for the specified function, including signature, p
 
 ## Parameters
 
-- **name** (`String`): | Symbol The name of the function to document.
+- **name** (`String | Symbol`): The name of the function to document.
 
 
 ## Returns
@@ -28416,12 +28602,37 @@ Returns the hour component from Datetime values.
 
 ## Parameters
 
-- **x** (`Datetime`): | Vector The temporal value(s).
+- **x** (`Datetime | Vector`): The temporal value(s).
 
 
 ## Returns
 
-| Vector[Int] The hour(s).
+The hour(s).
+
+
+
+# FILE: docs/reference/hours.md
+
+# hours
+
+Build an hour period
+
+Constructs a Period value spanning the given number of hours.
+
+## Parameters
+
+- **n** (`Int`): The number of hours.
+
+
+## Returns
+
+The period value.
+
+## Examples
+
+```t
+hours(12)
+```
 
 
 
@@ -28435,14 +28646,14 @@ Compute Huber loss for residuals and positive delta.
 
 ## Parameters
 
-- **x** (`Number`): | Vector | List Residual value(s).
+- **x** (`Number | Vector | List`): Residual value(s).
 
 - **delta** (`Number`): Positive threshold.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -28587,6 +28798,7 @@ A confirmation message describing the imported archive.
 | [char_at](char_at.html) | Get character at index |
 | [check](check.html) | Inline assertion wrapper |
 | [clean_colnames](clean_colnames.html) | Clean DataFrame Column Names |
+| [coalesce](coalesce.html) | Coalesce missing values |
 | [coef](coef.html) | Model Coefficients |
 | [col_lens](col_lens.html) | Create a Column Lens |
 | [collect_exceptions](collect_exceptions.html) | Gather Pipeline Node Exceptions and Warnings |
@@ -28602,6 +28814,7 @@ A confirmation message describing the imported archive.
 | [cosh](cosh.html) | Hyperbolic cosine |
 | [count](count.html) | Count rows by group |
 | [cov](cov.html) | Covariance |
+| [cross_join](cross_join.html) | Cartesian join |
 | [cross_pattern](cross_pattern.html) | Cross pattern stub |
 | [crossing](crossing.html) | Create a data frame from all combinations of inputs |
 | [cumall](cumall.html) | Cumulative All |
@@ -28614,6 +28827,7 @@ A confirmation message describing the imported archive.
 | [cut](cut.html) | Discretize numeric vector |
 | [cv](cv.html) | Coefficient of variation |
 | [day](day.html) | Extract the day of month |
+| [days](days.html) | Build a day period |
 | [days_in_month](days_in_month.html) | Get the number of days in a month |
 | [debug_node](debug_node.html) | Interactively Debug a Pipeline Node |
 | [dense_rank](dense_rank.html) | Dense Rank |
@@ -28626,12 +28840,15 @@ A confirmation message describing the imported archive.
 | [dir_exists](dir_exists.html) | Check if directory exists |
 | [dispersion](dispersion.html) | Dispersion Parameter |
 | [distinct](distinct.html) | Keep unique rows |
+| [dmy](dmy.html) | Parse day-month-year dates |
+| [dmy_hms](dmy_hms.html) | Parse day-first datetimes with second precision |
 | [downstream_of](downstream_of.html) | Extract Downstream Subgraph |
 | [drop_na](drop_na.html) | Remove rows with missing values |
 | [ends_with](ends_with.html) | Check if string ends with suffix |
 | [enquo](enquo.html) | Capture a function argument's expression (non-standard evaluation) |
 | [enquos](enquos.html) | Capture variadic argument expressions (non-standard evaluation) |
 | [env](env.html) | Get environment variable |
+| [env_var_lens](env_var_lens.html) | Environment variable lens for a node |
 | [error](error.html) | Raise Error |
 | [error_chain](error_chain.html) | Chain errors to preserve provenance |
 | [error_code](error_code.html) | Get error code |
@@ -28727,6 +28944,7 @@ A confirmation message describing the imported archive.
 | [head_pattern](head_pattern.html) | Head pattern stub |
 | [help](help.html) | Display documentation for a function |
 | [hour](hour.html) | Extract the hour |
+| [hours](hours.html) | Build an hour period |
 | [huber_loss](huber_loss.html) | Huber loss |
 | [identical](identical.html) | Deep Equality Check |
 | [idx_lens](idx_lens.html) | Index Lens |
@@ -28746,13 +28964,18 @@ A confirmation message describing the imported archive.
 | [iota](iota.html) | Create a vector of ones |
 | [iqr](iqr.html) | Interquartile range |
 | [is_character](is_character.html) | Check for character columns |
+| [is_date](is_date.html) | Test for Date values |
+| [is_datetime](is_datetime.html) | Test for Datetime values |
+| [is_duration](is_duration.html) | Test for Duration values |
 | [is_empty](is_empty.html) | Check if string is empty |
 | [is_error](is_error.html) | Check if a value is an Error |
 | [is_factor](is_factor.html) | Check for to_factor columns |
+| [is_interval](is_interval.html) | Test for Interval values |
 | [is_leap_year](is_leap_year.html) | Check for leap years |
 | [is_logical](is_logical.html) | Check for logical columns |
 | [is_na](is_na.html) | Check for NA |
 | [is_numeric](is_numeric.html) | Check for numeric columns |
+| [is_period](is_period.html) | Test for Period values |
 | [isoweek](isoweek.html) | Extract the ISO week number |
 | [isoyear](isoyear.html) | Extract the ISO week-based year |
 | [jln](jln.html) | Configure a Julia Pipeline Node |
@@ -28778,15 +29001,21 @@ A confirmation message describing the imported archive.
 | [matches](matches.html) | Match columns by regex |
 | [matmul](matmul.html) | Matrix multiplication |
 | [max](max.html) | Maximum value |
+| [mdy](mdy.html) | Parse month-day-year dates |
+| [mdy_hms](mdy_hms.html) | Parse month-first datetimes with second precision |
 | [mean](mean.html) | Compute arithmetic mean of numeric values |
 | [median](median.html) | Median |
 | [meta_flatten](meta_flatten.html) | Flatten MetaPipeline into Standard Pipeline |
+| [microseconds](microseconds.html) | Build a microsecond period |
+| [milliseconds](milliseconds.html) | Build a millisecond period |
 | [min](min.html) | Minimum value |
 | [min_rank](min_rank.html) | Minimum Rank |
 | [minute](minute.html) | Extract the minute |
+| [minutes](minutes.html) | Build a minute period |
 | [mode](mode.html) | Mode |
 | [modify](modify.html) | Multiple Lens Transformations |
 | [month](month.html) | Extract or label the month |
+| [months](months.html) | Build a month period |
 | [mutate](mutate.html) | Mutate DataFrame |
 | [mutate_node](mutate_node.html) | Mutate Pipeline Node Metadata |
 | [n](n.html) | Group size aggregation |
@@ -28796,6 +29025,7 @@ A confirmation message describing the imported archive.
 | [na_float](na_float.html) | Float NA |
 | [na_int](na_int.html) | Integer NA |
 | [na_string](na_string.html) | String NA |
+| [nanoseconds](nanoseconds.html) | Build a nanosecond period |
 | [ncol](ncol.html) | Number of columns |
 | [ndarray](ndarray.html) | Create an N-dimensional array |
 | [ndarray_data](ndarray_data.html) | Get NDArray data |
@@ -28829,6 +29059,12 @@ A confirmation message describing the imported archive.
 | [path_stem](path_stem.html) | Get filename without extension |
 | [pchisq](pchisq.html) | Chi-squared distribution CDF |
 | [percent_rank](percent_rank.html) | Percent Rank |
+| [period_days](period_days.html) | Days component of a period |
+| [period_hours](period_hours.html) | Hours component of a period |
+| [period_minutes](period_minutes.html) | Minutes component of a period |
+| [period_months](period_months.html) | Months component of a period |
+| [period_seconds](period_seconds.html) | Seconds component of a period |
+| [period_years](period_years.html) | Years component of a period |
 | [pf](pf.html) | F distribution CDF |
 | [pipeline_assert](pipeline_assert.html) | Assert Pipeline Validity |
 | [pipeline_cache_status](pipeline_cache_status.html) | Check Pipeline Cache Status |
@@ -28848,6 +29084,7 @@ A confirmation message describing the imported archive.
 | [pipeline_report](pipeline_report.html) | Generate Pipeline Report |
 | [pipeline_roots](pipeline_roots.html) | Pipeline Root Nodes |
 | [pipeline_run](pipeline_run.html) | Run Pipeline |
+| [pipeline_status](pipeline_status.html) | Pipeline health table |
 | [pipeline_to_dot](pipeline_to_dot.html) | Export Pipeline/MetaPipeline as DOT Graph |
 | [pipeline_to_drv](pipeline_to_drv.html) | Introspect Node Derivation Paths |
 | [pipeline_to_frame](pipeline_to_frame.html) | Convert Pipeline to DataFrame |
@@ -28923,6 +29160,7 @@ A confirmation message describing the imported archive.
 | [reshape](reshape.html) | Reshape an NDArray |
 | [residuals](residuals.html) | Model Residuals |
 | [rewire](rewire.html) | Rewire a Node's Dependencies |
+| [right_join](right_join.html) | Join rows from the right table |
 | [rm](rm.html) | Remove objects from the environment |
 | [rn](rn.html) | Configure an R Pipeline Node |
 | [round](round.html) | Round values |
@@ -28939,6 +29177,7 @@ A confirmation message describing the imported archive.
 | [score](score.html) | Model Scoring |
 | [sd](sd.html) | Standard Deviation |
 | [second](second.html) | Extract the second |
+| [seconds](seconds.html) | Build a second period |
 | [select](select.html) | Select columns |
 | [select_node](select_node.html) | Select Node Metadata Fields |
 | [semester](semester.html) | Extract the semester |
@@ -28983,6 +29222,7 @@ A confirmation message describing the imported archive.
 | [str_replace](str_replace.html) | Replace all occurrences |
 | [str_split](str_split.html) | Split a string on a delimiter |
 | [str_sprintf](str_sprintf.html) | Format a string |
+| [str_squish](str_squish.html) | Squish whitespace |
 | [str_substring](str_substring.html) | Extract substring |
 | [str_trim](str_trim.html) | Trim whitespace |
 | [str_trunc](str_trunc.html) | Truncate strings for display |
@@ -29048,6 +29288,7 @@ A confirmation message describing the imported archive.
 | [warning_msg](warning_msg.html) | Get warning message |
 | [wday](wday.html) | Extract or label the weekday |
 | [week](week.html) | Extract the week number |
+| [weeks](weeks.html) | Build a week period |
 | [where](where.html) | Select columns by predicate |
 | [which_nodes](which_nodes.html) | Filter Readable Pipeline Node Records |
 | [winsorize](winsorize.html) | Winsorize values |
@@ -29058,7 +29299,13 @@ A confirmation message describing the imported archive.
 | [write_parquet](write_parquet.html) | Write Parquet file |
 | [write_text](write_text.html) | Write text to a file |
 | [yday](yday.html) | Extract the day of year |
+| [ydm](ydm.html) | Parse year-day-month dates |
 | [year](year.html) | Extract the year component |
+| [years](years.html) | Build a year period |
+| [ymd](ymd.html) | Parse year-month-day dates |
+| [ymd_h](ymd_h.html) | Parse datetimes with hour precision |
+| [ymd_hm](ymd_hm.html) | Parse datetimes with minute precision |
+| [ymd_hms](ymd_hms.html) | Parse datetimes with second precision |
 
 
 # FILE: docs/reference/index_of.md
@@ -29240,9 +29487,9 @@ Builds an interval from two Date or Datetime endpoints.
 
 ## Parameters
 
-- **start** (`Date`): | Datetime The start of the interval.
+- **start** (`Date | Datetime`): The start of the interval.
 
-- **end** (`Date`): | Datetime The end of the interval.
+- **end** (`Date | Datetime`): The end of the interval.
 
 
 ## Returns
@@ -29314,16 +29561,16 @@ Compute Q3 - Q1 using quantiles.
 
 ## Parameters
 
-- **x** (`Vector`): | List Numeric input.
+- **x** (`Vector | List`): Numeric input.
 
 - **na_rm** (`Bool`): = false Remove NA values first.
 
-- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights.
+- **weights** (`Vector[Float] | List[Float]`): = NA Optional non-negative observation weights.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -29334,6 +29581,81 @@ Compute Q3 - Q1 using quantiles.
 Check for character columns
 
 Predicate helper for string columns or string vectors.
+
+
+
+# FILE: docs/reference/is_date.md
+
+# is_date
+
+Test for Date values
+
+Returns true for Date values, false for anything else.
+
+## Parameters
+
+- **x** (`Any`): The value to test.
+
+
+## Returns
+
+True for Date values.
+
+## Examples
+
+```t
+is_date(ymd("2024-01-15"))
+```
+
+
+
+# FILE: docs/reference/is_datetime.md
+
+# is_datetime
+
+Test for Datetime values
+
+Returns true for Datetime values, false for anything else.
+
+## Parameters
+
+- **x** (`Any`): The value to test.
+
+
+## Returns
+
+True for Datetime values.
+
+## Examples
+
+```t
+is_datetime(ymd_hms("2024-01-15 10:30:45"))
+```
+
+
+
+# FILE: docs/reference/is_duration.md
+
+# is_duration
+
+Test for Duration values
+
+Returns true for Duration values, false for anything else.
+
+## Parameters
+
+- **x** (`Any`): The value to test.
+
+
+## Returns
+
+True for Duration values.
+
+## Examples
+
+```t
+is_duration(ymd_hms("2024-01-15 10:30:45") - ymd_hms("2024-01-14 10:30:45"))
+```
 
 
 
@@ -29392,6 +29714,31 @@ Predicate helper for to_factor columns or to_factor vectors.
 
 
 
+# FILE: docs/reference/is_interval.md
+
+# is_interval
+
+Test for Interval values
+
+Returns true for Interval values, false for anything else.
+
+## Parameters
+
+- **x** (`Any`): The value to test.
+
+
+## Returns
+
+True for Interval values.
+
+## Examples
+
+```t
+is_interval(interval(ymd("2024-01-01"), ymd("2024-02-01")))
+```
+
+
+
 # FILE: docs/reference/is_leap_year.md
 
 # is_leap_year
@@ -29402,12 +29749,12 @@ Returns true when the supplied year or date falls in a leap year.
 
 ## Parameters
 
-- **x** (`Int`): | Date | Datetime | Vector The year or temporal value(s).
+- **x** (`Int | Date | Datetime | Vector`): The year or temporal value(s).
 
 
 ## Returns
 
-| Vector[Bool] True if it is a leap year.
+True if it is a leap year.
 
 
 
@@ -29471,12 +29818,12 @@ Returns the ISO week number for Date or Datetime values.
 
 ## Parameters
 
-- **x** (`Date`): | Datetime | Vector The temporal value(s).
+- **x** (`Date | Datetime | Vector`): The temporal value(s).
 
 
 ## Returns
 
-| Vector[Int] The ISO week number(s).
+The ISO week number(s).
 
 
 
@@ -29490,12 +29837,37 @@ Returns the ISO week-based year for Date or Datetime values.
 
 ## Parameters
 
-- **x** (`Date`): | Datetime | Vector The temporal value(s).
+- **x** (`Date | Datetime | Vector`): The temporal value(s).
 
 
 ## Returns
 
-| Vector[Int] The ISO year(s).
+The ISO year(s).
+
+
+
+# FILE: docs/reference/is_period.md
+
+# is_period
+
+Test for Period values
+
+Returns true for Period values, false for anything else.
+
+## Parameters
+
+- **x** (`Any`): The value to test.
+
+
+## Returns
+
+True for Period values.
+
+## Examples
+
+```t
+is_period(days(7))
+```
 
 
 
@@ -29513,13 +29885,13 @@ A convenience wrapper around `node()` with `runtime = "Julia"`. Used directly wi
 
 - **script** (`String`): (Optional) Path to an external `.jl` file to execute as the node body. Mutually exclusive with `command`. Sets the runtime to `Julia` automatically.
 
-- **serializer** (`Symbol`): (Optional) Custom serializer strategy. Use `^`-prefixed symbols (e.g., `^csv`, `^json`, `^ipc`, `^parquet`, `^onnx`). Default = runtime-native binary serialization (`jl_serialize`).
+- **serializer** (`Strategy`): (Optional) Serializer strategy: a built-in (`default`, `^csv`, `^json`, `^ipc`, `^parquet`, `^pmml`, `^onnx`, `^bin`, `^text`, `^tlang`) or a strategy dict `[format: ^name, ...snippets]` (see `docs/serializers.md`). Bare function names are rejected. Default is `default`.
 
-- **deserializer** (`Symbol`): (Optional) Custom deserializer strategy. Use `^`-prefixed symbols (e.g., `^csv`, `^json`, `^ipc`, `^parquet`, `^onnx`). Default = runtime-native binary deserialization.
+- **deserializer** (`Strategy`): (Optional) Deserializer strategy: same closed set as `serializer`. Default is `default`.
 
-- **functions** (`String`): | List[String] (Optional) Julia files to source before execution.
+- **functions** (`String | List[String]`): (Optional) Julia files to source before execution.
 
-- **include** (`String`): | List[String] (Optional) Additional files for the sandbox.
+- **include** (`String | List[String]`): (Optional) Additional files for the sandbox.
 
 - **noop** (`Bool`): (Optional) Whether to skip execution and generate a stub. Default = false.
 
@@ -29609,16 +29981,16 @@ Compute fourth standardized moment minus 3.
 
 ## Parameters
 
-- **x** (`Vector`): | List Numeric input.
+- **x** (`Vector | List`): Numeric input.
 
 - **na_rm** (`Bool`): = false Remove NA values first.
 
-- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights.
+- **weights** (`Vector[Float] | List[Float]`): = NA Optional non-negative observation weights.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -29727,7 +30099,7 @@ Returns the number of elements in a collection (List, Vector, Dict). This functi
 
 ## Parameters
 
-- **x** (`List`): | Vector | Dict The collection to measure.
+- **x** (`List | Vector | Dict`): The collection to measure.
 
 
 ## Returns
@@ -29777,7 +30149,7 @@ levels(fct)
 
 List files in directory
 
-Returns a list of files and directories in the specified path. Supports an optional regex pattern for filtering.
+Returns a list of files and directories in the specified path. Supports an optional regex pattern for filtering. Returns a FileError value when the directory cannot be read.
 
 ## Parameters
 
@@ -29826,7 +30198,7 @@ Fits a linear regression model using Ordinary Least Squares (OLS).
 
 - **formula** (`Formula`): The model formula (e.g., mpg ~ wt + hp).
 
-- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights for weighted least squares.
+- **weights** (`Vector[Float] | List[Float]`): = NA Optional non-negative observation weights for weighted least squares.
 
 
 ## Returns
@@ -29852,18 +30224,18 @@ summary(model)
 
 Natural logarithm
 
-Calculates the natural logarithm (base e) of x.
+Calculates the natural logarithm (base e) of x. Returns a ValueError value for non-positive input.
 
 ## Parameters
 
-- **x** (`Number`): | Vector | NDArray The input value (must be positive).
+- **x** (`Number | Vector | NDArray`): The input value (must be positive).
 
 - **na_ignore** (`Bool`): Whether to preserve NA values in inputs. Default is false.
 
 
 ## Returns
 
-| Vector | NDArray The natural logarithm.
+The natural logarithm.
 
 ## Examples
 
@@ -29888,14 +30260,14 @@ Compute scaled MAD: 1.4826 * median(|x - median(x)|).
 
 ## Parameters
 
-- **x** (`Vector`): | List Numeric input.
+- **x** (`Vector | List`): Numeric input.
 
 - **na_rm** (`Bool`): = false Remove NA values first.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -30073,7 +30445,7 @@ Returns the maximum value in a vector or list.
 
 ## Parameters
 
-- **x** (`Vector`): | List The numeric data.
+- **x** (`Vector | List`): The numeric data.
 
 - **na_rm** (`Bool`): Whether to remove NA values. Default is false.
 
@@ -30095,6 +30467,58 @@ max([1, 2, 3])
 
 
 
+# FILE: docs/reference/mdy_hms.md
+
+# mdy_hms
+
+Parse month-first datetimes with second precision
+
+Parses MDY-ordered strings to Datetime values. Vectorized over vectors. Unparseable inputs become NA.
+
+## Parameters
+
+- **value** (`String | Vector`): The datetime string(s) to parse.
+
+- **tz** (`String`): (Optional) Timezone label.
+
+
+## Returns
+
+The parsed datetime(s).
+
+## Examples
+
+```t
+mdy_hms("01-15-2024 10:30:45")
+```
+
+
+
+# FILE: docs/reference/mdy.md
+
+# mdy
+
+Parse month-day-year dates
+
+Parses strings in MDY order to Date values. Vectorized over vectors. Unparseable inputs become NA.
+
+## Parameters
+
+- **value** (`String | Vector`): The date string(s) to parse.
+
+
+## Returns
+
+The parsed date(s).
+
+## Examples
+
+```t
+mdy("01-15-2024")
+```
+
+
+
 # FILE: docs/reference/mean.md
 
 # mean
@@ -30105,16 +30529,16 @@ The mean is the sum of values divided by the count. This function handles NA val
 
 ## Parameters
 
-- **x** (`Vector[Float]`): | List[Float] Input numeric data. Must contain at least one value.
+- **x** (`Vector[Float] | List[Float]`): Input numeric data. Must contain at least one value.
 
 - **na_rm** (`Bool`): = false Remove NA values before computation.
 
-- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights.
+- **weights** (`Vector[Float] | List[Float]`): = NA Optional non-negative observation weights.
 
 
 ## Returns
 
-| NA The arithmetic mean, or NA if input contains NA and na_rm is false
+The arithmetic mean, or NA if input contains NA and na_rm is false
 
 ## Examples
 
@@ -30143,16 +30567,16 @@ Compute median of numeric values.
 
 ## Parameters
 
-- **x** (`Vector`): | List Numeric input.
+- **x** (`Vector | List`): Numeric input.
 
 - **na_rm** (`Bool`): = false Remove NA values first.
 
-- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights.
+- **weights** (`Vector[Float] | List[Float]`): = NA Optional non-negative observation weights.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -30181,6 +30605,56 @@ meta_flatten(mp)
 
 
 
+# FILE: docs/reference/microseconds.md
+
+# microseconds
+
+Build a microsecond period
+
+Constructs a Period value spanning the given number of microseconds.
+
+## Parameters
+
+- **n** (`Int`): The number of microseconds.
+
+
+## Returns
+
+The period value.
+
+## Examples
+
+```t
+microseconds(1500)
+```
+
+
+
+# FILE: docs/reference/milliseconds.md
+
+# milliseconds
+
+Build a millisecond period
+
+Constructs a Period value spanning the given number of milliseconds.
+
+## Parameters
+
+- **n** (`Int`): The number of milliseconds.
+
+
+## Returns
+
+The period value.
+
+## Examples
+
+```t
+milliseconds(500)
+```
+
+
+
 # FILE: docs/reference/min.md
 
 # min
@@ -30191,7 +30665,7 @@ Returns the minimum value in a vector or list.
 
 ## Parameters
 
-- **x** (`Vector`): | List The numeric data.
+- **x** (`Vector | List`): The numeric data.
 
 - **na_rm** (`Bool`): Whether to remove NA values. Default is false.
 
@@ -30253,12 +30727,37 @@ Returns the minute component from Datetime values.
 
 ## Parameters
 
-- **x** (`Datetime`): | Vector The temporal value(s).
+- **x** (`Datetime | Vector`): The temporal value(s).
 
 
 ## Returns
 
-| Vector[Int] The minute(s).
+The minute(s).
+
+
+
+# FILE: docs/reference/minutes.md
+
+# minutes
+
+Build a minute period
+
+Constructs a Period value spanning the given number of minutes.
+
+## Parameters
+
+- **n** (`Int`): The number of minutes.
+
+
+## Returns
+
+The period value.
+
+## Examples
+
+```t
+minutes(30)
+```
 
 
 
@@ -30272,7 +30771,7 @@ Return most frequent value.
 
 ## Parameters
 
-- **x** (`Vector`): | List Input values.
+- **x** (`Vector | List`): Input values.
 
 
 ## Returns
@@ -30312,14 +30811,39 @@ Returns the month number, or month labels when requested, from Date or Datetime 
 
 ## Parameters
 
-- **x** (`Date`): | Datetime | Vector The temporal value(s).
+- **x** (`Date | Datetime | Vector`): The temporal value(s).
 
 - **label** (`Bool`): = false If true, returns abbreviated month names.
 
 
 ## Returns
 
-| String | Vector The month(s).
+The month(s).
+
+
+
+# FILE: docs/reference/months.md
+
+# months
+
+Build a month period
+
+Constructs a Period value spanning the given number of months.
+
+## Parameters
+
+- **n** (`Int`): The number of months.
+
+
+## Returns
+
+The period value.
+
+## Examples
+
+```t
+months(3)
+```
 
 
 
@@ -30360,7 +30884,7 @@ mutate(mtcars, $ratio = $mpg / $hp)
 
 Mutate Pipeline Node Metadata
 
-Modifies metadata fields on pipeline nodes. Supports a `where` named argument to scope changes to a subset of nodes. Without `where`, all nodes are affected.  Mutable metadata fields: `noop` (Bool), `serializer` (String), `deserializer` (String), `runtime` (String), `deps` (List[String]), `functions` (List[String]), `include` (List[String]), `env_vars` (Dict), `args` (Dict), `shell` (String), `shell_args` (List[String]), `flake` (String).  The `where` clause uses NSE (`$field`) just like `filter_node`.
+Modifies metadata fields on pipeline nodes. Supports a `where` named argument to scope changes to a subset of nodes. Without `where`, all nodes are affected.  Mutable metadata fields: `noop` (Bool), `serializer` (Strategy), `deserializer` (Strategy), `runtime` (String), `deps` (List[String]), `functions` (List[String]), `include` (List[String]), `env_vars` (Dict), `args` (Dict), `shell` (String), `shell_args` (List[String]), `flake` (String).  The `where` clause uses NSE (`$field`) just like `filter_node`.
 
 ## Parameters
 
@@ -30379,7 +30903,7 @@ A new pipeline with updated node metadata.
 
 ```t
 p |> mutate_node($noop = true)
-p |> mutate_node($serializer = "pmml", where = $runtime == "R")
+p |> mutate_node($serializer = ^pmml, where = $runtime == "R")
 ```
 
 ## See Also
@@ -30460,6 +30984,31 @@ Represents a missing value of generic type.
 
 
 
+# FILE: docs/reference/nanoseconds.md
+
+# nanoseconds
+
+Build a nanosecond period
+
+Constructs a Period value spanning the given number of nanoseconds (stored at microsecond resolution).
+
+## Parameters
+
+- **n** (`Int`): The number of nanoseconds.
+
+
+## Returns
+
+The period value.
+
+## Examples
+
+```t
+nanoseconds(2000)
+```
+
+
+
 # FILE: docs/reference/na_string.md
 
 # na_string
@@ -30536,7 +31085,7 @@ Creates a new NDArray from a list or vector of data, optionally specifying the s
 
 ## Parameters
 
-- **data** (`List`): | Vector The data to populate the array. Can be nested lists.
+- **data** (`List | Vector`): The data to populate the array. Can be nested lists.
 
 - **shape** (`List[Int]`): (Optional) The dimensions of the array.
 
@@ -30568,7 +31117,7 @@ Returns the number of distinct values in a vector or list. Inside `summarize()`,
 
 ## Parameters
 
-- **x** (`Vector`): | List The input values.
+- **x** (`Vector | List`): The input values.
 
 - **na_rm** (`Bool`): = false Exclude NA values from the count.
 
@@ -30703,9 +31252,9 @@ Compares the artifact produced by a named node across two historical builds of t
 
 - **node_b** (`ComputedNode`): The "after" node.
 
-- **log_a** (`String`): | Int Build log selector for node_a (default "latest"). Accepts a timestamp prefix, regex, or 1-indexed integer.
+- **log_a** (`String | Int`): Build log selector for node_a (default "latest"). Accepts a timestamp prefix, regex, or 1-indexed integer.
 
-- **log_b** (`String`): | Int Build log selector for node_b (default "latest"). Same format as log_a.
+- **log_b** (`String | Int`): Build log selector for node_b (default "latest"). Same format as log_a.
 
 - **key** (`List[Symbol]`): For DataFrames: natural key column(s) for row alignment (default []).
 
@@ -30735,7 +31284,7 @@ Evaluated at pipeline construction time. Takes condition-value pairs and returns
 
 ## Returns
 
-| Null The selected node value or null marker.
+The selected node value or null marker.
 
 ## Examples
 
@@ -30776,7 +31325,7 @@ A lens for the node's value.
 
 Configure a Pipeline Node
 
-Configure execution settings such as the runtime and custom serialized methods for a pipeline node. This function is typically used directly within a `pipeline { ... }` block to wrap expressions, enable cross-runtime evaluation, and optionally render a `.qmd` document via `runtime = Quarto`.
+Configure execution settings such as the runtime and custom serialized methods for a pipeline node. This function is typically used directly within a `pipeline { ... }` block to wrap expressions, enable cross-runtime evaluation, and optionally render a `.qmd` document via `runtime = Quarto`.  Node commands run in a fresh sandbox, not a closure. Outer data values are inlined as frozen literals; block-local bindings stay local; functions and builtins stay symbolic (share code via `functions`, not bare references); quoted `to_expr`/`quo` code runs later at node runtime. Reassigning a captured outer data variable is a construction error.
 
 ## Parameters
 
@@ -30786,15 +31335,15 @@ Configure execution settings such as the runtime and custom serialized methods f
 
 - **runtime** (`Symbol`): (Optional) The runtime environment (T, R, Python, Quarto). Default = T.
 
-- **serializer** (`String`): | Function (Optional) Custom serializer strategy. Built-in values include "default", "ipc", "parquet", and "pmml". Can be a string (e.g., "ipc") or an unquoted function name. Custom functions can also be used. Default = "default".
+- **serializer** (`Strategy`): (Optional) Serializer strategy: a built-in (`default`, `^csv`, `^json`, `^ipc`, `^parquet`, `^pmml`, `^onnx`, `^bin`, `^text`, `^tlang`) or a strategy dict `[format: ^name, ...snippets]` (see `docs/serializers.md`). Bare function names are rejected. Default is `default`.
 
-- **deserializer** (`String`): | Function (Optional) Custom deserializer strategy. Built-in values include "default", "ipc", "parquet", and "pmml". Can be a string (e.g., "ipc") or an unquoted function name. Custom functions can also be used. Default = "default".
+- **deserializer** (`Strategy`): (Optional) Deserializer strategy: same closed set as `serializer`. Default is `default`.
 
 - **args** (`Dict`): (Optional) Runtime/tool arguments. For Quarto, use this to pass CLI arguments such as `subcommand`, `path`, and additional options. `output_dir` is reserved and managed automatically so the rendered result is stored as the node artifact.
 
-- **functions** (`String`): | List[String] (Optional) Files to source before execution.
+- **functions** (`String | List[String]`): (Optional) Files to source before execution.
 
-- **include** (`String`): | List[String] (Optional) Additional files for the sandbox.
+- **include** (`String | List[String]`): (Optional) Additional files for the sandbox.
 
 - **noop** (`Bool`): (Optional) Whether to skip execution and generate a stub. Default = false.
 
@@ -30840,12 +31389,12 @@ Evaluated at pipeline construction time. Returns `value` if `condition` is truth
 
 - **condition** (`Bool`): The condition to evaluate.
 
-- **value** (`Node`): The node value to include if condition is true.
+- **value** (`Any`): The node value to include if condition is true.
 
 
 ## Returns
 
-| Null The node value or null marker.
+The node value or null marker.
 
 ## Examples
 
@@ -30867,12 +31416,12 @@ Min-max normalize values to [0, 1].
 
 ## Parameters
 
-- **x** (`Vector`): | List Numeric input.
+- **x** (`Vector | List`): Numeric input.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -30905,7 +31454,7 @@ Returns the number of rows in a DataFrame or the length of a vector.
 
 ## Parameters
 
-- **x** (`DataFrame`): | Vector The input data.
+- **x** (`DataFrame | Vector`): The input data.
 
 
 ## Returns
@@ -30959,9 +31508,9 @@ Creates factor vectors marked as ordered for ordinal comparisons.
 
 ## Parameters
 
-- **x** (`Vector`): | List | Any The values to convert to an ordered factor.
+- **x** (`Vector | List | Any`): The values to convert to an ordered factor.
 
-- **levels** (`Vector[String]`): | List[String] (Optional) Explicit level order.
+- **levels** (`Vector[String] | List[String]`): (Optional) Explicit level order.
 
 
 ## Returns
@@ -31094,14 +31643,14 @@ Parses strings or string vectors into Date values using an explicit format strin
 
 ## Parameters
 
-- **x** (`String`): | Vector[String] The string(s) to parse.
+- **x** (`String | Vector[String]`): The string(s) to parse.
 
 - **format** (`String`): The strptime-style format string.
 
 
 ## Returns
 
-| Vector[Date] The parsed date(s).
+The parsed date(s).
 
 
 
@@ -31115,7 +31664,7 @@ Parses strings or string vectors into Datetime values using an explicit format s
 
 ## Parameters
 
-- **x** (`String`): | Vector[String] The string(s) to parse.
+- **x** (`String | Vector[String]`): The string(s) to parse.
 
 - **format** (`String`): The strptime-style format string.
 
@@ -31124,7 +31673,7 @@ Parses strings or string vectors into Datetime values using an explicit format s
 
 ## Returns
 
-| Vector[Datetime] The parsed datetime(s).
+The parsed datetime(s).
 
 
 
@@ -31240,7 +31789,7 @@ Get file extension
 
 ## Returns
 
-| NA The file extension including the leading dot, or null if none.
+The file extension including the leading dot, or null if none.
 
 ## Examples
 
@@ -31339,6 +31888,156 @@ The percent rank.
 ## See Also
 
 [cume_dist](cume_dist.html)
+
+
+
+# FILE: docs/reference/period_days.md
+
+# period_days
+
+Days component of a period
+
+Extracts the days field of a Period value.
+
+## Parameters
+
+- **p** (`Period`): The period value.
+
+
+## Returns
+
+The days field.
+
+## Examples
+
+```t
+period_days(days(7))
+```
+
+
+
+# FILE: docs/reference/period_hours.md
+
+# period_hours
+
+Hours component of a period
+
+Extracts the hours field of a Period value.
+
+## Parameters
+
+- **p** (`Period`): The period value.
+
+
+## Returns
+
+The hours field.
+
+## Examples
+
+```t
+period_hours(hours(12))
+```
+
+
+
+# FILE: docs/reference/period_minutes.md
+
+# period_minutes
+
+Minutes component of a period
+
+Extracts the minutes field of a Period value.
+
+## Parameters
+
+- **p** (`Period`): The period value.
+
+
+## Returns
+
+The minutes field.
+
+## Examples
+
+```t
+period_minutes(minutes(30))
+```
+
+
+
+# FILE: docs/reference/period_months.md
+
+# period_months
+
+Months component of a period
+
+Extracts the months field of a Period value.
+
+## Parameters
+
+- **p** (`Period`): The period value.
+
+
+## Returns
+
+The months field.
+
+## Examples
+
+```t
+period_months(months(3))
+```
+
+
+
+# FILE: docs/reference/period_seconds.md
+
+# period_seconds
+
+Seconds component of a period
+
+Extracts the seconds field of a Period value.
+
+## Parameters
+
+- **p** (`Period`): The period value.
+
+
+## Returns
+
+The seconds field.
+
+## Examples
+
+```t
+period_seconds(seconds(45))
+```
+
+
+
+# FILE: docs/reference/period_years.md
+
+# period_years
+
+Years component of a period
+
+Extracts the years field of a Period value.
+
+## Parameters
+
+- **p** (`Period`): The period value.
+
+
+## Returns
+
+The years field.
+
+## Examples
+
+```t
+period_years(years(2))
+```
 
 
 
@@ -31691,7 +32390,7 @@ The value of the node.
 
 Get Pipeline Node Options (read-back)
 
-Returns a Dict describing the fully resolved configuration of a single pipeline node, after any `set_pipeline_global_options` merges have been applied.  This is the read-back companion to `set_pipeline_global_options`: what you merged in, you can read back out.  The returned Dict has the following keys: - `name` — the node name (String) - `runtime` — one of "T", "R", "Python", "Julia", "Quarto", "sh" (String) - `serializer` — e.g. "default", "pmml" (String) - `deserializer` — e.g. "default", "pmml" (String) - `noop` — whether the node is a no-op (Bool) - `deps` — names of nodes this node depends on (List of String) - `depth` — topological depth in the DAG (Int); roots are depth 0 - `command_type` — one of "command" or "script" (String) - `diagnostics` — node diagnostics (Dict) - `functions` — function files merged into the node (List of String) - `include` — included files (List of String) - `env_vars` — build environment variables (Dict) - `args` — runtime/tool arguments (Dict) - `shell` — shell interpreter, or NA when unset (String | NA) - `shell_args` — shell interpreter arguments (List of String) - `flake` — Nix flake path, or NA when unset (String | NA) - `provenance` — where each resolved option came from (Dict).  Combine options (`functions`, `include`, `shell_args`, `dependencies`) are grouped into `global`/`node` sub-lists; override options (`serializer`, `deserializer`, `shell`, `flake`, `noop`) map to a source String ("global" | "node") or NA when unset; `env_vars` and `args` map each key to its source String.  An unknown node name is a `TypeError` listing the valid node names.
+Returns a Dict describing the fully resolved configuration of a single pipeline node, after any `set_pipeline_global_options` merges have been applied.  This is the read-back companion to `set_pipeline_global_options`: what you merged in, you can read back out.  The returned Dict has the following keys: - `name` — the node name (String) - `runtime` — one of "T", "R", "Python", "Julia", "Quarto", "sh" (String) - `serializer` — resolved strategy value (a Symbol like ^csv, a strategy Dict, or "default" for unset) - `deserializer` — resolved strategy value, same shapes as `serializer` - `noop` — whether the node is a no-op (Bool) - `deps` — names of nodes this node depends on (List of String) - `depth` — topological depth in the DAG (Int); roots are depth 0 - `command_type` — one of "command" or "script" (String) - `diagnostics` — node diagnostics (Dict) - `functions` — function files merged into the node (List of String) - `include` — included files (List of String) - `env_vars` — build environment variables (Dict) - `args` — runtime/tool arguments (Dict) - `shell` — shell interpreter, or NA when unset (String | NA) - `shell_args` — shell interpreter arguments (List of String) - `flake` — Nix flake path, or NA when unset (String | NA) - `provenance` — where each resolved option came from (Dict).  Combine options (`functions`, `include`, `shell_args`, `dependencies`) are grouped into `global`/`node` sub-lists; override options (`serializer`, `deserializer`, `shell`, `flake`, `noop`) map to a source String ("global" | "node") or NA when unset; `env_vars` and `args` map each key to its source String.  An unknown node name is a `TypeError` listing the valid node names.
 
 ## Parameters
 
@@ -31900,7 +32599,7 @@ Returns a string containing a Graphviz DOT representation of the pipeline or met
 
 - **flatten** (`Bool`): = false Flatten meta-pipeline subgraphs into a single level.
 
-- **title** (`Str`): = None Optional graph title. Auto-detected from tproject.toml when omitted.
+- **title** (`String`): = None Optional graph title. Auto-detected from tproject.toml when omitted.
 
 
 ## Returns
@@ -32024,7 +32723,7 @@ Returns a string containing a Mermaid JS flowchart representation of the pipelin
 
 - **flatten** (`Bool`): = false Flatten meta-pipeline subgraphs into a single level.
 
-- **title** (`Str`): = None Optional graph title. Auto-detected from tproject.toml when omitted.
+- **title** (`String`): = None Optional graph title. Auto-detected from tproject.toml when omitted.
 
 
 ## Returns
@@ -32172,12 +32871,12 @@ Returns true for Datetime values whose hour is 12 or later.
 
 ## Parameters
 
-- **x** (`Date`): | Datetime | Vector The temporal value(s).
+- **x** (`Date | Datetime | Vector`): The temporal value(s).
 
 
 ## Returns
 
-| Vector[Bool] True if after noon.
+True if after noon.
 
 
 
@@ -32210,7 +32909,7 @@ Generates a basis of polynomial terms for a numeric vector.
 
 ## Parameters
 
-- **x** (`Vector[Number]`): | List[Number] The vector to expand.
+- **x** (`Vector[Number] | List[Number]`): The vector to expand.
 
 - **degree** (`Int`): The degree of the polynomial.
 
@@ -32254,7 +32953,7 @@ Writes the pipeline's Nix expression into `_pipeline/` and, when `build = true`,
 
 ## Returns
 
-| BuildLog | DataFrame Success message, BuildLog, or planned-actions DataFrame.
+Success message, BuildLog, or planned-actions DataFrame.
 
 ## Examples
 
@@ -32279,7 +32978,7 @@ Calculates base raised to the power of exponent.
 
 ## Parameters
 
-- **base** (`Number`): | Vector | NDArray The base.
+- **base** (`Number | Vector | NDArray`): The base.
 
 - **exponent** (`Number`): The exponent.
 
@@ -32288,7 +32987,7 @@ Calculates base raised to the power of exponent.
 
 ## Returns
 
-| Vector | NDArray The result of base ^ exponent.
+The result of base ^ exponent.
 
 ## Examples
 
@@ -32320,7 +33019,7 @@ Calculates predicted values for a model object. Standardized on JPMML as the sol
 
 ## Returns
 
-| DataFrame The predicted values. For JPMML-backed PMML models (e.g. classification),
+The predicted values. For JPMML-backed PMML models (e.g. classification),
 
 ## See Also
 
@@ -32567,9 +33266,9 @@ Returns a generator spec that draws a Date uniformly between `start` and `end` (
 
 ## Parameters
 
-- **start** (`Date`): | Datetime Lower bound (inclusive).
+- **start** (`Date | Datetime`): Lower bound (inclusive).
 
-- **end** (`Date`): | Datetime Upper bound (inclusive).
+- **end** (`Date | Datetime`): Upper bound (inclusive).
 
 
 ## Returns
@@ -32631,7 +33330,7 @@ Returns a generator spec producing a DataFrame with one column per entry in `col
 
 ## Parameters
 
-- **columns** (`Dict[String,`): Dict] Column name -> generator spec.
+- **columns** (`Dict[String, Dict]`): Column name -> generator spec.
 
 - **nrows** (`Int`): = 30 Number of rows.
 
@@ -32666,7 +33365,7 @@ Returns a generator spec producing a Dict with one generated value per column. E
 
 ## Parameters
 
-- **columns** (`Dict`): { name :: String : gen_spec :: Dict } A Dict mapping column names to generator specs.
+- **columns** (`Dict`): A Dict mapping column names to generator specs (keys are names, values are gen specs).
 
 - **na_prob** (`Float`): = 0.1 Probability of a column value being NA.
 
@@ -32787,7 +33486,7 @@ Returns a generator spec that picks one of the supplied generators with probabil
 
 ## Parameters
 
-- **pairs** (`List[[Int,`): Dict]] A list of `[weight, generator]` pairs.
+- **pairs** (`List[List]`): A list of `[weight, generator]` pairs.
 
 
 ## Returns
@@ -32909,7 +33608,7 @@ Returns a generator spec that picks one value uniformly at random from `values` 
 
 ## Parameters
 
-- **values** (`List[Any]`): | Vector[Any] The candidate values.
+- **values** (`List[Any] | Vector[Any]`): The candidate values.
 
 
 ## Returns
@@ -33347,13 +34046,13 @@ A convenience wrapper around `node()` with `runtime = "Python"`. Used directly w
 
 - **script** (`String`): (Optional) Path to an external `.py` file to execute as the node body. Mutually exclusive with `command`. Sets the runtime to `Python` automatically.
 
-- **serializer** (`String`): | Function (Optional) Custom serializer strategy. Built-in values include "default", "ipc", "parquet", and "pmml". Can be a string (e.g., "ipc") or an unquoted function name. Custom functions can also be used. Default = "default".
+- **serializer** (`Strategy`): (Optional) Serializer strategy: a built-in (`default`, `^csv`, `^json`, `^ipc`, `^parquet`, `^pmml`, `^onnx`, `^bin`, `^text`, `^tlang`) or a strategy dict `[format: ^name, ...snippets]` (see `docs/serializers.md`). Bare function names are rejected. Default is `default`.
 
-- **deserializer** (`String`): | Function (Optional) Custom deserializer strategy. Built-in values include "default", "ipc", "parquet", and "pmml". Can be a string (e.g., "ipc") or an unquoted function name. Custom functions can also be used. Default = "default".
+- **deserializer** (`Strategy`): (Optional) Deserializer strategy: same closed set as `serializer`. Default is `default`.
 
-- **functions** (`String`): | List[String] (Optional) Python files to source before execution.
+- **functions** (`String | List[String]`): (Optional) Python files to source before execution.
 
-- **include** (`String`): | List[String] (Optional) Additional files for the sandbox.
+- **include** (`String | List[String]`): (Optional) Additional files for the sandbox.
 
 - **noop** (`Bool`): (Optional) Whether to skip execution and generate a stub. Default = false.
 
@@ -33438,17 +34137,17 @@ A convenience wrapper around `node()` with `runtime = "Quarto"`. Used directly w
 
 - **script** (`String`): (Optional) Path to an external `.qmd` file to render. Mutually exclusive with `command`.
 
-- **serializer** (`String`): | Function (Optional) Custom serializer strategy. Built-in values include "default", "ipc", "parquet", and "pmml". Can be a string (e.g., "ipc") or an unquoted function name. Custom functions can also be used. Default = "default".
+- **serializer** (`Strategy`): (Optional) Serializer strategy: a built-in (`default`, `^csv`, `^json`, `^ipc`, `^parquet`, `^pmml`, `^onnx`, `^bin`, `^text`, `^tlang`) or a strategy dict `[format: ^name, ...snippets]` (see `docs/serializers.md`). Bare function names are rejected. Default is `default`.
 
-- **deserializer** (`String`): | Function (Optional) Custom deserializer strategy. Built-in values include "default", "ipc", "parquet", and "pmml". Can be a string (e.g., "ipc") or an unquoted function name. Custom functions can also be used. Default = "default".
+- **deserializer** (`Strategy`): (Optional) Deserializer strategy: same closed set as `serializer`. Default is `default`.
 
 - **env_vars** (`Dict`): (Optional) Environment variables to pass into the sandbox.
 
 - **args** (`Dict`): (Optional) Runtime/tool arguments. Use this to pass Quarto CLI arguments such as `subcommand`, `path`, `to`, and additional options. `output_dir` is reserved and managed automatically so the rendered result is stored as the node artifact.
 
-- **functions** (`String`): | List[String] (Optional) Files to source before execution.
+- **functions** (`String | List[String]`): (Optional) Files to source before execution.
 
-- **include** (`String`): | List[String] (Optional) Additional files for the sandbox.
+- **include** (`String | List[String]`): (Optional) Additional files for the sandbox.
 
 - **noop** (`Bool`): (Optional) Whether to skip execution and generate a stub. Default = false.
 
@@ -33532,13 +34231,13 @@ Computes the quantile of a distribution at a specified probability.
 
 ## Parameters
 
-- **x** (`Vector`): | List The numeric data.
+- **x** (`Vector | List`): The numeric data.
 
 - **probs** (`Float`): The probability (0 to 1).
 
 - **na_rm** (`Bool`): (Optional) Should missing values be removed? Default is false.
 
-- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights.
+- **weights** (`Vector[Float] | List[Float]`): = NA Optional non-negative observation weights.
 
 
 ## Returns
@@ -33568,12 +34267,12 @@ Returns the quarter number for Date or Datetime values.
 
 ## Parameters
 
-- **x** (`Date`): | Datetime | Vector The temporal value(s).
+- **x** (`Date | Datetime | Vector`): The temporal value(s).
 
 
 ## Returns
 
-| Vector[Int] The quarter(s).
+The quarter(s).
 
 
 
@@ -33642,14 +34341,14 @@ Return min and max as a length-2 vector.
 
 ## Parameters
 
-- **x** (`Vector`): | List Numeric input.
+- **x** (`Vector | List`): Numeric input.
 
 - **na_rm** (`Bool`): = false Remove NA values first.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -33659,7 +34358,7 @@ Return min and max as a length-2 vector.
 
 Read CSV file
 
-Reads a CSV file into a DataFrame.
+Reads a CSV file into a DataFrame. Returns a FileError value when the file cannot be read.
 
 ## Parameters
 
@@ -33697,7 +34396,7 @@ df = read_csv("data.csv", separator = ";")
 
 Read file contents
 
-Reads the entire content of a file into a string.
+Reads the entire content of a file into a string. Returns a FileError value when the file cannot be read.
 
 ## Parameters
 
@@ -33722,7 +34421,7 @@ read_file("config.json")
 
 Read an Arrow IPC (Feather) file
 
-Loads a DataFrame from an Arrow IPC file (also known as Feather v2) on disk.  IPC is the fastest format to read and write (no compression), ideal for pipeline intermediates and cross-runtime exchange. For compressed, long-term storage of large datasets, use read_parquet instead.
+Loads a DataFrame from an Arrow IPC file (also known as Feather v2) on disk. Returns a FileError value when the file cannot be read.  IPC is the fastest format to read and write (no compression), ideal for pipeline intermediates and cross-runtime exchange. For compressed, long-term storage of large datasets, use read_parquet instead.
 
 ## Parameters
 
@@ -33793,7 +34492,7 @@ The deserialized artifact value, or the in-memory value.
 
 Read Parquet file
 
-Reads a DataFrame from a Parquet file using the native parquet-glib reader.  Prefer Parquet for compressed, long-term storage of large datasets or when sharing data with external analytics tooling. For the fastest possible round trip (no compression), use read_ipc instead.
+Reads a DataFrame from a Parquet file using the native parquet-glib reader. Returns a FileError value when the file cannot be read.  Prefer Parquet for compressed, long-term storage of large datasets or when sharing data with external analytics tooling. For the fastest possible round trip (no compression), use read_ipc instead.
 
 ## Parameters
 
@@ -33879,7 +34578,7 @@ Parses a registry JSON file back into a list of name-path pairs.
 
 ## Returns
 
-String)], String] Entries or error.
+Entries or error.
 
 
 
@@ -34123,7 +34822,7 @@ Removes one or more variables from the current environment by name. Supports bar
 
 ## Parameters
 
-- **...** (`Symbol`): | String One or more variables to remove.
+- **...** (`Symbol | String`): One or more variables to remove.
 
 - **list** (`List[String]`): (Optional) A list of variable names to remove.
 
@@ -34162,13 +34861,13 @@ A convenience wrapper around `node()` with `runtime = "R"`. Used directly within
 
 - **script** (`String`): (Optional) Path to an external `.R` file to execute as the node body. Mutually exclusive with `command`. Sets the runtime to `R` automatically.
 
-- **serializer** (`String`): | Function (Optional) Custom serializer strategy. Built-in values include "default", "ipc", "parquet", and "pmml". Can be a string (e.g., "ipc") or an unquoted function name. Custom functions can also be used. Default = "default".
+- **serializer** (`Strategy`): (Optional) Serializer strategy: a built-in (`default`, `^csv`, `^json`, `^ipc`, `^parquet`, `^pmml`, `^onnx`, `^bin`, `^text`, `^tlang`) or a strategy dict `[format: ^name, ...snippets]` (see `docs/serializers.md`). Bare function names are rejected. Default is `default`.
 
-- **deserializer** (`String`): | Function (Optional) Custom deserializer strategy. Built-in values include "default", "ipc", "parquet", and "pmml". Can be a string (e.g., "ipc") or an unquoted function name. Custom functions can also be used. Default = "default".
+- **deserializer** (`Strategy`): (Optional) Deserializer strategy: same closed set as `serializer`. Default is `default`.
 
-- **functions** (`String`): | List[String] (Optional) R scripts to source before execution.
+- **functions** (`String | List[String]`): (Optional) R scripts to source before execution.
 
-- **include** (`String`): | List[String] (Optional) Additional files for the sandbox.
+- **include** (`String | List[String]`): (Optional) Additional files for the sandbox.
 
 - **noop** (`Bool`): (Optional) Whether to skip execution and generate a stub. Default = false.
 
@@ -34195,14 +34894,14 @@ Rounds Date or Datetime values to the nearest requested unit boundary.
 
 ## Parameters
 
-- **x** (`Date`): | Datetime | Vector The temporal value(s).
+- **x** (`Date | Datetime | Vector`): The temporal value(s).
 
 - **unit** (`String`): The unit boundary ("second", "minute", "hour", "day", "month", "year").
 
 
 ## Returns
 
-| Datetime | Vector The rounded value(s).
+The rounded value(s).
 
 
 
@@ -34216,14 +34915,14 @@ Round numbers to a specified number of decimal digits.
 
 ## Parameters
 
-- **x** (`Number`): | Vector | NDArray Numeric input.
+- **x** (`Number | Vector | NDArray`): Numeric input.
 
 - **digits** (`Int`): = 0 Decimal digits.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -34319,7 +35018,7 @@ Draws a random sample of size n from a vector or list, with or without replaceme
 
 ## Parameters
 
-- **x** (`Vector`): | List The input data.
+- **x** (`Vector | List`): The input data.
 
 - **n** (`Int`): = 1 Sample size.
 
@@ -34328,7 +35027,7 @@ Draws a random sample of size n from a vector or list, with or without replaceme
 
 ## Returns
 
-| List The random sample.
+The random sample.
 
 ## Examples
 
@@ -34409,12 +35108,12 @@ Standardize to z-scores using sample standard deviation.
 
 ## Parameters
 
-- **x** (`Vector`): | List Numeric input.
+- **x** (`Vector | List`): Numeric input.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -34455,11 +35154,11 @@ Calculates the sample standard deviation of a numeric vector. With `weights`, us
 
 ## Parameters
 
-- **x** (`Vector`): | List The numeric data.
+- **x** (`Vector | List`): The numeric data.
 
 - **na_rm** (`Bool`): (Optional) logical. Should missing values be removed? Default is false.
 
-- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights.
+- **weights** (`Vector[Float] | List[Float]`): = NA Optional non-negative observation weights.
 
 
 ## Returns
@@ -34489,12 +35188,37 @@ Returns the second component from Datetime values.
 
 ## Parameters
 
-- **x** (`Datetime`): | Vector The temporal value(s).
+- **x** (`Datetime | Vector`): The temporal value(s).
 
 
 ## Returns
 
-| Vector[Float] The second(s).
+The second(s).
+
+
+
+# FILE: docs/reference/seconds.md
+
+# seconds
+
+Build a second period
+
+Constructs a Period value spanning the given number of seconds.
+
+## Parameters
+
+- **n** (`Int`): The number of seconds.
+
+
+## Returns
+
+The period value.
+
+## Examples
+
+```t
+seconds(45)
+```
 
 
 
@@ -34571,12 +35295,12 @@ Returns 1 for the first half of the year and 2 for the second half.
 
 ## Parameters
 
-- **x** (`Date`): | Datetime | Vector The temporal value(s).
+- **x** (`Date | Datetime | Vector`): The temporal value(s).
 
 
 ## Returns
 
-| Vector[Int] The semester(s).
+The semester(s).
 
 
 
@@ -34691,7 +35415,7 @@ seq(start = 1, end = 10, by = 2)
 
 Serialize Value
 
-Serializes a value to a `.tobj` file.
+Serializes a value to a `.tobj` file. Returns a FileError value when the file cannot be written.
 
 ## Parameters
 
@@ -34727,7 +35451,7 @@ Serializes any T value to a file using OCaml's Marshal module. Includes a conten
 
 ## Returns
 
-String] Ok or error.
+Ok or error.
 
 
 
@@ -34787,13 +35511,13 @@ Pure function that returns a new pipeline with the given defaults merged into no
 
 - **functions** (`Dict`): (Optional) Combine (prepend). Runtime-shorthand to
 
-- **include** (`String`): | List[String] (Optional) Combine (prepend). File
+- **include** (`String | List[String]`): (Optional) Combine (prepend). File
 
 - **env_vars** (`Dict`): (Optional) Combine (prepend). Environment variables.
 
-- **serializer** (`String`): | Symbol (Optional) Override. Default serializer;
+- **serializer** (`Strategy`): (Optional) Override. Default serializer;
 
-- **deserializer** (`String`): | Symbol (Optional) Override. Default deserializer;
+- **deserializer** (`Strategy`): (Optional) Override. Default deserializer;
 
 - **noop** (`Bool`): (Optional) Force-only. If true, nodes become no-ops.
 
@@ -34801,15 +35525,15 @@ Pure function that returns a new pipeline with the given defaults merged into no
 
 - **shell** (`String`): (Optional) Override. Shell interpreter.
 
-- **shell_args** (`String`): | List[String] (Optional) Combine (prepend). Shell
+- **shell_args** (`String | List[String]`): (Optional) Combine (prepend). Shell
 
 - **flake** (`String`): (Optional) Override. Nix flake path.
 
-- **dependencies** (`String`): | List[String] (Optional) Combine (prepend).
+- **dependencies** (`String | List[String]`): (Optional) Combine (prepend).
 
-- **runtimes** (`String`): | List[String] (Optional) Scope the merge to nodes
+- **runtimes** (`String | List[String]`): (Optional) Scope the merge to nodes
 
-- **nodes** (`String`): | List[String] (Optional) Scope the merge to exactly
+- **nodes** (`String | List[String]`): (Optional) Scope the merge to exactly
 
 
 ## Returns
@@ -34892,19 +35616,19 @@ A convenience wrapper around `node()` with `runtime = "sh"`. Use `shn()` inside 
 
 - **script** (`String`): (Optional) Path to an external `.sh` file to execute as the node body. Mutually exclusive with `command`.
 
-- **serializer** (`String`): | Function (Optional) Custom serializer strategy. Built-in values include "default", "ipc", "parquet", and "pmml". Can be a string (e.g., "ipc") or an unquoted function name. Custom functions can also be used. Default = "default".
+- **serializer** (`Strategy`): (Optional) Serializer strategy: a built-in (`default`, `^csv`, `^json`, `^ipc`, `^parquet`, `^pmml`, `^onnx`, `^bin`, `^text`, `^tlang`) or a strategy dict `[format: ^name, ...snippets]` (see `docs/serializers.md`). Bare function names are rejected. Default is `default`.
 
-- **deserializer** (`String`): | Function (Optional) Custom deserializer strategy. Built-in values include "default", "ipc", "parquet", and "pmml". Can be a string (e.g., "ipc") or an unquoted function name. Custom functions can also be used. Default = "default".
+- **deserializer** (`Strategy`): (Optional) Deserializer strategy: same closed set as `serializer`. Default is `default`.
 
-- **args** (`Dict`): | List (Optional) Runtime arguments. Lists become positional CLI arguments for exec-style nodes.
+- **args** (`Dict | List`): (Optional) Runtime arguments. Lists become positional CLI arguments for exec-style nodes.
 
 - **shell** (`String`): (Optional) Shell interpreter to invoke for shell-string mode or script-backed nodes. Default = "sh".
 
 - **shell_args** (`List[String]`): (Optional) Additional arguments passed to the shell interpreter.
 
-- **functions** (`String`): | List[String] (Optional) Additional files to include in the sandbox before execution.
+- **functions** (`String | List[String]`): (Optional) Additional files to include in the sandbox before execution.
 
-- **include** (`String`): | List[String] (Optional) Additional files for the sandbox.
+- **include** (`String | List[String]`): (Optional) Additional files for the sandbox.
 
 - **noop** (`Bool`): (Optional) Whether to skip execution and generate a stub. Default = false.
 
@@ -34984,14 +35708,14 @@ Round to a fixed number of significant digits.
 
 ## Parameters
 
-- **x** (`Number`): | Vector | NDArray Numeric input.
+- **x** (`Number | Vector | NDArray`): Numeric input.
 
 - **digits** (`Int`): Number of significant digits (> 0).
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -35005,12 +35729,12 @@ Return -1, 0, or 1 depending on sign.
 
 ## Parameters
 
-- **x** (`Number`): | Vector | NDArray Numeric input.
+- **x** (`Number | Vector | NDArray`): Numeric input.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -35024,12 +35748,12 @@ Compute hyperbolic sine.
 
 ## Parameters
 
-- **x** (`Number`): | Vector | NDArray Numeric input.
+- **x** (`Number | Vector | NDArray`): Numeric input.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -35043,12 +35767,12 @@ Compute sine (radians).
 
 ## Parameters
 
-- **x** (`Number`): | Vector | NDArray Numeric input.
+- **x** (`Number | Vector | NDArray`): Numeric input.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -35062,16 +35786,16 @@ Compute third standardized moment.
 
 ## Parameters
 
-- **x** (`Vector`): | List Numeric input.
+- **x** (`Vector | List`): Numeric input.
 
 - **na_rm** (`Bool`): = false Remove NA values first.
 
-- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights.
+- **weights** (`Vector[Float] | List[Float]`): = NA Optional non-negative observation weights.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -35241,18 +35965,18 @@ source(print)
 
 Square root
 
-Calculates the square root of x.
+Calculates the square root of x. Returns a ValueError value for negative input.
 
 ## Parameters
 
-- **x** (`Number`): | Vector | NDArray The input value (must be non-negative).
+- **x** (`Number | Vector | NDArray`): The input value (must be non-negative).
 
 - **na_ignore** (`Bool`): Whether to preserve NA values in inputs. Default is false.
 
 
 ## Returns
 
-| Vector | NDArray The square root.
+The square root.
 
 ## Examples
 
@@ -35277,12 +36001,12 @@ Alias behavior for z-score standardization.
 
 ## Parameters
 
-- **x** (`Vector`): | List Numeric input.
+- **x** (`Vector | List`): Numeric input.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -35369,7 +36093,7 @@ Substitutes {name} placeholders using values from a Dict or named List. Use {{ a
 
 - **fmt** (`String`): The format string with {name} placeholders.
 
-- **values** (`Dict`): | List The named values to substitute.
+- **values** (`Dict | List`): The named values to substitute.
 
 
 ## Returns
@@ -35392,7 +36116,7 @@ Concatenates items of a List or Vector into a single string, separated by `sep`.
 
 ## Parameters
 
-- **items** (`List`): | Vector The items to join.
+- **items** (`List | Vector`): The items to join.
 
 - **sep** (`String`): [Optional] The separator string. Defaults to "".
 
@@ -35426,7 +36150,7 @@ Splits on \n or \r\n. Strips trailing newline. Accepts ShellResult.
 
 ## Parameters
 
-- **s** (`String`): | ShellResult
+- **s** (`String | ShellResult`): 
 
 
 ## Returns
@@ -35449,12 +36173,12 @@ Returns the number of characters (Unicode code points) in a string. Multi-byte U
 
 ## Parameters
 
-- **x** (`String`): | Vector[String] The input string(s).
+- **x** (`String | Vector[String]`): The input string(s).
 
 
 ## Returns
 
-| Vector[Int] The number of characters.
+The number of characters.
 
 
 
@@ -35520,7 +36244,7 @@ Splits a string into a list of substrings on each occurrence of `sep`. If `sep` 
 
 ## Parameters
 
-- **x** (`String`): | ShellResult The string to split.
+- **x** (`String | ShellResult`): The string to split.
 
 - **sep** (`String`): The delimiter to split on.
 
@@ -35684,7 +36408,7 @@ Splits on whitespace, collapsing consecutive spaces. Accepts ShellResult. Note: 
 
 ## Parameters
 
-- **s** (`String`): | ShellResult
+- **s** (`String | ShellResult`): 
 
 
 ## Returns
@@ -35800,14 +36524,14 @@ Calculates the sum of values in a List or Vector.
 
 ## Parameters
 
-- **x** (`List[Number]`): | Vector[Number] The collection to sum.
+- **x** (`List[Number] | Vector[Number]`): The collection to sum.
 
 - **na_rm** (`Bool`): = false Remove NA values before summing.
 
 
 ## Returns
 
-| NA The sum of values.
+The sum of values.
 
 ## Examples
 
@@ -35854,7 +36578,7 @@ Replaces a node's implementation with a new node value. The dependency edges of 
 
 - **name** (`String`): The name of the node to replace.
 
-- **new_node** (`Node`): The new node implementation.
+- **new_node** (`Any`): The new node implementation.
 
 
 ## Returns
@@ -35909,14 +36633,14 @@ Returns the last n items from a List, Vector, or DataFrame. For DataFrames, it r
 
 ## Parameters
 
-- **data** (`DataFrame`): | List | Vector The collection to slice.
+- **data** (`DataFrame | List | Vector`): The collection to slice.
 
 - **n** (`Int`): = 5 Number of items to return.
 
 
 ## Returns
 
-| List | Vector A subset of the input containing the last n items.
+A subset of the input containing the last n items.
 
 ## Examples
 
@@ -35957,12 +36681,12 @@ Compute hyperbolic tangent.
 
 ## Parameters
 
-- **x** (`Number`): | Vector | NDArray Numeric input.
+- **x** (`Number | Vector | NDArray`): Numeric input.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -35976,12 +36700,12 @@ Compute tangent (radians).
 
 ## Parameters
 
-- **x** (`Number`): | Vector | NDArray Numeric input.
+- **x** (`Number | Vector | NDArray`): Numeric input.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -36176,7 +36900,7 @@ Coerces a value to a boolean. Recognizes 'TRUE'/'FALSE', 'T'/'F', non-zero numbe
 
 ## Returns
 
-| NA The converted boolean.
+The converted boolean.
 
 
 
@@ -36236,7 +36960,7 @@ Converts strings, datetimes, and related temporal values to Date values.
 
 ## Returns
 
-| Vector[Date] The converted date(s).
+The converted date(s).
 
 
 
@@ -36259,7 +36983,7 @@ Converts strings, dates, and related temporal values to Datetime values.
 
 ## Returns
 
-| Vector[Datetime] The converted datetime(s).
+The converted datetime(s).
 
 
 
@@ -36274,6 +36998,31 @@ Returns the current local date as a Date value.
 ## Returns
 
 The current date.
+
+
+
+# FILE: docs/reference/to_dict.md
+
+# to_dict
+
+Convert record to Dict
+
+Converts a user-defined record to a plain Dict with one entry per field, so record data can cross into foreign node code (records themselves are T-side contracts and never cross). Shallow: nested records stay records; call `to_dict` on them first if needed.
+
+## Parameters
+
+- **x** (`Record`): The record to convert.
+
+
+## Returns
+
+A Dict mapping field names to values.
+
+## Examples
+
+```t
+to_dict(Point(x = 1.0, y = 2.0))
+```
 
 
 
@@ -36334,9 +37083,9 @@ Converts values to factor-encoded vectors with derived or explicit levels.
 
 ## Parameters
 
-- **x** (`Vector`): | List | Any The values to convert to factors.
+- **x** (`Vector | List | Any`): The values to convert to factors.
 
-- **levels** (`Vector[String]`): | List[String] (Optional) Explicit level order. Defaults to sorted unique values.
+- **levels** (`Vector[String] | List[String]`): (Optional) Explicit level order. Defaults to sorted unique values.
 
 - **ordered** (`Bool`): = false Mark the factor as ordered for ordinal comparisons.
 
@@ -36369,7 +37118,7 @@ Coerces a value to a float robustly. Handles strings with spaces, percentages, c
 
 ## Returns
 
-| NA The converted float.
+The converted float.
 
 ## Examples
 
@@ -36396,7 +37145,7 @@ Coerces a value to an integer robustly. Handles strings with spaces, percentages
 
 ## Returns
 
-| NA The converted integer.
+The converted integer.
 
 ## Examples
 
@@ -36467,7 +37216,7 @@ Creates a Symbol from a string so it can be injected into quoted code with `!!`.
 
 ## Parameters
 
-- **x** (`String`): | Symbol The name to convert.
+- **x** (`String | Symbol`): The name to convert.
 
 
 ## Returns
@@ -36558,7 +37307,7 @@ The transposed matrix.
 
 Read Value from JSON
 
-Deserializes a T value from a JSON file. Automatically handles type conversion for scalars, lists, and dictionaries.
+Deserializes a T value from a JSON file. Automatically handles type conversion for scalars, lists, and dictionaries. Returns a FileError value when the file cannot be read.
 
 ## Parameters
 
@@ -36640,18 +37389,18 @@ Compute mean after trimming both tails by fraction.
 
 ## Parameters
 
-- **x** (`Vector`): | List Numeric input.
+- **x** (`Vector | List`): Numeric input.
 
 - **trim** (`Float`): Trim proportion in [0, 0.5).
 
 - **na_rm** (`Bool`): = false Remove NA values first.
 
-- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights.
+- **weights** (`Vector[Float] | List[Float]`): = NA Optional non-negative observation weights.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -36682,12 +37431,12 @@ Truncate fractional component toward zero.
 
 ## Parameters
 
-- **x** (`Number`): | Vector | NDArray Numeric input.
+- **x** (`Number | Vector | NDArray`): Numeric input.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -36735,7 +37484,7 @@ Evaluates a PMML model against a DataFrame using the JPMML-evaluator library. Re
 
 ## Returns
 
-| DataFrame The model predictions.
+The model predictions.
 
 
 
@@ -36782,7 +37531,7 @@ results = t_test(failfast = true, timeout = 30, verbose = true)
 
 Write Value to JSON
 
-Serializes a T value to a JSON file. This is used as the universal baseline for object transport between runtimes in the sandbox interchange protocol.
+Serializes a T value to a JSON file. This is used as the universal baseline for object transport between runtimes in the sandbox interchange protocol. Returns a FileError value when the file cannot be written.
 
 ## Parameters
 
@@ -36882,12 +37631,12 @@ Returns the timezone string attached to a Datetime value.
 
 ## Parameters
 
-- **x** (`Datetime`): | Vector The temporal value(s).
+- **x** (`Datetime | Vector`): The temporal value(s).
 
 
 ## Returns
 
-| Vector[String] The timezone label(s).
+The timezone label(s).
 
 
 
@@ -37071,16 +37820,16 @@ Compute sample variance.
 
 ## Parameters
 
-- **x** (`Vector`): | List Numeric input.
+- **x** (`Vector | List`): Numeric input.
 
 - **na_rm** (`Bool`): = false Remove NA values first.
 
-- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights.
+- **weights** (`Vector[Float] | List[Float]`): = NA Optional non-negative observation weights.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -37168,7 +37917,7 @@ Returns weekday numbers, or weekday labels when requested, from Date or Datetime
 
 ## Parameters
 
-- **x** (`Date`): | Datetime | Vector The temporal value(s).
+- **x** (`Date | Datetime | Vector`): The temporal value(s).
 
 - **label** (`Bool`): = false If true, returns abbreviated weekday names.
 
@@ -37177,7 +37926,7 @@ Returns weekday numbers, or weekday labels when requested, from Date or Datetime
 
 ## Returns
 
-| String | Vector The weekday(s).
+The weekday(s).
 
 
 
@@ -37191,12 +37940,37 @@ Returns the week number for Date or Datetime values.
 
 ## Parameters
 
-- **x** (`Date`): | Datetime | Vector The temporal value(s).
+- **x** (`Date | Datetime | Vector`): The temporal value(s).
 
 
 ## Returns
 
-| Vector[Int] The week number(s).
+The week number(s).
+
+
+
+# FILE: docs/reference/weeks.md
+
+# weeks
+
+Build a week period
+
+Constructs a Period value spanning the given number of weeks (stored as seven days each).
+
+## Parameters
+
+- **n** (`Int`): The number of weeks.
+
+
+## Returns
+
+The period value.
+
+## Examples
+
+```t
+weeks(1)
+```
 
 
 
@@ -37253,18 +38027,18 @@ Clamp tails to specified quantile limits.
 
 ## Parameters
 
-- **x** (`Vector`): | List Numeric input.
+- **x** (`Vector | List`): Numeric input.
 
-- **limits** (`Float`): | Vector[Float] One-sided or (lo, hi) limits in [0, 0.5).
+- **limits** (`Float | Vector[Float]`): One-sided or (lo, hi) limits in [0, 0.5).
 
 - **na_rm** (`Bool`): = false Remove NA values first.
 
-- **weights** (`Vector[Float]`): | List[Float] = NA Optional non-negative observation weights used to determine the cut points.
+- **weights** (`Vector[Float] | List[Float]`): = NA Optional non-negative observation weights used to determine the cut points.
 
 
 ## Returns
 
-| Vector Computed result (scalar or vectorized).
+Computed result (scalar or vectorized).
 
 
 
@@ -37272,20 +38046,20 @@ Clamp tails to specified quantile limits.
 
 # %within%
 
-Test interval membership
+Check if a date/datetime is within an interval
 
-Returns true when a Date or Datetime value falls inside an interval.
+Returns true if the given instant falls within the specified interval (inclusive).
 
 ## Parameters
 
-- **x** (`Date`): | Datetime | Vector The temporal value(s) to check.
+- **x** (`Date | Datetime | Vector`): The instant(s) to check.
 
 - **interval** (`Interval`): The interval to check against.
 
 
 ## Returns
 
-| Vector[Bool] True if value is inside the interval.
+True if x is within the interval.
 
 
 
@@ -37330,14 +38104,14 @@ Retains the instant in time while changing the displayed timezone label.
 
 ## Parameters
 
-- **x** (`Datetime`): | Vector The temporal value(s).
+- **x** (`Datetime | Vector`): The temporal value(s).
 
 - **tz** (`String`): The new timezone label.
 
 
 ## Returns
 
-| Vector[Datetime] The relabeled datetime(s).
+The relabeled datetime(s).
 
 
 
@@ -37347,7 +38121,7 @@ Retains the instant in time while changing the displayed timezone label.
 
 Write CSV file
 
-Writes a DataFrame to a CSV file.
+Writes a DataFrame to a CSV file. Returns a FileError value when the file cannot be written.
 
 ## Parameters
 
@@ -37380,7 +38154,7 @@ write_csv(df, "output.csv")
 
 Write Arrow IPC file
 
-Writes a DataFrame to an Apache Arrow IPC (Feather v2) file.  IPC is the fastest format to read and write (no compression), ideal for pipeline intermediates and cross-runtime exchange. For compressed, long-term storage of large datasets, use write_parquet instead.
+Writes a DataFrame to an Apache Arrow IPC (Feather v2) file. Returns a FileError value when the file cannot be written.  IPC is the fastest format to read and write (no compression), ideal for pipeline intermediates and cross-runtime exchange. For compressed, long-term storage of large datasets, use write_parquet instead.
 
 ## Parameters
 
@@ -37411,7 +38185,7 @@ write_ipc(df, "data.arrow")
 
 Write Parquet file
 
-Writes a DataFrame to a Parquet file using the native parquet-glib writer.  Prefer Parquet for compressed, long-term storage of large datasets or when sharing data with external analytics tooling. For the fastest possible round trip (no compression), use write_ipc instead.
+Writes a DataFrame to a Parquet file using the native parquet-glib writer. Returns a FileError value when the file cannot be written.  Prefer Parquet for compressed, long-term storage of large datasets or when sharing data with external analytics tooling. For the fastest possible round trip (no compression), use write_ipc instead.
 
 ## Parameters
 
@@ -37448,12 +38222,12 @@ Writes a flat JSON object mapping node names to artifact paths.
 
 - **path** (`String`): Destination file.
 
-- **entries** (`List[(String,`): String)] Name-path pairs.
+- **entries** (`List[(String, String)]`): Name-path pairs.
 
 
 ## Returns
 
-String] Status.
+Status.
 
 
 
@@ -37463,7 +38237,7 @@ String] Status.
 
 Write text to a file
 
-Writes a string to a file at the specified path.
+Writes a string to a file at the specified path. Returns a FileError value when the file cannot be written.
 
 ## Parameters
 
@@ -37488,12 +38262,37 @@ Returns the day-of-year component from Date or Datetime values.
 
 ## Parameters
 
-- **x** (`Date`): | Datetime | Vector The temporal value(s).
+- **x** (`Date | Datetime | Vector`): The temporal value(s).
 
 
 ## Returns
 
-| Vector[Int] The day(s) of the year.
+The day(s) of the year.
+
+
+
+# FILE: docs/reference/ydm.md
+
+# ydm
+
+Parse year-day-month dates
+
+Parses strings in YDM order to Date values. Vectorized over vectors. Unparseable inputs become NA.
+
+## Parameters
+
+- **value** (`String | Vector`): The date string(s) to parse.
+
+
+## Returns
+
+The parsed date(s).
+
+## Examples
+
+```t
+ydm("2024-15-01")
+```
 
 
 
@@ -37507,12 +38306,143 @@ Returns the calendar year from Date or Datetime values.
 
 ## Parameters
 
-- **x** (`Date`): | Datetime | Vector The temporal value(s).
+- **x** (`Date | Datetime | Vector`): The temporal value(s).
 
 
 ## Returns
 
-| Vector[Int] The year(s).
+The year(s).
+
+
+
+# FILE: docs/reference/years.md
+
+# years
+
+Build a year period
+
+Constructs a Period value spanning the given number of years.
+
+## Parameters
+
+- **n** (`Int`): The number of years.
+
+
+## Returns
+
+The period value.
+
+## Examples
+
+```t
+years(2)
+```
+
+
+
+# FILE: docs/reference/ymd_h.md
+
+# ymd_h
+
+Parse datetimes with hour precision
+
+Parses strings to Datetime values, reading year through hour. Vectorized over vectors. Unparseable inputs become NA.
+
+## Parameters
+
+- **value** (`String | Vector`): The datetime string(s) to parse.
+
+- **tz** (`String`): (Optional) Timezone label.
+
+
+## Returns
+
+The parsed datetime(s).
+
+## Examples
+
+```t
+ymd_h("2024-01-15 10")
+```
+
+
+
+# FILE: docs/reference/ymd_hm.md
+
+# ymd_hm
+
+Parse datetimes with minute precision
+
+Parses strings to Datetime values, reading year through minute. Vectorized over vectors. Unparseable inputs become NA.
+
+## Parameters
+
+- **value** (`String | Vector`): The datetime string(s) to parse.
+
+- **tz** (`String`): (Optional) Timezone label.
+
+
+## Returns
+
+The parsed datetime(s).
+
+## Examples
+
+```t
+ymd_hm("2024-01-15 10:30")
+```
+
+
+
+# FILE: docs/reference/ymd_hms.md
+
+# ymd_hms
+
+Parse datetimes with second precision
+
+Parses strings to Datetime values, reading year through second. Vectorized over vectors. Unparseable inputs become NA.
+
+## Parameters
+
+- **value** (`String | Vector`): The datetime string(s) to parse.
+
+- **tz** (`String`): (Optional) Timezone label.
+
+
+## Returns
+
+The parsed datetime(s).
+
+## Examples
+
+```t
+ymd_hms("2024-01-15 10:30:45")
+```
+
+
+
+# FILE: docs/reference/ymd.md
+
+# ymd
+
+Parse year-month-day dates
+
+Parses strings in YMD order to Date values. Vectorized over vectors. Unparseable inputs become NA.
+
+## Parameters
+
+- **value** (`String | Vector`): The date string(s) to parse.
+
+
+## Returns
+
+The parsed date(s).
+
+## Examples
+
+```t
+ymd("2024-01-15")
+```
 
 
 
@@ -37568,7 +38498,7 @@ Every T project is a **Nix flake**:
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
-    tlang.url = "github:b-rodrigues/tlang/v0.55.4";
+    tlang.url = "github:b-rodrigues/tlang/v0.55.5";
   };
 
   outputs = { self, nixpkgs, tlang }: {
@@ -37693,7 +38623,7 @@ intent {
   ],
   
   environment: {
-    t_version: "0.55.4",
+    t_version: "0.55.5",
     nix_revision: "abc123",
     run_date: "2024-01-15"
   }
@@ -37737,7 +38667,7 @@ my-analysis/
   
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
-    tlang.url = "github:b-rodrigues/tlang/v0.55.4";
+    tlang.url = "github:b-rodrigues/tlang/v0.55.5";
   };
   
   outputs = { self, nixpkgs, tlang }: {
@@ -37979,9 +38909,7 @@ node(..., serializer = my_ser)
 ```
 
 > [!IMPORTANT]
-> **String literals (e.g., `serializer = "ipc"`) are strictly disallowed in node constructors** (`rn()`, `pyn()`, `jln()`, `shn()`, `qn()`, `node()`). You must use either a symbol with the `^` prefix for built-ins or a variable name for custom serializers. Using a string literal in a node constructor will result in a `TypeError`.
->
-> `mutate_node()` and `set_pipeline_global_options()` accept both strings and symbols: `mutate_node($serializer = "pmml")` and `set_pipeline_global_options(p, serializer = ^pmml)` are both valid.
+> **String literals (e.g., `serializer = "ipc"`) are strictly disallowed in strategy positions** (`rn()`, `pyn()`, `jln()`, `shn()`, `qn()`, `node()`, `mutate_node()`, `set_pipeline_global_options()`, `fetchurl()`). You must use either a symbol with the `^` prefix for built-ins or a strategy dict for custom formats. Using a string literal will result in a `TypeError`.
 
 
 ### Implicit Serialization
@@ -38038,26 +38966,26 @@ type serializer = {
 
 ### Custom Serializers
 
-You can create a custom serializer by defining a record that matches the required interface. Note that the `format` field should use a **Symbol** (starting with `^`) to remain consistent with T's symbol-based serialization mandate.
+You can create a custom serializer with a strategy dict. The dict has closed keys: `format` (always present, a `^`-prefixed symbol) plus inline `<{ ... }>` code snippets per runtime (`r_writer`, `r_reader`, `py_writer`, `py_reader`, `julia_writer`, `julia_reader`). `t check` and pipeline validation enforce the shape: unknown keys, a missing `format`, non-code snippets, and custom formats without a snippet for the node's runtime are all errors. Custom formats are not supported on `T` nodes (builtins only) or on `sh` and `fetchurl` nodes, and `Quarto` nodes take no serializer or deserializer at all.
 
 ```t
-my_log_serializer = {
+my_log_serializer = [
   format: ^log,
-  writer: \(path, val) {
-    -- custom logic to write log
-    Ok(NA)
-  },
-  reader: \(path) {
-    -- custom logic to read log
-    Ok("log content")
-  }
-}
+  r_writer: <{ function(obj, path) writeLines(obj, path) }>,
+  r_reader: <{ function(path) readLines(path) }>,
+  py_writer: <{ lambda obj, path: open(path, 'w').write(str(obj)) }>,
+  py_reader: <{ lambda path: open(path).read() }>
+]
 
--- Usage: Pass the variable name (no ^ hat on the variable itself!)
+-- Usage: pass the variable name (no ^ hat on the variable itself!)
 node(command = ..., serializer = my_log_serializer)
 ```
 
 For a complete example of a cross-language custom serializer (YAML), see the [Custom Polyglot Serializer Demo](https://github.com/b-rodrigues/t_demos/blob/master/custom_polyglot_serializer_t/src/pipeline.t) in the `t_demos` repository.
+
+### Per-Dependency Maps
+
+A dict without a `format` key is a per-dependency map (`[reader: ^csv, writer: ^json]`): each key must name a real dependency of the node, otherwise validation fails naming the valid set. Two naming rules apply. A map with a `format` key is always a strategy dict, never a per-dependency map — even when `format` is also a dependency name, so a dependency literally named `format` cannot be keyed in map form (rename it). Map keys track pattern expansion: after `expand_pipeline` renames branch dependencies (`mid` → `mid_branch_1`), each branch entry keys the renamed dependency, so the chosen strategies keep applying instead of falling back to `default`.
 
 ## 4. Static Coherence Checks
 
@@ -38080,7 +39008,7 @@ This prevents runtime errors after long-running computations by catching interch
 
 ## 5. Serializer Runtime Dependencies
 
-When you build a pipeline, T scans every node's serializer and runtime to determine which packages are needed, then checks `tproject.toml` for those packages. If any are missing, T **prompts you** with the exact `[r-dependencies]`, `[py-dependencies]`, and `[jl-dependencies]` entries to add before proceeding. You must then run `t update` and re-enter `nix develop` for the packages to become available. (Set `TLANG_AUTO_ADD_PIPELINE_DEPS=1` to skip the prompt in CI — T auto-appends the missing entries and exits with instructions to rerun the build.)
+When you build a pipeline, T scans every node's serializer and runtime to determine which packages are needed, then checks `tproject.toml` for those packages. If any are missing, T **prompts you** with the exact `[r-dependencies]`, `[py-dependencies]`, and `[jl-dependencies]` entries to add before proceeding. You must then run `t update` and re-enter `nix develop` for the packages to become available. (Set `TLANG_AUTO_ADD_PIPELINE_DEPS=1` to skip the prompt in CI — T auto-appends the missing entries and exits with instructions to rerun the build. Per-command equivalents: `t run --yes <file.t>` answers yes, `t run --no <file.t>` declines; `--no` always wins, and `--yes` still requires `tproject.toml` to exist.)
 
 The table below shows which packages each format pulls in per runtime:
 
@@ -38141,6 +39069,8 @@ When T processes a node with an `R` runtime and the above serializer:
 If you use a custom format name (e.g., `format: "myformat"`), you should ensure that your R or Python scripts have the necessary libraries loaded to handle that format. You can do this by adding the libraries to your `tproject.toml` or using the `functions` / `includes` parameters in the node definition.
 
 For ONNX specifically, Julia nodes read model artifacts through `ONNXRunTime.jl` via the built-in `jl_read_onnx()` helper. Julia ONNX export is not supported yet, so `jl_write_onnx()` fails explicitly instead of silently falling back to another format.
+
+Python scikit-learn export stamps opset 21 (`target_opset=21` in `convert_sklearn`). Newer `skl2onnx` defaults to opset 22, which `ONNXRunTime` rejects (official support ends at 21), so the pin keeps artifacts loadable in every supported consumer, including T-native `predict`.
 
 ---
 

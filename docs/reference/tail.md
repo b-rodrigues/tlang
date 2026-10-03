@@ -6,14 +6,14 @@ Returns the last n items from a List, Vector, or DataFrame. For DataFrames, it r
 
 ## Parameters
 
-- **data** (`DataFrame`): | List | Vector The collection to slice.
+- **data** (`DataFrame | List | Vector`): The collection to slice.
 
 - **n** (`Int`): = 5 Number of items to return.
 
 
 ## Returns
 
-| List | Vector A subset of the input containing the last n items.
+A subset of the input containing the last n items.
 
 ## Examples
 

@@ -4,6 +4,7 @@ open Ast
 --# Read Parquet file
 --#
 --# Reads a DataFrame from a Parquet file using the native parquet-glib reader.
+--# Returns a FileError value when the file cannot be read.
 --#
 --# Prefer Parquet for compressed, long-term storage of large datasets or when
 --# sharing data with external analytics tooling. For the fastest possible

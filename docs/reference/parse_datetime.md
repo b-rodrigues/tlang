@@ -6,7 +6,7 @@ Parses strings or string vectors into Datetime values using an explicit format s
 
 ## Parameters
 
-- **x** (`String`): | Vector[String] The string(s) to parse.
+- **x** (`String | Vector[String]`): The string(s) to parse.
 
 - **format** (`String`): The strptime-style format string.
 
@@ -15,5 +15,5 @@ Parses strings or string vectors into Datetime values using an explicit format s
 
 ## Returns
 
-| Vector[Datetime] The parsed datetime(s).
+The parsed datetime(s).
 

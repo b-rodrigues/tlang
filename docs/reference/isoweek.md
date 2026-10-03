@@ -6,10 +6,10 @@ Returns the ISO week number for Date or Datetime values.
 
 ## Parameters
 
-- **x** (`Date`): | Datetime | Vector The temporal value(s).
+- **x** (`Date | Datetime | Vector`): The temporal value(s).
 
 
 ## Returns
 
-| Vector[Int] The ISO week number(s).
+The ISO week number(s).
 

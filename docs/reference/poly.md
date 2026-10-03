@@ -6,7 +6,7 @@ Generates a basis of polynomial terms for a numeric vector.
 
 ## Parameters
 
-- **x** (`Vector[Number]`): | List[Number] The vector to expand.
+- **x** (`Vector[Number] | List[Number]`): The vector to expand.
 
 - **degree** (`Int`): The degree of the polynomial.
 

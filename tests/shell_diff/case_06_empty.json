@@ -1,0 +1,82 @@
+{
+	"Type": "File",
+	"Pos": {
+		"Offset": 0,
+		"Line": 1,
+		"Col": 1
+	},
+	"End": {
+		"Offset": 2,
+		"Line": 1,
+		"Col": 3
+	},
+	"Stmts": [
+		{
+			"Pos": {
+				"Offset": 0,
+				"Line": 1,
+				"Col": 1
+			},
+			"End": {
+				"Offset": 2,
+				"Line": 1,
+				"Col": 3
+			},
+			"Cmd": {
+				"Type": "CallExpr",
+				"Pos": {
+					"Offset": 0,
+					"Line": 1,
+					"Col": 1
+				},
+				"End": {
+					"Offset": 2,
+					"Line": 1,
+					"Col": 3
+				},
+				"Assigns": [
+					{
+						"Pos": {
+							"Offset": 0,
+							"Line": 1,
+							"Col": 1
+						},
+						"End": {
+							"Offset": 2,
+							"Line": 1,
+							"Col": 3
+						},
+						"Name": {
+							"Pos": {
+								"Offset": 0,
+								"Line": 1,
+								"Col": 1
+							},
+							"End": {
+								"Offset": 1,
+								"Line": 1,
+								"Col": 2
+							},
+							"ValuePos": {
+								"Offset": 0,
+								"Line": 1,
+								"Col": 1
+							},
+							"ValueEnd": {
+								"Offset": 1,
+								"Line": 1,
+								"Col": 2
+							},
+							"Value": "x"
+						}
+					}
+				]
+			},
+			"Position": {
+				"Offset": 0,
+				"Line": 1,
+				"Col": 1
+			}
+		}
+	]
+}

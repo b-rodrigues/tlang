@@ -6,14 +6,14 @@ Calculates the sum of values in a List or Vector.
 
 ## Parameters
 
-- **x** (`List[Number]`): | Vector[Number] The collection to sum.
+- **x** (`List[Number] | Vector[Number]`): The collection to sum.
 
 - **na_rm** (`Bool`): = false Remove NA values before summing.
 
 
 ## Returns
 
-| NA The sum of values.
+The sum of values.
 
 ## Examples
 

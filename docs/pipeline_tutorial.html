@@ -454,7 +454,9 @@ every list option</td>
 <td>All structural validation errors (empty = valid); checks missing
 files, unknown runtimes, missing deps, cycles, cross-runtime
 deserializer gaps, serializer coherence, multi-dep deserializer
-strategies, and <code>^bin</code>-only-for-fetchurl. Same checks power
+strategies, closed strategy-dict shape with per-runtime snippet checks,
+strategies on <code>Quarto</code> nodes, and
+<code>^bin</code>-only-for-fetchurl. Same checks power
 <code>populate_pipeline</code>, <code>build_pipeline</code>, and
 <code>t check</code> tier 1</td>
 </tr>
@@ -637,8 +639,10 @@ predicate</td>
 <tr>
 <td><code>set_pipeline_global_options(p, functions?, include?, env_vars?, serializer?, deserializer?, noop?, args?, shell?, shell_args?, flake?, dependencies?, runtimes?, nodes?)</code></td>
 <td><code>Pipeline</code> plus optional
-<code>Dict</code>/<code>String</code>/<code>List</code>/<code>Bool</code>
-settings</td>
+<code>Dict</code>/<code>String</code>/<code>Symbol</code>/<code>List</code>/<code>Bool</code>
+settings (<code>serializer</code>/<code>deserializer</code> take
+<code>Strategy</code>: <code>^</code>-symbols or strategy dicts, never
+strings)</td>
 <td><code>Pipeline</code></td>
 <td>Returns a new pipeline with global defaults merged into target nodes
 (all nodes by default). Original unchanged. Merge semantics:

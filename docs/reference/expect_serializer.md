@@ -10,7 +10,7 @@ Passes if `node_name` serializer matches the expected serializer.
 
 - **node_name** (`String`): The node name.
 
-- **expected** (`String`): | Symbol The expected serializer.
+- **expected** (`Symbol`): The expected serializer.
 
 
 ## Returns

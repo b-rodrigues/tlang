@@ -3,7 +3,8 @@ open Ast
 (*
 --# Square root
 --#
---# Calculates the square root of x.
+--# Calculates the square root of x. Returns a ValueError value for
+--# negative input.
 --#
 --# @name sqrt
 --# @param x :: Number | Vector | NDArray The input value (must be non-negative).

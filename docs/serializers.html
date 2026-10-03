@@ -72,18 +72,14 @@ import &quot;src/my_ser.t&quot; [my_ser]
 node(..., serializer = my_ser)</code></pre>
 <blockquote>
 <p>[!IMPORTANT] <strong>String literals (e.g.,
-<code>serializer = "ipc"</code>) are strictly disallowed in node
-constructors</strong> (<code>rn()</code>, <code>pyn()</code>,
+<code>serializer = "ipc"</code>) are strictly disallowed in strategy
+positions</strong> (<code>rn()</code>, <code>pyn()</code>,
 <code>jln()</code>, <code>shn()</code>, <code>qn()</code>,
-<code>node()</code>). You must use either a symbol with the
-<code>^</code> prefix for built-ins or a variable name for custom
-serializers. Using a string literal in a node constructor will result in
-a <code>TypeError</code>.</p>
-<p><code>mutate_node()</code> and
-<code>set_pipeline_global_options()</code> accept both strings and
-symbols: <code>mutate_node($serializer = "pmml")</code> and
-<code>set_pipeline_global_options(p, serializer = ^pmml)</code> are both
-valid.</p>
+<code>node()</code>, <code>mutate_node()</code>,
+<code>set_pipeline_global_options()</code>, <code>fetchurl()</code>).
+You must use either a symbol with the <code>^</code> prefix for
+built-ins or a strategy dict for custom formats. Using a string literal
+will result in a <code>TypeError</code>.</p>
 </blockquote>
 <h3 id="implicit-serialization">Implicit Serialization</h3>
 <p>If you don’t specify a serializer, T uses the <code>default</code>
@@ -235,28 +231,44 @@ properties or even define your own.</p>
   reader: function(path: string) -&gt; result[any, string]
 }</code></pre>
 <h3 id="custom-serializers">Custom Serializers</h3>
-<p>You can create a custom serializer by defining a record that matches
-the required interface. Note that the <code>format</code> field should
-use a <strong>Symbol</strong> (starting with <code>^</code>) to remain
-consistent with T’s symbol-based serialization mandate.</p>
-<pre class="t"><code>my_log_serializer = {
+<p>You can create a custom serializer with a strategy dict. The dict has
+closed keys: <code>format</code> (always present, a
+<code>^</code>-prefixed symbol) plus inline <code>&lt;{ ... }&gt;</code>
+code snippets per runtime (<code>r_writer</code>, <code>r_reader</code>,
+<code>py_writer</code>, <code>py_reader</code>,
+<code>julia_writer</code>, <code>julia_reader</code>).
+<code>t check</code> and pipeline validation enforce the shape: unknown
+keys, a missing <code>format</code>, non-code snippets, and custom
+formats without a snippet for the node’s runtime are all errors. Custom
+formats are not supported on <code>T</code> nodes (builtins only) or on
+<code>sh</code> and <code>fetchurl</code> nodes, and <code>Quarto</code>
+nodes take no serializer or deserializer at all.</p>
+<pre class="t"><code>my_log_serializer = [
   format: ^log,
-  writer: \(path, val) {
-    -- custom logic to write log
-    Ok(NA)
-  },
-  reader: \(path) {
-    -- custom logic to read log
-    Ok(&quot;log content&quot;)
-  }
-}
+  r_writer: &lt;{ function(obj, path) writeLines(obj, path) }&gt;,
+  r_reader: &lt;{ function(path) readLines(path) }&gt;,
+  py_writer: &lt;{ lambda obj, path: open(path, &#39;w&#39;).write(str(obj)) }&gt;,
+  py_reader: &lt;{ lambda path: open(path).read() }&gt;
+]
 
--- Usage: Pass the variable name (no ^ hat on the variable itself!)
+-- Usage: pass the variable name (no ^ hat on the variable itself!)
 node(command = ..., serializer = my_log_serializer)</code></pre>
 <p>For a complete example of a cross-language custom serializer (YAML),
 see the <a
 href="https://github.com/b-rodrigues/t_demos/blob/master/custom_polyglot_serializer_t/src/pipeline.t">Custom
 Polyglot Serializer Demo</a> in the <code>t_demos</code> repository.</p>
+<h3 id="per-dependency-maps">Per-Dependency Maps</h3>
+<p>A dict without a <code>format</code> key is a per-dependency map
+(<code>[reader: ^csv, writer: ^json]</code>): each key must name a real
+dependency of the node, otherwise validation fails naming the valid set.
+Two naming rules apply. A map with a <code>format</code> key is always a
+strategy dict, never a per-dependency map — even when
+<code>format</code> is also a dependency name, so a dependency literally
+named <code>format</code> cannot be keyed in map form (rename it). Map
+keys track pattern expansion: after <code>expand_pipeline</code> renames
+branch dependencies (<code>mid</code> → <code>mid_branch_1</code>), each
+branch entry keys the renamed dependency, so the chosen strategies keep
+applying instead of falling back to <code>default</code>.</p>
 <h2 id="static-coherence-checks">4. Static Coherence Checks</h2>
 <p>One of the most powerful features of T’s serializer system is the
 <strong>static coherence check</strong>. When you build a pipeline, T
@@ -286,7 +298,11 @@ must then run <code>t update</code> and re-enter
 <code>nix develop</code> for the packages to become available. (Set
 <code>TLANG_AUTO_ADD_PIPELINE_DEPS=1</code> to skip the prompt in CI — T
 auto-appends the missing entries and exits with instructions to rerun
-the build.)</p>
+the build. Per-command equivalents:
+<code>t run --yes &lt;file.t&gt;</code> answers yes,
+<code>t run --no &lt;file.t&gt;</code> declines; <code>--no</code>
+always wins, and <code>--yes</code> still requires
+<code>tproject.toml</code> to exist.)</p>
 <p>The table below shows which packages each format pulls in per
 runtime:</p>
 <table>
@@ -422,6 +438,12 @@ format. You can do this by adding the libraries to your
 helper. Julia ONNX export is not supported yet, so
 <code>jl_write_onnx()</code> fails explicitly instead of silently
 falling back to another format.</p>
+<p>Python scikit-learn export stamps opset 21
+(<code>target_opset=21</code> in <code>convert_sklearn</code>). Newer
+<code>skl2onnx</code> defaults to opset 22, which
+<code>ONNXRunTime</code> rejects (official support ends at 21), so the
+pin keeps artifacts loadable in every supported consumer, including
+T-native <code>predict</code>.</p>
 <hr />
 <h2 id="next-steps">Next Steps</h2>
 <ol type="1">

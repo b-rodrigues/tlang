@@ -1,0 +1,184 @@
+{
+	"Type": "File",
+	"Pos": {
+		"Offset": 0,
+		"Line": 1,
+		"Col": 1
+	},
+	"End": {
+		"Offset": 12,
+		"Line": 1,
+		"Col": 13
+	},
+	"Stmts": [
+		{
+			"Pos": {
+				"Offset": 0,
+				"Line": 1,
+				"Col": 1
+			},
+			"End": {
+				"Offset": 12,
+				"Line": 1,
+				"Col": 13
+			},
+			"Cmd": {
+				"Type": "CallExpr",
+				"Pos": {
+					"Offset": 0,
+					"Line": 1,
+					"Col": 1
+				},
+				"End": {
+					"Offset": 12,
+					"Line": 1,
+					"Col": 13
+				},
+				"Args": [
+					{
+						"Pos": {
+							"Offset": 0,
+							"Line": 1,
+							"Col": 1
+						},
+						"End": {
+							"Offset": 4,
+							"Line": 1,
+							"Col": 5
+						},
+						"Parts": [
+							{
+								"Type": "Lit",
+								"Pos": {
+									"Offset": 0,
+									"Line": 1,
+									"Col": 1
+								},
+								"End": {
+									"Offset": 4,
+									"Line": 1,
+									"Col": 5
+								},
+								"ValuePos": {
+									"Offset": 0,
+									"Line": 1,
+									"Col": 1
+								},
+								"ValueEnd": {
+									"Offset": 4,
+									"Line": 1,
+									"Col": 5
+								},
+								"Value": "echo"
+							}
+						]
+					},
+					{
+						"Pos": {
+							"Offset": 5,
+							"Line": 1,
+							"Col": 6
+						},
+						"End": {
+							"Offset": 12,
+							"Line": 1,
+							"Col": 13
+						},
+						"Parts": [
+							{
+								"Type": "ParamExp",
+								"Pos": {
+									"Offset": 5,
+									"Line": 1,
+									"Col": 6
+								},
+								"End": {
+									"Offset": 12,
+									"Line": 1,
+									"Col": 13
+								},
+								"Dollar": {
+									"Offset": 5,
+									"Line": 1,
+									"Col": 6
+								},
+								"Rbrace": {
+									"Offset": 11,
+									"Line": 1,
+									"Col": 12
+								},
+								"Param": {
+									"Pos": {
+										"Offset": 7,
+										"Line": 1,
+										"Col": 8
+									},
+									"End": {
+										"Offset": 8,
+										"Line": 1,
+										"Col": 9
+									},
+									"ValuePos": {
+										"Offset": 7,
+										"Line": 1,
+										"Col": 8
+									},
+									"ValueEnd": {
+										"Offset": 8,
+										"Line": 1,
+										"Col": 9
+									},
+									"Value": "a"
+								},
+								"Index": {
+									"Type": "Word",
+									"Pos": {
+										"Offset": 9,
+										"Line": 1,
+										"Col": 10
+									},
+									"End": {
+										"Offset": 10,
+										"Line": 1,
+										"Col": 11
+									},
+									"Parts": [
+										{
+											"Type": "Lit",
+											"Pos": {
+												"Offset": 9,
+												"Line": 1,
+												"Col": 10
+											},
+											"End": {
+												"Offset": 10,
+												"Line": 1,
+												"Col": 11
+											},
+											"ValuePos": {
+												"Offset": 9,
+												"Line": 1,
+												"Col": 10
+											},
+											"ValueEnd": {
+												"Offset": 10,
+												"Line": 1,
+												"Col": 11
+											},
+											"Value": "i"
+										}
+									]
+								}
+							}
+						]
+					}
+				]
+			},
+			"Position": {
+				"Offset": 0,
+				"Line": 1,
+				"Col": 1
+			}
+		}
+	]
+}

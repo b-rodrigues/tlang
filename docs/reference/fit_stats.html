@@ -42,8 +42,9 @@ stacks the results into a single DataFrame, automatically adding a
 ‘model’ column if labels are present.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><strong>x</strong> (<code>Model</code>): | List[Model] |
-Dict[String, Model] The model(s) to inspect.</li>
+<li><strong>x</strong>
+(<code>Model | List[Model] | Dict[String, Model]</code>): The model(s)
+to inspect.</li>
 </ul>
 <h2 id="returns">Returns</h2>
 <p>A tidy one-row-per-model summary of goodness-of-fit.</p>

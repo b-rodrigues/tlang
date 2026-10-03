@@ -6,7 +6,7 @@ Returns the maximum value in a vector or list.
 
 ## Parameters
 
-- **x** (`Vector`): | List The numeric data.
+- **x** (`Vector | List`): The numeric data.
 
 - **na_rm** (`Bool`): Whether to remove NA values. Default is false.
 

@@ -226,6 +226,26 @@ to_float(["1", "2"])   -- [1.0, 2.0]
 
 ---
 
+### `to_dict(record)`
+
+Convert a user-defined record to a plain `Dict` with one entry per field, so record data can cross into foreign node code (records themselves are T-side contracts and never cross). Shallow: nested records stay records.
+
+**Parameters:**
+
+
+- `record` — Record value
+
+**Returns:**
+
+`Dict` mapping field names to values
+
+**Examples:**
+```t
+to_dict(Point(x = 1.0, y = 2.0))   -- [`x`: 1., `y`: 2.]
+```
+
+---
+
 ### `to_symbol(value)`
 
 Convert a string name into a `Symbol` so it can be injected into quoted code with `!!`. Existing symbols pass through unchanged.
@@ -2765,8 +2785,8 @@ Subsetting nodes in a pipeline. `filter_node` keeps nodes matching a condition; 
 to a subset via the `where` named argument). `rename_node` changes a node's
 label while preserving its dependency edges.
 
-**Mutable fields:** `noop` (Bool), `runtime` (String), `serializer` (String),
-`deserializer` (String), `deps` (List[String]), `functions` (List[String]),
+**Mutable fields:** `noop` (Bool), `runtime` (String), `serializer` (Strategy),
+`deserializer` (Strategy), `deps` (List[String]), `functions` (List[String]),
 `include` (List[String]), `env_vars` (Dict), `args` (Dict), `shell` (String),
 `shell_args` (List[String]), `flake` (String).
 
@@ -2899,11 +2919,11 @@ Merge semantics vary per option:
   Per-node `include` arguments are appended after these global includes.
 - `env_vars` (optional) — Dict of environment variables for every node. Per-node
   `env_vars` override global values for the same key.
-- `serializer` (optional) — String, Symbol, or `^`-prefixed serializer name. Default
-  serializer for every node; replaces any per-node serializer. `"default"` selects
+- `serializer` (optional) — Strategy: a `^`-prefixed built-in name or a strategy dict. Default
+  serializer for every node; replaces any per-node serializer. `default` selects
   the runtime's default.
-- `deserializer` (optional) — String, Symbol, or `^`-prefixed deserializer name. Default
-  deserializer for every node; replaces any per-node deserializer. `"default"` selects
+- `deserializer` (optional) — Strategy: a `^`-prefixed built-in name or a strategy dict. Default
+  deserializer for every node; replaces any per-node deserializer. `default` selects
   the runtime's default.
 - `noop` (optional) — Bool. If true, every node becomes a no-op. Setting false has no
   effect (it cannot un-set a per-node `noop = true`).
@@ -2963,8 +2983,8 @@ The returned Dict has the following keys:
 
 - `name` — the node name (String)
 - `runtime` — one of `"T"`, `"R"`, `"Python"`, `"Julia"`, `"Quarto"`, `"sh"` (String)
-- `serializer` — e.g. `"default"`, `"pmml"` (String)
-- `deserializer` — e.g. `"default"`, `"pmml"` (String)
+- `serializer` — resolved strategy value (a Symbol like ^csv, a strategy Dict, or "default" for unset)
+- `deserializer` — resolved strategy value, same shapes as `serializer`
 - `noop` — whether the node is a no-op (Bool)
 - `deps` — names of nodes this node depends on (List of String)
 - `depth` — topological depth in the DAG (Int); roots are depth 0
@@ -4954,7 +4974,7 @@ Pass if `node_name` serializer matches the expected serializer.
 **Parameters:**
 - `p` — The pipeline to check.
 - `node_name` — The node name.
-- `expected` — Expected serializer (String or Symbol, e.g. `^ipc`, `^csv`).
+- `expected` — Expected serializer (Symbol, e.g. `^ipc`, `^csv`).
 
 **Examples:**
 ```t
@@ -4968,7 +4988,7 @@ Pass if `node_name` deserializer matches the expected deserializer.
 **Parameters:**
 - `p` — The pipeline to check.
 - `node_name` — The node name.
-- `expected` — Expected deserializer (String or Symbol).
+- `expected` — Expected deserializer (Symbol).
 
 **Examples:**
 ```t

@@ -2,7 +2,7 @@
 
 List files in directory
 
-Returns a list of files and directories in the specified path. Supports an optional regex pattern for filtering.
+Returns a list of files and directories in the specified path. Supports an optional regex pattern for filtering. Returns a FileError value when the directory cannot be read.
 
 ## Parameters
 

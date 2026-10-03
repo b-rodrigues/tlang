@@ -6,9 +6,9 @@ Passes if a Dict's keys or a named List's labels match the given list of strings
 
 ## Parameters
 
-- **x** (`Dict`): | List The Dict or named List to inspect.
+- **x** (`Dict | List`): The Dict or named List to inspect.
 
-- **names** (`List`): | Vector A list or vector of expected field name strings.
+- **names** (`List | Vector`): A list or vector of expected field name strings.
 
 
 ## Returns

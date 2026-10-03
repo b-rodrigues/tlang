@@ -58,6 +58,8 @@ and stmt_has_build_pipeline = function
   | { Ast.node = Ast.Expression e; _ } -> expr_has_build_pipeline e
   | { Ast.node = Ast.Assignment { expr; _ }; _ } -> expr_has_build_pipeline expr
   | { Ast.node = Ast.Reassignment { expr; _ }; _ } -> expr_has_build_pipeline expr
+  (* Static type declarations never build pipelines. *)
+  | { Ast.node = Ast.TypeDecl _; _ } -> false
   | { Ast.node = Ast.Import _ | Ast.ImportPackage _ | Ast.ImportFrom _ | Ast.ImportFileFrom _; _ } -> false
 
 let program_has_build_pipeline (program : Ast.program) =
@@ -250,6 +252,13 @@ let rec value_summary v =
        | Some (Ast.VString mt), _, _ -> mt
        | Some (Ast.VSymbol s), _, _ -> s
        | _ -> Printf.sprintf "{%d keys}" (List.length pairs))
+  | Ast.VRecord r ->
+      Printf.sprintf "%s(%d field%s)" r.rec_type
+        (List.length r.rec_fields) (if List.length r.rec_fields = 1 then "" else "s")
+  | Ast.VUnion u ->
+      Printf.sprintf "%s(%d payload%s)" u.un_case
+        (List.length u.un_payload) (if List.length u.un_payload = 1 then "" else "s")
+  | Ast.VTypeDef t -> Printf.sprintf "Type(%s)" t.td_name
   | Ast.VLambda { params; autoquote_params; _ } ->
       "\\(" ^ String.concat ", " (Ast.Utils.display_params params autoquote_params) ^ ") -> ..."
   | Ast.VBuiltin { b_name; _ } ->
@@ -479,6 +488,8 @@ let print_help () =
   Printf.printf "  debug <node>      Start a subshell to debug a pipeline node\n";
   Printf.printf "  --mode <m>        Type-check mode: repl or strict\n";
   Printf.printf "  --failfast        Stop execution on first error\n";
+  Printf.printf "  --yes             Answer yes to all prompts (e.g. missing-dependency updates)\n";
+  Printf.printf "  --no              Decline all prompts; never modify project files\n";
   Printf.printf "  explain <expr>    Explain a value or expression\n";
   Printf.printf "  init --package <n>  Create a new T package\n";
   Printf.printf "  init --project <n>  Create a new T project\n";
@@ -530,6 +541,9 @@ let parse_program_from_file filename =
         let pos = Lexing.lexeme_start_p lexbuf in
         Error (make_located_error ~file:filename Ast.SyntaxError "Mixed bracket literal (found both single elements and key-value pairs)" pos)
     | Ast.Invalid_match_pattern msg ->
+        let pos = Lexing.lexeme_start_p lexbuf in
+        Error (make_located_error ~file:filename Ast.SyntaxError msg pos)
+    | Ast.Invalid_type_declaration msg ->
         let pos = Lexing.lexeme_start_p lexbuf in
         Error (make_located_error ~file:filename Ast.SyntaxError msg pos)
     | Sys.Break ->
@@ -707,50 +721,11 @@ let check_type_annotations filename =
     let program = Parser.program Lexer.token lexbuf in
     let scope = Symbol_table.create_scope () in
     Symbol_table.register_keywords scope;
-    let _ = Analyzer.analyze program scope in
-    let diags = ref [] in
-    List.iter (fun (stmt : Ast.stmt) ->
-      match stmt.node with
-      | Ast.Assignment { name; typ = Some annotation; _ } ->
-          let inferred_ast = match Symbol_table.lookup scope name with
-            | Some { Symbol_table.typ = Some st; _ } -> Semantic_type.to_ast_typ st
-            | _ -> Ast.TCustom "Any"
-          in
-          if not (Ast.types_compatible inferred_ast annotation) then begin
-            let expected = Ast.Utils.typ_to_string annotation in
-            let actual = Ast.Utils.typ_to_string inferred_ast in
-            let line = match stmt.loc with
-              | Some l -> Some l.Ast.line
-              | None -> None
-            in
-            let col = match stmt.loc with
-              | Some l -> Some l.Ast.column
-              | None -> None
-            in
-            diags := {
-              Diagnostics.diag_id = Diagnostics.gen_id ();
-              diag_error_class = Diagnostics.Type_error;
-              diag_severity = Warning;
-              diag_phase = Schema;
-              diag_node_id = None;
-              diag_node_lang = None;
-              diag_file = Some filename;
-              diag_line = line;
-              diag_column = col;
-              diag_end_line = None;
-              diag_end_column = None;
-              diag_message = Printf.sprintf
-                "Variable `%s` annotated as %s, but expression infers to %s."
-                name expected actual;
-              diag_expected = Some expected;
-              diag_actual = Some actual;
-              diag_caused_by = [];
-              diag_suggested_fix = Diagnostics.no_fix;
-            } :: !diags
-          end
-      | _ -> ()
-    ) program;
-    List.rev !diags
+    let analysis = Analyzer.analyze program scope in
+    Check_utils.annotation_diagnostics program analysis.Analyzer.stmt_types filename
+    @ Check_utils.match_exhaustiveness_diagnostics program filename
+    @ Check_utils.match_union_diagnostics program filename
+    @ Check_utils.generic_body_diagnostics program filename
   with
   | Lexer.SyntaxError _ ->
     (* Parse/syntax errors are already reported by check_utils normal flow. *)
@@ -1201,8 +1176,13 @@ let rec mkdir_p path =
 
 let recursive_files dir =
   let rec walk acc d =
-    let entries = try Sys.readdir d with _ -> [||] in
-    Array.fold_left (fun acc e ->
+    (* Sorted for determinism: duplicate doc names resolve identically on
+       every machine (ties keep the first registration in this order). *)
+    let entries =
+      try Array.to_list (Sys.readdir d) |> List.sort String.compare
+      with _ -> []
+    in
+    List.fold_left (fun acc e ->
       let p = Filename.concat d e in
       if Sys.is_directory p then walk acc p
       else if Filename.check_suffix e ".ml" || Filename.check_suffix e ".t" then p :: acc
@@ -1618,11 +1598,17 @@ let () =
   in
   let unsafe = List.mem "--unsafe" raw_args in
   let failfast = mode_parse.failfast in
+  let yes_flag = mode_parse.yes in
+  let no_flag = mode_parse.no in
   let args = if unsafe then List.filter (fun s -> s <> "--unsafe") mode_parse.args else mode_parse.args in
   let args = if failfast then List.filter (fun s -> s <> "--failfast") args else args in
-  (match Cli_args.validate_cli_flags ~mode_flag:mode_parse.mode_flag ~unsafe_flag:unsafe ~failfast_flag:failfast args with
+  let args = if yes_flag then List.filter (fun s -> s <> "--yes") args else args in
+  let args = if no_flag then List.filter (fun s -> s <> "--no") args else args in
+  (match Cli_args.validate_cli_flags ~mode_flag:mode_parse.mode_flag ~unsafe_flag:unsafe ~failfast_flag:failfast ~yes_flag ~no_flag:no_flag args with
    | Ok () -> ()
    | Error msg -> exit_with_error msg);
+  Pipeline_dependency_requirements.cli_yes := yes_flag;
+  Pipeline_dependency_requirements.cli_no := no_flag;
   let env = Packages.init_env () in
   Check_utils.extra_diagnostics_hook := check_type_annotations;
   (* Register interactive CLI wrappers — must be here (not in packages.ml)
@@ -1681,6 +1667,9 @@ let () =
                    let pos = Lexing.lexeme_start_p lexbuf in
                    make_located_error ~file:filename Ast.SyntaxError "Mixed bracket literal (found both single elements and key-value pairs)" pos
                | Ast.Invalid_match_pattern msg ->
+                   let pos = Lexing.lexeme_start_p lexbuf in
+                   make_located_error ~file:filename Ast.SyntaxError msg pos
+               | Ast.Invalid_type_declaration msg ->
                    let pos = Lexing.lexeme_start_p lexbuf in
                    make_located_error ~file:filename Ast.SyntaxError msg pos
                | Sys.Break ->

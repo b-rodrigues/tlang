@@ -254,6 +254,12 @@ let rec value_to_yojson (v : Ast.value) : Yojson.Safe.t =
       raise (JSONError "value_to_yojson: VExpr is not supported for JSON serialization")
   | VComputedNode _ ->
       raise (JSONError "value_to_yojson: VComputedNode is not supported for JSON serialization")
+  | VRecord r ->
+      raise (JSONError (Printf.sprintf "value_to_yojson: record `%s` is a T-side contract and cannot cross serialization boundaries; convert it to plain data first" r.rec_type))
+  | VUnion u ->
+      raise (JSONError (Printf.sprintf "value_to_yojson: union value `%s` of `%s` is a T-side contract and cannot cross serialization boundaries; convert it to plain data first" u.un_case u.un_type))
+  | VTypeDef t ->
+      raise (JSONError (Printf.sprintf "value_to_yojson: type `%s` itself is not serializable" t.td_name))
   | VError err ->
       `Assoc [
         ("type", `String "VError");
@@ -542,7 +548,7 @@ let serialize_to_file path value =
 --#
 --# @name deserialize_from_file
 --# @param path :: String Source file path.
---# @return :: Result[Any, String] Value or error.
+--# @return :: Any Value or error.
 --# @private
 --# *)
 let deserialize_from_file path =

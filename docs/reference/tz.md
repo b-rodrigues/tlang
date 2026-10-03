@@ -6,10 +6,10 @@ Returns the timezone string attached to a Datetime value.
 
 ## Parameters
 
-- **x** (`Datetime`): | Vector The temporal value(s).
+- **x** (`Datetime | Vector`): The temporal value(s).
 
 
 ## Returns
 
-| Vector[String] The timezone label(s).
+The timezone label(s).
 

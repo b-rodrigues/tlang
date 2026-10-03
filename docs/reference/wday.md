@@ -6,7 +6,7 @@ Returns weekday numbers, or weekday labels when requested, from Date or Datetime
 
 ## Parameters
 
-- **x** (`Date`): | Datetime | Vector The temporal value(s).
+- **x** (`Date | Datetime | Vector`): The temporal value(s).
 
 - **label** (`Bool`): = false If true, returns abbreviated weekday names.
 
@@ -15,5 +15,5 @@ Returns weekday numbers, or weekday labels when requested, from Date or Datetime
 
 ## Returns
 
-| String | Vector The weekday(s).
+The weekday(s).
 
