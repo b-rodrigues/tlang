@@ -627,6 +627,8 @@ g = p |> filter_node($runtime == "sh") |> pipeline_nodes
 h = which_nodes(p, \(nd) nd.name == "aa") |> map(\(nd) nd.name)
 i = mutate_node(p, $noop = true, where = $runtime == "sh")
 f_ann: Function = \(x: Int -> Int) x + 1
+b_ann: Bool = str_detect("a", "a")
+l_ann: List[Bool] = str_detect(["a"], "a")
 |};
   close_out oc_fn;
   let cr_fn = Check_utils.run_check Typecheck.Strict tmp_fn env in
@@ -658,5 +660,17 @@ f_ann: Function = \(x: Int -> Int) x + 1
     "x: Function = 5\n" "expected Function, got Int";
   check_neg "annotated binding: Int against Column is rejected"
     "y: Column = 1\n" "expected Column, got Int";
+  check_neg "annotated binding: Int against Selection is rejected"
+    "w: Selection = 1\n" "expected Selection, got Int";
+  check_neg "annotated binding: Int against KeywordArgs is rejected"
+    "k: KeywordArgs = 1\n" "expected KeywordArgs, got Int";
+  check_neg "annotated binding: Int against Expressions is rejected"
+    "ee: Expressions = 1\n" "expected Expressions, got Int";
+  check_neg "annotated binding: lambda against Column is rejected (no leak)"
+    "z: Column = \\(x: Int -> Int) x\n" "expected Column, got Function";
+  check_neg "annotated binding: lambda against Int is rejected (no leak)"
+    "f: Int = \\(x: Int -> Int) x\n" "expected Int, got Function";
+  check_neg "annotated binding: union return against wrong member is rejected"
+    "nn: Int = str_detect(\"a\", \"a\")\n" "expected Int, got Bool";
 
   Printf.printf "\n";;
