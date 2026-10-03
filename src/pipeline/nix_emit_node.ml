@@ -2601,7 +2601,11 @@ function jl_save_meta(obj, path)
                     try
                         obj.mf.f.formula
                     catch
-                        nothing
+                        try
+                            obj.mf.f
+                        catch
+                            nothing
+                        end
                     end
                 end
                 if f !== nothing
@@ -2610,6 +2614,28 @@ function jl_save_meta(obj, path)
                         meta["target"] = string(f.lhs)
                     catch
                     end
+                end
+            catch
+            end
+            try
+                d = try
+                    string(typeof(obj.model.rr.d))
+                catch
+                    ""
+                end
+                if occursin("Binomial", d) || occursin("Bernoulli", d)
+                    meta["task"] = "classification"
+                elseif occursin("Normal", d) || occursin("Gaussian", d)
+                    meta["task"] = "regression"
+                end
+            catch
+            end
+            try
+                cn = coefnames(obj)
+                feats = filter(x -> x != "(Intercept)", string.(cn))
+                if !isempty(feats)
+                    meta["n_features"] = length(feats)
+                    meta["features"] = feats
                 end
             catch
             end
@@ -2623,10 +2649,21 @@ function jl_save_meta(obj, path)
                     metrics["aic"] = Float64(aic(obj))
                 catch
                 end
+                try
+                    metrics["deviance"] = Float64(deviance(obj))
+                catch
+                end
+                try
+                    metrics["loglik"] = Float64(loglikelihood(obj))
+                catch
+                end
                 if !isempty(metrics)
                     meta["metrics"] = metrics
                 end
             catch
+            end
+            if haskey(meta, "task")
+                meta["kind"] = "model"
             end
         end
         open(path, "w") do f
