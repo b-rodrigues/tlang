@@ -196,6 +196,18 @@ Start of log:
 - [x] Test_bitwise_error: OK, scalar-only error hints strong
 - [x] Test_variables: OK, immutability := NA error propagation valid
 - [x] Test_functions: OK, lambda closure autoquote arity strong
+- [x] Test_strings: OK, 100+ tests unicode vector error cases strong
+- [x] Test_pipe: OK, pipe vs maybe-pipe error forward strong
+- [x] Test_ifelse: OK, minimal 3 tests valid
+- [x] Test_match: OK, pattern arms plus manual exhaustiveness checks justified
+- [x] Test_lists: OK, head tail slicing arity edge cases strong
+- [x] Test_dicts: OK, literal access missing key strong
+- [x] Test_builtins: OK, seq sum map filesystem path introspection strong
+- [x] Test_chrono: OK, dates plus manual yojson checks justified
+- [x] Test_rng: OK, sample slice_sample plus determinism env checks justified
+- [x] Test_shell: OK, shell escape run cd exit codes strong
+- [x] Test_lsp_support: OK, analyzer symbol table via OCaml predicates justified
+- [x] Test_sh_node: OK, sh runtime nix emission hermetic env strong
 
 ## Tracker Rule
 
@@ -206,4 +218,4 @@ For module-level progress, test-name can be `done`.
 Do not add text after this line.
 Update it after each test.
 
-LAST_REVIEWED: Test_functions.done [10/109]
+LAST_REVIEWED: Test_sh_node.done [22/109]
