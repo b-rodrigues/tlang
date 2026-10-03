@@ -116,7 +116,15 @@ let rec from_string str =
   | "lens" -> TCustom "Lens"
   (* Higher-order and selection vocabulary (`function`, `column`,
      `selection`, `keywordargs`, `expressions`): opaque contracts under
-     the nominal rule above. *)
+     the nominal rule above. `Function` is inhabited (lambdas and builtins
+     match it at value and static level). `Column`, `Selection`,
+     `KeywordArgs`, and `Expressions` are argument-shape words with no
+     value-level inhabitants: no builtin returns them (selection helpers
+     return `Function` or `List[String]`), so annotated bindings against
+     them reject everything but `Any`/`Unknown`/NA. That is intentional:
+     a permissive arm (e.g. `VBuiltin` matching `Selection`) would also
+     admit non-selections like `sum`. They document call shapes for
+     readers and future call checking, not checkable contracts today. *)
   | "function" -> TCustom "Function"
   | "column" -> TCustom "Column"
   | "selection" -> TCustom "Selection"

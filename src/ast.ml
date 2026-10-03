@@ -3153,6 +3153,14 @@ let rec is_compatible (v : value) (t : typ) : bool =
       List.for_all2 (fun (_, ev) et -> is_compatible ev et) items ts
   
   | VVector _, TList _ -> true (* Treat Vectors as compatible with List types for runtime checks *)
+  (* `Vector` annotations parse to `TCustom "Vector"` (the parser keeps the
+     spelling; see parser.mly `typ`). Vectors check as lists throughout
+     the static layer (`to_ast_typ` maps `TVector` onto `TList`), so the
+     runtime accepts both storage shapes here. Like the `TList` arm above
+     this is shape-only (element params do not survive parsing), and it
+     only ever turns a mismatch into a match. *)
+  | VVector _, TCustom "Vector" -> true
+  | VList _, TCustom "Vector" -> true
   | VNDArray _, TCustom "NDArray" -> true
   | VDataFrame _, TDataFrame _ -> true
   

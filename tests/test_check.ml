@@ -629,6 +629,8 @@ i = mutate_node(p, $noop = true, where = $runtime == "sh")
 f_ann: Function = \(x: Int -> Int) x + 1
 b_ann: Bool = str_detect("a", "a")
 l_ann: List[Bool] = str_detect(["a"], "a")
+dfv = to_dataframe([[s: ["a", "b"]]])
+v_ann: Vector[Bool] = str_detect(pull(dfv, $s), "a")
 |};
   close_out oc_fn;
   let cr_fn = Check_utils.run_check Typecheck.Strict tmp_fn env in
@@ -672,5 +674,7 @@ l_ann: List[Bool] = str_detect(["a"], "a")
     "f: Int = \\(x: Int -> Int) x\n" "expected Int, got Function";
   check_neg "annotated binding: union return against wrong member is rejected"
     "nn: Int = str_detect(\"a\", \"a\")\n" "expected Int, got Bool";
+  check_neg "annotated binding: list union return against wrong member names List"
+    "nn2: Int = str_detect([\"a\"], \"a\")\n" "expected Int, got List";
 
   Printf.printf "\n";;
