@@ -235,6 +235,26 @@ Start of log:
 - [x] Test_property_pipeline: OK, pipeline properties strong
 - [x] Test_reserved_names: OK, reserved word guards strong
 - [x] Test_fetchurl: OK, fetch prefetch pipeline serializers strong
+- [x] Test_dataframe: OK, 77 pass incl URL separator read
+- [x] Test_pipeline: OK, 286 pass provenance deps nix emission strong
+- [x] Test_shell_diff: OK, 34 pass shell quoting strong
+- [x] Test_julia_diff: OK, julia diff strong
+- [x] Test_strategy_closed: OK, closed strategy strong
+- [x] Test_colcraft: OK, 122 pass verbs vectorized strong
+- [x] Test_colcraft_coverage: OK, part of 220 pass batch
+- [x] Test_window: OK, part of 220 pass batch
+- [x] Test_math: OK, part of 220 pass batch
+- [x] Test_stats: OK, 200 pass batch with coverage
+- [x] Test_stats_coverage: OK, 200 pass batch with stats
+- [x] Test_pmml_random_forest: OK, part of 186 pass batch
+- [x] Test_pmml_io: OK, part of 186 pass batch
+- [x] Test_pmml_xgboost: OK, part of 186 pass batch
+- [x] Test_pmml_lightgbm: OK, part of 186 pass batch
+- [x] Test_onnx_native: OK, part of 186 pass batch
+- [x] Test_broom_golden: OK, part of 186 pass batch
+- [x] Test_explain_tests: REPAIRED, builtin arg name needed help(explain) to load docs, was order-dependent arg1 vs x
+- [x] Test_cli: OK, part of 186 pass batch
+- [x] Test_demo: OK, part of 186 pass batch
 
 ## Tracker Rule
 
@@ -245,4 +265,4 @@ For module-level progress, test-name can be `done`.
 Do not add text after this line.
 Update it after each test.
 
-LAST_REVIEWED: Test_fetchurl.done [49/109]
+LAST_REVIEWED: Test_demo.done [69/109]
