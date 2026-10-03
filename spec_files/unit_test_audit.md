@@ -255,6 +255,46 @@ Start of log:
 - [x] Test_explain_tests: REPAIRED, builtin arg name needed help(explain) to load docs, was order-dependent arg1 vs x
 - [x] Test_cli: OK, part of 186 pass batch
 - [x] Test_demo: OK, part of 186 pass batch
+- [x] Test_golden: OK, part of 169 pass batch
+- [x] Test_boolean_golden: OK, part of 169 pass batch
+- [x] Test_core_semantics: OK, part of 169 pass batch
+- [x] Test_arrow_integration: OK, part of 206 pass batch
+- [x] Test_owl_bridge: OK, part of 206 pass batch
+- [x] Test_arrow_performance: OK, 1M rows no OOM strong
+- [x] Test_colcraft_edge_cases: OK, part of 111 pass batch
+- [x] Test_window_edge_cases: OK, part of 111 pass batch
+- [x] Test_formula_edge_cases: OK, part of 111 pass batch
+- [x] Test_large_datasets: OK, part of 111 pass batch
+- [x] Test_error_recovery: OK, part of 111 pass batch
+- [x] Test_package_manager: OK, part of 337 pass batch
+- [x] Test_toml_parser: OK, part of 337 pass batch
+- [x] Test_lens: OK, part of 337 pass batch
+- [x] Test_serializers: OK, onnx placeholder throws descriptive error, no silent magic
+- [x] Test_quotation: OK, part of 337 pass batch
+- [x] Test_pipeline_ops: OK, part of 301 pass batch
+- [x] Test_explicit_deps: OK, part of 301 pass batch
+- [x] Test_pipeline_comments: OK, part of 301 pass batch
+- [x] Test_nix_emit: OK, part of 301 pass batch
+- [x] Test_import_file_from: OK, part of 301 pass batch
+- [x] Test_structural_integrity: OK, part of 151 pass batch
+- [x] Test_agent_scaffold: OK, part of 151 pass batch
+- [x] Test_coverage_boost: OK, part of 151 pass batch
+- [x] Test_misc_coverage: OK, intentional fail fixtures documented, strict pass
+- [x] Test_dataframe_diff: OK, part of 151 pass batch
+- [x] Test_model_diff: OK, part of 151 pass batch
+- [x] Test_scalar_diff: OK, part of 151 pass batch
+- [x] Test_generic_diff: OK, part of 151 pass batch
+- [x] Test_pipeline_diff: OK, part of 151 pass batch
+- [x] Test_builder_diff: OK, part of 151 pass batch
+- [x] Test_check: OK, part of 347 pass batch
+- [x] Test_fix: OK, part of 347 pass batch
+- [x] Test_ndjson: OK, part of 347 pass batch
+- [x] Test_model_accessors: OK, part of 347 pass batch
+- [x] Test_drop_na_and_factors: OK, part of 347 pass batch
+- [x] Test_factor_grouping: OK, part of 347 pass batch
+- [x] Test_chrono_components: OK, part of 347 pass batch
+- [x] Test_trig_hyperbolic: OK, part of 347 pass batch
+- [x] Test_misc_functions: OK, part of 347 pass batch
 
 ## Tracker Rule
 
@@ -265,4 +305,4 @@ For module-level progress, test-name can be `done`.
 Do not add text after this line.
 Update it after each test.
 
-LAST_REVIEWED: Test_demo.done [69/109]
+LAST_REVIEWED: Test_misc_functions.done [109/109]
