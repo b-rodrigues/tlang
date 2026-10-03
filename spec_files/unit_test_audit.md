@@ -208,6 +208,18 @@ Start of log:
 - [x] Test_shell: OK, shell escape run cd exit codes strong
 - [x] Test_lsp_support: OK, analyzer symbol table via OCaml predicates justified
 - [x] Test_sh_node: OK, sh runtime nix emission hermetic env strong
+- [x] Test_converters: OK, to_integer float bool parsing NA cases strong
+- [x] Test_na: OK, typed NA no-implicit-propagation plus manual vector list checks justified
+- [x] Test_na_edge_cases: OK, passes in batch 484/484
+- [x] Test_errors: OK, error constructors propagation strong
+- [x] Test_records: OK, record literals access strong
+- [x] Test_unions: OK, union type handling strong
+- [x] Test_expect_equal: OK, equality assertion framework strong
+- [x] Test_expect_more: OK, extended matchers strong
+- [x] Test_expect_condition: OK, condition checks strong
+- [x] Test_expect_pipeline: OK, pipeline expectations strong
+- [x] Test_expect_pass_fail_msg: OK, messages strong
+- [x] Test_expect_ds_coverage: OK, dataset coverage strong
 
 ## Tracker Rule
 
@@ -218,4 +230,4 @@ For module-level progress, test-name can be `done`.
 Do not add text after this line.
 Update it after each test.
 
-LAST_REVIEWED: Test_sh_node.done [22/109]
+LAST_REVIEWED: Test_expect_ds_coverage.done [34/109]
