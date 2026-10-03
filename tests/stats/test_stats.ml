@@ -1,4 +1,4 @@
-let run_tests pass_count fail_count failures _eval_string eval_string_env test test_env =
+let run_tests pass_count fail_count failures _eval_string eval_string_env test test_env _test_equal =
   Printf.printf "Phase 5 — Stats: mean():\n";
   test "mean of int list" "mean([1, 2, 3, 4, 5])" "3.";
   test "mean of float list" "mean([1.0, 2.0, 3.0])" "2.";

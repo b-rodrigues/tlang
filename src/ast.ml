@@ -3225,6 +3225,12 @@ let rec types_compatible a b =
   | TUnknown, _ -> true
   | TInt, TFloat -> true
   | TFloat, TInt -> false
+  (* A bare `Function` contract matches any function shape regardless of
+     arity: arity lives in `TArrow`, so comparing lengths here would reject
+     valid programs. This only ever turns a mismatch into a match, so it
+     cannot introduce new rejections. *)
+  | TCustom "Function", TArrow _ -> true
+  | TArrow _, TCustom "Function" -> true
   | TArrow (p1, r1), TArrow (p2, r2) ->
       List.length p1 = List.length p2 &&
       List.for_all2 types_compatible p1 p2 &&

@@ -1,5 +1,5 @@
 
-let run_tests pass_count fail_count _failures _eval_string eval_string_env test test_env =
+let run_tests pass_count fail_count _failures _eval_string eval_string_env test test_env _test_equal =
   (* Create test CSV file for Phase 2 tests *)
   let csv_path = "test_phase2.csv" in
   let oc = open_out csv_path in

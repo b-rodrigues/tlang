@@ -1159,7 +1159,7 @@ let strsplit_impl args _env =
 --# @name str_extract
 --# @param s :: String | List | Vector The input string(s).
 --# @param pattern :: String The regular expression to match.
---# @return :: String The first match, or NA when there is no match.
+--# @return :: String | List[String] | Vector[String] The first match, or NA when there is no match.
 --# @example
 --#   str_extract("abc123def", "[0-9]+")
 --#   -- Returns = "123"
@@ -1174,7 +1174,7 @@ let strsplit_impl args _env =
 --# @name str_extract_all
 --# @param s :: String | List | Vector The input string(s).
 --# @param pattern :: String The regular expression to match.
---# @return :: List[String] Every match, or an empty list when there is no match.
+--# @return :: List[String] | List[List[String]] | Vector[List[String]] Every match, or an empty list when there is no match.
 --# @example
 --#   str_extract_all("a1b22", "[0-9]+")
 --#   -- Returns = ["1", "22"]
@@ -1189,7 +1189,7 @@ let strsplit_impl args _env =
 --# @name str_detect
 --# @param s :: String | List | Vector The input string(s).
 --# @param pattern :: String The regular expression to test.
---# @return :: Bool True when the pattern matches.
+--# @return :: Bool | List[Bool] | Vector[Bool] True when the pattern matches.
 --# @example
 --#   str_detect("abc", "^[a-z]+$")
 --#   -- Returns = true
@@ -1208,7 +1208,7 @@ let strsplit_impl args _env =
 --# @param width :: Int The target character width (non-negative).
 --# @param side :: String [Optional] One of "left", "right", or "both". Defaults to "left".
 --# @param pad :: String [Optional] The padding text. Defaults to " ".
---# @return :: String The padded string.
+--# @return :: String | List[String] | Vector[String] The padded string.
 --# @example
 --#   str_pad("7", 3, side = "left", pad = "0")
 --#   -- Returns = "007"
@@ -1227,7 +1227,7 @@ let strsplit_impl args _env =
 --# @param width :: Int The maximum character width (non-negative).
 --# @param side :: String [Optional] One of "left", "right", or "center". Defaults to "right".
 --# @param ellipsis :: String [Optional] The ellipsis marker. Defaults to "...".
---# @return :: String The truncated string.
+--# @return :: String | List[String] | Vector[String] The truncated string.
 --# @example
 --#   str_trunc("abcdefgh", 5)
 --#   -- Returns = "ab..."
@@ -1257,7 +1257,7 @@ let strsplit_impl args _env =
 --# @name str_count
 --# @param s :: String | List | Vector The input string(s).
 --# @param pattern :: String The regular expression to count.
---# @return :: Int The number of matches.
+--# @return :: Int | List[Int] | Vector[Int] The number of matches.
 --# @example
 --#   str_count("banana", "a")
 --#   -- Returns = 3

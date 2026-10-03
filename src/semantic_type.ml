@@ -94,13 +94,17 @@ let rec from_string str =
   | "to_dataframe" | "table" | "dataframe" -> TDataFrame []
   | "any" | "value" | "all" | "mixed" | "..." -> TAny
   (* Nominal domain types, canonicalized to the annotation spelling
-     (annotations preserve case, so `Model` must stay `Model`). These only
-     ever match themselves (or Any), so they add precision without new
-     mismatch classes: a misspelled name simply never matches a real
-     annotation. Deliberately excluded: Error/VError/Null (descriptive
-     positions, not contracts), NA (bottom rules own it). `Function`,
-     `Column`, `Selection`, `KeywordArgs`, and `Expressions` map below to
-     opaque nominals for the same reason. *)
+     (annotations preserve case, so `Model` must stay `Model`). Unification
+     rule: a nominal matches only itself, `Any`, `Unknown`, or a type
+     variable — except `Function`, which also matches any `TArrow`
+     regardless of arity (see `Ast.types_compatible`), because arity lives
+     in the arrow and a bare `Function` name cannot name one. They add
+     precision without new mismatch classes: a misspelled name simply
+     never matches a real annotation. Call-site checking stays absent by
+     design (the analyzer has no call checking), so these contracts
+     document and display but never reject a call. Deliberately excluded:
+     Error/VError/Null (descriptive positions, not contracts) and NA
+     (bottom rules own it). *)
   | "pipeline" -> TCustom "Pipeline"
   | "metapipeline" -> TCustom "MetaPipeline"
   | "model" -> TCustom "Model"
@@ -110,12 +114,9 @@ let rec from_string str =
   | "datetime" -> TCustom "Datetime"
   | "formula" -> TCustom "Formula"
   | "lens" -> TCustom "Lens"
-  (* Higher-order and selection vocabulary. These name opaque contracts
-     (a function value, a column reference, an NSE selection, keyword
-     metadata, unevaluated expressions) rather than shapes the checker
-     decomposes, so they map to nominal customs that match only
-     themselves (or Any). Deliberately still excluded: Error/VError/Null
-     (descriptive positions, not contracts) and NA (bottom rules own it). *)
+  (* Higher-order and selection vocabulary (`function`, `column`,
+     `selection`, `keywordargs`, `expressions`): opaque contracts under
+     the nominal rule above. *)
   | "function" -> TCustom "Function"
   | "column" -> TCustom "Column"
   | "selection" -> TCustom "Selection"

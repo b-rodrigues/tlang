@@ -129,6 +129,29 @@ let test_env env name input expected =
     Printf.printf "%s" msg
   end
 
+(* Exact equality: like `test_env` but with no substring fallback.
+   Use for value results where a substring would also match a wrong
+   answer (e.g. expected "5" also matches "-5"). Keep `test_env` for
+   error substrings. *)
+let test_equal env name input expected =
+  let result = try
+    let (v, _) = eval_string_env input env in
+    Ast.Utils.value_to_string v
+  with e ->
+    Printf.sprintf "EXCEPTION: %s" (Printexc.to_string e)
+  in
+  let result_norm = strip_location result in
+  let expected_norm = strip_location expected in
+  if result_norm = expected_norm then begin
+    incr pass_count;
+    Printf.printf "  ✓ %s\n" name
+  end else begin
+    incr fail_count;
+    let msg = Printf.sprintf "  ✗ %s\n    Expected (exact): %s\n    Got:                %s\n" name expected result in
+    failures := msg :: !failures;
+    Printf.printf "%s" msg
+  end
+
 let () =
   Printf.printf "\n=== T Language Tests ===\n";
   if strict_mode then Printf.printf "(strict mode enabled)\n";
@@ -141,7 +164,7 @@ let () =
 
   let run_with_env name fn =
     if matches_filter name then
-      run_module name (fun () -> fn pass_count fail_count failures eval_string eval_string_env test test_env)
+      run_module name (fun () -> fn pass_count fail_count failures eval_string eval_string_env test test_env test_equal)
   in
 
   (* Core tests *)

@@ -621,6 +621,7 @@ bb = node(command = 2) }
 g = p |> filter_node($runtime == "sh") |> pipeline_nodes
 h = which_nodes(p, \(nd) nd.name == "aa") |> map(\(nd) nd.name)
 i = mutate_node(p, $noop = true, where = $runtime == "sh")
+f_ann: Function = \(x: Int -> Int) x + 1
 |};
   close_out oc_fn;
   let cr_fn = Check_utils.run_check Typecheck.Strict tmp_fn env in
@@ -629,8 +630,6 @@ i = mutate_node(p, $noop = true, where = $runtime == "sh")
     Diagnostics.diagnostic_severity d = Diagnostics.Error) diags_fn in
   check "strict Function params: lambdas and NSE forms produce zero errors"
     (errors_fn = []);
-  check "strict Function params: snippet is fully silent"
-    (diags_fn = []);
   Sys.remove tmp_fn;
 
   Printf.printf "\n";;

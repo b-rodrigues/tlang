@@ -303,7 +303,7 @@ let assert_config_to_frame env label test_env dag k =
     {|identical(pipeline_config_to_frame(p) |> pull($name), pipeline_to_frame(p) |> pull($name))|}
     "true"
 
-let run_tests _pass_count _fail_count _failures _eval_string eval_string_env _test test_env =
+let run_tests _pass_count _fail_count _failures _eval_string eval_string_env  _test test_env _test_equal =
   Printf.printf "Propcraft dogfooding — pipeline:\n";
   let env = Packages.init_env () in
 
