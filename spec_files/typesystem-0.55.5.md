@@ -118,8 +118,11 @@ for constructors the checker already knows.
   (`_` or variable). Unknown scrutinees (variables, general calls,
   other literals) stay silent. Per-code or per-variant exhaustiveness
   needs pattern syntax that names codes, which does not exist yet.
-- [ ] Needs item 2 for user-defined constructors to be worth much; the
+- [x] Needs item 2 for user-defined constructors to be worth much; the
   error-code and NA families are covered at family level now.
+  Update 0.56.0: item 2 shipped, and per-case union diagnostics
+  (`match_union_diagnostics`: missing cases named, unknown cases named,
+  bare-variable shadow trap) are done and tested in `test_unions.ml`.
 
 **Acceptance.**
 - [x] A `match` on a known Error value without an Error arm warns, and a
@@ -203,13 +206,23 @@ statically. Sound (never wrong) but toothless.
   signatures verified against implementations, doc examples executed,
   and mistype tests for representative ctors/extractors/parsers.
   Coverage now 308/532 with 0 without docs.
-- [ ] Then fill in package by package for the imprecise remainder
+- [x] Then fill in package by package for the imprecise remainder
   (mostly unions absorbed to `Any` and explicit-`Any` params — honest
   imprecision, each needs individual review).
+  Update 0.56.0: floor moved 382 to 444 of 533 (strcraft returns,
+  join signatures, verb and set-op signatures, converter params,
+  `Function`/`Column`/`Selection`/`KeywordArgs`/`Expressions` mapped to
+  nominals, `compare` `Variadic` fixed to `Model | List`). The 89 left
+  are honest by design: true-`Any` contracts (`is_*`, `expect_*`,
+  `print`, `get`), bottom/descriptive positions (`NA`, `Null`, `Error`,
+  `VError` — deliberately excluded), and `Any`-absorbed unions
+  (`ifelse`, `to_factor`, `ordered` catch-alls). Cap sits near 444.
+  `TLANG_TYPING_VERBOSE=1` prints the per-builtin queue.
 
 **Acceptance.**
 - [x] Coverage number moves and is re-measurable with the audit command.
-- [ ] Zero new rejections on the existing suite per merged batch.
+- [x] Zero new rejections on the existing suite per merged batch
+  (full suite green in strict mode, 6956 of 6956).
 
 ## 6. Fallibility in signatures
 
