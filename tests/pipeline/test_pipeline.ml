@@ -1615,7 +1615,15 @@ p_cross = pipeline {
           contains_substring nix "jl_visual_class(__node_result)" &&
           contains_substring nix "jl_save_viz_metadata(__node_result, joinpath(ENV[\"out\"], \"viz\"))"
         in
-        if has_r_plot_helpers && has_py_plot_helpers && has_jl_plot_helpers then begin
+        let has_meta_helpers =
+          contains_substring nix "r_save_meta <- function(object, path)" &&
+          contains_substring nix "def py_save_meta(obj, path):" &&
+          contains_substring nix "function jl_save_meta(obj, path)" &&
+          contains_substring nix "r_save_meta(node_result" &&
+          contains_substring nix "py_save_meta(__node_result" &&
+          contains_substring nix "jl_save_meta(__node_result"
+        in
+        if has_r_plot_helpers && has_py_plot_helpers && has_jl_plot_helpers && has_meta_helpers then begin
          incr pass_count; Printf.printf "  ✓ pipeline emits plot metadata helpers for R, Python, and Julia nodes\n"
         end else begin
           incr fail_count; Printf.printf "  ✗ plot metadata helper emission failed\n"

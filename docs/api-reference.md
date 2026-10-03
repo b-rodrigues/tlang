@@ -4387,6 +4387,21 @@ node_info = explain(read_node("model"))
 node_info.node_name       -- node/container metadata
 node_info.diagnostics     -- node diagnostics
 node_info.contents        -- explained node payload
+
+-- Computed pipeline nodes (R, Python, Julia) carry build-time metadata:
+node = explain(p.fit)
+node.foreign_meta.kind        -- "dataframe", "model", or "other"
+node.foreign_meta.nrow        -- frame row count (frames)
+node.foreign_meta.ncol        -- frame column count (frames)
+node.foreign_meta.n_obs       -- training row count (models)
+node.foreign_meta.n_features  -- input count (models)
+node.foreign_meta.target      -- response name (models, when known)
+node.foreign_meta.formula     -- full model formula (R models, when known)
+node.foreign_meta.features    -- full feature/column list
+node.foreign_meta.metrics     -- free metrics (r_squared, aic, bic, ...)
+node.foreign_meta.artifact_size -- artifact file size in bytes
+-- Tree display shows short previews (`features_preview`, `formula_preview`);
+-- dot access returns the full values. Absent when the node is unbuilt (NA).
 ```
 
 ---

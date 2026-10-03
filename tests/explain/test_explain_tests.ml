@@ -222,4 +222,121 @@ let run_tests _pass_count _fail_count _failures _eval_string eval_string_env tes
   test "explain available" {|type(explain(42))|}  {|"Dict"|};
   test "intent_fields available" {|i = intent { a: "1" }; type(intent_fields(i))|} {|"Dict"|};
   test "intent_get available" {|i = intent { a: "1" }; intent_get(i, "a")|} {|"1"|};
+  print_newline ();
+
+  Printf.printf "Phase 6 — Explain: Foreign Meta (unbuilt node):\n";
+  test "explain unbuilt node foreign_meta is NA"
+    {|p_fm = pipeline { x = 1 }; e_fm = explain(p_fm.x); type(e_fm.foreign_meta)|}
+    {|"NA"|};
+  print_newline ();
+
+  Printf.printf "Phase 6 — Explain: Foreign Meta (meta sidecar):\n";
+  let meta_base = Filename.concat (Filename.get_temp_dir_name ()) "tlang-explain-foreign-meta" in
+  (try Unix.mkdir meta_base 0o755 with Unix.Unix_error (Unix.EEXIST, _, _) -> ());
+  let make_node_dir name =
+    let dir = Filename.concat meta_base name in
+    (try Unix.mkdir dir 0o755 with Unix.Unix_error (Unix.EEXIST, _, _) -> ());
+    dir
+  in
+  let write_file path content =
+    let oc = open_out path in
+    Fun.protect ~finally:(fun () -> close_out_noerr oc)
+      (fun () -> output_string oc content)
+  in
+  let fake_cn ~name ~runtime ~path ~class_ =
+    { Ast.cn_name = name; cn_runtime = runtime; cn_path = path;
+      cn_serializer = "default"; cn_class = class_; cn_dependencies = [];
+      cn_p_exprs = None; cn_flake = None; cn_config = None }
+  in
+  (* R model node with a full meta sidecar *)
+  let model_dir = make_node_dir "fake-r-model" in
+  write_file (Filename.concat model_dir "artifact") "0123456789";
+  write_file (Filename.concat model_dir "meta")
+    {|{"kind":"model","class":"lm","task":"regression","n_obs":32,"n_features":2,"target":"mpg","features":["wt","hp"],"formula":"mpg ~ wt + hp","metrics":{"r_squared":0.82,"aic":150.5}}|};
+  let env_fm_model =
+    Ast.Env.add "fake_r_model"
+      (Ast.VComputedNode (fake_cn ~name:"fake_r_model_foreign_meta_test" ~runtime:"R"
+        ~path:(Filename.concat model_dir "artifact") ~class_:"lm"))
+      (Packages.init_env ())
+  in
+  test_env env_fm_model "explain foreign meta model kind"
+    "explain(fake_r_model).foreign_meta.kind"
+    {|"model"|};
+  test_env env_fm_model "explain foreign meta model task"
+    "explain(fake_r_model).foreign_meta.task"
+    {|"regression"|};
+  test_env env_fm_model "explain foreign meta model n_obs"
+    "explain(fake_r_model).foreign_meta.n_obs"
+    "32";
+  test_env env_fm_model "explain foreign meta model n_features"
+    "explain(fake_r_model).foreign_meta.n_features"
+    "2";
+  test_env env_fm_model "explain foreign meta model target"
+    "explain(fake_r_model).foreign_meta.target"
+    {|"mpg"|};
+  test_env env_fm_model "explain foreign meta model formula (full)"
+    "explain(fake_r_model).foreign_meta.formula"
+    {|"mpg ~ wt + hp"|};
+  test_env env_fm_model "explain foreign meta model features count"
+    "length(explain(fake_r_model).foreign_meta.features)"
+    "2";
+  test_env env_fm_model "explain foreign meta model features preview"
+    "explain(fake_r_model).foreign_meta.features_preview"
+    {|"[\"wt\", \"hp\"]"|};
+  test_env env_fm_model "explain foreign meta model metric"
+    "explain(fake_r_model).foreign_meta.metrics.r_squared"
+    "0.82";
+  test_env env_fm_model "explain foreign meta artifact size"
+    "explain(fake_r_model).foreign_meta.artifact_size"
+    "10";
+  (* DataFrame node with six columns: preview truncates, full list is kept *)
+  let df_dir = make_node_dir "fake-py-frame" in
+  write_file (Filename.concat df_dir "artifact") "0123456789";
+  write_file (Filename.concat df_dir "meta")
+    {|{"kind":"dataframe","nrow":100,"ncol":6,"features":["a","b","c","d","e","f"]}|};
+  let env_fm_df =
+    Ast.Env.add "fake_py_frame"
+      (Ast.VComputedNode (fake_cn ~name:"fake_py_frame_foreign_meta_test" ~runtime:"Python"
+        ~path:(Filename.concat df_dir "artifact") ~class_:"DataFrame"))
+      (Packages.init_env ())
+  in
+  test_env env_fm_df "explain foreign meta frame shape"
+    "explain(fake_py_frame).foreign_meta.nrow"
+    "100";
+  test_env env_fm_df "explain foreign meta frame features count"
+    "length(explain(fake_py_frame).foreign_meta.features)"
+    "6";
+  test_env env_fm_df "explain foreign meta frame features preview truncates"
+    "explain(fake_py_frame).foreign_meta.features_preview"
+    "+3 more";
+  (* Long formula: preview truncates at 80 chars, full value is kept *)
+  let long_dir = make_node_dir "fake-long-formula" in
+  write_file (Filename.concat long_dir "artifact") "0123456789";
+  let long_formula = "y ~ " ^ String.make 100 'x' in
+  write_file (Filename.concat long_dir "meta")
+    (Printf.sprintf {|{"kind":"model","formula":%s}|} (Printf.sprintf "%S" long_formula));
+  let env_fm_long =
+    Ast.Env.add "fake_long_model"
+      (Ast.VComputedNode (fake_cn ~name:"fake_long_foreign_meta_test" ~runtime:"R"
+        ~path:(Filename.concat long_dir "artifact") ~class_:"lm"))
+      (Packages.init_env ())
+  in
+  test_env env_fm_long "explain foreign meta long formula keeps full text"
+    "str_nchar(explain(fake_long_model).foreign_meta.formula)"
+    "104";
+  test_env env_fm_long "explain foreign meta long formula preview truncates"
+    "explain(fake_long_model).foreign_meta.formula_preview"
+    "...";
+  (* Artifact without a meta sidecar: only artifact_size is reported *)
+  let bare_dir = make_node_dir "fake-bare-node" in
+  write_file (Filename.concat bare_dir "artifact") "0123456789";
+  let env_fm_bare =
+    Ast.Env.add "fake_bare_node"
+      (Ast.VComputedNode (fake_cn ~name:"fake_bare_foreign_meta_test" ~runtime:"Julia"
+        ~path:(Filename.concat bare_dir "artifact") ~class_:"DataFrame"))
+      (Packages.init_env ())
+  in
+  test_env env_fm_bare "explain foreign meta without sidecar keeps artifact size"
+    "explain(fake_bare_node).foreign_meta.artifact_size"
+    "10";
   print_newline ()

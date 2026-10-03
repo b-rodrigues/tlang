@@ -21,6 +21,9 @@ let contains_sub s sub =
 --# Returns a dictionary describing the structure and content of a value.
 --# Node results from `read_node(...)` are wrapped with node metadata and
 --# expose the explained payload under `contents`.
+--# Computed pipeline nodes (e.g. `p.node`) also expose `foreign_meta` with
+--# shape facts from the build-time `meta` sidecar (nrow/ncol for frames,
+--# n_obs/n_features/formula/metrics for models), or NA when absent.
 --#
 --# @name explain
 --# @param x :: Any The value to explain.
@@ -48,6 +51,140 @@ let register ?(ensure_docs=ignore) env =
       | None -> List.map fst fields
     in
     VDict (fields @ [("_display_keys", make_display_keys keys)])
+  in
+  (* Foreign-node metadata sidecar (`$out/meta`, written at build time by
+     r_save_meta / py_save_meta / jl_save_meta). Best effort: a missing or
+     malformed file yields no fields, never an error. Full `features` and
+     `formula` values stay in the dict; the tree display only shows the
+     `features_preview` / `formula_preview` short forms. *)
+  let meta_path_of_cn cn =
+    if cn.cn_path = "" || cn.cn_path = Ast.unbuilt_path then None
+    else Some (Filename.concat (Filename.dirname cn.cn_path) "meta")
+  in
+  let read_small_file path =
+    try
+      let ch = open_in path in
+      Fun.protect ~finally:(fun () -> close_in_noerr ch)
+        (fun () ->
+          let n = in_channel_length ch in
+          if n > 1048576 then None
+          else Some (really_input_string ch n))
+    with _ -> None
+  in
+  let meta_pairs_of_cn cn =
+    match meta_path_of_cn cn with
+    | None -> []
+    | Some path ->
+        (match read_small_file path with
+         | None -> []
+         | Some s ->
+             (match (try Some (Yojson.Safe.from_string s) with _ -> None) with
+              | Some (`Assoc pairs) -> pairs
+              | Some _ -> []
+              | None -> []))
+  in
+  let assoc_string key pairs =
+    match List.assoc_opt key pairs with
+    | Some (`String s) -> Some s
+    | Some _ -> None
+    | None -> None
+  in
+  let assoc_int key pairs =
+    match List.assoc_opt key pairs with
+    | Some (`Int i) -> Some i
+    | Some (`Intlit s) -> (try Some (int_of_string s) with _ -> None)
+    | Some (`Float f) -> Some (int_of_float f)
+    | Some _ -> None
+    | None -> None
+  in
+  let assoc_string_list key pairs =
+    match List.assoc_opt key pairs with
+    | Some (`List items) ->
+        let names = List.filter_map (function `String s -> Some s | _ -> None) items in
+        (match names with [] -> None | _ -> Some names)
+    | Some _ -> None
+    | None -> None
+  in
+  let assoc_metrics pairs =
+    match List.assoc_opt "metrics" pairs with
+    | Some (`Assoc m) ->
+        let fields = List.filter_map (fun (k, v) ->
+          match v with
+          | `Float f -> Some (k, VFloat f)
+          | `Int i -> Some (k, VInt i)
+          | `Intlit s -> (try Some (k, VInt (int_of_string s)) with _ -> None)
+          | `String s -> Some (k, VString s)
+          | _ -> None) m in
+        (match fields with [] -> None | _ -> Some fields)
+    | Some _ -> None
+    | None -> None
+  in
+  let truncate_string n s =
+    if String.length s > n then String.sub s 0 n ^ "..." else s
+  in
+  let features_preview_of names =
+    match names with
+    | [] -> "[]"
+    | _ when List.length names <= 4 ->
+        "[" ^ String.concat ", " (List.map (fun s -> "\"" ^ s ^ "\"") names) ^ "]"
+    | _ ->
+        let rec take n acc rest =
+          match n, rest with
+          | 0, _ -> (List.rev acc, rest)
+          | _, [] -> (List.rev acc, [])
+          | _, x :: xs -> take (n - 1) (x :: acc) xs
+        in
+        let (first, rest) = take 3 [] names in
+        "[" ^ String.concat ", " (List.map (fun s -> "\"" ^ s ^ "\"") first)
+        ^ Printf.sprintf ", ... +%d more]" (List.length rest)
+  in
+  let foreign_meta_of_cn cn =
+    let pairs = meta_pairs_of_cn cn in
+    let fields = ref [] in
+    let add k v = fields := (k, v) :: !fields in
+    (match assoc_string "kind" pairs with Some k -> add "kind" (VString k) | None -> ());
+    let class_opt =
+      match assoc_string "class" pairs with
+      | Some c -> Some c
+      | None ->
+          if cn.cn_class <> "" && cn.cn_class <> "Unknown" then Some cn.cn_class
+          else None
+    in
+    (match class_opt with Some c -> add "class" (VString c) | None -> ());
+    (match assoc_string "task" pairs with Some t -> add "task" (VString t) | None -> ());
+    (match assoc_int "nrow" pairs with Some n -> add "nrow" (VInt n) | None -> ());
+    (match assoc_int "ncol" pairs with Some n -> add "ncol" (VInt n) | None -> ());
+    (match assoc_int "n_obs" pairs with Some n -> add "n_obs" (VInt n) | None -> ());
+    (match assoc_int "n_features" pairs with Some n -> add "n_features" (VInt n) | None -> ());
+    (match assoc_string "target" pairs with Some t -> add "target" (VString t) | None -> ());
+    (match assoc_string_list "features" pairs with
+     | Some names ->
+         add "features" (VList (List.map (fun s -> (None, VString s)) names));
+         add "features_preview" (VString (features_preview_of names))
+     | None -> ());
+    (match assoc_string "formula" pairs with
+     | Some f when String.length f > 0 ->
+         add "formula" (VString f);
+         add "formula_preview" (VString (truncate_string 80 f))
+     | Some _ -> ()
+     | None -> ());
+    (* Metrics accept numbers only; anything else is dropped, never an error. *)
+    (match assoc_metrics pairs with Some m -> add "metrics" (VDict m) | None -> ());
+    (match cn.cn_path with
+     | "" -> ()
+     | p ->
+         (try
+            if Sys.file_exists p && not (Sys.is_directory p) then
+              add "artifact_size" (VInt (Unix.stat p).Unix.st_size)
+          with _ -> ()));
+    let ordered = List.rev !fields in
+    match ordered with
+    | [] -> VNA NAGeneric
+    | _ ->
+        let display = ["kind"; "class"; "task"; "nrow"; "ncol"; "n_obs"; "n_features";
+                       "target"; "features_preview"; "formula_preview"; "metrics"; "artifact_size"] in
+        let shown = List.filter (fun k -> List.mem_assoc k ordered) display in
+        make_explain_dict ~display_keys:shown ordered
   in
   let rec do_explain v =
     match v with
@@ -504,6 +641,7 @@ let register ?(ensure_docs=ignore) env =
           ("class", VString cn.cn_class);
           ("dependencies", VList (List.map (fun d -> (None, VString d)) cn.cn_dependencies));
           ("config", config_value);
+          ("foreign_meta", foreign_meta_of_cn cn);
         ]
     | VNode un ->
         make_explain_dict [

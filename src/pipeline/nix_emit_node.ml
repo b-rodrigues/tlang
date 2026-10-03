@@ -1635,6 +1635,70 @@ r_save_viz_metadata <- function(object, path) {
   jsonlite::write_json(metadata, path, auto_unbox = TRUE, null = "null")
   TRUE
 }
+
+r_save_meta <- function(object, path) {
+  tryCatch({
+    meta <- list()
+    cls <- tryCatch(as.character(class(object)[1]), error = function(e) NULL)
+    if (!is.null(cls) && length(cls) == 1 && !is.na(cls) && nzchar(cls)) meta$class <- cls
+    if (is.data.frame(object)) {
+      meta$kind <- "dataframe"
+      meta$nrow <- nrow(object)
+      meta$ncol <- ncol(object)
+      nms <- tryCatch(names(object), error = function(e) NULL)
+      if (!is.null(nms)) meta$features <- as.list(as.character(nms))
+    } else if (!is.null(dim(object)) && length(dim(object)) == 2) {
+      meta$kind <- "matrix"
+      meta$nrow <- dim(object)[1]
+      meta$ncol <- dim(object)[2]
+    } else if (inherits(object, "lm") || inherits(object, "glm")) {
+      meta$kind <- "model"
+      fam <- tryCatch(object$family$family, error = function(e) NULL)
+      if (is.null(fam)) fam <- tryCatch(stats::family(object)$family, error = function(e) NULL)
+      if (!is.null(fam) && length(fam) == 1 && !is.na(fam) && fam == "binomial") {
+        meta$task <- "classification"
+      } else {
+        meta$task <- "regression"
+      }
+      no <- tryCatch(stats::nobs(object), error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- as.integer(no)
+      cf <- tryCatch(stats::coef(object), error = function(e) NULL)
+      if (!is.null(cf)) {
+        nms <- names(cf)
+        if (!is.null(nms)) {
+          feats <- nms[!is.na(nms) & nms != "(Intercept)"]
+          meta$n_features <- length(feats)
+          meta$features <- as.list(feats)
+        } else {
+          meta$n_features <- length(cf)
+        }
+      }
+      fm <- tryCatch(stats::formula(object), error = function(e) NULL)
+      if (!is.null(fm)) {
+        meta$formula <- paste(deparse(fm), collapse = " ")
+        fch <- tryCatch(as.character(fm), error = function(e) NULL)
+        if (!is.null(fch) && length(fch) == 3 && !is.na(fch[2]) && nzchar(fch[2])) meta$target <- fch[2]
+      }
+      metrics <- list()
+      s <- tryCatch(summary(object), error = function(e) NULL)
+      if (!is.null(s)) {
+        if (!is.null(s$r.squared) && length(s$r.squared) == 1 && !is.na(s$r.squared)) metrics$r_squared <- as.numeric(s$r.squared)
+        if (!is.null(s$adj.r.squared) && length(s$adj.r.squared) == 1 && !is.na(s$adj.r.squared)) metrics$adj_r_squared <- as.numeric(s$adj.r.squared)
+      }
+      aic <- tryCatch(stats::AIC(object), error = function(e) NULL)
+      if (!is.null(aic) && length(aic) == 1 && !is.na(aic)) metrics$aic <- as.numeric(aic)
+      bic <- tryCatch(stats::BIC(object), error = function(e) NULL)
+      if (!is.null(bic) && length(bic) == 1 && !is.na(bic)) metrics$bic <- as.numeric(bic)
+      if (length(metrics) > 0) meta$metrics <- metrics
+    } else {
+      meta$kind <- "other"
+    }
+    jsonlite::write_json(meta, path, auto_unbox = TRUE, null = "null")
+  }, error = function(e) {
+    try(jsonlite::write_json(list(kind = "unknown"), path, auto_unbox = TRUE), silent = TRUE)
+  })
+  invisible(NULL)
+}
 |} in
 
   let visualization_py_code = {|
@@ -1811,6 +1875,97 @@ def py_save_viz_metadata(obj, path):
     if metadata is not None:
         with open(path, "w") as f:
             json.dump(metadata, f)
+
+def py_save_meta(obj, path):
+    try:
+        import json as _tlang_json
+        meta = {}
+        cls = type(obj)
+        meta["class"] = cls.__name__
+        mod = getattr(cls, "__module__", "") or ""
+        shape = getattr(obj, "shape", None)
+        if (mod.startswith("pandas") or mod.startswith("polars")) and shape is not None:
+            try:
+                if len(shape) == 2:
+                    meta["kind"] = "dataframe"
+                    meta["nrow"] = int(shape[0])
+                    meta["ncol"] = int(shape[1])
+                    try:
+                        meta["features"] = [str(c) for c in list(obj.columns)]
+                    except Exception:
+                        pass
+                else:
+                    meta["kind"] = "other"
+            except Exception:
+                meta["kind"] = "other"
+        elif mod.startswith("sklearn"):
+            meta["kind"] = "model"
+            est_type = None
+            try:
+                tags_fn = getattr(obj, "__sklearn_tags__", None)
+                if callable(tags_fn):
+                    est_type = getattr(tags_fn(), "estimator_type", None)
+            except Exception:
+                est_type = None
+            if est_type is None:
+                try:
+                    est_type = getattr(obj, "_estimator_type", None)
+                except Exception:
+                    est_type = None
+            if est_type == "classifier":
+                meta["task"] = "classification"
+            elif est_type == "regressor":
+                meta["task"] = "regression"
+            elif est_type == "clusterer":
+                meta["task"] = "clustering"
+            n_feat = getattr(obj, "n_features_in_", None)
+            if n_feat is not None:
+                try:
+                    meta["n_features"] = int(n_feat)
+                except Exception:
+                    pass
+            else:
+                try:
+                    coef = getattr(obj, "coef_", None)
+                    if coef is not None:
+                        cshape = getattr(coef, "shape", None)
+                        if cshape is not None and len(cshape) >= 1:
+                            meta["n_features"] = int(cshape[-1])
+                except Exception:
+                    pass
+            try:
+                feats = getattr(obj, "feature_names_in_", None)
+                if feats is not None:
+                    meta["features"] = [str(f) for f in list(feats)]
+            except Exception:
+                pass
+            try:
+                classes = getattr(obj, "classes_", None)
+                if classes is not None:
+                    meta.setdefault("metrics", {})["n_classes"] = int(len(list(classes)))
+            except Exception:
+                pass
+        elif shape is not None:
+            try:
+                if len(shape) == 2:
+                    meta["kind"] = "matrix"
+                    meta["nrow"] = int(shape[0])
+                    meta["ncol"] = int(shape[1])
+                else:
+                    meta["kind"] = "other"
+            except Exception:
+                meta["kind"] = "other"
+        else:
+            meta["kind"] = "other"
+        with open(path, "w") as f:
+            _tlang_json.dump(meta, f)
+    except Exception:
+        try:
+            import json as _tlang_json2
+            with open(path, "w") as f:
+                _tlang_json2.dump({"kind": "unknown"}, f)
+        except Exception:
+            pass
 |} in
 
   let visualization_jl_code = {|
@@ -2222,6 +2377,78 @@ function jl_save_viz_metadata(obj, path)
     true
 end
 
+function jl_save_meta(obj, path)
+    try
+        meta = Dict{String, Any}()
+        meta["class"] = string(typeof(obj))
+        if obj isa AbstractDataFrame
+            meta["kind"] = "dataframe"
+            meta["nrow"] = nrow(obj)
+            meta["ncol"] = ncol(obj)
+            try
+                meta["features"] = string.(names(obj))
+            catch
+            end
+        elseif obj isa AbstractArray && ndims(obj) == 2
+            s = size(obj)
+            meta["kind"] = "matrix"
+            meta["nrow"] = s[1]
+            meta["ncol"] = s[2]
+        else
+            meta["kind"] = "other"
+            try
+                meta["n_obs"] = Int(nobs(obj))
+            catch
+            end
+            try
+                f = try
+                    obj.formula
+                catch
+                    try
+                        obj.mf.f.formula
+                    catch
+                        nothing
+                    end
+                end
+                if f !== nothing
+                    meta["formula"] = string(f)
+                    try
+                        meta["target"] = string(f.lhs)
+                    catch
+                    end
+                end
+            catch
+            end
+            try
+                metrics = Dict{String, Any}()
+                try
+                    metrics["r_squared"] = Float64(r2(obj))
+                catch
+                end
+                try
+                    metrics["aic"] = Float64(aic(obj))
+                catch
+                end
+                if !isempty(metrics)
+                    meta["metrics"] = metrics
+                end
+            catch
+            end
+        end
+        open(path, "w") do f
+            JSON.print(f, meta)
+        end
+    catch
+        try
+            open(path, "w") do f
+                JSON.print(f, Dict("kind" => "unknown"))
+            end
+        catch
+        end
+    end
+    nothing
+end
+
 mutable struct TlangNamespace
     dict::Dict{Symbol, Any}
 end
@@ -2485,35 +2712,45 @@ EOF|} k (Nix_utils.nix_escape_indented_code expr_str)
 
   let r_emit_artifact value_name =
     let viz_call = Printf.sprintf "  r_save_viz_metadata(%s, file.path(Sys.getenv('out'), 'viz'))" value_name in
+    let meta_call = Printf.sprintf "  r_save_meta(%s, file.path(Sys.getenv('out'), 'meta'))" value_name in
     let artifact_path = "file.path(Sys.getenv('out'), 'artifact')" in
     if uses_default_serializer then
       Printf.sprintf {|%s
-  %s(%s, %s)|} viz_call ser_call value_name artifact_path
+  %s(%s, %s)
+%s|} viz_call ser_call value_name artifact_path meta_call
     else
-      Printf.sprintf {|  %s(%s, %s)|} ser_call value_name artifact_path
+      Printf.sprintf {|  %s(%s, %s)
+%s|} ser_call value_name artifact_path meta_call
   in
 
   let py_emit_artifact value_name =
     let viz_call = Printf.sprintf "    py_save_viz_metadata(%s, os.path.join(os.environ['out'], 'viz'))" value_name in
+    let meta_call = Printf.sprintf "    py_save_meta(%s, os.path.join(os.environ['out'], 'meta'))" value_name in
     let artifact_path = "os.path.join(os.environ['out'], 'artifact')" in
     if uses_default_serializer then
       Printf.sprintf {|%s
-    %s(%s, %s)|} viz_call ser_call value_name artifact_path
+    %s(%s, %s)
+%s|} viz_call ser_call value_name artifact_path meta_call
     else
-      Printf.sprintf {|    %s(%s, %s)|} ser_call value_name artifact_path
+      Printf.sprintf {|    %s(%s, %s)
+%s|} ser_call value_name artifact_path meta_call
   in
 
   let julia_emit_artifact value_name =
     let viz_call = Printf.sprintf "jl_save_viz_metadata(%s, joinpath(ENV[\"out\"], \"viz\"))" value_name in
+    let meta_call = Printf.sprintf "jl_save_meta(%s, joinpath(ENV[\"out\"], \"meta\"))" value_name in
     let artifact_path = "joinpath(ENV[\"out\"], \"artifact\")" in
     let serialize_call =
       Printf.sprintf "    %s(%s, %s)" ser_call value_name artifact_path
     in
+    let meta_line = Printf.sprintf "    %s" meta_call in
     if uses_default_serializer then
       Printf.sprintf {|    %s
-%s|} viz_call serialize_call
+%s
+%s|} viz_call serialize_call meta_line
     else
-      serialize_call
+      Printf.sprintf {|%s
+%s|} serialize_call meta_line
   in
 
   let julia_class_expr value_name =
