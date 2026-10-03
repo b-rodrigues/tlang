@@ -61,9 +61,14 @@ let eval_snippet env code =
 let rec run ?(headless = false) ?start_repl env =
   (* Never clobber the caller's project: build_pipeline writes _pipeline/ and
      related state relative to cwd. Run the whole demo in a fresh temp dir.
-     Filename.temp_dir needs OCaml >= 5.1 (pinned toolchain is 5.4). *)
+     The temp dir must sit under the caller's directory: pipeline.nix
+     resolves the project flake by walking up from cwd, and a system-temp
+     dir resolves to filesystem root, where nix eval fails ("General Nix
+     build failure" with no errored nodes). Filename.temp_dir needs
+     OCaml >= 5.1 (pinned toolchain is 5.4). *)
   let orig_dir = Sys.getcwd () in
-  let tmp_dir = Filename.temp_dir "t-demo-" "" in
+  let tmp_parent = (try Unix.realpath orig_dir with _ -> orig_dir) in
+  let tmp_dir = Filename.temp_dir ~temp_dir:tmp_parent "t-demo-" "" in
   (* The REPL handoff runs inside the temp dir, and `q` exits via `exit`,
      which skips Fun.protect — so cleanup is also registered with at_exit. *)
   let cleanup () =
