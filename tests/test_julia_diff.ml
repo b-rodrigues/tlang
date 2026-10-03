@@ -100,8 +100,10 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
     let root = Test_helpers.find_repo_root () in
     let dir = Filename.concat root (Filename.concat "tests" "julia_diff") in
     let dumper = Filename.concat dir "dump_symbols.jl" in
+    (* Clean Julia: the dev-shell startup.jl guards must never break
+       this driver (`julia --version` skips startup, scripts do not). *)
     let cmd =
-      Printf.sprintf "julia %s %s 2>&1"
+      Printf.sprintf "julia --startup-file=no %s %s 2>&1"
         (Filename.quote dumper) (Filename.quote dir)
     in
     match run_capture cmd with
