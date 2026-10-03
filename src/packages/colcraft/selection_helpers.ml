@@ -234,6 +234,7 @@ let where_impl args _env =
 --# Selection helper that returns every column name from a DataFrame.
 --#
 --# @name everything
+--# @return :: Function A matcher selecting every column.
 --# @family colcraft
 --# @export
 *)
@@ -243,6 +244,8 @@ let where_impl args _env =
 --# Selection helper that keeps columns for which a predicate function returns true.
 --#
 --# @name where
+--# @param predicate :: Function Predicate over column values.
+--# @return :: Function A matcher keeping columns where the predicate holds.
 --# @family colcraft
 --# @export
 *)
@@ -254,6 +257,8 @@ let where_impl args _env =
 --# and classes like `\\p{L}` are supported.
 --#
 --# @name matches
+--# @param pattern :: String Regular expression for column names.
+--# @return :: Function A matcher selecting columns whose names match.
 --# @family colcraft
 --# @export
 *)
@@ -263,6 +268,8 @@ let where_impl args _env =
 --# Selection helper that returns the supplied column names and errors if names are malformed.
 --#
 --# @name all_of
+--# @param x :: String | List | Vector Column names to keep.
+--# @return :: List[String] The supplied column names.
 --# @family colcraft
 --# @export
 *)
@@ -272,6 +279,8 @@ let where_impl args _env =
 --# Selection helper that keeps the supplied column names when they are present.
 --#
 --# @name any_of
+--# @param x :: String | List | Vector Column names to keep when present.
+--# @return :: Function A matcher selecting the supplied columns that exist.
 --# @family colcraft
 --# @export
 *)

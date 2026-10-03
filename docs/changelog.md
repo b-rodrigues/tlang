@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.56.0] - unreleased
+
+### New features
+
+- **More precise documented signatures for static types**: string helpers, joins, verbs, factor helpers, converters, and pipeline set operations now carry exact parameter and return types, and the checker knows the `Function`, `Column`, `Selection`, `KeywordArgs`, and `Expressions` vocabulary as named contracts. Typing coverage moved from 382 to 444 of 533 fully precise builtins with no new rejections on existing programs. The new precision is visible in reference pages and hover text.
+
+### Fixes
+
+- **`explain()` on builtins is deterministic**: argument names no longer depend on whether `help()` ran before. `explain` loads documentation itself, so `explain(explain)` always reports the documented names instead of sometimes falling back to `arg1`, `arg2`.
+
 ## [0.55.5] - 2026-10-03
 
 ### New features

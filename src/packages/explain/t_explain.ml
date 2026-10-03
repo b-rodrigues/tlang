@@ -32,7 +32,7 @@ let contains_sub s sub =
 --# @seealso type, str
 --# @export
 *)
-let register env =
+let register ?(ensure_docs=ignore) env =
   (* Fields that belong to the outer node wrapper and should therefore be
      excluded from passthrough when copying non-conflicting payload fields. *)
   let passthrough_exclusions =
@@ -522,6 +522,6 @@ let register env =
   Env.add "explain"
     (make_builtin ~name:"explain" ~unwrap:false 1 (fun args _env ->
       match args with
-      | [v] -> do_explain v
+      | [v] -> ensure_docs (); do_explain v
       | _ -> Error.arity_error_named "explain" 1 (List.length args)))
   env

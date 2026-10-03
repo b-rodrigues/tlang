@@ -8,7 +8,7 @@ Merges several existing factor levels into new grouped levels.
 
 - **x** (`Vector[Factor]`): A factor vector.
 
-- **...**: Named lists mapping new level names to vectors of old level names.
+- **...** (`String | List | Vector`): Named lists mapping new level names to vectors of old level names.
 
 
 ## Returns

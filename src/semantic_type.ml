@@ -97,9 +97,10 @@ let rec from_string str =
      (annotations preserve case, so `Model` must stay `Model`). These only
      ever match themselves (or Any), so they add precision without new
      mismatch classes: a misspelled name simply never matches a real
-     annotation. Deliberately excluded: Function (arity lives in
-     TFunction), Error/VError/Null (descriptive positions, not
-     contracts), NA (bottom rules own it). *)
+     annotation. Deliberately excluded: Error/VError/Null (descriptive
+     positions, not contracts), NA (bottom rules own it). `Function`,
+     `Column`, `Selection`, `KeywordArgs`, and `Expressions` map below to
+     opaque nominals for the same reason. *)
   | "pipeline" -> TCustom "Pipeline"
   | "metapipeline" -> TCustom "MetaPipeline"
   | "model" -> TCustom "Model"
@@ -109,6 +110,17 @@ let rec from_string str =
   | "datetime" -> TCustom "Datetime"
   | "formula" -> TCustom "Formula"
   | "lens" -> TCustom "Lens"
+  (* Higher-order and selection vocabulary. These name opaque contracts
+     (a function value, a column reference, an NSE selection, keyword
+     metadata, unevaluated expressions) rather than shapes the checker
+     decomposes, so they map to nominal customs that match only
+     themselves (or Any). Deliberately still excluded: Error/VError/Null
+     (descriptive positions, not contracts) and NA (bottom rules own it). *)
+  | "function" -> TCustom "Function"
+  | "column" -> TCustom "Column"
+  | "selection" -> TCustom "Selection"
+  | "keywordargs" -> TCustom "KeywordArgs"
+  | "expressions" -> TCustom "Expressions"
   | "strategy" -> TCustom "Strategy"
   | "shellresult" -> TCustom "ShellResult"
   | "factor" -> TCustom "Factor"

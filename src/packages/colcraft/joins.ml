@@ -450,6 +450,10 @@ let bind_cols_impl args _env =
 --# Joins two DataFrames and keeps every row from the left-hand side.
 --#
 --# @name left_join
+--# @param x :: DataFrame Left DataFrame.
+--# @param y :: DataFrame Right DataFrame.
+--# @param by :: String | Symbol | List | Vector [Optional] Key columns. Defaults to shared columns.
+--# @return :: DataFrame Joined DataFrame.
 --# @family colcraft
 --# @export
 *)
@@ -459,6 +463,10 @@ let bind_cols_impl args _env =
 --# Joins two DataFrames and keeps every row from the right-hand side.
 --#
 --# @name right_join
+--# @param x :: DataFrame Left DataFrame.
+--# @param y :: DataFrame Right DataFrame.
+--# @param by :: String | Symbol | List | Vector [Optional] Key columns. Defaults to shared columns.
+--# @return :: DataFrame Joined DataFrame.
 --# @family colcraft
 --# @export
 *)
@@ -468,6 +476,10 @@ let bind_cols_impl args _env =
 --# Joins two DataFrames and keeps only rows whose keys match in both inputs.
 --#
 --# @name inner_join
+--# @param x :: DataFrame Left DataFrame.
+--# @param y :: DataFrame Right DataFrame.
+--# @param by :: String | Symbol | List | Vector [Optional] Key columns. Defaults to shared columns.
+--# @return :: DataFrame Joined DataFrame.
 --# @family colcraft
 --# @export
 *)
@@ -477,6 +489,10 @@ let bind_cols_impl args _env =
 --# Joins two DataFrames and keeps rows appearing in either input.
 --#
 --# @name full_join
+--# @param x :: DataFrame Left DataFrame.
+--# @param y :: DataFrame Right DataFrame.
+--# @param by :: String | Symbol | List | Vector [Optional] Key columns. Defaults to shared columns.
+--# @return :: DataFrame Joined DataFrame.
 --# @family colcraft
 --# @export
 *)
@@ -486,6 +502,10 @@ let bind_cols_impl args _env =
 --# Keeps rows from the left DataFrame that have a matching key in the right DataFrame.
 --#
 --# @name semi_join
+--# @param x :: DataFrame Left DataFrame.
+--# @param y :: DataFrame Right DataFrame.
+--# @param by :: String | Symbol | List | Vector [Optional] Key columns. Defaults to shared columns.
+--# @return :: DataFrame Filtered left DataFrame.
 --# @family colcraft
 --# @export
 *)
@@ -495,6 +515,10 @@ let bind_cols_impl args _env =
 --# Keeps rows from the left DataFrame that do not have a matching key in the right DataFrame.
 --#
 --# @name anti_join
+--# @param x :: DataFrame Left DataFrame.
+--# @param y :: DataFrame Right DataFrame.
+--# @param by :: String | Symbol | List | Vector [Optional] Key columns. Defaults to shared columns.
+--# @return :: DataFrame Filtered left DataFrame.
 --# @family colcraft
 --# @export
 *)
@@ -517,6 +541,8 @@ let bind_cols_impl args _env =
 --# Appends rows from multiple DataFrames into a single DataFrame.
 --#
 --# @name bind_rows
+--# @param ... :: DataFrame DataFrames to stack by rows.
+--# @return :: DataFrame The stacked DataFrame.
 --# @family colcraft
 --# @export
 *)
@@ -526,6 +552,8 @@ let bind_cols_impl args _env =
 --# Combines columns from multiple DataFrames side by side.
 --#
 --# @name bind_cols
+--# @param ... :: DataFrame DataFrames to combine by columns.
+--# @return :: DataFrame The combined DataFrame.
 --# @family colcraft
 --# @export
 *)
