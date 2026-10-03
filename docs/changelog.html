@@ -34,7 +34,7 @@
 </nav>
 <div class="container">
 <h1 id="changelog">Changelog</h1>
-<h2 id="unreleased">[0.55.5] - Unreleased</h2>
+<h2 id="section">[0.55.5] - 2026-10-03</h2>
 <h3 id="new-features">New features</h3>
 <ul>
 <li><strong>Richer static types</strong>: collection types
@@ -246,8 +246,47 @@ first union, so no false missing-case warning fires.</li>
 <li><strong>Doc signatures keep spaced unions whole</strong>:
 <code>Dict | List</code> and <code>Dict[String, Dict]</code> now parse
 as written instead of truncating at the first space.</li>
+<li><strong>Union variable resolution counts match patterns</strong>: a
+pattern variable shadowing a top-level union variable vetoes the
+variable resolution, so a nested <code>match</code> over the shadowing
+name stays silent instead of warning against the wrong union’s
+cases.</li>
+<li><strong>Strategy errors name the <code>format</code>
+ambiguity</strong>: when <code>format</code> is also a real dependency
+of the node, the unknown-key error says that any map with a
+<code>format</code> key reads as a strategy dict — a dependency
+literally named <code>format</code> cannot be keyed in map form and must
+be renamed.</li>
+<li><strong>Per-dependency strategy maps survive pattern
+expansion</strong>: expanded branch entries key the renamed branch
+dependencies (<code>mid</code> → <code>mid_branch_1</code>), so the
+chosen strategies keep applying instead of silently falling back to
+<code>default</code>.</li>
+<li><strong>R nodes cannot run ONNX models, and the docs now say
+so</strong>: <code>docs/models.md</code> listed R among the runtimes
+able to read and score ONNX artifacts through the <code>onnx</code> R
+package. That package is a <code>reticulate</code> wrapper and needs
+Python, which T’s Nix R nodes do not ship, so such code fails there. The
+interchange sections now name the limit and point to Python
+(<code>onnxruntime</code>) or T-native scoring (<code>t_read_onnx</code>
+plus <code>predict</code>).</li>
+<li><strong>ONNX export pins opset 21</strong>: the Python
+<code>^onnx</code> serializer now passes <code>target_opset=21</code> to
+<code>convert_sklearn</code> instead of emitting the installed default
+(now 22), so artifacts load in Julia <code>ONNXRunTime</code>, which
+supports till opset 21. No fallback or option: the pin is
+unconditional.</li>
+<li><strong>Julia transpose no longer blinds dependency
+inference</strong>: a postfix <code>'</code> (adjoint) after an
+expression-ending character is an operator, not a string opener — reads
+after it now register as dependencies instead of being silently dropped,
+including after <code>)</code> as in <code>(A')'</code>. Char literals
+(including escapes) still blank. Julia has no triple-single-quoted
+strings, so <code>A'''</code> is three transposes. Non-ASCII identifiers
+transpose as well, and a quote after a reserved word that never ends an
+expression (<code>return 'x'</code>) opens a literal.</li>
 </ul>
-<h2 id="section">[0.55.4] - 2026-09-29</h2>
+<h2 id="section-1">[0.55.4] - 2026-09-29</h2>
 <h3 id="new-features-1">New features</h3>
 <ul>
 <li><strong>Automatic editor setup in new projects</strong>:
@@ -321,10 +360,10 @@ stderr is silenced, and project/site init files
 shell entry.</p></li>
 <li><p><strong><code>t demo</code> no longer writes into the current
 project</strong>: the demo builds inside a fresh temporary directory
-instead of writing <code>_pipeline/</code> state into wherever it was
-launched, and the caching narration no longer claims a cache hit
-unconditionally. The temp dir is removed on exit, including via the REPL
-handoff.</p></li>
+under the caller’s directory (so the project flake resolves) instead of
+writing <code>_pipeline/</code> state into wherever it was launched, and
+the caching narration no longer claims a cache hit unconditionally. The
+temp dir is removed on exit, including via the REPL handoff.</p></li>
 <li><p><strong><code>sync_version.sh</code> bumps the extension
 offline</strong>: a single <code>npm version</code> call updates both
 <code>package.json</code> and <code>package-lock.json</code> with no
@@ -369,7 +408,7 @@ revisions, and subdirectory paths from <code>tproject.toml</code> are
 escaped, so special characters cannot break generated flake
 evaluation.</p></li>
 </ul>
-<h2 id="section-1">[0.55.3] - 2026-09-26</h2>
+<h2 id="section-2">[0.55.3] - 2026-09-26</h2>
 <h3 id="new-features-2">New features</h3>
 <ul>
 <li><strong><code>renv+toml</code> R resolver (union mode)</strong>: Set
@@ -390,7 +429,7 @@ or switch to <code>renv+toml</code>. Caution: <code>renv+toml</code>
 ends single-source truth. Impure install commands (such as
 <code>R -e 'renv::install(...)'</code>) are never suggested.</li>
 </ul>
-<h2 id="section-2">[0.55.2] - 2026-09-26</h2>
+<h2 id="section-3">[0.55.2] - 2026-09-26</h2>
 <h3 id="fixes-2">Fixes</h3>
 <ul>
 <li><strong>Pipelines with R Git packages build again</strong>: R code
@@ -409,7 +448,7 @@ dependency prompts now cover <code>requireNamespace()</code> and
 <code>require()</code>, and <code>pkg::</code>. Names inside string
 literals and <code>#</code> comments cause no prompt.</li>
 </ul>
-<h2 id="section-3">[0.55.1] - 2026-09-23</h2>
+<h2 id="section-4">[0.55.1] - 2026-09-23</h2>
 <h3 id="new-features-3">New features</h3>
 <ul>
 <li><strong><code>tlang</code> Quarto extension highlights T
@@ -551,7 +590,7 @@ from roxygen <code>@import</code>/<code>@importFrom</code> tags,
 Base packages are excluded. Discovery installs packages; code must still
 attach them (issue 473).</li>
 </ul>
-<h2 id="section-4">[0.55.0] - 2026-08-11</h2>
+<h2 id="section-5">[0.55.0] - 2026-08-11</h2>
 <h3 id="breaking-changes">Breaking Changes</h3>
 <ul>
 <li><strong>Arrow IPC serializer renamed <code>^arrow</code> →
@@ -976,7 +1015,7 @@ value.</li>
 very negative <code>Datetime</code> counterexamples shrink correctly
 instead of overflowing a 32-bit intermediate.</li>
 </ul>
-<h2 id="section-5">[0.54.3] - 2026-08-01</h2>
+<h2 id="section-6">[0.54.3] - 2026-08-01</h2>
 <h3 id="pipeline-validation-fixes">Pipeline Validation Fixes</h3>
 <ul>
 <li><strong><code>text</code> is now treated as format-agnostic raw
@@ -1108,7 +1147,7 @@ guarantees.</li>
 error</strong> and returns the pipeline unchanged when valid, for
 guard-style use in pipeline chains.</li>
 </ul>
-<h2 id="section-6">[0.54.2] - 2026-07-29</h2>
+<h2 id="section-7">[0.54.2] - 2026-07-29</h2>
 <h3 id="testcraft-testing-package"><code>testcraft</code> — Testing
 Package</h3>
 <ul>
@@ -1210,7 +1249,7 @@ fix</strong>: Coverage cleaning and discovery now check both the project
 directory and the current working directory for <code>.coverage</code>
 files.</li>
 </ul>
-<h2 id="section-7">[0.54.1] - 2026-07-20</h2>
+<h2 id="section-8">[0.54.1] - 2026-07-20</h2>
 <h3 id="type-system-annotations-and-inference">Type System: Annotations
 and Inference</h3>
 <ul>
@@ -1440,7 +1479,7 @@ commands.</li>
 <li><strong><code>write_parquet(data, path)</code></strong>: Write a
 DataFrame to a Parquet file via Arrow.</li>
 </ul>
-<h2 id="section-8">[0.54.0] - 2026-07-08</h2>
+<h2 id="section-9">[0.54.0] - 2026-07-08</h2>
 <h3 id="pipeline-diagnostics">Pipeline &amp; Diagnostics</h3>
 <ul>
 <li><strong>SoftFailed Node Classification</strong>: Fixed
@@ -1614,7 +1653,7 @@ returns its SHA-256 hash, usable as the <code>sha256</code> argument to
 <code>fetchurl</code>. Enables a two-step workflow: compute the hash
 upfront, then pin it in a pipeline for reproducible builds.</li>
 </ul>
-<h2 id="section-9">[0.53.3] - 2026-06-26</h2>
+<h2 id="section-10">[0.53.3] - 2026-06-26</h2>
 <h3 id="toolchain-ci-updates">Toolchain &amp; CI Updates</h3>
 <ul>
 <li><strong>Nixpkgs Snapshot &amp; Package Updates</strong>: Updated the
@@ -1667,7 +1706,7 @@ distribution quantile, via binary search on <code>pchisq</code>.</li>
 <li>Enables power analysis and exact p-value thresholds natively in T
 without calling R.</li>
 </ul>
-<h2 id="section-10">[0.53.2] - 2026-06-24</h2>
+<h2 id="section-11">[0.53.2] - 2026-06-24</h2>
 <h3 id="hotfix">Hotfix</h3>
 <ul>
 <li><strong>Nix Flake Update / Maven Dependency Parity</strong>: Fixed
@@ -1676,7 +1715,7 @@ for the <code>jpmml-evaluator</code> library (used for PMML model
 scoring). The nixpkgs fetch source hash has been updated to restore
 local build compatibility.</li>
 </ul>
-<h2 id="section-11">[0.53.1] - 2026-06-24</h2>
+<h2 id="section-12">[0.53.1] - 2026-06-24</h2>
 <h3 id="hotfix-1">Hotfix</h3>
 <p>Fix for https://github.com/b-rodrigues/tlang/issues/434</p>
 <p>jpmm-statsmodels PR is not yet merged into NixOS/nixpkgs master
@@ -1729,7 +1768,7 @@ Fixes</h3>
 before the global environment, enabling dynamic column name
 resolution.</li>
 </ul>
-<h2 id="section-12">[0.53.0] - 2026-06-22</h2>
+<h2 id="section-13">[0.53.0] - 2026-06-22</h2>
 <p>This release:</p>
 <ul>
 <li><strong>Atelier TUI IDE Integration</strong>: This release
@@ -1831,7 +1870,7 @@ inside assignment/reassignment statements. The error is bound to the
 variable and propagated correctly, enabling robust recovery patterns via
 subsequent <code>match</code> blocks.</li>
 </ul>
-<h2 id="section-13">[0.52.3] - 2026-06-12</h2>
+<h2 id="section-14">[0.52.3] - 2026-06-12</h2>
 <p>This release:</p>
 <ul>
 <li>introduces a new meta-pipeline composition feature
@@ -2180,7 +2219,7 @@ code.</li>
 Checklist to <code>AGENTS.md</code> as a permanent reference for future
 contributions.</li>
 </ul>
-<h2 id="section-14">[0.52.2] - 2026-05-31</h2>
+<h2 id="section-15">[0.52.2] - 2026-05-31</h2>
 <p>This release introduces interactive pipeline node debugging via
 <code>debug_node</code>, native Nix orchestration features for granular
 rebuild control, job parallelisation, Cachix binary caching, and
@@ -2403,7 +2442,7 @@ values containing non-ASCII characters (accented letters, symbols like
 <code>explain()</code> tree output, instead of being shown as raw byte
 sequences such as <code>\226\134\146</code>.</li>
 </ul>
-<h2 id="section-15">[0.52.1] - 2026-05-22</h2>
+<h2 id="section-16">[0.52.1] - 2026-05-22</h2>
 <p>This release finalizes end-to-end Julia ONNX serialization support,
 fixes pipeline compiler strategy dictionary parsing issues, strengthens
 runtime safety by protecting reserved keywords, and completes the
@@ -2757,7 +2796,7 @@ better reflect its purpose of appending model-level diagnostics
 names and remove deprecated aliases.</li>
 </ul></li>
 </ul>
-<h2 id="section-16">[0.51.5] - 2026-05-08</h2>
+<h2 id="section-17">[0.51.5] - 2026-05-08</h2>
 <p>The focus of this release was to improve language ergonomics for data
 guardrails, enhance package manager feedback, and increase test coverage
 across all packages.</p>
@@ -2986,7 +3025,7 @@ process.</li>
 streamline local reporting workflows.</li>
 </ul></li>
 </ul>
-<h2 id="section-17">[0.51.4] - 2026-04-30</h2>
+<h2 id="section-18">[0.51.4] - 2026-04-30</h2>
 <p><strong>Status</strong>: Beta</p>
 <h3 id="ai-agent-onboarding-context-tiering">AI Agent Onboarding &amp;
 Context Tiering</h3>
@@ -3249,7 +3288,7 @@ Dictionaries. The system now correctly restores the native
 <code>Error</code> type across node boundaries, even when using modern
 JSON interchange.</li>
 </ul>
-<h2 id="section-18">[0.51.3] - 2026-04-12</h2>
+<h2 id="section-19">[0.51.3] - 2026-04-12</h2>
 <p><strong>Status</strong>: Beta</p>
 <h3 id="pipeline-infrastructure-observability">Pipeline Infrastructure
 &amp; Observability</h3>
@@ -3546,7 +3585,7 @@ sweep to remove legacy version strings and hardcoded formatting in
 installation and project guides.</li>
 </ul>
 <p>Version history and roadmap for the T programming language.</p>
-<h2 id="section-19">[0.51.1] - 2026-03-21</h2>
+<h2 id="section-20">[0.51.1] - 2026-03-21</h2>
 <p><strong>Status</strong>: Beta <strong>Release Date</strong>: 21st of
 March 2026</p>
 <h3 id="features-cli">Features &amp; CLI</h3>

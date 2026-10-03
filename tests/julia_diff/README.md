@@ -4,10 +4,12 @@ Each `case_NN_*.jl` is a minimal Julia snippet exercising one rule of
 T's Julia dependency scanner (quotes, interpolation, transpose,
 scopes, macros). The matching `case_NN_*.txt` is Julia's own truth
 for that snippet (line 1: sorted unique read symbols, line 2: sorted
-unique top-level binds), produced by `dump_symbols.jl` with
-`Meta.parseall` (Julia version in `JULIA_VERSION`) and checked in so
-the suite stays hermetic: no Julia binary, startup file, depot, or
-network is needed at test time.
+unique top-level binds, line 3: MD5 of the `.jl` bytes), produced by
+`dump_symbols.jl` with `Meta.parseall` (Julia version in
+`JULIA_VERSION`) and checked in so the suite stays hermetic: no Julia
+binary, startup file, depot, or network is needed at test time. The
+test refuses stale truth (edited `.jl` without regenerating) instead
+of comparing against it.
 
 `tests/test_julia_diff.ml` checks two directions:
 

@@ -249,16 +249,22 @@ Runtime. It allows: 1. <strong>Python ML Export</strong>:
 <code>t_read_onnx(path)</code> and scoring them with
 <code>predict(data, model)</code>. 3. <strong>R/Python/Julia Runtime
 Loading</strong>: Reading models via the <code>onnx</code> R package,
-Python <code>onnxruntime</code>, or Julia <code>ONNXRunTime</code>. 4.
-<strong>Broader Coverage</strong>: Neural-network and non-PMML model
-families that PMML cannot represent well.</p>
+Python <code>onnxruntime</code>, or Julia <code>ONNXRunTime</code>.
+Note: the R <code>onnx</code> package needs Python through
+<code>reticulate</code>, which T’s Nix R nodes do not ship — R-side ONNX
+reading and scoring fails there, so use Python directly
+(<code>onnxruntime</code>) or T-native scoring (<code>t_read_onnx</code>
+plus <code>predict</code>) instead. 4. <strong>Broader
+Coverage</strong>: Neural-network and non-PMML model families that PMML
+cannot represent well.</p>
 <p>Use <code>^pmml</code> when you want T’s hand-written classical-model
 evaluator. Use <code>^onnx</code> when you want a portable model
 artifact with native ONNX Runtime inference in T or cross-runtime
-execution in Python, R, or Julia. <span
-class="math inline"><em>T</em></span> ensures that ONNX models trained
-in Python (Scikit-Learn) or Julia (Flux) produce consistent results when
-evaluated natively in <span class="math inline"><em>T</em></span>.</p>
+execution in Python or Julia (R nodes cannot run ONNX artifacts for the
+reason above). <span class="math inline"><em>T</em></span> ensures that
+ONNX models trained in Python (Scikit-Learn) or Julia (Flux) produce
+consistent results when evaluated natively in <span
+class="math inline"><em>T</em></span>.</p>
 <blockquote>
 <p>[!NOTE] <strong>Julia World Age</strong>: When using Julia libraries
 that generate code at runtime (like Flux or Zygote), <span

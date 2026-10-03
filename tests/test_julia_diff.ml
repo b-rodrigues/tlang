@@ -47,9 +47,6 @@ let is_ascii_ident s =
 let words s =
   List.filter (fun w -> w <> "") (String.split_on_char ' ' s)
 
-let lines s =
-  List.filter (fun l -> l <> "") (String.split_on_char '\n' s)
-
 let read_file path =
   try
     let ch = open_in_bin path in
@@ -104,15 +101,24 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
                incr fail_count;
                Printf.printf "  ✗ Error: %s (%s)\n" stem msg
            | Ok truth -> (
-               match lines truth with
-               | sym_line :: rest ->
-                   let syms = List.filter is_ascii_ident (words sym_line) in
-                   let binds =
-                     match rest with
-                     | binds_line :: _ ->
-                         List.filter is_ascii_ident (words binds_line)
-                     | [] -> []
-                   in
+               (* Truth format: line 1 reads, line 2 binds (may be
+                  empty), line 3 MD5 of the .jl bytes. Split keeps
+                  empties (unlike `lines`) so an empty binds line
+                  cannot misalign the checksum. *)
+               let parts = String.split_on_char '\n' truth in
+               let nth n = try List.nth parts n with _ -> "" in
+               let syms = List.filter is_ascii_ident (words (nth 0)) in
+               let binds = List.filter is_ascii_ident (words (nth 1)) in
+               let want_md5 = String.trim (nth 2) in
+               if want_md5 = "" then begin
+                 incr fail_count;
+                 Printf.printf "  ✗ Error: %s (truth file missing md5, run scripts/regen_julia_diff.sh)\n" stem
+               end else begin
+                 let got_md5 = Digest.to_hex (Digest.string text) in
+                 if got_md5 <> want_md5 then begin
+                   incr fail_count;
+                   Printf.printf "  ✗ Error: %s (stale truth: .jl changed without regen, run scripts/regen_julia_diff.sh)\n" stem
+                 end else begin
                    let got =
                      Ast.extract_code_identifiers ~lang:(Some Ast.JuliaLang) text
                    in
@@ -142,7 +148,6 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
                          (String.concat "; " extra)
                      end
                    end
-               | [] ->
-                   incr fail_count;
-                   Printf.printf "  ✗ Error: %s (empty truth file)\n" stem)))
+                 end
+               end)))
     cases

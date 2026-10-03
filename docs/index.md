@@ -6,7 +6,7 @@ Simulations in Julia, ML in Python, statistics in R — or the exact opposite. I
 
 A language for the LLM era, T is designed to be piloted by both humans and AI models. It gives you one hermetic dependency graph where your tools communicate without glue and execute consistently through space and time: on your laptop today, on a cluster tomorrow, and five years from now without bitrot.
 
-**Status:** Version 0.55.4 "L'Ultime combat".
+**Status:** Version 0.55.5 "L'Ultime combat".
 
 ---
 
@@ -34,7 +34,7 @@ A language for the LLM era, T is designed to be piloted by both humans and AI mo
 
 ## Interactive Demo in 30 Seconds
 
-Run `t demo` right in your terminal to see pipeline introspection, hermetic Nix builds, Arrow in-memory inspection, caching, and first-class error handling in action:
+Run `t demo` right in your terminal to see pipeline introspection, hermetic Nix builds, Arrow in-memory inspection, caching, and first-class error handling in action. The demo builds in a scratch directory under your current directory (so it resolves your project's flake) and removes it on exit:
 
 ![T Interactive Demo](demo.gif)
 

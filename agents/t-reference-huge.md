@@ -14,7 +14,7 @@ Simulations in Julia, ML in Python, statistics in R — or the exact opposite. I
 
 A language for the LLM era, T is designed to be piloted by both humans and AI models. It gives you one hermetic dependency graph where your tools communicate without glue and execute consistently through space and time: on your laptop today, on a cluster tomorrow, and five years from now without bitrot.
 
-**Status:** Version 0.55.4 "L'Ultime combat".
+**Status:** Version 0.55.5 "L'Ultime combat".
 
 ---
 
@@ -42,7 +42,7 @@ A language for the LLM era, T is designed to be piloted by both humans and AI mo
 
 ## Interactive Demo in 30 Seconds
 
-Run `t demo` right in your terminal to see pipeline introspection, hermetic Nix builds, Arrow in-memory inspection, caching, and first-class error handling in action:
+Run `t demo` right in your terminal to see pipeline introspection, hermetic Nix builds, Arrow in-memory inspection, caching, and first-class error handling in action. The demo builds in a scratch directory under your current directory (so it resolves your project's flake) and removes it on exit:
 
 ![T Interactive Demo](demo.gif)
 
@@ -463,7 +463,7 @@ Now that you have your first project set up and understand the folder structure,
 
 # T Language Overview
 
-> **Version**: 0.55.4
+> **Version**: 0.55.5
 
 T is a functional programming language designed for declarative, tabular data manipulation. It combines the pipeline-driven style of R's tidyverse with OCaml's type discipline, producing a small, focused language for data wrangling and basic statistics.
 
@@ -538,7 +538,7 @@ p = Point(x = 1.0, y = 2.0)
 p.x -- 1.0
 ```
 
-Construction takes all-positional or all-named arguments (never a mix). Unknown, missing, or mistyped fields fail with an error naming the field and the valid set. Annotations accept record names (`\(p: Point -> Point) p`), enforced at runtime like all annotations. Records match `_` and variable arms in `match`. Records are T-side contracts: they cannot cross into foreign node code or serializers — use plain data across the boundary instead. The leading word `type` is contextual, so the `type()` builtin keeps working.
+Construction takes all-positional or all-named arguments (never a mix). Unknown, missing, or mistyped fields fail with an error naming the field and the valid set. Annotations accept record names (`\(p: Point -> Point) p`), enforced at runtime like all annotations. Records match `_` and variable arms in `match`. Records are T-side contracts: they cannot cross into foreign node code or serializers — use plain data across the boundary instead. The leading word `type` is contextual, so the `type()` builtin keeps working. Built-in type names (`Model`, `Pipeline`, `Date`, `Period`, `Interval`, and the rest) are reserved for every `type` declaration, records and unions alike — shadowing is never allowed, so a declaration with one of these names fails naming the full set.
 
 ### User-Defined Tagged Unions
 
@@ -9605,7 +9605,7 @@ Now that you can work with numerical arrays, explore statistical modeling and re
 
 # Changelog
 
-## [0.55.5] - Unreleased
+## [0.55.5] - 2026-10-03
 
 ### New features
 
@@ -9641,6 +9641,12 @@ Now that you can work with numerical arrays, explore statistical modeling and re
 - **Quoted shell values decide persistence correctly**: `FOO="a b" cmd` no longer records a binding, while `x=$(date +%s)`, `x="a b"`, arrays, and `&&`-continued statements bind as the shell does.
 - **Union exhaustiveness ignores nested rebindings**: a variable rebound inside a branch or closure no longer resolves to its first union, so no false missing-case warning fires.
 - **Doc signatures keep spaced unions whole**: `Dict | List` and `Dict[String, Dict]` now parse as written instead of truncating at the first space.
+- **Union variable resolution counts match patterns**: a pattern variable shadowing a top-level union variable vetoes the variable resolution, so a nested `match` over the shadowing name stays silent instead of warning against the wrong union's cases.
+- **Strategy errors name the `format` ambiguity**: when `format` is also a real dependency of the node, the unknown-key error says that any map with a `format` key reads as a strategy dict — a dependency literally named `format` cannot be keyed in map form and must be renamed.
+- **Per-dependency strategy maps survive pattern expansion**: expanded branch entries key the renamed branch dependencies (`mid` → `mid_branch_1`), so the chosen strategies keep applying instead of silently falling back to `default`.
+- **R nodes cannot run ONNX models, and the docs now say so**: `docs/models.md` listed R among the runtimes able to read and score ONNX artifacts through the `onnx` R package. That package is a `reticulate` wrapper and needs Python, which T's Nix R nodes do not ship, so such code fails there. The interchange sections now name the limit and point to Python (`onnxruntime`) or T-native scoring (`t_read_onnx` plus `predict`).
+- **ONNX export pins opset 21**: the Python `^onnx` serializer now passes `target_opset=21` to `convert_sklearn` instead of emitting the installed default (now 22), so artifacts load in Julia `ONNXRunTime`, which supports till opset 21. No fallback or option: the pin is unconditional.
+- **Julia transpose no longer blinds dependency inference**: a postfix `'` (adjoint) after an expression-ending character is an operator, not a string opener — reads after it now register as dependencies instead of being silently dropped, including after `)` as in `(A')'`. Char literals (including escapes) still blank. Julia has no triple-single-quoted strings, so `A'''` is three transposes. Non-ASCII identifiers transpose as well, and a quote after a reserved word that never ends an expression (`return 'x'`) opens a literal.
 
 ## [0.55.4] - 2026-09-29
 
@@ -9657,7 +9663,7 @@ Now that you can work with numerical arrays, explore statistical modeling and re
 - **Project shells stay pristine on the `nixpkgs` Python resolver**: the C/C++ runtime libraries (`pkgs.stdenv.cc.cc.lib`, `pkgs.zlib`) now come only from the `py-env` wrapper, as before. The shell-wide `LD_LIBRARY_PATH` export (which also exposed `t`, R, and Julia to the project's `libstdc++`) is gone for `nixpkgs` projects, avoiding `GLIBCXX_* not found` mismatches when the project's `nixpkgs` pin differs from the one `t` was built against.
 - **UV project shells wrap the venv instead of exporting globally**: `mkVirtualEnv` output cannot carry `makeWrapperArgs` (it would be silently ignored), so `py-env` is now a `symlinkJoin` wrapper around a raw `py-venv` binding, prefixing `LD_LIBRARY_PATH` (C/C++ runtimes for editor tooling such as `pyzmq`, BLAS/Fortran for `numpy`) on every venv binary except sourced `activate` files. Verified end to end: `import numpy` works in the shell, the wrapper `LD_LIBRARY_PATH` is visible only to Python processes, and the shell itself carries no project libraries. Node builds are unchanged (raw venv, per-derivation libs).
 - **`R_LIBS_SITE` re-export handles empty output**: when `R` prints nothing, the shell no longer prepends a stray leading `:` to the variable, `R` stderr is silenced, and project/site init files (`--no-init-file --no-site-file`) no longer run on every shell entry.
-- **`t demo` no longer writes into the current project**: the demo builds inside a fresh temporary directory instead of writing `_pipeline/` state into wherever it was launched, and the caching narration no longer claims a cache hit unconditionally. The temp dir is removed on exit, including via the REPL handoff.
+- **`t demo` no longer writes into the current project**: the demo builds inside a fresh temporary directory under the caller's directory (so the project flake resolves) instead of writing `_pipeline/` state into wherever it was launched, and the caching narration no longer claims a cache hit unconditionally. The temp dir is removed on exit, including via the REPL handoff.
 
 - **`sync_version.sh` bumps the extension offline**: a single `npm version` call updates both `package.json` and `package-lock.json` with no network access, so the two files cannot drift after a release.
 
@@ -18684,10 +18690,10 @@ The **Predictive Model Markup Language (PMML)** is the bridge between $T$ and ot
 **ONNX** is the preferred interchange format when you want broad ML model coverage or faster native inference through ONNX Runtime. It allows:
 1. **Python ML Export**: `scikit-learn` models via `skl2onnx`.
 2. **Native T Loading**: Reading models with `t_read_onnx(path)` and scoring them with `predict(data, model)`.
-3. **R/Python/Julia Runtime Loading**: Reading models via the `onnx` R package, Python `onnxruntime`, or Julia `ONNXRunTime`.
+3. **R/Python/Julia Runtime Loading**: Reading models via the `onnx` R package, Python `onnxruntime`, or Julia `ONNXRunTime`. Note: the R `onnx` package needs Python through `reticulate`, which T's Nix R nodes do not ship — R-side ONNX reading and scoring fails there, so use Python directly (`onnxruntime`) or T-native scoring (`t_read_onnx` plus `predict`) instead.
 4. **Broader Coverage**: Neural-network and non-PMML model families that PMML cannot represent well.
 
-Use `^pmml` when you want T's hand-written classical-model evaluator. Use `^onnx` when you want a portable model artifact with native ONNX Runtime inference in T or cross-runtime execution in Python, R, or Julia. $T$ ensures that ONNX models trained in Python (Scikit-Learn) or Julia (Flux) produce consistent results when evaluated natively in $T$.
+Use `^pmml` when you want T's hand-written classical-model evaluator. Use `^onnx` when you want a portable model artifact with native ONNX Runtime inference in T or cross-runtime execution in Python or Julia (R nodes cannot run ONNX artifacts for the reason above). $T$ ensures that ONNX models trained in Python (Scikit-Learn) or Julia (Flux) produce consistent results when evaluated natively in $T$.
 
 > [!NOTE]
 > **Julia World Age**: When using Julia libraries that generate code at runtime (like Flux or Zygote), $T$ automatically wraps execution in `Base.invokelatest` to prevent "World Age" errors. This makes Julia nodes as robust as Python or R nodes for complex modeling tasks.
@@ -22285,7 +22291,7 @@ my_stats = { git = "https://github.com/user/my-stats", tag = "v0.1.0" }
 data_utils = { git = "https://github.com/user/data-utils", tag = "v0.2.0" }
 
 [t]
-min_version = "0.55.4"
+min_version = "0.55.5"
 ```
 
 > **Important**: `[dependencies]` entries **must** be `{ git, tag }` inline tables pointing to T packages. Version-constraint strings (e.g. `tlang = ">=0.52.0"`) and array values (e.g. `python = ["polars"]`) are **not valid** and will produce a hard error from `t update`. To declare runtime-language packages, use the dedicated sections:
@@ -38492,7 +38498,7 @@ Every T project is a **Nix flake**:
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
-    tlang.url = "github:b-rodrigues/tlang/v0.55.4";
+    tlang.url = "github:b-rodrigues/tlang/v0.55.5";
   };
 
   outputs = { self, nixpkgs, tlang }: {
@@ -38617,7 +38623,7 @@ intent {
   ],
   
   environment: {
-    t_version: "0.55.4",
+    t_version: "0.55.5",
     nix_revision: "abc123",
     run_date: "2024-01-15"
   }
@@ -38661,7 +38667,7 @@ my-analysis/
   
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
-    tlang.url = "github:b-rodrigues/tlang/v0.55.4";
+    tlang.url = "github:b-rodrigues/tlang/v0.55.5";
   };
   
   outputs = { self, nixpkgs, tlang }: {
@@ -38977,6 +38983,10 @@ node(command = ..., serializer = my_log_serializer)
 
 For a complete example of a cross-language custom serializer (YAML), see the [Custom Polyglot Serializer Demo](https://github.com/b-rodrigues/t_demos/blob/master/custom_polyglot_serializer_t/src/pipeline.t) in the `t_demos` repository.
 
+### Per-Dependency Maps
+
+A dict without a `format` key is a per-dependency map (`[reader: ^csv, writer: ^json]`): each key must name a real dependency of the node, otherwise validation fails naming the valid set. Two naming rules apply. A map with a `format` key is always a strategy dict, never a per-dependency map — even when `format` is also a dependency name, so a dependency literally named `format` cannot be keyed in map form (rename it). Map keys track pattern expansion: after `expand_pipeline` renames branch dependencies (`mid` → `mid_branch_1`), each branch entry keys the renamed dependency, so the chosen strategies keep applying instead of falling back to `default`.
+
 ## 4. Static Coherence Checks
 
 One of the most powerful features of T's serializer system is the **static coherence check**. When you build a pipeline, T verifies that the format produced by a source node matches the format expected by the consumer node.
@@ -39059,6 +39069,8 @@ When T processes a node with an `R` runtime and the above serializer:
 If you use a custom format name (e.g., `format: "myformat"`), you should ensure that your R or Python scripts have the necessary libraries loaded to handle that format. You can do this by adding the libraries to your `tproject.toml` or using the `functions` / `includes` parameters in the node definition.
 
 For ONNX specifically, Julia nodes read model artifacts through `ONNXRunTime.jl` via the built-in `jl_read_onnx()` helper. Julia ONNX export is not supported yet, so `jl_write_onnx()` fails explicitly instead of silently falling back to another format.
+
+Python scikit-learn export stamps opset 21 (`target_opset=21` in `convert_sklearn`). Newer `skl2onnx` defaults to opset 22, which `ONNXRunTime` rejects (official support ends at 21), so the pin keeps artifacts loadable in every supported consumer, including T-native `predict`.
 
 ---
 

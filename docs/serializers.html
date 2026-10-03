@@ -257,6 +257,18 @@ node(command = ..., serializer = my_log_serializer)</code></pre>
 see the <a
 href="https://github.com/b-rodrigues/t_demos/blob/master/custom_polyglot_serializer_t/src/pipeline.t">Custom
 Polyglot Serializer Demo</a> in the <code>t_demos</code> repository.</p>
+<h3 id="per-dependency-maps">Per-Dependency Maps</h3>
+<p>A dict without a <code>format</code> key is a per-dependency map
+(<code>[reader: ^csv, writer: ^json]</code>): each key must name a real
+dependency of the node, otherwise validation fails naming the valid set.
+Two naming rules apply. A map with a <code>format</code> key is always a
+strategy dict, never a per-dependency map — even when
+<code>format</code> is also a dependency name, so a dependency literally
+named <code>format</code> cannot be keyed in map form (rename it). Map
+keys track pattern expansion: after <code>expand_pipeline</code> renames
+branch dependencies (<code>mid</code> → <code>mid_branch_1</code>), each
+branch entry keys the renamed dependency, so the chosen strategies keep
+applying instead of falling back to <code>default</code>.</p>
 <h2 id="static-coherence-checks">4. Static Coherence Checks</h2>
 <p>One of the most powerful features of T’s serializer system is the
 <strong>static coherence check</strong>. When you build a pipeline, T
@@ -426,6 +438,12 @@ format. You can do this by adding the libraries to your
 helper. Julia ONNX export is not supported yet, so
 <code>jl_write_onnx()</code> fails explicitly instead of silently
 falling back to another format.</p>
+<p>Python scikit-learn export stamps opset 21
+(<code>target_opset=21</code> in <code>convert_sklearn</code>). Newer
+<code>skl2onnx</code> defaults to opset 22, which
+<code>ONNXRunTime</code> rejects (official support ends at 21), so the
+pin keeps artifacts loadable in every supported consumer, including
+T-native <code>predict</code>.</p>
 <hr />
 <h2 id="next-steps">Next Steps</h2>
 <ol type="1">

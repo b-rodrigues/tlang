@@ -35,7 +35,7 @@
 <div class="container">
 <h1 id="t-language-overview">T Language Overview</h1>
 <blockquote>
-<p><strong>Version</strong>: 0.55.4</p>
+<p><strong>Version</strong>: 0.55.5</p>
 </blockquote>
 <p>T is a functional programming language designed for declarative,
 tabular data manipulation. It combines the pipeline-driven style of R’s
@@ -181,7 +181,12 @@ annotations. Records match <code>_</code> and variable arms in
 <code>match</code>. Records are T-side contracts: they cannot cross into
 foreign node code or serializers — use plain data across the boundary
 instead. The leading word <code>type</code> is contextual, so the
-<code>type()</code> builtin keeps working.</p>
+<code>type()</code> builtin keeps working. Built-in type names
+(<code>Model</code>, <code>Pipeline</code>, <code>Date</code>,
+<code>Period</code>, <code>Interval</code>, and the rest) are reserved
+for every <code>type</code> declaration, records and unions alike —
+shadowing is never allowed, so a declaration with one of these names
+fails naming the full set.</p>
 <h3 id="user-defined-tagged-unions">User-Defined Tagged Unions</h3>
 <p>Unions name related cases with positional payloads. Every case uses
 call syntax, including nullary ones — a bare name in a pattern is always

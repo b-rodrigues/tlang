@@ -68,7 +68,13 @@ let rec run ?(headless = false) ?start_repl env =
      OCaml >= 5.1 (pinned toolchain is 5.4). *)
   let orig_dir = Sys.getcwd () in
   let tmp_parent = (try Unix.realpath orig_dir with _ -> orig_dir) in
-  let tmp_dir = Filename.temp_dir ~temp_dir:tmp_parent "t-demo-" "" in
+  (* Prefer the caller directory so the project flake resolves (see
+     above). In a read-only cwd that fails; fall back to system temp,
+     where builds cannot resolve a flake and fail loudly instead. *)
+  let tmp_dir =
+    try Filename.temp_dir ~temp_dir:tmp_parent "t-demo-" ""
+    with Sys_error _ -> Filename.temp_dir "t-demo-" ""
+  in
   (* The REPL handoff runs inside the temp dir, and `q` exits via `exit`,
      which skips Fun.protect — so cleanup is also registered with at_exit. *)
   let cleanup () =

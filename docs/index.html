@@ -111,7 +111,7 @@ humans and AI models. It gives you one hermetic dependency graph where
 your tools communicate without glue and execute consistently through
 space and time: on your laptop today, on a cluster tomorrow, and five
 years from now without bitrot.</p>
-<p><strong>Status:</strong> Version 0.55.4 “L’Ultime combat”.</p>
+<p><strong>Status:</strong> Version 0.55.5 “L’Ultime combat”.</p>
 <hr />
 <h3 id="quick-setup-for-people-in-a-hurry">Quick Setup (For People in a
 Hurry)</h3>
@@ -141,7 +141,9 @@ Tutorial</a> for full platform instructions).</em></p></li>
 Seconds</h2>
 <p>Run <code>t demo</code> right in your terminal to see pipeline
 introspection, hermetic Nix builds, Arrow in-memory inspection, caching,
-and first-class error handling in action:</p>
+and first-class error handling in action. The demo builds in a scratch
+directory under your current directory (so it resolves your project’s
+flake) and removes it on exit:</p>
 <figure>
 <img src="demo.gif" alt="T Interactive Demo" />
 <figcaption aria-hidden="true">T Interactive Demo</figcaption>
