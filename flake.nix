@@ -70,6 +70,7 @@
         python-with-packages = pkgs.python314.withPackages (p: with p; [
           deepdiff
           pandas
+          polars
           pyarrow
           scikit-learn
           xgboost
