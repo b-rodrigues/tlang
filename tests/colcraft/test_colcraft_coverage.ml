@@ -235,13 +235,13 @@ select(wide, where(is_logical)) |> ncol|}
     "is not callable";
   test "select rejects non-column"
     {|df = to_dataframe([[x: [1]]]); select(df, 1)|}
-    "expects $column syntax";
+    {|Error(TypeError: "Function `select` expects $column syntax.")|};
   test "mutate rejects bare value"
     {|df = to_dataframe([[x: [1]]]); mutate(df, 5)|}
-    "expects $column = expr syntax";
+    {|Error(TypeError: "Function `mutate` expects $column = expr syntax.")|};
   test "summarize rejects bare value"
     {|df = to_dataframe([[x: [1]]]); summarize(df, 5)|}
-    "expects $column = expr syntax";
+    {|Error(TypeError: "Function `summarize` expects $column = expr syntax.")|};
   test "uncount rejects non-column weights"
     {|df = to_dataframe([[x: [1]]]); uncount(df, weights = 5)|}
     "expects a weights column";

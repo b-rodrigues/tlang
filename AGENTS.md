@@ -365,7 +365,7 @@ Both `test`/`test_env` helpers:
 `test_equal` does only step 1 (plus location stripping). Use it for value results; keep `test_env` for error substrings where the full error text is long.
 
 **Regex semantics differ between the two:**
-- `test` fallback uses the expected string as a live `Str` regex — `.`, `[`, `]`, `*` are metacharacters. Use `{|...|}` delimiters for patterns containing these intentionally (e.g. `{|.*t check.*|}`).
+- `test` fallback uses the expected string as a live `Str` regex — `.`, `[`, `]`, `*`, `$`, `^`, `+`, `?` are metacharacters. Use `{|...|}` delimiters for patterns containing these intentionally (e.g. `{|.*t check.*|}`). For literal expectations containing them (e.g. `$column`), either expect the full string (exact match runs first) or use `test_equal`/`test_env`, which quote literally.
 - `test_env` fallback wraps the expected string in `Str.quote` — all metacharacters match literally. This is the safer default for new tests.
 
 #### When to keep OCaml-level assertions
