@@ -186,7 +186,16 @@ Example: `- [x] Test_arithmetic: REPAIRED, 3 weak assertions fixed`.
 
 Start of log:
 
-- [ ] Audit starts. No module reviewed yet.
+- [x] Test_arithmetic: REPAIRED, unary minus test used binary 0-5, changed to true unary -5
+- [x] Test_comparisons: OK, 7 tests exercise comparison operators, minimal but valid
+- [x] Test_logical: OK, short-circuit with 1/0 proves laziness, broadcast and identical strong
+- [x] Test_in: OK, scalar vector error NA cases strong
+- [x] Test_operators: OK, 70+ tests cover arithmetic compare logic broadcast NA, Negate Int confirms unary fix
+- [x] Test_scalar_strictness: OK, scalar vs broadcast error hints strong
+- [x] Test_typing_mode: OK, typed generic lambdas plus manual OCaml checks justified, coverage floor 382 holds
+- [x] Test_bitwise_error: OK, scalar-only error hints strong
+- [x] Test_variables: OK, immutability := NA error propagation valid
+- [x] Test_functions: OK, lambda closure autoquote arity strong
 
 ## Tracker Rule
 
@@ -197,4 +206,4 @@ For module-level progress, test-name can be `done`.
 Do not add text after this line.
 Update it after each test.
 
-LAST_REVIEWED: NONE [0/109]
+LAST_REVIEWED: Test_functions.done [10/109]
