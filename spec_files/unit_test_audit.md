@@ -186,8 +186,8 @@ Example: `- [x] Test_arithmetic: REPAIRED, 3 weak assertions fixed`.
 
 Start of log:
 
-- [x] Test_arithmetic: REPAIRED, unary minus test used binary 0-5, changed to true unary -5
-- [x] Test_comparisons: OK, 7 tests exercise comparison operators, minimal but valid
+- [x] Test_arithmetic: REPAIRED, unary minus test used binary 0-5, changed to true unary -5; strengthened with float negate double negation negated parens
+- [x] Test_comparisons: OK, 7 tests exercise comparison operators, minimal but valid; strengthened to 20 tests with false branches mixed string error NA date factor
 - [x] Test_logical: OK, short-circuit with 1/0 proves laziness, broadcast and identical strong
 - [x] Test_in: OK, scalar vector error NA cases strong
 - [x] Test_operators: OK, 70+ tests cover arithmetic compare logic broadcast NA, Negate Int confirms unary fix
@@ -198,10 +198,10 @@ Start of log:
 - [x] Test_functions: OK, lambda closure autoquote arity strong
 - [x] Test_strings: OK, 100+ tests unicode vector error cases strong
 - [x] Test_pipe: OK, pipe vs maybe-pipe error forward strong
-- [x] Test_ifelse: OK, minimal 3 tests valid
+- [x] Test_ifelse: OK, minimal 3 tests valid; strengthened to 8 tests with NA non-bool error propagation nested else-if
 - [x] Test_match: OK, pattern arms plus manual exhaustiveness checks justified
 - [x] Test_lists: OK, head tail slicing arity edge cases strong
-- [x] Test_dicts: OK, literal access missing key strong
+- [x] Test_dicts: OK, literal access missing key strong; strengthened with nested access nested missing key length
 - [x] Test_builtins: OK, seq sum map filesystem path introspection strong
 - [x] Test_chrono: OK, dates plus manual yojson checks justified
 - [x] Test_rng: OK, sample slice_sample plus determinism env checks justified
