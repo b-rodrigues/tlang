@@ -179,7 +179,8 @@ let shfmt_binds json =
    (`$x`, `${x}`, `"hi $x"`, `$(... $x ...)`), plus bare names inside
    arithmetic (`$((x + 1))`, `(( x++ ))`) and array indexes
    (`${a[i]}`), which shfmt stores as `Lit` leaves rather than
-   `ParamExp`. Heredoc bodies with `$x` arrive as `ParamExp` inside
+   `ParamExp` (`Index` holds a plain `Word`; slice offsets and
+   lengths use `Slice`/`Offset`/`Length` and also count). Heredoc bodies with `$x` arrive as `ParamExp` inside
    the redirect word and are already covered. Walked everywhere with
    no exclusions: subshell and pipeline reads still need the data.
    Only identifier-shaped names count (`$1`, `$@`, `$?` are not
@@ -229,7 +230,12 @@ and collect_reads_arith in_arith acc = function
         | _ -> acc
       in
       List.fold_left
-        (fun a (_, v) -> collect_reads_arith arith_here a v)
+        (fun a (k, v) ->
+           let inner =
+             arith_here || k = "Index" || k = "Slice" || k = "Offset"
+             || k = "Length"
+           in
+           collect_reads_arith inner a v)
         acc l
   | `List l -> List.fold_left (collect_reads_arith in_arith) acc l
   | _ -> acc
