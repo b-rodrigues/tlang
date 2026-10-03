@@ -1154,8 +1154,15 @@ let strsplit_impl args _env =
 --# Extract the first regex match
 --#
 --# Returns the first regular-expression match found in each string.
+--# Returns NA when the pattern does not match.
 --#
 --# @name str_extract
+--# @param s :: String The input string.
+--# @param pattern :: String The regular expression to match.
+--# @return :: String The first match, or NA when there is no match.
+--# @example
+--#   str_extract("abc123def", "[0-9]+")
+--#   -- Returns = "123"
 --# @family string
 --# @export
 *)
@@ -1165,6 +1172,12 @@ let strsplit_impl args _env =
 --# Returns every regular-expression match found in each string.
 --#
 --# @name str_extract_all
+--# @param s :: String The input string.
+--# @param pattern :: String The regular expression to match.
+--# @return :: List[String] Every match, or an empty list when there is no match.
+--# @example
+--#   str_extract_all("a1b22", "[0-9]+")
+--#   -- Returns = ["1", "22"]
 --# @family string
 --# @export
 *)
@@ -1174,6 +1187,12 @@ let strsplit_impl args _env =
 --# Returns true when a regular expression matches a string.
 --#
 --# @name str_detect
+--# @param s :: String The input string.
+--# @param pattern :: String The regular expression to test.
+--# @return :: Bool True when the pattern matches.
+--# @example
+--#   str_detect("abc", "^[a-z]+$")
+--#   -- Returns = true
 --# @family string
 --# @export
 *)
@@ -1185,6 +1204,14 @@ let strsplit_impl args _env =
 --# UTF-8 strings are padded correctly and never split.
 --#
 --# @name str_pad
+--# @param x :: String The input string.
+--# @param width :: Int The target character width (non-negative).
+--# @param side :: String [Optional] One of "left", "right", or "both". Defaults to "left".
+--# @param pad :: String [Optional] The padding text. Defaults to " ".
+--# @return :: String The padded string.
+--# @example
+--#   str_pad("7", 3, side = "left", pad = "0")
+--#   -- Returns = "007"
 --# @family string
 --# @export
 *)
@@ -1196,6 +1223,14 @@ let strsplit_impl args _env =
 --# UTF-8 strings are never split mid-character.
 --#
 --# @name str_trunc
+--# @param x :: String The input string.
+--# @param width :: Int The maximum character width (non-negative).
+--# @param side :: String [Optional] One of "left", "right", or "center". Defaults to "right".
+--# @param ellipsis :: String [Optional] The ellipsis marker. Defaults to "...".
+--# @return :: String The truncated string.
+--# @example
+--#   str_trunc("abcdefgh", 5)
+--#   -- Returns = "ab..."
 --# @family string
 --# @export
 *)
@@ -1205,6 +1240,12 @@ let strsplit_impl args _env =
 --# Concatenates string collections into a single string with an optional separator.
 --#
 --# @name str_flatten
+--# @param items :: List | Vector The items to flatten.
+--# @param collapse :: String [Optional] The separator. Defaults to "".
+--# @return :: String The flattened string.
+--# @example
+--#   str_flatten(["a", "b", "c"], collapse = "-")
+--#   -- Returns = "a-b-c"
 --# @family string
 --# @export
 *)
@@ -1214,6 +1255,12 @@ let strsplit_impl args _env =
 --# Counts how many times a regular expression matches within each string.
 --#
 --# @name str_count
+--# @param s :: String The input string.
+--# @param pattern :: String The regular expression to count.
+--# @return :: Int The number of matches.
+--# @example
+--#   str_count("banana", "a")
+--#   -- Returns = 3
 --# @family string
 --# @export
 *)
