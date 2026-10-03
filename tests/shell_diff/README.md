@@ -13,8 +13,10 @@ test stays hermetic: no parser binary is needed at test time.
   edge. Under-binding only keeps extra edges and passes, except in
   the `exact_cases` list where precision matters and equality holds.
 - Reads: every `$x` / `${x}` variable read in the shfmt AST
-  (`ParamExp`) must stay visible to T's identifier scan. Extra T
-  names (command words like `echo`) are fine.
+  (`ParamExp`) plus bare names in arithmetic (`$((x+1))`,
+  `((x++))`) and array indexes (`${a[i]}`) must stay visible to T's
+  identifier scan. Heredoc `$x` bodies arrive as `ParamExp` and are
+  covered. Extra T names (command words like `echo`) are fine.
 
 The shfmt-side rules below mirror POSIX/bash persistence
 and were verified against real bash where subtle:

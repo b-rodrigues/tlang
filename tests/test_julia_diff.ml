@@ -20,7 +20,8 @@ let cases =
     "09_block_comment"; "10_comprehension"; "11_scopes"; "12_macro";
     "13_broadcast"; "14_paren_transpose"; "15_keyword_char";
     "16_unicode"; "17_end_index"; "18_backtick"; "19_triple_transpose";
-    "20_return_quote"; "21_unicode_op"; "22_try_finally"; "23_abstract" ]
+    "20_return_quote"; "21_unicode_op"; "22_try_finally"; "23_abstract";
+    "24_abstract_in_module" ]
 
 let skipped = []
 

@@ -22,4 +22,5 @@ must not swallow `* src`) while only `src` and `z` count.
 Missing-breakage coverage: `case_19` triple transpose (`A'''`),
 `case_20` `return '"'` (quote after a reserved word opens a literal),
 `case_21` Unicode operator (`≠`), `case_22` `try`/`finally`,
-`case_23` `abstract type`.
+`case_23` `abstract type`, `case_24` `abstract type` inside a
+`module` (the old frame-pop bug: truth binds only `M`).

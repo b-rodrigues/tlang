@@ -97,6 +97,10 @@ and walk_stmt excluded stmt =
            raise (Cannot_interpret "BinaryCmd with unknown Op"))
   | Some "Subshell" -> stmts_field cmd "Stmts" true
   | Some "BraceGroup" | Some "Block" -> stmts_field cmd "Stmts" excluded
+  (* Arithmetic commands read variables but bind nothing we track
+     (`(( x++ ))` only reads; `(( x = 1 ))` arithmetic assignment is
+     out of scope and keeps the edge). *)
+  | Some "ArithmCmd" -> []
   | Some "IfClause" ->
       stmts_field cmd "Cond" excluded
       @ stmts_field cmd "Then" true
@@ -172,7 +176,11 @@ let shfmt_binds json =
   | _ -> raise (Cannot_interpret "top node is not a File")
 
 (* Shell variable reads from the shfmt AST: every `ParamExp` parameter
-   (`$x`, `${x}`, `"hi $x"`, `$(... $x ...)`). Walked everywhere with
+   (`$x`, `${x}`, `"hi $x"`, `$(... $x ...)`), plus bare names inside
+   arithmetic (`$((x + 1))`, `(( x++ ))`) and array indexes
+   (`${a[i]}`), which shfmt stores as `Lit` leaves rather than
+   `ParamExp`. Heredoc bodies with `$x` arrive as `ParamExp` inside
+   the redirect word and are already covered. Walked everywhere with
    no exclusions: subshell and pipeline reads still need the data.
    Only identifier-shaped names count (`$1`, `$@`, `$?` are not
    dependencies). T must show every one of them; extra T names
@@ -194,8 +202,17 @@ let is_read_ident s =
       in
       loop 1
 
-let rec collect_reads acc = function
+let rec collect_reads acc = collect_reads_arith false acc
+
+and collect_reads_arith in_arith acc = function
   | `Assoc l ->
+      let arith_here =
+        match List.assoc_opt "Type" l with
+        | Some (`String s)
+          when s = "ArithmExp" || s = "ArithmCmd" || s = "BinaryArithm"
+            || s = "UnaryArithm" -> true
+        | _ -> in_arith
+      in
       let acc =
         match List.assoc_opt "Type" l with
         | Some (`String "ParamExp") -> (
@@ -205,10 +222,16 @@ let rec collect_reads acc = function
                 | Some (`String v) when is_read_ident v -> v :: acc
                 | _ -> acc)
             | _ -> acc)
+        | Some (`String "Lit") when arith_here -> (
+            match List.assoc_opt "Value" l with
+            | Some (`String v) when is_read_ident v -> v :: acc
+            | _ -> acc)
         | _ -> acc
       in
-      List.fold_left (fun a (_, v) -> collect_reads a v) acc l
-  | `List l -> List.fold_left collect_reads acc l
+      List.fold_left
+        (fun a (_, v) -> collect_reads_arith arith_here a v)
+        acc l
+  | `List l -> List.fold_left (collect_reads_arith in_arith) acc l
   | _ -> acc
 
 let shfmt_reads json =
@@ -242,13 +265,16 @@ let cases =
     "19_func_local"; "20_if_cond"; "21_combined_redir"; "22_blank_eq";
     "23_subshell_assign"; "24_if_else"; "25_and_right"; "26_or_right";
     "27_brace_group"; "28_dollar_read"; "29_braced_read";
-    "30_quoted_read" ]
+    "30_quoted_read"; "31_arith_read"; "32_arith_cmd";
+    "33_array_index"; "34_heredoc" ]
 
 (* Precision list: T must match shell truth exactly here. Everywhere
    else the check is one-sided (T binds ⊆ truth): T binding fewer
    names only keeps extra edges, which is safe. `16_export_prefix`
    is the intentional divergence (real bash binds FOO, T records a
-   prefix and binds nothing) and stays subset-only so it passes. *)
+   prefix and binds nothing) and stays subset-only so it passes;
+   a future T that binds FOO there also passes. The exact list is
+   the precision contract, not the divergence record. *)
 let exact_cases =
   [ "01_prefix"; "02_chain"; "03_array"; "04_cmdsubst"; "05_quoted";
     "06_empty"; "07_eqval"; "08_redirect"; "09_fddup";

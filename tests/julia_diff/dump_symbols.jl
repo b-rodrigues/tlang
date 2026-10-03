@@ -19,6 +19,9 @@
 # comprehensions, or module/struct bodies never binds outward. `for`
 # loop variables never bind. T must not bind more than this set;
 # over-binding drops a later read and loses an edge.
+# Known narrow spots (false-failure direction only, never missed
+# bugs): `struct Foo <: Bar` hides the name in Expr(:<:),
+# chained `x = y = 1` keeps only `x`, tuple targets are skipped.
 # Base Julia only: no packages, so startup stays fast.
 
 function syms(x, acc)
