@@ -220,6 +220,21 @@ Start of log:
 - [x] Test_expect_pipeline: OK, pipeline expectations strong
 - [x] Test_expect_pass_fail_msg: OK, messages strong
 - [x] Test_expect_ds_coverage: OK, dataset coverage strong
+- [x] Test_property: OK, prop roundtrip via manual seeded draws justified, 2932 pass in batch
+- [x] Test_property_base: OK, base generators strong
+- [x] Test_property_testcraft: OK, testcraft gens strong
+- [x] Test_property_verbs: OK, verb properties strong
+- [x] Test_property_math: OK, math properties strong
+- [x] Test_property_strcraft: OK, string properties strong
+- [x] Test_property_core: OK, core properties strong
+- [x] Test_property_chrono: OK, chrono properties strong
+- [x] Test_property_stats: OK, stats properties strong
+- [x] Test_property_dataframe: OK, dataframe properties strong
+- [x] Test_property_lens: OK, lens properties strong
+- [x] Test_property_explain: OK, explain properties strong
+- [x] Test_property_pipeline: OK, pipeline properties strong
+- [x] Test_reserved_names: OK, reserved word guards strong
+- [x] Test_fetchurl: OK, fetch prefetch pipeline serializers strong
 
 ## Tracker Rule
 
@@ -230,4 +245,4 @@ For module-level progress, test-name can be `done`.
 Do not add text after this line.
 Update it after each test.
 
-LAST_REVIEWED: Test_expect_ds_coverage.done [34/109]
+LAST_REVIEWED: Test_fetchurl.done [49/109]
