@@ -1,4 +1,4 @@
-let run_tests _pass_count _fail_count _failures _eval_string eval_string_env _test test_env =
+let run_tests _pass_count _fail_count _failures _eval_string eval_string_env  _test test_env _test_equal =
   (* === Large Dataset Scenarios === *)
 
   Printf.printf "Large Datasets — Programmatic CSV generation and operations:\n";

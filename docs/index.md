@@ -6,7 +6,7 @@ Simulations in Julia, ML in Python, statistics in R — or the exact opposite. I
 
 A language for the LLM era, T is designed to be piloted by both humans and AI models. It gives you one hermetic dependency graph where your tools communicate without glue and execute consistently through space and time: on your laptop today, on a cluster tomorrow, and five years from now without bitrot.
 
-**Status:** Version 0.55.5 "L'Ultime combat".
+**Status:** Version 0.56.0 "L'Ultime combat".
 
 ---
 

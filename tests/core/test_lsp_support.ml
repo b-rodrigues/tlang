@@ -339,6 +339,33 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
   test_message "TDict unknown sides match anything"
     (Ast.types_compatible
        (Ast.TDict (None, None)) (Ast.TDict (Some Ast.TString, Some Ast.TInt)));
+  test_message "Function matches arity-0 arrow"
+    (Ast.types_compatible (Ast.TCustom "Function") (Ast.TArrow ([], Ast.TInt)));
+  test_message "arity-0 arrow matches Function"
+    (Ast.types_compatible (Ast.TArrow ([], Ast.TInt)) (Ast.TCustom "Function"));
+  test_message "Function matches arity-1 arrow"
+    (Ast.types_compatible (Ast.TCustom "Function") (Ast.TArrow ([Ast.TInt], Ast.TInt)));
+  test_message "arity-1 arrow matches Function"
+    (Ast.types_compatible (Ast.TArrow ([Ast.TInt], Ast.TInt)) (Ast.TCustom "Function"));
+  test_message "Function matches arity-3 arrow"
+    (Ast.types_compatible (Ast.TCustom "Function")
+       (Ast.TArrow ([Ast.TInt; Ast.TString; Ast.TBool], Ast.TFloat)));
+  test_message "arity-3 arrow matches Function"
+    (Ast.types_compatible (Ast.TArrow ([Ast.TInt; Ast.TString; Ast.TBool], Ast.TFloat))
+       (Ast.TCustom "Function"));
+  test_message "Function still rejects non-arrow"
+    (not (Ast.types_compatible (Ast.TCustom "Function") Ast.TInt));
+  test_message "non-arrow still rejects Function"
+    (not (Ast.types_compatible Ast.TInt (Ast.TCustom "Function")));
+  test_message "from_string keeps 3-member unions whole"
+    (match Semantic_type.from_string "Bool | List[Bool] | Vector[Bool]" with
+     | Semantic_type.TUnion [a; b; c] ->
+         a = Semantic_type.TBool
+         && b = Semantic_type.TList Semantic_type.TBool
+         && c = Semantic_type.TVector Semantic_type.TBool
+     | _ -> false);
+  test_message "from_string still absorbs Any unions"
+    (Semantic_type.from_string "Int | Any" = Semantic_type.TAny);
 
   (* ── Semantic_type.to_ast_typ ────────────────────────────── *)
   Printf.printf "Semantic_type.to_ast_typ:\n";

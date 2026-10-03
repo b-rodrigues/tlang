@@ -4,7 +4,7 @@
    cases; `test_env` substring matching keeps assertions on the explicit
    contract language (field names, valid sets, type names). *)
 
-let run_tests pass_count fail_count _failures _eval_string _eval_string_env test test_env =
+let run_tests pass_count fail_count _failures _eval_string _eval_string_env test test_env _test_equal =
   Printf.printf "Records:\n";
   let fresh () = Packages.init_env () in
   (* Baseline eval still works through the shared helper. *)

@@ -6,7 +6,7 @@ Coerces a value to a float robustly. Handles strings with spaces, percentages, c
 
 ## Parameters
 
-- **x** (`Any`): The value to convert.
+- **x** (`Bool | Int | Float | String | List | Vector`): The value to convert.
 
 
 ## Returns

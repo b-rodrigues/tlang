@@ -217,12 +217,12 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
      honest catch-all tails (`to_factor.x`, `ordered.x`, both `Vector |
      List | Any` against implementations that stringify anything) count
      as imprecise instead of riding on a truncated first member. *)
-  let coverage_floor = 382 in
+  let coverage_floor = 444 in
   (* The registry fills from --# source comments (same as `t doc
      --parse`); without it every builtin falls back to all-Any and the
      audit would measure nothing. Skip gracefully outside a checkout. *)
   let snap = Tdoc_registry.snapshot () in
-  let (full_n, total_n, ret_n, nodoc_n) =
+  let (full_n, total_n, ret_n, nodoc_n, imprecise_list) =
     Fun.protect
       ~finally:(fun () -> Tdoc_registry.restore snap)
       (fun () ->
@@ -263,6 +263,7 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
           | Some s -> concrete (Semantic_type.from_string s)
           | None -> false in
         let full = ref 0 and ret = ref 0 and nodoc = ref 0 in
+        let imprecise = ref [] in
         List.iter (fun n ->
           match Tdoc_registry.lookup n with
           | None -> incr nodoc
@@ -273,9 +274,30 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
                 | None -> false in
               if r then incr ret;
               if r && List.for_all (fun x -> x) ps then incr full
+              else begin
+                let bad_params = List.filter_map (fun (p : Tdoc_types.param_doc) ->
+                  match p.Tdoc_types.type_info with
+                  | Some s when not (concrete (Semantic_type.from_string s)) -> Some (p.Tdoc_types.name ^ " :: " ^ s)
+                  | None -> Some (p.Tdoc_types.name ^ " :: (missing)")
+                  | _ -> None
+                ) e.Tdoc_types.params in
+                let ret_s = match e.Tdoc_types.return_value with
+                  | Some rv -> (match rv.Tdoc_types.type_info with Some s -> s | None -> "(missing)")
+                  | None -> "(missing)" in
+                imprecise := (n, ret_s, bad_params) :: !imprecise
+              end
         ) names;
-        (!full, List.length names, !ret, !nodoc))
+        (!full, List.length names, !ret, !nodoc, List.sort compare !imprecise))
   in
+  (if try Sys.getenv "TLANG_TYPING_VERBOSE" = "1" with Not_found -> false then begin
+    Printf.printf "  imprecise builtins (%d):\n" (List.length imprecise_list);
+    List.iter (fun (n, ret_s, bad) ->
+      Printf.printf "    - %s return :: %s%s\n" n ret_s
+        (match bad with
+         | [] -> ""
+         | ps -> " | params: " ^ String.concat ", " ps)
+    ) imprecise_list
+  end);
   let has_src = Sys.file_exists "src/packages" in
   Printf.printf "  typing coverage: %d/%d fully precise, %d precise returns, %d without docs\n"
     full_n total_n ret_n nodoc_n;

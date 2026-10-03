@@ -3153,6 +3153,14 @@ let rec is_compatible (v : value) (t : typ) : bool =
       List.for_all2 (fun (_, ev) et -> is_compatible ev et) items ts
   
   | VVector _, TList _ -> true (* Treat Vectors as compatible with List types for runtime checks *)
+  (* `Vector` annotations parse to `TCustom "Vector"` (the parser keeps the
+     spelling; see parser.mly `typ`). Vectors check as lists throughout
+     the static layer (`to_ast_typ` maps `TVector` onto `TList`), so the
+     runtime accepts both storage shapes here. Like the `TList` arm above
+     this is shape-only (element params do not survive parsing), and it
+     only ever turns a mismatch into a match. *)
+  | VVector _, TCustom "Vector" -> true
+  | VList _, TCustom "Vector" -> true
   | VNDArray _, TCustom "NDArray" -> true
   | VDataFrame _, TDataFrame _ -> true
   
@@ -3225,6 +3233,12 @@ let rec types_compatible a b =
   | TUnknown, _ -> true
   | TInt, TFloat -> true
   | TFloat, TInt -> false
+  (* A bare `Function` contract matches any function shape regardless of
+     arity: arity lives in `TArrow`, so comparing lengths here would reject
+     valid programs. This only ever turns a mismatch into a match, so it
+     cannot introduce new rejections. *)
+  | TCustom "Function", TArrow _ -> true
+  | TArrow _, TCustom "Function" -> true
   | TArrow (p1, r1), TArrow (p2, r2) ->
       List.length p1 = List.length p2 &&
       List.for_all2 types_compatible p1 p2 &&

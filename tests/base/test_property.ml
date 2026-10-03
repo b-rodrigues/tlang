@@ -1,4 +1,4 @@
-let run_tests pass_count fail_count failures _eval_string eval_string_env _test test_env =
+let run_tests pass_count fail_count failures _eval_string eval_string_env  _test test_env _test_equal =
   Printf.printf "Propcraft — property-based testing:\n";
   let env = Packages.init_env () in
 

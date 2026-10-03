@@ -298,7 +298,7 @@ Follow this checklist whenever you add a new function or language feature:
 
 ### 2. Add Tests
 
-- **Unit tests**: add a test module in the appropriate `tests/` subdirectory. Use `test` for stateless assertions, `test_env` when the test depends on prior env state. Register the module in `test_runner.ml` with `run` (for `test`-only modules) or `run_with_env` (for modules using `test_env`), and in the corresponding `dune` file.
+- **Unit tests**: add a test module in the appropriate `tests/` subdirectory. Use `test` for stateless assertions, `test_env` when the test depends on prior env state, `test_equal` for short value results where a substring would also match a wrong answer. Register the module in `test_runner.ml` with `run` (for `test`-only modules) or `run_with_env` (for modules using `test_env`/`test_equal`), and in the corresponding `dune` file.
 - **Golden tests** (preferred for numerical or statistical functions): add a `.t` script in `tests/golden/t_scripts/`, a matching R script in `tests/golden/r_scripts/` (or extend `generate_expected.R`), and a `test_that(…)` block in `tests/golden/test_golden_r.R`.
 
   Golden tests are **required** for any function that produces numeric or statistical output that can be verified against R or Python.
@@ -355,14 +355,17 @@ All OCaml tests are orchestrated by `tests/test_runner.ml`, which provides share
 |--------|-----------|----------|
 | `test name input expected` | Evaluates `input` against `shared_env`, compares string output to `expected`. | The test expression doesn't depend on prior state (no CSV loads, no pipeline setup). |
 | `test_env env name input expected` | Evaluates `input` against an explicit `env`, compares string output to `expected`. | The test depends on prior state — e.g. a CSV was loaded, a pipeline was created, or a variable was bound earlier in the same test. |
+| `test_equal env name input expected` | Evaluates `input` against an explicit `env`, requires exact string equality with `expected` (no substring fallback). | The expected value is short enough that a substring would also match a wrong answer — e.g. expected `"5"` also matches `"-5"`, `"1"` matches `"10"`. |
 
-Both helpers:
+Both `test`/`test_env` helpers:
 1. Try exact string match first.
 2. Fall back to substring match if the exact match fails.
 3. Strip `[L1:C1]` location markers from results before comparing.
 
+`test_equal` does only step 1 (plus location stripping). Use it for value results; keep `test_env` for error substrings where the full error text is long.
+
 **Regex semantics differ between the two:**
-- `test` fallback uses the expected string as a live `Str` regex — `.`, `[`, `]`, `*` are metacharacters. Use `{|...|}` delimiters for patterns containing these intentionally (e.g. `{|.*t check.*|}`).
+- `test` fallback uses the expected string as a live `Str` regex — `.`, `[`, `]`, `*`, `$`, `^`, `+`, `?` are metacharacters. Use `{|...|}` delimiters for patterns containing these intentionally (e.g. `{|.*t check.*|}`). For literal expectations containing them (e.g. `$column`), either expect the full string (exact match runs first) or use `test_equal`/`test_env`, which quote literally.
 - `test_env` fallback wraps the expected string in `Str.quote` — all metacharacters match literally. This is the safer default for new tests.
 
 #### When to keep OCaml-level assertions
@@ -396,7 +399,7 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
 
 ```ocaml
 (* tests/colcraft/test_my_thing.ml *)
-let run_tests pass_count fail_count _failures _eval_string eval_string_env test test_env =
+let run_tests pass_count fail_count _failures _eval_string eval_string_env test test_env _test_equal =
   Printf.printf "My Thing:\n";
   let env = Packages.init_env () in
   let (_, env) = eval_string_env {|df = read_csv("data/test.csv")|} env in

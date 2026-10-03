@@ -6,7 +6,7 @@ Converts strings, dates, and related temporal values to Datetime values.
 
 ## Parameters
 
-- **x** (`Any`): The value to convert.
+- **x** (`String | Date | Datetime | Int | Float | List | Vector`): The value to convert.
 
 - **origin** (`String`): (Optional) Origin date for numeric conversion (default "1970-01-01").
 

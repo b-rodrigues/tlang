@@ -20,7 +20,7 @@ let parse_numeric_string s =
 --# spaces, percentages, commas, and recognizes 'TRUE'/'FALSE'.
 --#
 --# @name to_integer
---# @param x :: Any The value to convert.
+--# @param x :: Bool | Int | Float | String | List | Vector The value to convert.
 --# @return :: Int | NA The converted integer.
 --# @example
 --#   to_integer("12 300")
@@ -75,7 +75,7 @@ let register_integer env =
 --# spaces, percentages, commas, and recognizes 'TRUE'/'FALSE'.
 --#
 --# @name to_float
---# @param x :: Any The value to convert.
+--# @param x :: Bool | Int | Float | String | List | Vector The value to convert.
 --# @return :: Float | NA The converted float.
 --# @example
 --#   to_float("3,14")
@@ -142,7 +142,7 @@ let register_sym env =
 --# non-zero numbers as true, and zero as false.
 --#
 --# @name to_bool
---# @param x :: Any The value to convert.
+--# @param x :: Bool | Int | Float | String | List | Vector The value to convert.
 --# @return :: Bool | NA The converted boolean.
 --# @family core
 --# @export

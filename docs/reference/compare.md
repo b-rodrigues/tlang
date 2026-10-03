@@ -6,7 +6,7 @@ Align multiple model coefficient tables into a single wide DataFrame for compari
 
 ## Parameters
 
-- **...** (`Variadic`): Models or a List of models to compare.
+- **...** (`Model | List`): Models or a List of models to compare.
 
 
 ## Returns

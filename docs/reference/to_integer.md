@@ -6,7 +6,7 @@ Coerces a value to an integer robustly. Handles strings with spaces, percentages
 
 ## Parameters
 
-- **x** (`Any`): The value to convert.
+- **x** (`Bool | Int | Float | String | List | Vector`): The value to convert.
 
 
 ## Returns

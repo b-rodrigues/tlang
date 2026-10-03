@@ -94,12 +94,17 @@ let rec from_string str =
   | "to_dataframe" | "table" | "dataframe" -> TDataFrame []
   | "any" | "value" | "all" | "mixed" | "..." -> TAny
   (* Nominal domain types, canonicalized to the annotation spelling
-     (annotations preserve case, so `Model` must stay `Model`). These only
-     ever match themselves (or Any), so they add precision without new
-     mismatch classes: a misspelled name simply never matches a real
-     annotation. Deliberately excluded: Function (arity lives in
-     TFunction), Error/VError/Null (descriptive positions, not
-     contracts), NA (bottom rules own it). *)
+     (annotations preserve case, so `Model` must stay `Model`). Unification
+     rule: a nominal matches only itself, `Any`, `Unknown`, or a type
+     variable — except `Function`, which also matches any `TArrow`
+     regardless of arity (see `Ast.types_compatible`), because arity lives
+     in the arrow and a bare `Function` name cannot name one. They add
+     precision without new mismatch classes: a misspelled name simply
+     never matches a real annotation. Call-site checking stays absent by
+     design (the analyzer has no call checking), so these contracts
+     document and display but never reject a call. Deliberately excluded:
+     Error/VError/Null (descriptive positions, not contracts) and NA
+     (bottom rules own it). *)
   | "pipeline" -> TCustom "Pipeline"
   | "metapipeline" -> TCustom "MetaPipeline"
   | "model" -> TCustom "Model"
@@ -109,6 +114,22 @@ let rec from_string str =
   | "datetime" -> TCustom "Datetime"
   | "formula" -> TCustom "Formula"
   | "lens" -> TCustom "Lens"
+  (* Higher-order and selection vocabulary (`function`, `column`,
+     `selection`, `keywordargs`, `expressions`): opaque contracts under
+     the nominal rule above. `Function` is inhabited (lambdas and builtins
+     match it at value and static level). `Column`, `Selection`,
+     `KeywordArgs`, and `Expressions` are argument-shape words with no
+     value-level inhabitants: no builtin returns them (selection helpers
+     return `Function` or `List[String]`), so annotated bindings against
+     them reject everything but `Any`/`Unknown`/NA. That is intentional:
+     a permissive arm (e.g. `VBuiltin` matching `Selection`) would also
+     admit non-selections like `sum`. They document call shapes for
+     readers and future call checking, not checkable contracts today. *)
+  | "function" -> TCustom "Function"
+  | "column" -> TCustom "Column"
+  | "selection" -> TCustom "Selection"
+  | "keywordargs" -> TCustom "KeywordArgs"
+  | "expressions" -> TCustom "Expressions"
   | "strategy" -> TCustom "Strategy"
   | "shellresult" -> TCustom "ShellResult"
   | "factor" -> TCustom "Factor"

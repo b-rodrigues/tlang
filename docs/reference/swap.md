@@ -10,7 +10,7 @@ Replaces a node's implementation with a new node value. The dependency edges of 
 
 - **name** (`String`): The name of the node to replace.
 
-- **new_node** (`Any`): The new node implementation.
+- **new_node** (`NodeDef`): The new node implementation.
 
 
 ## Returns

@@ -1045,7 +1045,7 @@ let within_impl args _env =
 --# Converts strings, datetimes, and related temporal values to Date values.
 --#
 --# @name to_date
---# @param x :: Any The value to convert.
+--# @param x :: String | Date | Datetime | Int | Float | List | Vector The value to convert.
 --# @param origin :: String (Optional) Origin date for numeric conversion (default "1970-01-01").
 --# @return :: Date | Vector[Date] The converted date(s).
 --# @family chrono
@@ -1057,7 +1057,7 @@ let within_impl args _env =
 --# Converts strings, dates, and related temporal values to Datetime values.
 --#
 --# @name to_datetime
---# @param x :: Any The value to convert.
+--# @param x :: String | Date | Datetime | Int | Float | List | Vector The value to convert.
 --# @param origin :: String (Optional) Origin date for numeric conversion (default "1970-01-01").
 --# @param tz :: String (Optional) Timezone label.
 --# @return :: Datetime | Vector[Datetime] The converted datetime(s).

@@ -5,7 +5,7 @@
    a strategy is expected; there is no quoting escape. Fresh environment
    per test so nothing leaks across cases. *)
 
-let run_tests pass_count fail_count _failures _eval_string _eval_string_env test test_env =
+let run_tests pass_count fail_count _failures _eval_string _eval_string_env test test_env _test_equal =
   Printf.printf "Closed strategies:\n";
   let fresh () = Packages.init_env () in
   test "strategy baseline arithmetic"

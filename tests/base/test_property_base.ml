@@ -2,7 +2,7 @@
    over generated values. Covers serialize/deserialize round-trips, JSON
    round-trips, is_na identity, error round-trips, sample determinism, and
    NA/assert interactions. *)
-let run_tests _pass_count _fail_count _failures _eval_string eval_string_env _test test_env =
+let run_tests _pass_count _fail_count _failures _eval_string eval_string_env  _test test_env _test_equal =
   Printf.printf "Propcraft dogfooding — base:\n";
   let env = Packages.init_env () in
 

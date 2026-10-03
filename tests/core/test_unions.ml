@@ -4,7 +4,7 @@
    a bare name is a binding, never a case test. Fresh environment per
    test so type names never collide. *)
 
-let run_tests pass_count fail_count _failures _eval_string _eval_string_env test test_env =
+let run_tests pass_count fail_count _failures _eval_string _eval_string_env test test_env _test_equal =
   Printf.printf "Unions:\n";
   let fresh () = Packages.init_env () in
   test "union baseline arithmetic"
