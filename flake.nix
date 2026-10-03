@@ -88,6 +88,7 @@
 
         julia-with-packages = pkgs.julia-lts.withPackages [
           "DataFrames"
+          "DecisionTree"
           "Tidier"
           "TidierPlots"
           "CSV"

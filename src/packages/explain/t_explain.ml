@@ -170,6 +170,8 @@ let register ?(ensure_docs=ignore) env =
     (match assoc_int "ncol" pairs with Some n -> add "ncol" (VInt n) | None -> ());
     (match assoc_int "n_obs" pairs with Some n -> add "n_obs" (VInt n) | None -> ());
     (match assoc_int "n_features" pairs with Some n -> add "n_features" (VInt n) | None -> ());
+    (match assoc_int "n_trees" pairs with Some n -> add "n_trees" (VInt n) | None -> ());
+    (match assoc_int "n_rounds" pairs with Some n -> add "n_rounds" (VInt n) | None -> ());
     (match assoc_string "target" pairs with Some t -> add "target" (VString t) | None -> ());
     (match assoc_int_list "order" pairs with
      | Some ns -> add "order" (VList (List.map (fun n -> (None, VInt n)) ns))
@@ -202,7 +204,7 @@ let register ?(ensure_docs=ignore) env =
     | [] -> VNA NAGeneric
     | _ ->
         let display = ["kind"; "class"; "task"; "nrow"; "ncol"; "n_obs"; "n_features";
-                       "target"; "order"; "seasonal_order";
+                       "n_trees"; "n_rounds"; "target"; "order"; "seasonal_order";
                        "features_preview"; "formula_preview"; "metrics"; "artifact_size"] in
         let shown = List.filter (fun k -> List.mem_assoc k ordered) display in
         make_explain_dict ~display_keys:shown ordered

@@ -1690,6 +1690,47 @@ r_save_meta <- function(object, path) {
       bic <- tryCatch(stats::BIC(object), error = function(e) NULL)
       if (!is.null(bic) && length(bic) == 1 && !is.na(bic)) metrics$bic <- as.numeric(bic)
       if (length(metrics) > 0) meta$metrics <- metrics
+    } else if (inherits(object, "randomForest")) {
+      meta$kind <- "model"
+      tp <- tryCatch(object$type, error = function(e) NULL)
+      if (!is.null(tp) && length(tp) == 1 && !is.na(tp) && tp == "classification") {
+        meta$task <- "classification"
+      } else if (!is.null(tp) && length(tp) == 1 && !is.na(tp) && tp == "regression") {
+        meta$task <- "regression"
+      }
+      nt <- tryCatch(object$ntree, error = function(e) NULL)
+      if (!is.null(nt) && length(nt) == 1 && !is.na(nt)) meta$n_trees <- as.integer(nt)
+      ny <- tryCatch(length(object$y), error = function(e) NULL)
+      if (!is.null(ny) && length(ny) == 1 && !is.na(ny) && ny > 0) meta$n_obs <- as.integer(ny)
+      tm <- tryCatch(attr(object$terms, "term.labels"), error = function(e) NULL)
+      if (!is.null(tm) && length(tm) > 0) {
+        feats <- as.character(tm)
+        meta$n_features <- length(feats)
+        meta$features <- as.list(feats)
+      }
+      metrics <- list()
+      rsq <- tryCatch(object$rsq, error = function(e) NULL)
+      if (!is.null(rsq) && length(rsq) >= 1 && !is.na(rsq[length(rsq)])) metrics$r_squared <- as.numeric(rsq[length(rsq)])
+      er <- tryCatch(object$err.rate, error = function(e) NULL)
+      if (!is.null(er) && nrow(er) >= 1 && "OOB" %in% colnames(er)) {
+        oob <- tryCatch(er[nrow(er), "OOB"], error = function(e) NULL)
+        if (!is.null(oob) && length(oob) == 1 && !is.na(oob)) metrics$oob_error <- as.numeric(oob)
+      }
+      if (length(metrics) > 0) meta$metrics <- metrics
+    } else if (inherits(object, "xgb.Booster")) {
+      meta$kind <- "model"
+      fn <- tryCatch(object$feature_names, error = function(e) NULL)
+      if (!is.null(fn) && length(fn) > 0) {
+        feats <- as.character(fn)
+        meta$n_features <- length(feats)
+        meta$features <- as.list(feats)
+      }
+      nr <- tryCatch(object$niter, error = function(e) NULL)
+      if (is.null(nr)) nr <- tryCatch({
+        dt <- xgb.model.dt.tree(model = object)
+        length(unique(dt$Tree))
+      }, error = function(e) NULL)
+      if (!is.null(nr) && length(nr) == 1 && !is.na(nr)) meta$n_rounds <- as.integer(nr)
     } else if (inherits(object, "Arima") || inherits(object, "arima")) {
       meta$kind <- "model"
       meta$task <- "time_series"
@@ -1977,6 +2018,58 @@ def py_save_meta(obj, path):
                     meta.setdefault("metrics", {})["n_classes"] = int(len(list(classes)))
             except Exception:
                 pass
+            try:
+                bi = getattr(obj, "best_iteration", None)
+                if bi is not None:
+                    meta.setdefault("metrics", {})["best_iteration"] = int(bi)
+            except Exception:
+                pass
+        elif mod.startswith("xgboost"):
+            meta["kind"] = "model"
+            if cls.__name__ == "Booster":
+                try:
+                    import json as _tlang_cfg_json
+                    cfg = _tlang_cfg_json.loads(obj.save_config())
+                    oname = ((cfg.get("learner", {}).get("objective", {}) or {}).get("name", "") or "")
+                    if any(k in oname for k in ("binary", "multi", "softmax")):
+                        meta["task"] = "classification"
+                    elif any(k in oname for k in ("reg:", "squarederror", "gamma", "tweedie")):
+                        meta["task"] = "regression"
+                except Exception:
+                    pass
+                try:
+                    meta["n_rounds"] = int(obj.num_boosted_rounds())
+                except Exception:
+                    pass
+                try:
+                    nf = obj.num_features()
+                    if nf is not None:
+                        meta["n_features"] = int(nf)
+                except Exception:
+                    pass
+                try:
+                    fnames = obj.feature_names
+                    if fnames is not None:
+                        meta["features"] = [str(f) for f in list(fnames)]
+                except Exception:
+                    pass
+            else:
+                try:
+                    tags_fn = getattr(obj, "__sklearn_tags__", None)
+                    if callable(tags_fn):
+                        est_type = getattr(tags_fn(), "estimator_type", None)
+                        if est_type == "classifier":
+                            meta["task"] = "classification"
+                        elif est_type == "regressor":
+                            meta["task"] = "regression"
+                except Exception:
+                    pass
+                try:
+                    nf = getattr(obj, "n_features_in_", None)
+                    if nf is not None:
+                        meta["n_features"] = int(nf)
+                except Exception:
+                    pass
         elif mod.startswith("statsmodels"):
             meta["kind"] = "model"
             order = None
@@ -2476,6 +2569,27 @@ function jl_save_meta(obj, path)
             meta["ncol"] = s[2]
         else
             meta["kind"] = "other"
+            isforest = try
+                hasproperty(obj, :trees) && hasproperty(obj, :n_feat)
+            catch
+                false
+            end
+            if isforest
+                meta["kind"] = "model"
+                try
+                    meta["n_trees"] = Int(length(obj.trees))
+                catch
+                end
+                try
+                    meta["n_features"] = Int(obj.n_feat)
+                catch
+                end
+                try
+                    labT = typeof(obj).parameters[2]
+                    meta["task"] = labT <: Real ? "regression" : "classification"
+                catch
+                end
+            end
             try
                 meta["n_obs"] = Int(nobs(obj))
             catch

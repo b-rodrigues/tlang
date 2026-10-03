@@ -365,4 +365,40 @@ let run_tests _pass_count _fail_count _failures _eval_string eval_string_env tes
   test_env env_fm_ts "explain foreign meta time series loglik"
     "explain(fake_ts_model).foreign_meta.metrics.loglik"
     "-506.1498";
+  (* Forest + boosted-tree nodes: n_trees / n_rounds *)
+  let forest_dir = make_node_dir "fake-forest" in
+  write_file (Filename.concat forest_dir "artifact") "0123456789";
+  write_file (Filename.concat forest_dir "meta")
+    {|{"kind":"model","class":"randomForest.formula","task":"classification","n_trees":20,"n_obs":150,"n_features":4,"metrics":{"oob_error":0.0467}}|};
+  let env_fm_forest =
+    Ast.Env.add "fake_forest"
+      (Ast.VComputedNode (fake_cn ~name:"fake_forest_foreign_meta_test" ~runtime:"R"
+        ~path:(Filename.concat forest_dir "artifact") ~class_:"randomForest.formula"))
+      (Packages.init_env ())
+  in
+  test_env env_fm_forest "explain foreign meta forest task"
+    "explain(fake_forest).foreign_meta.task"
+    {|"classification"|};
+  test_env env_fm_forest "explain foreign meta forest tree count"
+    "explain(fake_forest).foreign_meta.n_trees"
+    "20";
+  test_env env_fm_forest "explain foreign meta forest oob error"
+    "explain(fake_forest).foreign_meta.metrics.oob_error"
+    "0.0467";
+  let xgb_dir = make_node_dir "fake-xgb" in
+  write_file (Filename.concat xgb_dir "artifact") "0123456789";
+  write_file (Filename.concat xgb_dir "meta")
+    {|{"kind":"model","class":"Booster","task":"classification","n_rounds":5,"n_features":2}|};
+  let env_fm_xgb =
+    Ast.Env.add "fake_xgb"
+      (Ast.VComputedNode (fake_cn ~name:"fake_xgb_foreign_meta_test" ~runtime:"Python"
+        ~path:(Filename.concat xgb_dir "artifact") ~class_:"Booster"))
+      (Packages.init_env ())
+  in
+  test_env env_fm_xgb "explain foreign meta xgboost round count"
+    "explain(fake_xgb).foreign_meta.n_rounds"
+    "5";
+  test_env env_fm_xgb "explain foreign meta xgboost task"
+    "explain(fake_xgb).foreign_meta.task"
+    {|"classification"|};
   print_newline ()

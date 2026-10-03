@@ -49,6 +49,8 @@ e.foreign_meta.nrow        -- frame rows
 e.foreign_meta.ncol        -- frame columns
 e.foreign_meta.n_obs       -- training rows (models)
 e.foreign_meta.n_features  -- input count (models)
+e.foreign_meta.n_trees     -- tree count (forests, when known)
+e.foreign_meta.n_rounds    -- boosting rounds (boosted trees, when known)
 e.foreign_meta.target      -- response name (when known)
 e.foreign_meta.formula     -- full formula (R models, when known)
 e.foreign_meta.order       -- [p, d, q] (time-series models, when known)
