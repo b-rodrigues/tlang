@@ -5,6 +5,7 @@
 let pass_count = ref 0
 let fail_count = ref 0
 let failures = ref []
+let failed_modules = ref []
 
 (* Strict mode: detect modules that produce 0 assertions *)
 let strict_mode = try Sys.getenv "TLANG_TEST_STRICT" = "1" with Not_found -> false
@@ -14,6 +15,9 @@ let run_module name fn =
   let before_pass = !pass_count in
   let before_fail = !fail_count in
   fn ();
+  let module_fails = !fail_count - before_fail in
+  if module_fails > 0 then
+    failed_modules := (name, module_fails) :: !failed_modules;
   let assertions = (!pass_count - before_pass) + (!fail_count - before_fail) in
   if strict_mode && assertions = 0 then begin
     Printf.printf "  ⚠ STRICT: %s produced 0 assertions\n" name;
@@ -299,6 +303,11 @@ let () =
   if !fail_count > 0 then begin
     Printf.printf "\nFAILURE SUMMARY:\n";
     List.iter (fun msg -> Printf.printf "%s\n" msg) (List.rev !failures);
+    if !failed_modules <> [] then begin
+      Printf.printf "Failed modules:\n";
+      List.iter (fun (m, n) -> Printf.printf "  - %s (%d failed)\n" m n)
+        (List.rev !failed_modules)
+    end;
     Printf.printf "FAILED: %d tests failed\n" !fail_count;
     exit 1
   end else
