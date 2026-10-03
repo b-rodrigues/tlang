@@ -51,6 +51,8 @@ e.foreign_meta.n_obs       -- training rows (models)
 e.foreign_meta.n_features  -- input count (models)
 e.foreign_meta.target      -- response name (when known)
 e.foreign_meta.formula     -- full formula (R models, when known)
+e.foreign_meta.order       -- [p, d, q] (time-series models, when known)
+e.foreign_meta.seasonal_order -- [P, D, Q, m] (seasonal models, when known)
 e.foreign_meta.features    -- full feature/column list
 e.foreign_meta.metrics     -- free metrics (r_squared, aic, bic, ...)
 e.foreign_meta.artifact_size -- artifact size in bytes

@@ -4397,6 +4397,8 @@ node.foreign_meta.n_obs       -- training row count (models)
 node.foreign_meta.n_features  -- input count (models)
 node.foreign_meta.target      -- response name (models, when known)
 node.foreign_meta.formula     -- full model formula (R models, when known)
+node.foreign_meta.order       -- [p, d, q] (time-series models, when known)
+node.foreign_meta.seasonal_order -- [P, D, Q, m] (seasonal models, when known)
 node.foreign_meta.features    -- full feature/column list
 node.foreign_meta.metrics     -- free metrics (r_squared, aic, bic, ...)
 node.foreign_meta.artifact_size -- artifact file size in bytes

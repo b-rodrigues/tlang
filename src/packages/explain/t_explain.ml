@@ -105,6 +105,20 @@ let register ?(ensure_docs=ignore) env =
     | Some _ -> None
     | None -> None
   in
+  let assoc_int_list key pairs =
+    let to_int = function
+      | `Int i -> Some i
+      | `Intlit s -> (try Some (int_of_string s) with _ -> None)
+      | `Float f -> Some (int_of_float f)
+      | _ -> None
+    in
+    match List.assoc_opt key pairs with
+    | Some (`List items) ->
+        let ns = List.filter_map to_int items in
+        (match ns with [] -> None | _ -> Some ns)
+    | Some _ -> None
+    | None -> None
+  in
   let assoc_metrics pairs =
     match List.assoc_opt "metrics" pairs with
     | Some (`Assoc m) ->
@@ -157,6 +171,12 @@ let register ?(ensure_docs=ignore) env =
     (match assoc_int "n_obs" pairs with Some n -> add "n_obs" (VInt n) | None -> ());
     (match assoc_int "n_features" pairs with Some n -> add "n_features" (VInt n) | None -> ());
     (match assoc_string "target" pairs with Some t -> add "target" (VString t) | None -> ());
+    (match assoc_int_list "order" pairs with
+     | Some ns -> add "order" (VList (List.map (fun n -> (None, VInt n)) ns))
+     | None -> ());
+    (match assoc_int_list "seasonal_order" pairs with
+     | Some ns -> add "seasonal_order" (VList (List.map (fun n -> (None, VInt n)) ns))
+     | None -> ());
     (match assoc_string_list "features" pairs with
      | Some names ->
          add "features" (VList (List.map (fun s -> (None, VString s)) names));
@@ -182,7 +202,8 @@ let register ?(ensure_docs=ignore) env =
     | [] -> VNA NAGeneric
     | _ ->
         let display = ["kind"; "class"; "task"; "nrow"; "ncol"; "n_obs"; "n_features";
-                       "target"; "features_preview"; "formula_preview"; "metrics"; "artifact_size"] in
+                       "target"; "order"; "seasonal_order";
+                       "features_preview"; "formula_preview"; "metrics"; "artifact_size"] in
         let shown = List.filter (fun k -> List.mem_assoc k ordered) display in
         make_explain_dict ~display_keys:shown ordered
   in

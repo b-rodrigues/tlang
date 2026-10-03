@@ -1690,6 +1690,38 @@ r_save_meta <- function(object, path) {
       bic <- tryCatch(stats::BIC(object), error = function(e) NULL)
       if (!is.null(bic) && length(bic) == 1 && !is.na(bic)) metrics$bic <- as.numeric(bic)
       if (length(metrics) > 0) meta$metrics <- metrics
+    } else if (inherits(object, "Arima") || inherits(object, "arima")) {
+      meta$kind <- "model"
+      meta$task <- "time_series"
+      no <- tryCatch(stats::nobs(object), error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- as.integer(no)
+      arma <- tryCatch(object$arma, error = function(e) NULL)
+      if (!is.null(arma) && length(arma) == 7 && !any(is.na(arma))) {
+        arma <- as.integer(arma)
+        meta$order <- list(arma[1], arma[6], arma[2])
+        if (arma[5] > 1 && (arma[3] > 0 || arma[7] > 0 || arma[4] > 0)) meta$seasonal_order <- list(arma[3], arma[7], arma[4], arma[5])
+      }
+      cf <- tryCatch(stats::coef(object), error = function(e) NULL)
+      if (!is.null(cf)) {
+        nms <- names(cf)
+        if (!is.null(nms)) {
+          feats <- nms[!is.na(nms)]
+          meta$n_features <- length(feats)
+          meta$features <- as.list(feats)
+        } else {
+          meta$n_features <- length(cf)
+        }
+      }
+      metrics <- list()
+      ll <- tryCatch(as.numeric(object$loglik), error = function(e) NULL)
+      if (!is.null(ll) && length(ll) == 1 && !is.na(ll)) metrics$loglik <- ll
+      s2 <- tryCatch(as.numeric(object$sigma2), error = function(e) NULL)
+      if (!is.null(s2) && length(s2) == 1 && !is.na(s2)) metrics$sigma2 <- s2
+      aic <- tryCatch(stats::AIC(object), error = function(e) NULL)
+      if (!is.null(aic) && length(aic) == 1 && !is.na(aic)) metrics$aic <- as.numeric(aic)
+      bic <- tryCatch(stats::BIC(object), error = function(e) NULL)
+      if (!is.null(bic) && length(bic) == 1 && !is.na(bic)) metrics$bic <- as.numeric(bic)
+      if (length(metrics) > 0) meta$metrics <- metrics
     } else {
       meta$kind <- "other"
     }
@@ -1945,6 +1977,54 @@ def py_save_meta(obj, path):
                     meta.setdefault("metrics", {})["n_classes"] = int(len(list(classes)))
             except Exception:
                 pass
+        elif mod.startswith("statsmodels"):
+            meta["kind"] = "model"
+            order = None
+            try:
+                model = getattr(obj, "model", None)
+                if model is not None:
+                    o = getattr(model, "order", None)
+                    if o is not None:
+                        order = [int(v) for v in list(o)]
+            except Exception:
+                order = None
+            if order is not None:
+                meta["task"] = "time_series"
+                meta["order"] = order
+                try:
+                    so = getattr(obj.model, "seasonal_order", None)
+                    if so is not None:
+                        meta["seasonal_order"] = [int(v) for v in list(so)]
+                except Exception:
+                    pass
+            try:
+                n = getattr(obj, "nobs", None)
+                if n is not None:
+                    meta["n_obs"] = int(n)
+            except Exception:
+                pass
+            try:
+                params = getattr(obj, "params", None)
+                if params is not None:
+                    idx = getattr(params, "index", None)
+                    if idx is not None:
+                        names = [str(v) for v in list(idx)]
+                        meta["n_features"] = len(names)
+                        meta["features"] = names
+                    else:
+                        try:
+                            meta["n_features"] = int(len(params))
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+            for _mkey, _mattr in (("aic", "aic"), ("bic", "bic"), ("loglik", "llf")):
+                try:
+                    _mv = getattr(obj, _mattr, None)
+                    if _mv is not None:
+                        meta.setdefault("metrics", {})[_mkey] = float(_mv)
+                except Exception:
+                    pass
         elif shape is not None:
             try:
                 if len(shape) == 2:

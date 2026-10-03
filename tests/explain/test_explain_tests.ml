@@ -339,4 +339,30 @@ let run_tests _pass_count _fail_count _failures _eval_string eval_string_env tes
   test_env env_fm_bare "explain foreign meta without sidecar keeps artifact size"
     "explain(fake_bare_node).foreign_meta.artifact_size"
     "10";
+  (* Time-series model node: order, seasonal_order, loglik/sigma2 metrics *)
+  let ts_dir = make_node_dir "fake-ts-model" in
+  write_file (Filename.concat ts_dir "artifact") "0123456789";
+  write_file (Filename.concat ts_dir "meta")
+    {|{"kind":"model","class":"Arima","task":"time_series","n_obs":131,"order":[1,1,1],"seasonal_order":[1,1,1,12],"n_features":4,"features":["ar1","ma1","sar1","sma1"],"metrics":{"loglik":-506.1498,"sigma2":130.7678,"aic":1022.2996}}|};
+  let env_fm_ts =
+    Ast.Env.add "fake_ts_model"
+      (Ast.VComputedNode (fake_cn ~name:"fake_ts_foreign_meta_test" ~runtime:"R"
+        ~path:(Filename.concat ts_dir "artifact") ~class_:"Arima"))
+      (Packages.init_env ())
+  in
+  test_env env_fm_ts "explain foreign meta time series task"
+    "explain(fake_ts_model).foreign_meta.task"
+    {|"time_series"|};
+  test_env env_fm_ts "explain foreign meta time series order length"
+    "length(explain(fake_ts_model).foreign_meta.order)"
+    "3";
+  test_env env_fm_ts "explain foreign meta time series order values"
+    "get(explain(fake_ts_model).foreign_meta.order, 0) + get(explain(fake_ts_model).foreign_meta.order, 2)"
+    "2";
+  test_env env_fm_ts "explain foreign meta time series seasonal order length"
+    "length(explain(fake_ts_model).foreign_meta.seasonal_order)"
+    "4";
+  test_env env_fm_ts "explain foreign meta time series loglik"
+    "explain(fake_ts_model).foreign_meta.metrics.loglik"
+    "-506.1498";
   print_newline ()
