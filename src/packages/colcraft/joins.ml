@@ -452,7 +452,7 @@ let bind_cols_impl args _env =
 --# @name left_join
 --# @param x :: DataFrame Left DataFrame.
 --# @param y :: DataFrame Right DataFrame.
---# @param by :: String | List | Vector [Optional] Key columns. Defaults to shared columns.
+--# @param by :: String | Symbol | List | Vector [Optional] Key columns. Defaults to shared columns.
 --# @return :: DataFrame Joined DataFrame.
 --# @family colcraft
 --# @export
@@ -465,7 +465,7 @@ let bind_cols_impl args _env =
 --# @name right_join
 --# @param x :: DataFrame Left DataFrame.
 --# @param y :: DataFrame Right DataFrame.
---# @param by :: String | List | Vector [Optional] Key columns. Defaults to shared columns.
+--# @param by :: String | Symbol | List | Vector [Optional] Key columns. Defaults to shared columns.
 --# @return :: DataFrame Joined DataFrame.
 --# @family colcraft
 --# @export
@@ -478,7 +478,7 @@ let bind_cols_impl args _env =
 --# @name inner_join
 --# @param x :: DataFrame Left DataFrame.
 --# @param y :: DataFrame Right DataFrame.
---# @param by :: String | List | Vector [Optional] Key columns. Defaults to shared columns.
+--# @param by :: String | Symbol | List | Vector [Optional] Key columns. Defaults to shared columns.
 --# @return :: DataFrame Joined DataFrame.
 --# @family colcraft
 --# @export
@@ -491,7 +491,7 @@ let bind_cols_impl args _env =
 --# @name full_join
 --# @param x :: DataFrame Left DataFrame.
 --# @param y :: DataFrame Right DataFrame.
---# @param by :: String | List | Vector [Optional] Key columns. Defaults to shared columns.
+--# @param by :: String | Symbol | List | Vector [Optional] Key columns. Defaults to shared columns.
 --# @return :: DataFrame Joined DataFrame.
 --# @family colcraft
 --# @export
@@ -504,7 +504,7 @@ let bind_cols_impl args _env =
 --# @name semi_join
 --# @param x :: DataFrame Left DataFrame.
 --# @param y :: DataFrame Right DataFrame.
---# @param by :: String | List | Vector [Optional] Key columns. Defaults to shared columns.
+--# @param by :: String | Symbol | List | Vector [Optional] Key columns. Defaults to shared columns.
 --# @return :: DataFrame Filtered left DataFrame.
 --# @family colcraft
 --# @export
@@ -517,7 +517,7 @@ let bind_cols_impl args _env =
 --# @name anti_join
 --# @param x :: DataFrame Left DataFrame.
 --# @param y :: DataFrame Right DataFrame.
---# @param by :: String | List | Vector [Optional] Key columns. Defaults to shared columns.
+--# @param by :: String | Symbol | List | Vector [Optional] Key columns. Defaults to shared columns.
 --# @return :: DataFrame Filtered left DataFrame.
 --# @family colcraft
 --# @export

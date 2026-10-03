@@ -1022,7 +1022,7 @@ let init_env () =
   (* Explain package *)
   let env = Intent_fields.register env in
   let env = Intent_get.register env in
-  let env = T_explain.register env in
+  let env = T_explain.register ~ensure_docs:ensure_docs_loaded env in
   let env = Explain_json.register ~eval_call:Eval.eval_call_immutable env in
   (* Lens package *)
   let env = Lens.register ~eval_call:Eval.eval_call_immutable env in

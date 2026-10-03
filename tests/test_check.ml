@@ -606,4 +606,31 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
     (Diagnostics.exit_code_of_diagnostics diags = 1);
   Sys.remove tmp_file;
 
+  Printf.printf "\nstrict accepts lambdas at Function positions:\n";
+  let tmp_fn = Filename.temp_file "tlang_check_fn_params" ".t" in
+  let oc_fn = open_out tmp_fn in
+  output_string oc_fn {|df = to_dataframe([[mpg: [21, 22], wt: [2.5, 3.0]]])
+a = filter(df, \(r) r.mpg > 20)
+b = select(df, matches("^m"))
+c = select(df, all_of(["mpg"]))
+d = select(df, where(is_numeric))
+e = over([a: 1], col_lens("a"), \(x) x + 1)
+f = prop_such_that(prop_gen_int_range(0, 5), \(x) x >= 0)
+p = pipeline { aa = node(command = 1)
+bb = node(command = 2) }
+g = p |> filter_node($runtime == "sh") |> pipeline_nodes
+h = which_nodes(p, \(nd) nd.name == "aa") |> map(\(nd) nd.name)
+i = mutate_node(p, $noop = true, where = $runtime == "sh")
+|};
+  close_out oc_fn;
+  let cr_fn = Check_utils.run_check Typecheck.Strict tmp_fn env in
+  let diags_fn = Diagnostics.check_result_entries cr_fn in
+  let errors_fn = List.filter (fun d ->
+    Diagnostics.diagnostic_severity d = Diagnostics.Error) diags_fn in
+  check "strict Function params: lambdas and NSE forms produce zero errors"
+    (errors_fn = []);
+  check "strict Function params: snippet is fully silent"
+    (diags_fn = []);
+  Sys.remove tmp_fn;
+
   Printf.printf "\n";;

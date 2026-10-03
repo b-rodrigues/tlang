@@ -1157,7 +1157,7 @@ let strsplit_impl args _env =
 --# Returns NA when the pattern does not match.
 --#
 --# @name str_extract
---# @param s :: String The input string.
+--# @param s :: String | List | Vector The input string(s).
 --# @param pattern :: String The regular expression to match.
 --# @return :: String The first match, or NA when there is no match.
 --# @example
@@ -1172,7 +1172,7 @@ let strsplit_impl args _env =
 --# Returns every regular-expression match found in each string.
 --#
 --# @name str_extract_all
---# @param s :: String The input string.
+--# @param s :: String | List | Vector The input string(s).
 --# @param pattern :: String The regular expression to match.
 --# @return :: List[String] Every match, or an empty list when there is no match.
 --# @example
@@ -1187,7 +1187,7 @@ let strsplit_impl args _env =
 --# Returns true when a regular expression matches a string.
 --#
 --# @name str_detect
---# @param s :: String The input string.
+--# @param s :: String | List | Vector The input string(s).
 --# @param pattern :: String The regular expression to test.
 --# @return :: Bool True when the pattern matches.
 --# @example
@@ -1204,7 +1204,7 @@ let strsplit_impl args _env =
 --# UTF-8 strings are padded correctly and never split.
 --#
 --# @name str_pad
---# @param x :: String The input string.
+--# @param x :: String | List | Vector The input string(s).
 --# @param width :: Int The target character width (non-negative).
 --# @param side :: String [Optional] One of "left", "right", or "both". Defaults to "left".
 --# @param pad :: String [Optional] The padding text. Defaults to " ".
@@ -1223,7 +1223,7 @@ let strsplit_impl args _env =
 --# UTF-8 strings are never split mid-character.
 --#
 --# @name str_trunc
---# @param x :: String The input string.
+--# @param x :: String | List | Vector The input string(s).
 --# @param width :: Int The maximum character width (non-negative).
 --# @param side :: String [Optional] One of "left", "right", or "center". Defaults to "right".
 --# @param ellipsis :: String [Optional] The ellipsis marker. Defaults to "...".
@@ -1255,7 +1255,7 @@ let strsplit_impl args _env =
 --# Counts how many times a regular expression matches within each string.
 --#
 --# @name str_count
---# @param s :: String The input string.
+--# @param s :: String | List | Vector The input string(s).
 --# @param pattern :: String The regular expression to count.
 --# @return :: Int The number of matches.
 --# @example

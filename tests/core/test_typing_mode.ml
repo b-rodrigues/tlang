@@ -222,7 +222,7 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
      --parse`); without it every builtin falls back to all-Any and the
      audit would measure nothing. Skip gracefully outside a checkout. *)
   let snap = Tdoc_registry.snapshot () in
-  let (full_n, total_n, ret_n, nodoc_n, imprecise) =
+  let (full_n, total_n, ret_n, nodoc_n, imprecise_list) =
     Fun.protect
       ~finally:(fun () -> Tdoc_registry.restore snap)
       (fun () ->
@@ -289,7 +289,6 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
         ) names;
         (!full, List.length names, !ret, !nodoc, List.sort compare !imprecise))
   in
-  let (full_n, total_n, ret_n, nodoc_n, imprecise_list) = (full_n, total_n, ret_n, nodoc_n, imprecise) in
   (if try Sys.getenv "TLANG_TYPING_VERBOSE" = "1" with Not_found -> false then begin
     Printf.printf "  imprecise builtins (%d):\n" (List.length imprecise_list);
     List.iter (fun (n, ret_s, bad) ->

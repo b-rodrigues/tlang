@@ -145,8 +145,8 @@ let () =
   in
 
   (* Core tests *)
-  run "Test_arithmetic" Test_arithmetic.run_tests;
-  run "Test_comparisons" Test_comparisons.run_tests;
+  run_with_env "Test_arithmetic" Test_arithmetic.run_tests;
+  run_with_env "Test_comparisons" Test_comparisons.run_tests;
   run "Test_logical" Test_logical.run_tests;
   run "Test_in" Test_in.run_tests;
   run "Test_operators" Test_operators.run_tests;
@@ -157,10 +157,10 @@ let () =
   run "Test_functions" Test_functions.run_tests;
   run "Test_strings" Test_strings.run_tests;
   run "Test_pipe" Test_pipe.run_tests;
-  run "Test_ifelse" Test_ifelse.run_tests;
+  run_with_env "Test_ifelse" Test_ifelse.run_tests;
   run "Test_match" Test_match.run_tests;
   run "Test_lists" Test_lists.run_tests;
-  run "Test_dicts" Test_dicts.run_tests;
+  run_with_env "Test_dicts" Test_dicts.run_tests;
   run "Test_builtins" Test_builtins.run_tests;
   run "Test_chrono" Test_chrono.run_tests;
   run "Test_rng" Test_rng.run_tests;
