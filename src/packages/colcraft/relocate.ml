@@ -44,6 +44,11 @@ let relocate_impl (named_args : (string option * value) list) _env =
 --# Reorders DataFrame columns by moving selected columns before or after another column.
 --#
 --# @name relocate
+--# @param df :: DataFrame The input DataFrame.
+--# @param ... :: Symbol Columns to move.
+--# @param .before :: Symbol [Optional] Move before this column.
+--# @param .after :: Symbol [Optional] Move after this column.
+--# @return :: DataFrame The DataFrame with reordered columns.
 --# @family colcraft
 --# @export
 *)

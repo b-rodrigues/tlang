@@ -541,6 +541,8 @@ let bind_cols_impl args _env =
 --# Appends rows from multiple DataFrames into a single DataFrame.
 --#
 --# @name bind_rows
+--# @param ... :: DataFrame DataFrames to stack by rows.
+--# @return :: DataFrame The stacked DataFrame.
 --# @family colcraft
 --# @export
 *)
@@ -550,6 +552,8 @@ let bind_cols_impl args _env =
 --# Combines columns from multiple DataFrames side by side.
 --#
 --# @name bind_cols
+--# @param ... :: DataFrame DataFrames to combine by columns.
+--# @return :: DataFrame The combined DataFrame.
 --# @family colcraft
 --# @export
 *)

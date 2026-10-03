@@ -263,6 +263,8 @@ let where_impl args _env =
 --# Selection helper that returns the supplied column names and errors if names are malformed.
 --#
 --# @name all_of
+--# @param x :: String | List | Vector Column names to keep.
+--# @return :: List[String] The supplied column names.
 --# @family colcraft
 --# @export
 *)

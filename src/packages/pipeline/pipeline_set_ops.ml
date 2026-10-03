@@ -123,6 +123,9 @@ let patch p1 p2 =
 --# Returns a pipeline containing nodes from both inputs and errors on name collisions.
 --#
 --# @name union
+--# @param p1 :: Pipeline First pipeline.
+--# @param p2 :: Pipeline Second pipeline.
+--# @return :: Pipeline Combined pipeline.
 --# @family pipeline
 --# @export
 *)
@@ -132,6 +135,9 @@ let patch p1 p2 =
 --# Returns the nodes that appear in the first pipeline but not the second.
 --#
 --# @name difference
+--# @param p1 :: Pipeline First pipeline.
+--# @param p2 :: Pipeline Second pipeline.
+--# @return :: Pipeline Pipeline with shared nodes removed.
 --# @family pipeline
 --# @export
 *)
@@ -141,6 +147,9 @@ let patch p1 p2 =
 --# Returns the nodes from the first pipeline whose names also appear in the second.
 --#
 --# @name intersect
+--# @param p1 :: Pipeline First pipeline.
+--# @param p2 :: Pipeline Second pipeline.
+--# @return :: Pipeline Pipeline with shared nodes only.
 --# @family pipeline
 --# @export
 *)
@@ -150,6 +159,9 @@ let patch p1 p2 =
 --# Replaces matching nodes in one pipeline with definitions from another pipeline.
 --#
 --# @name patch
+--# @param p1 :: Pipeline Base pipeline.
+--# @param p2 :: Pipeline Overlay pipeline.
+--# @return :: Pipeline Patched pipeline.
 --# @family pipeline
 --# @export
 *)
