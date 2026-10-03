@@ -980,6 +980,21 @@ let cmd_explain ?failfast mode rest env =
                  Printf.eprintf "Error: Node '%s' not found in the pipeline.\n" node_name;
                  exit 1
              | Some d ->
+                 (* Best-effort foreign metadata: evaluate
+                    explain(<pipeline>.<node>).foreign_meta in the loaded
+                    env. Absent (NA/error) when the node is unbuilt or has
+                    no meta sidecar — never fails the command. *)
+                 let foreign_meta_opt =
+                   try
+                     let (fm_result, _) = parse_and_eval ?failfast mode env_val
+                       (Printf.sprintf "explain(%s.%s).foreign_meta" pipeline_var node_name) in
+                     (match fm_result with
+                      | Ast.VDict _ -> Some fm_result
+                      | Ast.VNA _ -> None
+                      | Ast.VError _ -> None
+                      | _ -> None)
+                   with _ -> None
+                 in
                  if json then begin
                    let fields = ref [
                      ("pipeline", `String pipeline_var);
@@ -1005,6 +1020,13 @@ let cmd_explain ?failfast mode rest env =
                      ) d.nd_warnings
                    in
                    fields := !fields @ [("warnings", `List warnings_json)];
+                   (match foreign_meta_opt with
+                    | Some fm ->
+                        (try
+                           let j = Serialization.value_to_yojson fm in
+                           fields := !fields @ [("foreign_meta", j)]
+                         with _ -> ())
+                    | None -> ());
                    let json_obj = `Assoc !fields in
                    print_endline (Yojson.Safe.pretty_to_string json_obj)
                  end else begin
@@ -1024,6 +1046,12 @@ let cmd_explain ?failfast mode rest env =
                        Printf.printf "  - [%s] %s\n" w.Ast.nw_kind w.Ast.nw_message
                      ) d.nd_warnings
                    end;
+                   (match foreign_meta_opt with
+                    | Some fm ->
+                        has_output := true;
+                        Printf.printf "Foreign metadata for node '%s':\n%s" node_name
+                          (Pretty_print.pretty_print_value fm)
+                    | None -> ());
                    if not !has_output then
                      Printf.printf "Node '%s' compiled/built successfully with no errors or warnings.\n" node_name
                  end

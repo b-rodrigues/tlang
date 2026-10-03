@@ -401,4 +401,66 @@ let run_tests _pass_count _fail_count _failures _eval_string eval_string_env tes
   test_env env_fm_xgb "explain foreign meta xgboost task"
     "explain(fake_xgb).foreign_meta.task"
     {|"classification"|};
+  (* Boosted trees, clustering, and dim-reduction branches *)
+  let lgb_dir = make_node_dir "fake-lgb" in
+  write_file (Filename.concat lgb_dir "artifact") "0123456789";
+  write_file (Filename.concat lgb_dir "meta")
+    {|{"kind":"model","class":"lgb.Booster","task":"classification","n_rounds":5}|};
+  let env_fm_lgb =
+    Ast.Env.add "fake_lgb"
+      (Ast.VComputedNode (fake_cn ~name:"fake_lgb_foreign_meta_test" ~runtime:"R"
+        ~path:(Filename.concat lgb_dir "artifact") ~class_:"lgb.Booster"))
+      (Packages.init_env ())
+  in
+  test_env env_fm_lgb "explain foreign meta lightgbm rounds"
+    "explain(fake_lgb).foreign_meta.n_rounds"
+    "5";
+  test_env env_fm_lgb "explain foreign meta lightgbm task"
+    "explain(fake_lgb).foreign_meta.task"
+    {|"classification"|};
+  let km_dir = make_node_dir "fake-kmeans" in
+  write_file (Filename.concat km_dir "artifact") "0123456789";
+  write_file (Filename.concat km_dir "meta")
+    {|{"kind":"model","class":"kmeans","task":"clustering","n_clusters":3,"n_obs":32,"metrics":{"var_explained":0.8535}}|};
+  let env_fm_km =
+    Ast.Env.add "fake_km"
+      (Ast.VComputedNode (fake_cn ~name:"fake_km_foreign_meta_test" ~runtime:"R"
+        ~path:(Filename.concat km_dir "artifact") ~class_:"kmeans"))
+      (Packages.init_env ())
+  in
+  test_env env_fm_km "explain foreign meta kmeans clusters"
+    "explain(fake_km).foreign_meta.n_clusters"
+    "3";
+  test_env env_fm_km "explain foreign meta kmeans variance"
+    "explain(fake_km).foreign_meta.metrics.var_explained"
+    "0.8535";
+  let hc_dir = make_node_dir "fake-hclust" in
+  write_file (Filename.concat hc_dir "artifact") "0123456789";
+  write_file (Filename.concat hc_dir "meta")
+    {|{"kind":"model","class":"hclust","task":"clustering","method":"complete","n_obs":32}|};
+  let env_fm_hc =
+    Ast.Env.add "fake_hc"
+      (Ast.VComputedNode (fake_cn ~name:"fake_hc_foreign_meta_test" ~runtime:"R"
+        ~path:(Filename.concat hc_dir "artifact") ~class_:"hclust"))
+      (Packages.init_env ())
+  in
+  test_env env_fm_hc "explain foreign meta hclust method"
+    "explain(fake_hc).foreign_meta.method"
+    {|"complete"|};
+  let pc_dir = make_node_dir "fake-pca" in
+  write_file (Filename.concat pc_dir "artifact") "0123456789";
+  write_file (Filename.concat pc_dir "meta")
+    {|{"kind":"model","task":"dim_reduction","n_components":2,"n_features":2,"metrics":{"var_first":1.0}}|};
+  let env_fm_pc =
+    Ast.Env.add "fake_pca"
+      (Ast.VComputedNode (fake_cn ~name:"fake_pca_foreign_meta_test" ~runtime:"Python"
+        ~path:(Filename.concat pc_dir "artifact") ~class_:"PCA"))
+      (Packages.init_env ())
+  in
+  test_env env_fm_pc "explain foreign meta pca components"
+    "explain(fake_pca).foreign_meta.n_components"
+    "2";
+  test_env env_fm_pc "explain foreign meta pca task"
+    "explain(fake_pca).foreign_meta.task"
+    {|"dim_reduction"|};
   print_newline ()
