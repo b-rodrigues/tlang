@@ -25,6 +25,9 @@ let contains_sub s sub =
 --# shape facts from the build-time `meta` sidecar (dimensions for frames
 --# and arrays, n_obs/n_features/formula/order/metrics for models), or NA
 --# when absent.
+--# Explaining a pipeline lists per-node `dependencies` (direct inputs)
+--# and `children` (direct dependents) plus the transitive `ancestors`
+--# and `descendants` closures (nearest-first, de-duplicated).
 --#
 --# @name explain
 --# @param x :: Any The value to explain.
@@ -492,6 +495,43 @@ let register ?(ensure_docs=ignore) env =
             if List.mem target deps then Some (None, VString n) else None
           ) p_deps
         in
+        let direct_parents target =
+          match List.assoc_opt target p_deps with
+          | Some d -> d
+          | None -> []
+        in
+        let direct_children target =
+          List.filter_map (fun (n, deps) ->
+            if List.mem target deps then Some n else None
+          ) p_deps
+        in
+        (* Transitive closure over a step function: nearest-first order
+           (direct neighbors first), de-duplicated, self excluded. The
+           visited set keeps this safe on cyclic dep maps: validation
+           rejects cycles at build time, but explain also runs on
+           unbuilt pipelines. *)
+        let closure step target =
+          let seen = Hashtbl.create 16 in
+          Hashtbl.replace seen target ();
+          let queue = Queue.create () in
+          List.iter (fun d ->
+            if not (Hashtbl.mem seen d) then
+              (Hashtbl.replace seen d (); Queue.add d queue)
+          ) (step target);
+          let acc = ref [] in
+          (try while true do
+             let n = Queue.take queue in
+             acc := n :: !acc;
+             List.iter (fun d ->
+               if not (Hashtbl.mem seen d) then
+                 (Hashtbl.replace seen d (); Queue.add d queue)
+             ) (step n)
+           done with Queue.Empty -> ());
+          List.rev !acc
+        in
+        let str_list names =
+          VList (List.map (fun s -> (None, VString s)) names)
+        in
         let nodes_info = VList (List.map (fun (name, v) ->
           let deps = match List.assoc_opt name p_deps with
             | Some d -> VList (List.map (fun s -> (None, VString s)) d)
@@ -507,6 +547,8 @@ let register ?(ensure_docs=ignore) env =
             ("output_kind", VString (Utils.type_name v));
             ("dependencies", deps);
             ("children", VList (children_of name));
+            ("ancestors", str_list (closure direct_parents name));
+            ("descendants", str_list (closure direct_children name));
             ("diagnostics", diagnostics);
           ])
         ) p_nodes) in

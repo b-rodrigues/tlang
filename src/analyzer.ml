@@ -257,19 +257,34 @@ and analyze_stmt ?stmt_index scope definitions stmt =
   | ImportPackage pkg_name ->
       (match List.find_opt (fun p -> p.Packages.name = pkg_name) Packages.all_packages with
        | Some pkg ->
-           let funcs = Packages.package_functions pkg in
+           (* Static list on purpose: `Packages.package_functions` merges
+              documented names and fires the one-shot documentation
+              loader as a side effect. Analysis must never trigger doc
+              I/O (tests analyze with a controlled registry; production
+              `t check` loads docs explicitly in the check hook). The
+              static list is authoritative for scoping. *)
+           let funcs = pkg.Packages.functions in
            List.iter (fun f ->
-             Symbol_table.add scope { name = f; kind = Function; typ = Some TUnknown; doc = None }
+             (* Add-if-absent: an explicit import must never clobber a
+                precise type already in scope (documented builtin shapes
+                from the check scope, or a user binding above). *)
+             match Symbol_table.lookup scope f with
+             | Some _ -> ()
+             | None ->
+                 Symbol_table.add scope { name = f; kind = Function; typ = Some TUnknown; doc = None }
            ) funcs
        | None -> ())
   | ImportFrom { package; names } ->
       (match List.find_opt (fun p -> p.Packages.name = package) Packages.all_packages with
        | Some pkg ->
-           let funcs = Packages.package_functions pkg in
+           let funcs = pkg.Packages.functions in
            List.iter (fun (import_item : Ast.import_spec) ->
              if List.mem import_item.import_name funcs then
                let name = Option.value ~default:import_item.import_name import_item.import_alias in
-               Symbol_table.add scope { name; kind = Function; typ = Some TUnknown; doc = None }
+               (match Symbol_table.lookup scope name with
+                | Some _ -> ()
+                | None ->
+                    Symbol_table.add scope { name; kind = Function; typ = Some TUnknown; doc = None })
            ) names
        | None -> ())
   | Expression e -> ignore (infer_type scope e)

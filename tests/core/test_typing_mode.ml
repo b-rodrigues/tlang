@@ -374,6 +374,139 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
   check_sig "sig expected quotes signature verbatim"
     {|takes_nums("s")|} 1 (Some "to be List[Float] | Vector[Float]");
 
+  (* Return-type checks: documented builtin returns flow into inference,
+     so annotations and argument checks see through calls. Setup mirrors
+     production `t check` (repl.ml): exported --# docs registered from
+     src, derived-type cache cleared, scope populated from the live env.
+     One setup for the whole block; the registry is restored after. *)
+  let with_prod_docs f =
+    let snap = Tdoc_registry.snapshot () in
+    Fun.protect ~finally:(fun () -> Tdoc_registry.restore snap)
+      (fun () ->
+        (* Source root is cwd-dependent: `dune exec` from the repo root
+           sees `src/`, but `dune runtest` runs with cwd `tests/` (see
+           the `../src/repl.exe` probe in test_cli). Try both so the
+           setup is hermetic either way instead of silently testing
+           nothing. *)
+        let roots =
+          List.filter (fun d ->
+            try Sys.is_directory (Filename.concat d "packages")
+            with Sys_error _ -> false
+          ) ["src"; "../src"]
+        in
+        (match roots with
+         | [] -> ()
+         | root :: _ ->
+             let rec walk acc dir =
+               let entries =
+                 try Array.to_list (Sys.readdir dir) |> List.sort String.compare
+                 with Sys_error _ -> []
+               in
+               List.fold_left (fun acc e ->
+                 let p = Filename.concat dir e in
+                 if (try Sys.is_directory p with Sys_error _ -> false) then walk acc p
+                 else if Filename.check_suffix e ".ml" then p :: acc
+                 else acc
+               ) acc entries
+             in
+             List.iter (fun file ->
+               List.iter (fun (e : Tdoc_types.doc_entry) ->
+                 if e.Tdoc_types.is_export then Tdoc_registry.register e
+               )
+                 (try Tdoc_parser.parse_file file with _ -> [])
+             ) (walk [] root));
+        Symbol_table.clear_builtin_typ_cache ();
+        f ())
+  in
+  let prod_scope program =
+    let scope = Symbol_table.create_scope () in
+    Symbol_table.register_keywords scope;
+    Symbol_table.populate_from_env scope (Packages.init_env ());
+    let analysis = Analyzer.analyze program scope in
+    (scope, analysis.Analyzer.stmt_types)
+  in
+  (* Same construction as production (repl.ml): runtime arity plus the
+     documented parameter list per builtin. *)
+  let prod_sigs () =
+    let acc = ref [] in
+    Ast.Env.iter (fun name v ->
+      match v with
+      | Ast.VBuiltin { Ast.b_name = Some n; Ast.b_arity; Ast.b_variadic; _ } when n = name ->
+          let params =
+            match Tdoc_registry.lookup n with
+            | Some e ->
+                List.map (fun (p : Tdoc_types.param_doc) ->
+                  (p.Tdoc_types.name, p.Tdoc_types.type_info)
+                ) e.Tdoc_types.params
+            | None -> []
+          in
+          acc := (n, { Check_utils.bs_arity = b_arity;
+                       Check_utils.bs_variadic = b_variadic;
+                       Check_utils.bs_params = params }) :: !acc
+      | _ -> ()) (Packages.init_env ());
+    !acc
+  in
+  let assess name diags expect_count expect_sub =
+    let n = List.length diags in
+    let sub_ok =
+      match expect_sub with
+      | None -> true
+      | Some sub ->
+          List.exists (fun d ->
+            let msg = d.Diagnostics.diag_message in
+            let sl = String.length msg and bl = String.length sub in
+            if bl = 0 then true
+            else begin
+              let rec loop i =
+                if i + bl > sl then false
+                else if String.sub msg i bl = sub then true
+                else loop (i + 1)
+              in
+              loop 0
+            end) diags
+    in
+    let sev_ok =
+      List.for_all (fun d -> d.Diagnostics.diag_severity = Diagnostics.Warning) diags
+    in
+    report name (n = expect_count && sub_ok && sev_ok)
+  in
+  let check_ret name code which expect_count expect_sub =
+    let program =
+      try parse_program code
+      with _ -> []
+    in
+    let (scope, stmt_types) = prod_scope program in
+    let diags =
+      try match which with
+        | `Annot ->
+            Check_utils.annotation_diagnostics program stmt_types "test.t"
+        | `Types ->
+            Check_utils.call_type_diagnostics ~sigs:(prod_sigs ())
+              ~infer:(Analyzer.infer_type scope) program "test.t"
+      with _ -> []
+    in
+    assess name diags expect_count expect_sub
+  in
+  with_prod_docs (fun () ->
+    check_ret "return mismatch warns on annotation"
+      {|s: String = nrow(df)|} `Annot 1 (Some "annotated as String, but expression infers to Int");
+    check_ret "return match stays silent on annotation"
+      {|nn: Int = nrow(df)|} `Annot 0 None;
+    check_ret "import keeps builtin return precision"
+      {|import core
+s2: String = nrow(df)|} `Annot 1 (Some "annotated as String, but expression infers to Int");
+    check_ret "undocumented call stays silent on annotation"
+      {|s3: String = nosuchfn(1)|} `Annot 0 None;
+    check_ret "argument check sees through calls"
+      {|str_squish(nrow(df))|} `Types 1 (Some "expects argument `s` to be String, but it infers to Int");
+    check_ret "chained calls stay silent when types agree"
+      {|str_squish(str_squish("  a  "))|} `Types 0 None;
+    check_ret "arity failure skips argument types on real builtins"
+      {|str_squish(nrow(df), "extra")|} `Types 0 None
+  );
+  check_arity "arity real builtin too many warns"
+    {|str_squish("a", "b")|} 1 (Some "expects 1 argument(s) but received 2");
+
   (* Typing coverage audit (spec typesystem item 5): what fraction of
      builtins carry precise Tdoc signatures that inference actually uses?
      A builtin counts as fully precise when its return and every parameter

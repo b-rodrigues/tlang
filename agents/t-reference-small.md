@@ -56,7 +56,7 @@ This file is a distilled reference for the **T programming language**. It is int
 - **Artifacts**:
   - `read_node("name")`: Access output of an upstream node.
   - `explain(read_node("name"))`: Inspect node diagnostics and explained contents.
-  - `explain(p)`: Per-node `dependencies` (parents) and `children` (direct dependents).
+  - `explain(p)`: Per-node `dependencies` (parents) and `children` (direct dependents), plus transitive `ancestors`/`descendants`.
   - `explain(p.node).foreign_meta`: Shape/model facts for R/Python/Julia nodes (dimensions, task, metrics).
   - `pipeline_copy(p, node="name", to="path")`: Export artifacts.
 - **Sandboxing**: Every node runs in an isolated Nix environment declared in the project manifest.
