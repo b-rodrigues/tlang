@@ -109,7 +109,7 @@ expand_pipeline(p)|}
     match program with
     | Error () ->
         incr fail_count;
-        Printf.printf "  ✗ %s (test code failed to parse)\n" name
+        Printf.printf "  FAILURE %s (test code failed to parse)\n" name
     | Ok prog ->
         let diags = Check_utils.match_union_diagnostics prog "test.t" in
         let n = List.length diags in
@@ -123,10 +123,10 @@ expand_pipeline(p)|}
           List.for_all (fun d -> d.Diagnostics.diag_severity = Diagnostics.Warning) diags
         in
         if n = expect_count && sub_ok && sev_ok then begin
-          incr pass_count; Printf.printf "  ✓ %s\n" name
+          incr pass_count; Printf.printf "  SUCCESS %s\n" name
         end else begin
           incr fail_count;
-          Printf.printf "  ✗ %s (expected %d warnings, got %d)\n" name expect_count n
+          Printf.printf "  FAILURE %s (expected %d warnings, got %d)\n" name expect_count n
         end
   in
   check_diags "missing case warns naming the case"

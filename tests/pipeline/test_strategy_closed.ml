@@ -190,10 +190,10 @@ pipeline_validate(p)|}
        let is_clean = match v with VList [] -> true | _ -> false in
        if is_clean = expect_clean then
          (incr pass_count;
-          Printf.printf "  ✓ table: ^%s on %s %s\n" fmt rt (if expect_clean then "validates" else "rejected"))
+          Printf.printf "  SUCCESS table: ^%s on %s %s\n" fmt rt (if expect_clean then "validates" else "rejected"))
        else
          (incr fail_count;
-          Printf.printf "  ✗ table: ^%s on %s expected %s, got %s\n" fmt rt
+          Printf.printf "  FAILURE table: ^%s on %s expected %s, got %s\n" fmt rt
             (if expect_clean then "clean" else "error") (Ast.Utils.value_to_string v))
      ) formats
    ) ctors);

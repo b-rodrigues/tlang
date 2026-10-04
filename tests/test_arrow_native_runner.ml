@@ -27,10 +27,10 @@ let test name input expected =
   in
   if result = expected then begin
     incr pass_count;
-    Printf.printf "  ✓ %s\n" name
+    Printf.printf "  SUCCESS %s\n" name
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ %s\n    Expected: %s\n    Got:      %s\n" name expected result
+    Printf.printf "  FAILURE %s\n    Expected: %s\n    Got:      %s\n" name expected result
   end
 
 let () =

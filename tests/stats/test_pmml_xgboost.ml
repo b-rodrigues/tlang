@@ -25,10 +25,10 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
           (String.equal result "1") || (String.equal result "1.") || (String.equal result "1.0")
         in
         if matches_expected then begin
-          incr pass_count; Printf.printf "  ✓ xgboost predict first label\n"
+          incr pass_count; Printf.printf "  SUCCESS xgboost predict first label\n"
         end else begin
           incr fail_count;
-          Printf.printf "  ✗ xgboost predict first label\n    Expected: 1\n    Got: %s\n" result
+          Printf.printf "  FAILURE xgboost predict first label\n    Expected: 1\n    Got: %s\n" result
         end
    | Ast.VDataFrame { arrow_table = table; _ } ->
        let column_names = Arrow_table.column_names table in
@@ -45,7 +45,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
        (match selected_col_name with
         | None ->
             incr fail_count;
-            Printf.printf "  ✗ xgboost predict first label\n    Expected: 1\n    Got: prediction DataFrame has no suitable label column\n"
+            Printf.printf "  FAILURE xgboost predict first label\n    Expected: 1\n    Got: prediction DataFrame has no suitable label column\n"
         | Some col_name ->
         let first_val =
           match Arrow_table.column_type table col_name with
@@ -62,15 +62,15 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
           (String.equal result "1") || (String.equal result "1.") || (String.equal result "1.0")
         in
         if matches_expected then begin
-          incr pass_count; Printf.printf "  ✓ xgboost predict first label\n"
+          incr pass_count; Printf.printf "  SUCCESS xgboost predict first label\n"
         end else begin
           incr fail_count;
-          Printf.printf "  ✗ xgboost predict first label\n    Expected: 1\n    Got: %s\n" result
+          Printf.printf "  FAILURE xgboost predict first label\n    Expected: 1\n    Got: %s\n" result
         end)
    | _ ->
        let result = Ast.Utils.value_to_string v |> String.trim in
        incr fail_count;
-       Printf.printf "  ✗ xgboost predict first label\n    Expected: 1\n    Got: %s\n" result);
+       Printf.printf "  FAILURE xgboost predict first label\n    Expected: 1\n    Got: %s\n" result);
 
   test "fit_stats xgboost n_trees"
     (Printf.sprintf {|m = t_read_pmml("%s"); fs = fit_stats(m); fs.n_trees|} (String.escaped pmml_path))

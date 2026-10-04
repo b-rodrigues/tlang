@@ -26,10 +26,10 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
   let check name condition =
     if condition then begin
       incr pass_count;
-      Printf.printf "  ✓ %s\n" name
+      Printf.printf "  SUCCESS %s\n" name
     end else begin
       incr fail_count;
-      let msg = Printf.sprintf "  ✗ %s\n" name in
+      let msg = Printf.sprintf "  FAILURE %s\n" name in
       failures := msg :: !failures;
       Printf.printf "%s" msg
     end
@@ -37,10 +37,10 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
   let check_eq name got expected =
     if got = expected then begin
       incr pass_count;
-      Printf.printf "  ✓ %s\n" name
+      Printf.printf "  SUCCESS %s\n" name
     end else begin
       incr fail_count;
-      let msg = Printf.sprintf "  ✗ %s\n    Expected: %s\n    Got: %s\n" name expected got in
+      let msg = Printf.sprintf "  FAILURE %s\n    Expected: %s\n    Got: %s\n" name expected got in
       failures := msg :: !failures;
       Printf.printf "%s" msg
     end

@@ -110,10 +110,10 @@ match(PtQ(x = 1.0)) { v => v.x }|}
   in
   (match v_syntax with
    | Ast.VError _ when found ->
-       incr pass_count; Printf.printf "  ✓ non-type two-identifier statement stays a syntax error\n"
+       incr pass_count; Printf.printf "  SUCCESS non-type two-identifier statement stays a syntax error\n"
    | _ ->
        incr fail_count;
-       Printf.printf "  ✗ non-type two-identifier statement stays a syntax error\n    Got: %s\n" rendered);
+       Printf.printf "  FAILURE non-type two-identifier statement stays a syntax error\n    Got: %s\n" rendered);
   test_env (fresh ()) "type() builtin keeps working"
     "type(1)"
     "Int";

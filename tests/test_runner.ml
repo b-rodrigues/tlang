@@ -93,10 +93,10 @@ let test name input expected =
 
   if match_found then begin
     incr pass_count;
-    Printf.printf "  ✓ %s\n" name
+    Printf.printf "  SUCCESS %s\n" name
   end else begin
     incr fail_count;
-    let msg = Printf.sprintf "  ✗ %s\n    Expected (regex): %s\n    Got:               %s\n" name expected result in
+    let msg = Printf.sprintf "  FAILURE %s\n    Expected (regex): %s\n    Got:               %s\n" name expected result in
     failures := msg :: !failures;
     Printf.printf "%s" msg
   end
@@ -121,10 +121,10 @@ let test_env env name input expected =
 
   if match_found then begin
     incr pass_count;
-    Printf.printf "  ✓ %s\n" name
+    Printf.printf "  SUCCESS %s\n" name
   end else begin
     incr fail_count;
-    let msg = Printf.sprintf "  ✗ %s\n    Expected (substring): %s\n    Got:                       %s\n" name expected result in
+    let msg = Printf.sprintf "  FAILURE %s\n    Expected (substring): %s\n    Got:                       %s\n" name expected result in
     failures := msg :: !failures;
     Printf.printf "%s" msg
   end
@@ -144,10 +144,10 @@ let test_equal env name input expected =
   let expected_norm = strip_location expected in
   if result_norm = expected_norm then begin
     incr pass_count;
-    Printf.printf "  ✓ %s\n" name
+    Printf.printf "  SUCCESS %s\n" name
   end else begin
     incr fail_count;
-    let msg = Printf.sprintf "  ✗ %s\n    Expected (exact): %s\n    Got:                %s\n" name expected result in
+    let msg = Printf.sprintf "  FAILURE %s\n    Expected (exact): %s\n    Got:                %s\n" name expected result in
     failures := msg :: !failures;
     Printf.printf "%s" msg
   end

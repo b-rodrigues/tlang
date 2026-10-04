@@ -758,10 +758,10 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
   let check_golden name cond =
     if cond then begin
       incr pass_count;
-      Printf.printf "  ✓ %s\n" name
+      Printf.printf "  SUCCESS %s\n" name
     end else begin
       incr fail_count;
-      let msg = Printf.sprintf "  ✗ %s\n" name in
+      let msg = Printf.sprintf "  FAILURE %s\n" name in
       failures := msg :: !failures;
       Printf.printf "%s" msg
     end
@@ -806,7 +806,7 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
   let skip_golden name reason =
     incr golden_skips;
     incr pass_count;
-    Printf.printf "  ○ %s (skipped: %s)\n" name reason
+    Printf.printf "  SKIP %s (skipped: %s)\n" name reason
   in
   let pid = Unix.getpid () in
   let temp_path name =
@@ -966,7 +966,7 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
      match Sys.getenv_opt "TLANG_TEST_STRICT_GOLDEN" with
      | Some _ ->
          incr fail_count;
-         let msg = Printf.sprintf "  ✗ golden probes skipped under TLANG_TEST_STRICT_GOLDEN\n" in
+         let msg = Printf.sprintf "  FAILURE golden probes skipped under TLANG_TEST_STRICT_GOLDEN\n" in
          failures := msg :: !failures;
          Printf.printf "%s" msg
      | None -> ()

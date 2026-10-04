@@ -4,10 +4,10 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
   let record name ok =
     if ok then begin
       incr pass_count;
-      Printf.printf "  ✓ %s\n" name
+      Printf.printf "  SUCCESS %s\n" name
     end else begin
       incr fail_count;
-      let msg = Printf.sprintf "  ✗ %s" name in
+      let msg = Printf.sprintf "  FAILURE %s" name in
       failures := msg :: !failures;
       Printf.printf "%s\n" msg
     end
@@ -16,7 +16,7 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
     try record name (f ())
     with exn ->
       incr fail_count;
-      let msg = Printf.sprintf "  ✗ %s\n    %s" name (Printexc.to_string exn) in
+      let msg = Printf.sprintf "  FAILURE %s\n    %s" name (Printexc.to_string exn) in
       failures := msg :: !failures;
       Printf.printf "%s\n" msg
   in

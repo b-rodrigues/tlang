@@ -39,9 +39,9 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
     Serialization.value_to_yojson (Ast.VDate (Chrono.days_from_civil 2024 1 15))
   in
   if date_json = `String "2024-01-15" then begin
-    incr _pass_count; Printf.printf "  ✓ value_to_yojson serializes dates\n"
+    incr _pass_count; Printf.printf "  SUCCESS value_to_yojson serializes dates\n"
   end else begin
-    incr _fail_count; Printf.printf "  ✗ value_to_yojson serializes dates\n"
+    incr _fail_count; Printf.printf "  FAILURE value_to_yojson serializes dates\n"
   end;
 
   let datetime_json =
@@ -49,9 +49,9 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
       (Ast.VDatetime (Chrono.datetime_of_components 2024 1 15 9 30 0 123456, Some "UTC"))
   in
   if datetime_json = `String "2024-01-15T09:30:00.123456Z" then begin
-    incr _pass_count; Printf.printf "  ✓ value_to_yojson serializes datetimes\n"
+    incr _pass_count; Printf.printf "  SUCCESS value_to_yojson serializes datetimes\n"
   end else begin
-    incr _fail_count; Printf.printf "  ✗ value_to_yojson serializes datetimes\n"
+    incr _fail_count; Printf.printf "  FAILURE value_to_yojson serializes datetimes\n"
   end;
 
   let period_json =
@@ -63,16 +63,16 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
         ("years", `Int 1); ("months", `Int 2); ("days", `Int 3);
         ("hours", `Int 4); ("minutes", `Int 5); ("seconds", `Int 6); ("micros", `Int 7)
       ] then begin
-    incr _pass_count; Printf.printf "  ✓ value_to_yojson serializes periods\n"
+    incr _pass_count; Printf.printf "  SUCCESS value_to_yojson serializes periods\n"
   end else begin
-    incr _fail_count; Printf.printf "  ✗ value_to_yojson serializes periods\n"
+    incr _fail_count; Printf.printf "  FAILURE value_to_yojson serializes periods\n"
   end;
 
   let duration_json = Serialization.value_to_yojson (Ast.VDuration 12.5) in
   if duration_json = `Float 12.5 then begin
-    incr _pass_count; Printf.printf "  ✓ value_to_yojson serializes durations\n"
+    incr _pass_count; Printf.printf "  SUCCESS value_to_yojson serializes durations\n"
   end else begin
-    incr _fail_count; Printf.printf "  ✗ value_to_yojson serializes durations\n"
+    incr _fail_count; Printf.printf "  FAILURE value_to_yojson serializes durations\n"
   end;
 
   let interval_json =
@@ -89,9 +89,9 @@ let run_tests _pass_count _fail_count _failures _eval_string _eval_string_env te
         ("end", `String "2024-01-15T10:00:00Z");
         ("timezone", `String "UTC");
       ] then begin
-    incr _pass_count; Printf.printf "  ✓ value_to_yojson serializes intervals\n"
+    incr _pass_count; Printf.printf "  SUCCESS value_to_yojson serializes intervals\n"
   end else begin
-    incr _fail_count; Printf.printf "  ✗ value_to_yojson serializes intervals\n"
+    incr _fail_count; Printf.printf "  FAILURE value_to_yojson serializes intervals\n"
   end;
 
   print_newline ()

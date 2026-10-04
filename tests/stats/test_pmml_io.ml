@@ -16,11 +16,11 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env _test
   (match write_v with
    | Ast.VString path when path = tmp_path && Sys.file_exists tmp_path ->
        incr pass_count;
-       Printf.printf "  ✓ t_write_pmml copies PMML loaded by t_read_pmml\n"
+       Printf.printf "  SUCCESS t_write_pmml copies PMML loaded by t_read_pmml\n"
    | other ->
        incr fail_count;
        Printf.printf
-         "  ✗ t_write_pmml copies PMML loaded by t_read_pmml\n    Got: %s\n"
+         "  FAILURE t_write_pmml copies PMML loaded by t_read_pmml\n    Got: %s\n"
          (Ast.Utils.value_to_string other));
 
   let (roundtrip_v, _) =
@@ -29,11 +29,11 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env _test
   (match roundtrip_v with
    | Ast.VString "random_forest" ->
        incr pass_count;
-       Printf.printf "  ✓ PMML pass-through artifact can be read again\n"
+       Printf.printf "  SUCCESS PMML pass-through artifact can be read again\n"
    | other ->
        incr fail_count;
        Printf.printf
-         "  ✗ PMML pass-through artifact can be read again\n    Got: %s\n"
+         "  FAILURE PMML pass-through artifact can be read again\n    Got: %s\n"
          (Ast.Utils.value_to_string other));
 
   let invalid_tmp_path = Filename.temp_file "tlang_pmml_invalid_" ".pmml" in
@@ -47,11 +47,11 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env _test
    | Ast.VError { message; _ }
      when Test_helpers.contains message "loaded via `t_read_pmml()` or `read_node()`" ->
        incr pass_count;
-       Printf.printf "  ✓ t_write_pmml rejects PMML Dicts without source artifacts\n"
+       Printf.printf "  SUCCESS t_write_pmml rejects PMML Dicts without source artifacts\n"
    | other ->
        incr fail_count;
        Printf.printf
-         "  ✗ t_write_pmml rejects PMML Dicts without source artifacts\n    Got: %s\n"
+         "  FAILURE t_write_pmml rejects PMML Dicts without source artifacts\n    Got: %s\n"
          (Ast.Utils.value_to_string other));
 
   (try if Sys.file_exists tmp_path then Sys.remove tmp_path with _ -> ());

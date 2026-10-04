@@ -2,10 +2,10 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
   let report ok msg fail_msg =
     if ok then begin
       incr pass_count;
-      Printf.printf "  ✓ %s\n" msg
+      Printf.printf "  SUCCESS %s\n" msg
     end else begin
       incr fail_count;
-      Printf.printf "  ✗ %s\n" fail_msg
+      Printf.printf "  FAILURE %s\n" fail_msg
     end
   in
   let get_field name = function

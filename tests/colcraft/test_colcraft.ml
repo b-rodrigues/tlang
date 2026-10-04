@@ -92,11 +92,11 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
       with Not_found -> false
     in
     if result_warn = expected_result && has_warning then begin
-      incr pass_count; Printf.printf "  ✓ %s\n" label
+      incr pass_count; Printf.printf "  SUCCESS %s\n" label
     end else begin
       incr fail_count;
       Printf.printf
-        "  ✗ %s\n    Expected result: %s\n    Got result: %s\n    Warning: %s\n"
+        "  FAILURE %s\n    Expected result: %s\n    Got result: %s\n    Warning: %s\n"
         label expected_result result_warn warning_text
     end
   in
@@ -285,9 +285,9 @@ df |> mutate($senior = $age >= 30)
     in check 0
   in
   if contains result "93.03333" && contains result "87.65" then begin
-    incr pass_count; Printf.printf "  ✓ grouped mutate computes group mean\n"
+    incr pass_count; Printf.printf "  SUCCESS grouped mutate computes group mean\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ grouped mutate computes group mean\n    Expected eng mean ~93.03 and sales mean ~87.65\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  FAILURE grouped mutate computes group mean\n    Expected eng mean ~93.03 and sales mean ~87.65\n    Got: %s\n" result
   end;
 
   test_env env_p4 "grouped mutate chains with filter"
@@ -329,9 +329,9 @@ df |> mutate($senior = $age >= 30)
   | Ok (v, env_nas2) ->
     let result = Ast.Utils.value_to_string v in
     if String.length result >= 9 && String.sub result 0 9 = "DataFrame" then begin
-      incr pass_count; Printf.printf "  ✓ mutate with if/else on CSV with NAs\n"
+      incr pass_count; Printf.printf "  SUCCESS mutate with if/else on CSV with NAs\n"
     end else begin
-      incr fail_count; Printf.printf "  ✗ mutate with if/else on CSV with NAs\n    Got: %s\n" result
+      incr fail_count; Printf.printf "  FAILURE mutate with if/else on CSV with NAs\n    Got: %s\n" result
     end;
 
     let step2_result = (try
@@ -344,15 +344,15 @@ df |> mutate($senior = $age >= 30)
     | Ok v2 ->
       let result2 = Ast.Utils.value_to_string v2 in
       if String.length result2 >= 9 && String.sub result2 0 9 = "DataFrame" then begin
-        incr pass_count; Printf.printf "  ✓ grouped summarize with mean on NAs\n"
+        incr pass_count; Printf.printf "  SUCCESS grouped summarize with mean on NAs\n"
       end else begin
-        incr fail_count; Printf.printf "  ✗ grouped summarize with mean on NAs\n    Got: %s\n" result2
+        incr fail_count; Printf.printf "  FAILURE grouped summarize with mean on NAs\n    Got: %s\n" result2
       end
     | Error msg ->
-      incr fail_count; Printf.printf "  ✗ grouped summarize with mean on NAs\n    EXCEPTION: %s\n" msg)
+      incr fail_count; Printf.printf "  FAILURE grouped summarize with mean on NAs\n    EXCEPTION: %s\n" msg)
   | Error msg ->
-    incr fail_count; Printf.printf "  ✗ mutate with if/else on CSV with NAs\n    EXCEPTION: %s\n" msg;
-    incr fail_count; Printf.printf "  ✗ grouped summarize with mean on NAs (skipped)\n");
+    incr fail_count; Printf.printf "  FAILURE mutate with if/else on CSV with NAs\n    EXCEPTION: %s\n" msg;
+    incr fail_count; Printf.printf "  FAILURE grouped summarize with mean on NAs (skipped)\n");
 
   (try Sys.remove csv_nas with _ -> ());
   print_newline ();
@@ -638,9 +638,9 @@ df |> filter($age > 25)
     in chk 0
   in
   if contains result "93.03333" && contains result "87.65" then begin
-    incr pass_count; Printf.printf "  ✓ vectorized grouped summarize mean produces correct values\n"
+    incr pass_count; Printf.printf "  SUCCESS vectorized grouped summarize mean produces correct values\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ vectorized grouped summarize mean produces correct values\n    Expected eng ~93.03 and sales ~87.65\n    Got: %s\n" result
+    incr fail_count; Printf.printf "  FAILURE vectorized grouped summarize mean produces correct values\n    Expected eng ~93.03 and sales ~87.65\n    Got: %s\n" result
   end;
 
   test_env env_p4 "vectorized grouped summarize sum"

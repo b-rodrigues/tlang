@@ -5,10 +5,10 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
   let test_message name predicate =
     if predicate then begin
       incr pass_count;
-      Printf.printf "  ✓ %s\n" name
+      Printf.printf "  SUCCESS %s\n" name
     end else begin
       incr fail_count;
-      Printf.printf "  ✗ %s\n" name
+      Printf.printf "  FAILURE %s\n" name
     end
   in
 
@@ -31,13 +31,13 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
   in
   if explicitly_skipped then begin
     incr pass_count;
-    Printf.printf "  ○ Demo.run skipped (TLANG_SKIP_DEMO)\n"
+    Printf.printf "  SKIP Demo.run skipped (TLANG_SKIP_DEMO)\n"
   end else if not (Builder_utils.command_exists "nix-build") then begin
     incr pass_count;
-    Printf.printf "  ○ Demo.run skipped (no Nix daemon)\n"
+    Printf.printf "  SKIP Demo.run skipped (no Nix daemon)\n"
   end else if not daemon_ok then begin
     incr pass_count;
-    Printf.printf "  ○ Demo.run skipped (Nix daemon unreachable)\n"
+    Printf.printf "  SKIP Demo.run skipped (Nix daemon unreachable)\n"
   end else begin
     (* Belt and braces: Demo.run already chdirs to a temp dir, but keep the
        test runner's cwd stable in case the demo is refactored. *)
@@ -58,7 +58,7 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
      | `Ok -> test_message "Demo.run headless completes without errors" true
      | `Skip_env reason ->
        incr pass_count;
-       Printf.printf "  ○ Demo.run skipped (%s)\n" reason
+       Printf.printf "  SKIP Demo.run skipped (%s)\n" reason
      | `Fail err ->
        Printf.eprintf "Demo.run failed with: %s\n" err;
        test_message "Demo.run headless completes without errors" false)

@@ -67,11 +67,11 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
     (fun stem ->
        if not (List.mem ("case_" ^ stem ^ ".jl") on_disk) then begin
          incr fail_count;
-         Printf.printf "  ✗ Error: fixture case_%s.jl missing\n" stem
+         Printf.printf "  FAILURE Error: fixture case_%s.jl missing\n" stem
        end;
        if not (List.mem ("case_" ^ stem ^ ".txt") on_disk) then begin
          incr fail_count;
-         Printf.printf "  ✗ Error: truth case_%s.txt missing (run scripts/regen_julia_diff.sh)\n" stem
+         Printf.printf "  FAILURE Error: truth case_%s.txt missing (run scripts/regen_julia_diff.sh)\n" stem
        end)
     cases;
   List.iter
@@ -83,7 +83,7 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
          let stem = Filename.chop_extension (String.sub f 5 (String.length f - 5)) in
          if not (List.mem stem cases) then begin
            incr fail_count;
-           Printf.printf "  ✗ Error: fixture %s has no entry in the case list\n" f
+           Printf.printf "  FAILURE Error: fixture %s has no entry in the case list\n" f
          end
        end)
     on_disk;
@@ -94,12 +94,12 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
        match read_file (Filename.concat dir jl_name) with
        | Error msg ->
            incr fail_count;
-           Printf.printf "  ✗ Error: %s (%s)\n" stem msg
+           Printf.printf "  FAILURE Error: %s (%s)\n" stem msg
        | Ok text -> (
            match read_file (Filename.concat dir txt_name) with
            | Error msg ->
                incr fail_count;
-               Printf.printf "  ✗ Error: %s (%s)\n" stem msg
+               Printf.printf "  FAILURE Error: %s (%s)\n" stem msg
            | Ok truth -> (
                (* Truth format: line 1 reads, line 2 binds (may be
                   empty), line 3 MD5 of the .jl bytes. Split keeps
@@ -112,12 +112,12 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
                let want_md5 = String.trim (nth 2) in
                if want_md5 = "" then begin
                  incr fail_count;
-                 Printf.printf "  ✗ Error: %s (truth file missing md5, run scripts/regen_julia_diff.sh)\n" stem
+                 Printf.printf "  FAILURE Error: %s (truth file missing md5, run scripts/regen_julia_diff.sh)\n" stem
                end else begin
                  let got_md5 = Digest.to_hex (Digest.string text) in
                  if got_md5 <> want_md5 then begin
                    incr fail_count;
-                   Printf.printf "  ✗ Error: %s (stale truth: .jl changed without regen, run scripts/regen_julia_diff.sh)\n" stem
+                   Printf.printf "  FAILURE Error: %s (stale truth: .jl changed without regen, run scripts/regen_julia_diff.sh)\n" stem
                  end else begin
                    let got =
                      Ast.extract_code_identifiers ~lang:(Some Ast.JuliaLang) text
@@ -127,7 +127,7 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
                    in
                    if missing <> [] then begin
                      incr fail_count;
-                     Printf.printf "  ✗ Error: %s (T misses [%s])\n" stem
+                     Printf.printf "  FAILURE Error: %s (T misses [%s])\n" stem
                        (String.concat "; " missing)
                    end else begin
                      let got_binds =
@@ -140,11 +140,11 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
                      in
                      if extra = [] then begin
                        incr pass_count;
-                       Printf.printf "  ✓ %s [%d names]\n" stem
+                       Printf.printf "  SUCCESS %s [%d names]\n" stem
                          (List.length syms)
                      end else begin
                        incr fail_count;
-                       Printf.printf "  ✗ Error: %s (T over-binds [%s])\n" stem
+                       Printf.printf "  FAILURE Error: %s (T over-binds [%s])\n" stem
                          (String.concat "; " extra)
                      end
                    end

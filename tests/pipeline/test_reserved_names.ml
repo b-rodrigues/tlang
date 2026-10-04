@@ -52,11 +52,11 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
    | [err] when err.ve_kind = "StructuralError" && err.ve_node = Some "n" &&
                  Test_helpers.contains err.ve_message "`n` is a builtin function" ->
        incr pass_count;
-       Printf.printf "  ✓ check_reserved_node_names flags builtin collision `n`\n"
+       Printf.printf "  SUCCESS check_reserved_node_names flags builtin collision `n`\n"
    | _ ->
        incr fail_count;
        let msg = Printf.sprintf
-           "  ✗ check_reserved_node_names failed to flag builtin collision `n`. Got: %d error(s)\n"
+           "  FAILURE check_reserved_node_names failed to flag builtin collision `n`. Got: %d error(s)\n"
            (List.length direct) in
        failures := msg :: !failures;
        Printf.printf "%s" msg);
@@ -64,20 +64,20 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
   (match Pipeline_validation.collect_errors p_reserved with
    | err :: _ when err.ve_kind = "StructuralError" && err.ve_node = Some "n" ->
        incr pass_count;
-       Printf.printf "  ✓ reserved-name error is first in collect_errors\n"
+       Printf.printf "  SUCCESS reserved-name error is first in collect_errors\n"
    | _ ->
        incr fail_count;
-       let msg = "  ✗ reserved-name error not surfaced (or not first) in collect_errors\n" in
+       let msg = "  FAILURE reserved-name error not surfaced (or not first) in collect_errors\n" in
        failures := msg :: !failures;
        Printf.printf "%s" msg);
 
   let p_ok = minimal_pipeline [("safe_name", Ast.mk_expr (Value (VInt 0)))] in
   if Pipeline_validation.check_reserved_node_names p_ok = [] then begin
     incr pass_count;
-    Printf.printf "  ✓ non-reserved node names pass the check\n"
+    Printf.printf "  SUCCESS non-reserved node names pass the check\n"
   end else begin
     incr fail_count;
-    let msg = "  ✗ non-reserved node name was flagged by check_reserved_node_names\n" in
+    let msg = "  FAILURE non-reserved node name was flagged by check_reserved_node_names\n" in
     failures := msg :: !failures;
     Printf.printf "%s" msg
   end;
@@ -112,7 +112,7 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
   in
   if missing = [] && extra = [] && kind_mismatches = [] && duplicates = [] then begin
     incr pass_count;
-    Printf.printf "  ✓ reserved list matches Packages.init_env (%d names, kinds included)\n"
+    Printf.printf "  SUCCESS reserved list matches Packages.init_env (%d names, kinds included)\n"
       (List.length reserved_names)
   end else begin
     incr fail_count;
@@ -133,7 +133,7 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
              (match expected with Reserved_names.BuiltinFunction -> "builtin" | Reserved_names.RuntimeSymbol -> "symbol"))
            kind_mismatches
     in
-    let msg = "  ✗ reserved-node list diverged from Packages.init_env:\n" ^ String.concat "\n" lines ^ "\n" in
+    let msg = "  FAILURE reserved-node list diverged from Packages.init_env:\n" ^ String.concat "\n" lines ^ "\n" in
     failures := msg :: !failures;
     Printf.printf "%s" msg
   end;
@@ -175,7 +175,7 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
   in
   if ks_unbound = [] && ks_duplicates = [] && ks_unreserved = [] && ks_missing_vocab = [] then begin
     incr pass_count;
-    Printf.printf "  ✓ known_symbols are bound and cover the runtime/serializer vocabulary (%d symbols)\n"
+    Printf.printf "  SUCCESS known_symbols are bound and cover the runtime/serializer vocabulary (%d symbols)\n"
       (List.length ks)
   end else begin
     incr fail_count;
@@ -193,7 +193,7 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
            [ Printf.sprintf "    documented runtime/serializer not in known_symbols: %s" (String.concat ", " ks_missing_vocab) ]
          else [])
     in
-    let msg = "  ✗ known_symbols audit failed:\n" ^ String.concat "\n" lines ^ "\n" in
+    let msg = "  FAILURE known_symbols audit failed:\n" ^ String.concat "\n" lines ^ "\n" in
     failures := msg :: !failures;
     Printf.printf "%s" msg
   end

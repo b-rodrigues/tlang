@@ -48,10 +48,10 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
       List.for_all (fun d -> d.Diagnostics.diag_severity = Diagnostics.Warning) diags
     in
     if n = expect_count && sub_ok && sev_ok then begin
-      incr pass_count; Printf.printf "  ✓ %s\n" name
+      incr pass_count; Printf.printf "  SUCCESS %s\n" name
     end else begin
       incr fail_count;
-      Printf.printf "  ✗ %s (expected %d warnings, got %d)\n" name expect_count n
+      Printf.printf "  FAILURE %s (expected %d warnings, got %d)\n" name expect_count n
     end
   in
   check_warn "match error without Error arm warns"

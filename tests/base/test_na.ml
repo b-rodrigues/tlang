@@ -4,10 +4,10 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
   let check name ok got =
     if ok then begin
       incr pass_count;
-      Printf.printf "  ✓ %s\n" name
+      Printf.printf "  SUCCESS %s\n" name
     end else begin
       incr fail_count;
-      Printf.printf "  ✗ %s\n    Got: %s\n" name got
+      Printf.printf "  FAILURE %s\n    Got: %s\n" name got
     end
   in
   Printf.printf "Phase 1 — NA Values:\n";
