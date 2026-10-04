@@ -4390,7 +4390,7 @@ node_info.contents        -- explained node payload
 
 -- Computed pipeline nodes (R, Python, Julia) carry build-time metadata:
 node = explain(p.fit)
-node.foreign_meta.kind        -- "dataframe", "model", or "other"
+node.foreign_meta.kind        -- "dataframe", "model", "test", "data", or "other"
 node.foreign_meta.dimensions  -- shape as int list, e.g. [32, 11] for frames, [4, 3] for matrices, [3] for vectors
 node.foreign_meta.n_obs       -- training row count (models)
 node.foreign_meta.n_groups    -- grouping units, e.g. 18 subjects (mixed models)

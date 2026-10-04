@@ -1890,6 +1890,115 @@ r_save_meta <- function(object, path) {
       bic <- tryCatch(stats::BIC(object), error = function(e) NULL)
       if (!is.null(bic) && length(bic) == 1 && !is.na(bic)) metrics$bic <- as.numeric(bic)
       if (length(metrics) > 0) meta$metrics <- metrics
+    } else if (inherits(object, "lda") || inherits(object, "qda")) {
+      meta$kind <- "model"
+      meta$task <- "classification"
+      no <- tryCatch(object$N, error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- as.integer(no)
+      lv <- tryCatch(object$lev, error = function(e) NULL)
+      metrics <- list()
+      if (!is.null(lv) && length(lv) > 0) metrics$n_classes <- length(lv)
+      mn <- tryCatch(object$means, error = function(e) NULL)
+      if (!is.null(mn)) {
+        vn <- tryCatch(colnames(mn), error = function(e) NULL)
+        if (!is.null(vn) && length(vn) > 0) {
+          meta$n_features <- length(vn)
+          meta$features <- as.list(as.character(vn))
+        }
+      }
+      if (length(metrics) > 0) meta$metrics <- metrics
+    } else if (inherits(object, "polr")) {
+      meta$kind <- "model"
+      meta$task <- "classification"
+      no <- tryCatch(object$nobs, error = function(e) NULL)
+      if (is.null(no)) no <- tryCatch(object$n, error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- as.integer(no)
+      lv <- tryCatch(object$lev, error = function(e) NULL)
+      metrics <- list()
+      if (!is.null(lv) && length(lv) > 0) metrics$n_classes <- length(lv)
+      cf <- tryCatch(names(object$coefficients), error = function(e) NULL)
+      if (!is.null(cf) && length(cf) > 0) {
+        meta$n_features <- length(cf)
+        meta$features <- as.list(as.character(cf))
+      }
+      dv <- tryCatch(as.numeric(object$deviance), error = function(e) NULL)
+      if (!is.null(dv) && length(dv) == 1 && !is.na(dv)) metrics$deviance <- dv
+      if (length(metrics) > 0) meta$metrics <- metrics
+    } else if (inherits(object, "fitdistr")) {
+      meta$kind <- "model"
+      no <- tryCatch(object$n, error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- as.integer(no)
+      es <- tryCatch(object$estimate, error = function(e) NULL)
+      if (!is.null(es) && length(es) > 0) {
+        nms <- names(es)
+        if (!is.null(nms)) {
+          meta$n_features <- length(nms)
+          meta$features <- as.list(as.character(nms))
+        }
+      }
+      metrics <- list()
+      ll <- tryCatch(as.numeric(object$loglik), error = function(e) NULL)
+      if (!is.null(ll) && length(ll) == 1 && !is.na(ll)) metrics$loglik <- ll
+      if (length(metrics) > 0) meta$metrics <- metrics
+    } else if (inherits(object, "nls")) {
+      meta$kind <- "model"
+      meta$task <- "regression"
+      fm <- tryCatch(stats::formula(object), error = function(e) NULL)
+      if (!is.null(fm)) {
+        meta$formula <- paste(deparse(fm), collapse = " ")
+        fch <- tryCatch(as.character(fm), error = function(e) NULL)
+        if (!is.null(fch) && length(fch) == 3 && !is.na(fch[2]) && nzchar(fch[2])) meta$target <- fch[2]
+      }
+      cf <- tryCatch(names(stats::coef(object)), error = function(e) NULL)
+      if (!is.null(cf) && length(cf) > 0) {
+        meta$n_features <- length(cf)
+        meta$features <- as.list(as.character(cf))
+      }
+      rs <- tryCatch(stats::residuals(object), error = function(e) NULL)
+      if (!is.null(rs) && length(rs) > 0) meta$n_obs <- as.integer(length(rs))
+      metrics <- list()
+      sg <- tryCatch(as.numeric(stats::sigma(object)), error = function(e) NULL)
+      if (!is.null(sg) && length(sg) == 1 && !is.na(sg)) metrics$sigma <- sg
+      if (length(metrics) > 0) meta$metrics <- metrics
+    } else if (inherits(object, "htest")) {
+      meta$kind <- "test"
+      md <- tryCatch(object$method, error = function(e) NULL)
+      if (!is.null(md) && length(md) == 1 && !is.na(md) && nzchar(md)) meta$method <- md
+      metrics <- list()
+      pv <- tryCatch(as.numeric(object$p.value), error = function(e) NULL)
+      if (!is.null(pv) && length(pv) == 1 && !is.na(pv)) metrics$p_value <- pv
+      st <- tryCatch(as.numeric(object$statistic), error = function(e) NULL)
+      if (!is.null(st) && length(st) == 1 && !is.na(st)) metrics$statistic <- st
+      if (length(metrics) > 0) meta$metrics <- metrics
+    } else if (inherits(object, "loess")) {
+      meta$kind <- "model"
+      meta$task <- "regression"
+      no <- tryCatch(object$n, error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- as.integer(no)
+      metrics <- list()
+      sp <- tryCatch(object$pars$span, error = function(e) NULL)
+      if (!is.null(sp) && length(sp) == 1 && !is.na(sp)) metrics$span <- as.numeric(sp)
+      if (length(metrics) > 0) meta$metrics <- metrics
+    } else if (inherits(object, "multinom")) {
+      meta$kind <- "model"
+      meta$task <- "classification"
+      metrics <- list()
+      lv <- tryCatch(object$lev, error = function(e) NULL)
+      if (!is.null(lv) && length(lv) > 0) metrics$n_classes <- length(lv)
+      cf <- tryCatch(object$coefnames, error = function(e) NULL)
+      if (!is.null(cf) && length(cf) > 0) {
+        feats <- cf[!is.na(cf) & cf != "(Intercept)"]
+        meta$n_features <- length(feats)
+        meta$features <- as.list(as.character(feats))
+      }
+      fr <- tryCatch(object$fitted.values, error = function(e) NULL)
+      if (!is.null(fr)) {
+        nr <- tryCatch(nrow(fr), error = function(e) NULL)
+        if (!is.null(nr) && length(nr) == 1 && !is.na(nr)) meta$n_obs <- as.integer(nr)
+      }
+      dv <- tryCatch(as.numeric(object$deviance), error = function(e) NULL)
+      if (!is.null(dv) && length(dv) == 1 && !is.na(dv)) metrics$deviance <- dv
+      if (length(metrics) > 0) meta$metrics <- metrics
     } else if (inherits(object, "Arima") || inherits(object, "arima")) {
       meta$kind <- "model"
       meta$task <- "time_series"
@@ -2128,7 +2237,7 @@ def py_save_meta(obj, path):
                 meta["features"] = [str(c) for c in list(obj.columns)]
             except Exception:
                 pass
-        elif mod.startswith("sklearn") or (mod.startswith("lightgbm") and cls.__name__ != "Booster"):
+        elif mod.startswith("sklearn") or (mod.startswith("lightgbm") and cls.__name__ not in ("Booster", "Dataset")):
             meta["kind"] = "model"
             est_type = None
             try:
@@ -2148,6 +2257,8 @@ def py_save_meta(obj, path):
                 meta["task"] = "regression"
             elif est_type == "clusterer":
                 meta["task"] = "clustering"
+            elif est_type == "density_estimator":
+                meta["task"] = "density"
             elif "task" not in meta and any(k in cls.__name__ for k in ("PCA", "TruncatedSVD", "NMF", "FactorAnalysis")):
                 meta["task"] = "dim_reduction"
             n_feat = getattr(obj, "n_features_in_", None)
@@ -2206,9 +2317,27 @@ def py_save_meta(obj, path):
                         meta.setdefault("metrics", {})["var_first"] = ev[0]
             except Exception:
                 pass
+            try:
+                nc = getattr(obj, "n_components", None)
+                if nc is not None and "n_components" not in meta:
+                    meta["n_components"] = int(nc)
+            except Exception:
+                pass
+            try:
+                bs = getattr(obj, "best_score_", None)
+                if bs is not None:
+                    meta.setdefault("metrics", {})["best_score"] = float(bs)
+            except Exception:
+                pass
+            try:
+                lb = getattr(obj, "lower_bound_", None)
+                if lb is not None:
+                    meta.setdefault("metrics", {})["lower_bound"] = float(lb)
+            except Exception:
+                pass
         elif mod.startswith("xgboost"):
-            meta["kind"] = "model"
             if cls.__name__ == "Booster":
+                meta["kind"] = "model"
                 try:
                     import json as _tlang_cfg_json
                     cfg = _tlang_cfg_json.loads(obj.save_config())
@@ -2235,7 +2364,20 @@ def py_save_meta(obj, path):
                         meta["features"] = [str(f) for f in list(fnames)]
                 except Exception:
                     pass
+            elif cls.__name__ == "DMatrix":
+                meta["kind"] = "data"
+                try:
+                    meta["dimensions"] = [int(obj.num_row()), int(obj.num_col())]
+                except Exception:
+                    pass
+                try:
+                    fnames = getattr(obj, "feature_names", None)
+                    if fnames is not None:
+                        meta["features"] = [str(f) for f in list(fnames)]
+                except Exception:
+                    pass
             else:
+                meta["kind"] = "model"
                 try:
                     tags_fn = getattr(obj, "__sklearn_tags__", None)
                     if callable(tags_fn):
@@ -2253,33 +2395,40 @@ def py_save_meta(obj, path):
                 except Exception:
                     pass
         elif mod.startswith("lightgbm"):
-            meta["kind"] = "model"
-            try:
-                prm = getattr(obj, "params", None)
-                if isinstance(prm, dict):
-                    oname = str(prm.get("objective", "") or "")
-                    if any(k in oname for k in ("binary", "multiclass", "softmax")):
-                        meta["task"] = "classification"
-                    elif any(k in oname for k in ("regression", "poisson", "gamma", "tweedie")):
-                        meta["task"] = "regression"
-            except Exception:
-                pass
-            try:
-                meta["n_rounds"] = int(obj.num_trees())
-            except Exception:
-                pass
-            try:
-                nf = obj.num_feature()
-                if nf is not None:
-                    meta["n_features"] = int(nf)
-            except Exception:
-                pass
-            try:
-                fnames = obj.feature_name()
-                if fnames is not None:
-                    meta["features"] = [str(f) for f in list(fnames)]
-            except Exception:
-                pass
+            if cls.__name__ == "Dataset":
+                meta["kind"] = "data"
+                try:
+                    meta["dimensions"] = [int(obj.num_data()), int(obj.num_feature())]
+                except Exception:
+                    pass
+            else:
+                meta["kind"] = "model"
+                try:
+                    prm = getattr(obj, "params", None)
+                    if isinstance(prm, dict):
+                        oname = str(prm.get("objective", "") or "")
+                        if any(k in oname for k in ("binary", "multiclass", "softmax")):
+                            meta["task"] = "classification"
+                        elif any(k in oname for k in ("regression", "poisson", "gamma", "tweedie")):
+                            meta["task"] = "regression"
+                except Exception:
+                    pass
+                try:
+                    meta["n_rounds"] = int(obj.num_trees())
+                except Exception:
+                    pass
+                try:
+                    nf = obj.num_feature()
+                    if nf is not None:
+                        meta["n_features"] = int(nf)
+                except Exception:
+                    pass
+                try:
+                    fnames = obj.feature_name()
+                    if fnames is not None:
+                        meta["features"] = [str(f) for f in list(fnames)]
+                except Exception:
+                    pass
         elif mod.startswith("statsmodels"):
             meta["kind"] = "model"
             order = None
@@ -2330,7 +2479,9 @@ def py_save_meta(obj, path):
                 pass
             try:
                 params = getattr(obj, "params", None)
-                if params is not None:
+                if isinstance(params, dict):
+                    pass
+                elif params is not None:
                     idx = getattr(params, "index", None)
                     if idx is not None:
                         names = [str(v) for v in list(idx) if str(v) != "Intercept"]
@@ -2349,6 +2500,12 @@ def py_save_meta(obj, path):
                             pass
             except Exception:
                 pass
+            if "task" not in meta:
+                try:
+                    if "HoltWinters" in cls.__name__ or "ETS" in cls.__name__:
+                        meta["task"] = "time_series"
+                except Exception:
+                    pass
             for _mkey, _mattr in (("aic", "aic"), ("bic", "bic"), ("loglik", "llf"),
                                    ("r_squared", "rsquared"), ("deviance", "deviance")):
                 try:
@@ -2403,6 +2560,12 @@ def py_save_meta(obj, path):
                     meta["dtype"] = dtype
             else:
                 meta["kind"] = "other"
+            try:
+                nnz = getattr(obj, "nnz", None)
+                if nnz is not None and meta.get("kind") in ("matrix", "vector", "array"):
+                    meta.setdefault("metrics", {})["nnz"] = int(nnz)
+            except Exception:
+                pass
         else:
             meta["kind"] = "other"
         with open(path, "w") as f:

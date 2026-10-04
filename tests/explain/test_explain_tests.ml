@@ -502,6 +502,68 @@ let run_tests _pass_count _fail_count _failures _eval_string eval_string_env tes
   test_env env_fm_mix "explain foreign meta mixed formula keeps random effects"
     "explain(fake_mixed).foreign_meta.formula"
     {|"Reaction ~ Days + (Days | Subject)"|};
+  (* Discriminant, test, mixture, and data-container branches *)
+  let lda_dir = make_node_dir "fake-lda" in
+  write_file (Filename.concat lda_dir "artifact") "0123456789";
+  write_file (Filename.concat lda_dir "meta")
+    {|{"kind":"model","class":"lda","task":"classification","n_obs":150,"n_features":4,"metrics":{"n_classes":3}}|};
+  let env_fm_lda =
+    Ast.Env.add "fake_lda"
+      (Ast.VComputedNode (fake_cn ~name:"fake_lda_foreign_meta_test" ~runtime:"R"
+        ~path:(Filename.concat lda_dir "artifact") ~class_:"lda"))
+      (Packages.init_env ())
+  in
+  test_env env_fm_lda "explain foreign meta lda classes"
+    "explain(fake_lda).foreign_meta.metrics.n_classes"
+    "3";
+  let ht_dir = make_node_dir "fake-htest" in
+  write_file (Filename.concat ht_dir "artifact") "0123456789";
+  write_file (Filename.concat ht_dir "meta")
+    {|{"kind":"test","class":"htest","method":"Welch Two Sample t-test","metrics":{"p_value":0.0014}}|};
+  let env_fm_ht =
+    Ast.Env.add "fake_ht"
+      (Ast.VComputedNode (fake_cn ~name:"fake_ht_foreign_meta_test" ~runtime:"R"
+        ~path:(Filename.concat ht_dir "artifact") ~class_:"htest"))
+      (Packages.init_env ())
+  in
+  test_env env_fm_ht "explain foreign meta htest kind"
+    "explain(fake_ht).foreign_meta.kind"
+    {|"test"|};
+  test_env env_fm_ht "explain foreign meta htest method"
+    "explain(fake_ht).foreign_meta.method"
+    {|"Welch Two Sample t-test"|};
+  let gmm_dir = make_node_dir "fake-gmm" in
+  write_file (Filename.concat gmm_dir "artifact") "0123456789";
+  write_file (Filename.concat gmm_dir "meta")
+    {|{"kind":"model","class":"GaussianMixture","task":"density","n_features":1,"n_components":2,"metrics":{"lower_bound":0.02}}|};
+  let env_fm_gmm =
+    Ast.Env.add "fake_gmm"
+      (Ast.VComputedNode (fake_cn ~name:"fake_gmm_foreign_meta_test" ~runtime:"Python"
+        ~path:(Filename.concat gmm_dir "artifact") ~class_:"GaussianMixture"))
+      (Packages.init_env ())
+  in
+  test_env env_fm_gmm "explain foreign meta mixture task"
+    "explain(fake_gmm).foreign_meta.task"
+    {|"density"|};
+  test_env env_fm_gmm "explain foreign meta mixture bound"
+    "explain(fake_gmm).foreign_meta.metrics.lower_bound"
+    "0.02";
+  let dm_dir = make_node_dir "fake-dm" in
+  write_file (Filename.concat dm_dir "artifact") "0123456789";
+  write_file (Filename.concat dm_dir "meta")
+    {|{"kind":"data","class":"DMatrix","dimensions":[6,1]}|};
+  let env_fm_dm =
+    Ast.Env.add "fake_dm"
+      (Ast.VComputedNode (fake_cn ~name:"fake_dm_foreign_meta_test" ~runtime:"Python"
+        ~path:(Filename.concat dm_dir "artifact") ~class_:"DMatrix"))
+      (Packages.init_env ())
+  in
+  test_env env_fm_dm "explain foreign meta data container kind"
+    "explain(fake_dm).foreign_meta.kind"
+    {|"data"|};
+  test_env env_fm_dm "explain foreign meta data container dimensions"
+    "get(explain(fake_dm).foreign_meta.dimensions, 0)"
+    "6";
   (* Matrix / array / vector shapes across runtimes *)
   let mat_dir = make_node_dir "fake-mat" in
   write_file (Filename.concat mat_dir "artifact") "0123456789";

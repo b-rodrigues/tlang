@@ -44,7 +44,7 @@ next to `artifact`/`class` (best effort — the build never fails for it):
 
 ```t
 e = explain(p.fit)
-e.foreign_meta.kind        -- "dataframe", "model", or "other"
+e.foreign_meta.kind        -- "dataframe", "model", "test", "data", or "other"
 e.foreign_meta.dimensions  -- shape as int list, e.g. [32, 11] for frames, [4, 3] for matrices, [3] for vectors
 e.foreign_meta.n_obs       -- training rows (models)
 e.foreign_meta.n_groups    -- grouping units, e.g. 18 subjects (mixed models)
