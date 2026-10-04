@@ -304,7 +304,7 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
     (fun stem ->
        if not (List.mem (wanted stem) on_disk) then begin
          incr fail_count;
-         Printf.printf "  ✗ Error: fixture %s missing from tests/shell_diff\n" (wanted stem)
+         Printf.printf "  FAILURE Error: fixture %s missing from tests/shell_diff\n" (wanted stem)
        end)
     cases;
   List.iter
@@ -315,7 +315,7 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
          in
          if not (List.mem stem cases) then begin
            incr fail_count;
-           Printf.printf "  ✗ Error: fixture %s has no entry in the case list\n" f
+           Printf.printf "  FAILURE Error: fixture %s has no entry in the case list\n" f
          end
        end)
     on_disk;
@@ -359,9 +359,9 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
          match outcome with
          | Ok want ->
              incr pass_count;
-             Printf.printf "  ✓ %s [%s]\n" stem (String.concat "; " want)
+             Printf.printf "  SUCCESS %s [%s]\n" stem (String.concat "; " want)
          | Error msg ->
              incr fail_count;
-             Printf.printf "  ✗ Error: %s (%s)\n" stem msg
+             Printf.printf "  FAILURE Error: %s (%s)\n" stem msg
        end)
     cases

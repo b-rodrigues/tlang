@@ -22,10 +22,10 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
   let test_message name predicate =
     if predicate then begin
       incr pass_count;
-      Printf.printf "  ✓ %s\n" name
+      Printf.printf "  SUCCESS %s\n" name
     end else begin
       incr fail_count;
-      Printf.printf "  ✗ %s\n" name
+      Printf.printf "  FAILURE %s\n" name
     end
   in
 

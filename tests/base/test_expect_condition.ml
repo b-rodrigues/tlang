@@ -44,10 +44,10 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test =
     in
     if match_found then begin
       incr pass_count;
-      Printf.printf "  ✓ %s\n" name
+      Printf.printf "  SUCCESS %s\n" name
     end else begin
       incr fail_count;
-      let msg = Printf.sprintf "  ✗ %s\n    Expected (regex): %s\n    Got:               %s\n" name expected result_str in
+      let msg = Printf.sprintf "  FAILURE %s\n    Expected (regex): %s\n    Got:               %s\n" name expected result_str in
       failures := msg :: !failures;
       Printf.printf "%s" msg
     end
@@ -68,10 +68,10 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test =
         in
         if ok then begin
           incr pass_count;
-          Printf.printf "  ✓ %s\n" name
+          Printf.printf "  SUCCESS %s\n" name
         end else begin
           incr fail_count;
-          let msg = Printf.sprintf "  ✗ %s\n    Expected STOP containing: %s\n    Got: %s\n" name pat result_str in
+          let msg = Printf.sprintf "  FAILURE %s\n    Expected STOP containing: %s\n    Got: %s\n" name pat result_str in
           failures := msg :: !failures;
           Printf.printf "%s" msg
         end
@@ -94,10 +94,10 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test =
         in
         if ok then begin
           incr pass_count;
-          Printf.printf "  ✓ %s\n" name
+          Printf.printf "  SUCCESS %s\n" name
         end else begin
           incr fail_count;
-          let msg = Printf.sprintf "  ✗ %s\n    Expected VError containing: %s\n    Got: %s\n" name pat result_str in
+          let msg = Printf.sprintf "  FAILURE %s\n    Expected VError containing: %s\n    Got: %s\n" name pat result_str in
           failures := msg :: !failures;
           Printf.printf "%s" msg
         end

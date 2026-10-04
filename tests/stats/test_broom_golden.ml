@@ -24,15 +24,15 @@ let check_vector_element ~pass_count ~fail_count ~eval_string_env ~env
   | Ast.VVector arr when Array.length arr > idx ->
     let result = Ast.Utils.value_to_string arr.(idx) in
     if float_close_enough result expected tolerance then begin
-      incr pass_count; Printf.printf "  ✓ %s\n" test_name
+      incr pass_count; Printf.printf "  SUCCESS %s\n" test_name
     end else begin
       incr fail_count;
-      Printf.printf "  ✗ %s\n    Expected: ~%g (tol=%g)\n    Got: %s\n"
+      Printf.printf "  FAILURE %s\n    Expected: ~%g (tol=%g)\n    Got: %s\n"
         test_name expected tolerance result
     end
   | _ ->
     incr fail_count;
-    Printf.printf "  ✗ %s\n    Could not extract vector\n" test_name
+    Printf.printf "  FAILURE %s\n    Could not extract vector\n" test_name
 
 (** Helper: extract scalar from 1-element vector column *)
 let check_scalar_col ~pass_count ~fail_count ~eval_string_env ~env
@@ -40,10 +40,10 @@ let check_scalar_col ~pass_count ~fail_count ~eval_string_env ~env
   let (v, _) = eval_string_env expr_str env in
   let result = Ast.Utils.value_to_string v in
   if float_close_enough result expected tolerance then begin
-    incr pass_count; Printf.printf "  ✓ %s\n" test_name
+    incr pass_count; Printf.printf "  SUCCESS %s\n" test_name
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ %s\n    Expected: ~%g (tol=%g)\n    Got: %s\n"
+    Printf.printf "  FAILURE %s\n    Expected: ~%g (tol=%g)\n    Got: %s\n"
       test_name expected tolerance result
   end
 
@@ -80,10 +80,10 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env _test
   let (v, _) = eval_string_env "nrow(model._tidy_df)" env in
   let result = Ast.Utils.value_to_string v in
   if result = "3" then begin
-    incr pass_count; Printf.printf "  ✓ tidy: 3 rows (intercept + x1 + x2)\n"
+    incr pass_count; Printf.printf "  SUCCESS tidy: 3 rows (intercept + x1 + x2)\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ tidy: 3 rows (intercept + x1 + x2)\n    Got: %s\n" result
+    Printf.printf "  FAILURE tidy: 3 rows (intercept + x1 + x2)\n    Got: %s\n" result
   end;
 
   (* Check estimates *)
@@ -175,10 +175,10 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env _test
   let (v, _) = eval_string_env "nrow(aug)" env_a in
   let result = Ast.Utils.value_to_string v in
   if result = "10" then begin
-    incr pass_count; Printf.printf "  ✓ add_diagnostics: 10 rows\n"
+    incr pass_count; Printf.printf "  SUCCESS add_diagnostics: 10 rows\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ add_diagnostics: 10 rows\n    Got: %s\n" result
+    Printf.printf "  FAILURE add_diagnostics: 10 rows\n    Got: %s\n" result
   end;
 
   (* Check columns exist using colnames *)
@@ -186,10 +186,10 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env _test
   let result = Ast.Utils.value_to_string v in
   let has_col name = try let _ = Str.search_forward (Str.regexp_string name) result 0 in true with Not_found -> false in
   if has_col "fitted" && has_col "resid" && has_col "hat" && has_col "sigma" && has_col "cooksd" && has_col "std_resid" then begin
-    incr pass_count; Printf.printf "  ✓ add_diagnostics: has all diagnostic columns\n"
+    incr pass_count; Printf.printf "  SUCCESS add_diagnostics: has all diagnostic columns\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ add_diagnostics: has all diagnostic columns\n    Got: %s\n" result
+    Printf.printf "  FAILURE add_diagnostics: has all diagnostic columns\n    Got: %s\n" result
   end;
 
   (* Reference values from broom::augment(fit, data = df):

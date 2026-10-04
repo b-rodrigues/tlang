@@ -128,16 +128,16 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
       if not (Test_helpers.contains result expected) then begin
         all_pass := false;
         incr fail_count;
-        Printf.printf "  ✗ golden: pipeline_to_ga — %s\n    Expected to contain: %s\n" desc expected
+        Printf.printf "  FAILURE golden: pipeline_to_ga — %s\n    Expected to contain: %s\n" desc expected
       end
     ) checks;
     if !all_pass then begin
       incr pass_count;
-      Printf.printf "  ✓ golden: pipeline_to_ga generates valid workflow YAML\n"
+      Printf.printf "  SUCCESS golden: pipeline_to_ga generates valid workflow YAML\n"
     end
   with e ->
     incr fail_count;
-    Printf.printf "  ✗ golden: pipeline_to_ga — Exception: %s\n" (Printexc.to_string e));
+    Printf.printf "  FAILURE golden: pipeline_to_ga — Exception: %s\n" (Printexc.to_string e));
 
   (* Golden test: pipeline_to_ga type error *)
   test "golden: pipeline_to_ga type error"

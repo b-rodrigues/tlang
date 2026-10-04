@@ -26,21 +26,21 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
       let deps = match un.un_command.node with RawCode { raw_identifiers; _ } -> raw_identifiers | _ -> [] in
       if List.mem "results" deps then (
         incr fail_count;
-        let msg = Printf.sprintf "  ✗ Error: Found 'results' in dependencies despite comment stripping\n" in
+        let msg = Printf.sprintf "  FAILURE Error: Found 'results' in dependencies despite comment stripping\n" in
         failures := msg :: !failures;
         Printf.printf "%s" msg
       ) else (
         incr pass_count;
-        Printf.printf "  ✓ comment stripping: 'results' correctly ignored in comment\n"
+        Printf.printf "  SUCCESS comment stripping: 'results' correctly ignored in comment\n"
       )
   | Some _ ->
       incr fail_count;
-      let msg = Printf.sprintf "  ✗ Error: 'res' not bound as a node\n" in
+      let msg = Printf.sprintf "  FAILURE Error: 'res' not bound as a node\n" in
       failures := msg :: !failures;
       Printf.printf "%s" msg
   | None ->
       incr fail_count;
-      let msg = Printf.sprintf "  ✗ Error: 'res' not found in environment\n" in
+      let msg = Printf.sprintf "  FAILURE Error: 'res' not found in environment\n" in
       failures := msg :: !failures;
       Printf.printf "%s" msg);
 
@@ -54,10 +54,10 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
     in
     if ok then begin
       incr pass_count;
-      Printf.printf "  ✓ %s\n" name
+      Printf.printf "  SUCCESS %s\n" name
     end else begin
       incr fail_count;
-      let msg = Printf.sprintf "  ✗ Error: %s (got [%s])\n" name (String.concat "; " ids) in
+      let msg = Printf.sprintf "  FAILURE Error: %s (got [%s])\n" name (String.concat "; " ids) in
       failures := msg :: !failures;
       Printf.printf "%s" msg
     end
@@ -95,10 +95,10 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
     let ok = got = List.sort_uniq String.compare expected in
     if ok then begin
       incr pass_count;
-      Printf.printf "  ✓ %s\n" name
+      Printf.printf "  SUCCESS %s\n" name
     end else begin
       incr fail_count;
-      let msg = Printf.sprintf "  ✗ Error: %s (got [%s], want [%s])\n" name
+      let msg = Printf.sprintf "  FAILURE Error: %s (got [%s], want [%s])\n" name
         (String.concat "; " got) (String.concat "; " expected) in
       failures := msg :: !failures;
       Printf.printf "%s" msg
@@ -179,10 +179,10 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
     let ok = got = List.sort_uniq String.compare expected in
     if ok then begin
       incr pass_count;
-      Printf.printf "  ✓ %s\n" name
+      Printf.printf "  SUCCESS %s\n" name
     end else begin
       incr fail_count;
-      let msg = Printf.sprintf "  ✗ Error: %s (got [%s], want [%s])\n" name
+      let msg = Printf.sprintf "  FAILURE Error: %s (got [%s], want [%s])\n" name
         (String.concat "; " got) (String.concat "; " expected) in
       failures := msg :: !failures;
       Printf.printf "%s" msg
@@ -232,26 +232,26 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
          match List.assoc_opt name p.p_deps with
          | Some [] ->
              incr pass_count;
-             Printf.printf "  ✓ pipeline: `%s` has no phantom dependency on `foo`\n" name
+             Printf.printf "  SUCCESS pipeline: `%s` has no phantom dependency on `foo`\n" name
          | Some deps ->
              incr fail_count;
-             let msg = Printf.sprintf "  ✗ Error: pipeline: `%s` depends on [%s]\n" name (String.concat "; " deps) in
+             let msg = Printf.sprintf "  FAILURE Error: pipeline: `%s` depends on [%s]\n" name (String.concat "; " deps) in
              failures := msg :: !failures;
              Printf.printf "%s" msg
          | None ->
              incr fail_count;
-             let msg = Printf.sprintf "  ✗ Error: pipeline: node `%s` missing from deps\n" name in
+             let msg = Printf.sprintf "  FAILURE Error: pipeline: node `%s` missing from deps\n" name in
              failures := msg :: !failures;
              Printf.printf "%s" msg
        ) ["bar"; "baz"; "qux"]
    | Some _ ->
        incr fail_count;
-       let msg = Printf.sprintf "  ✗ Error: 'p' not bound as a pipeline\n" in
+       let msg = Printf.sprintf "  FAILURE Error: 'p' not bound as a pipeline\n" in
        failures := msg :: !failures;
        Printf.printf "%s" msg
    | None ->
        incr fail_count;
-       let msg = Printf.sprintf "  ✗ Error: 'p' not found in environment\n" in
+       let msg = Printf.sprintf "  FAILURE Error: 'p' not found in environment\n" in
        failures := msg :: !failures;
        Printf.printf "%s" msg);
 
@@ -272,22 +272,22 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
                 = List.sort_uniq String.compare expected in
               if ok then begin
                 incr pass_count;
-                Printf.printf "  ✓ %s\n" name
+                Printf.printf "  SUCCESS %s\n" name
               end else begin
                 incr fail_count;
-                let msg = Printf.sprintf "  ✗ Error: %s (%s deps [%s], want [%s])\n"
+                let msg = Printf.sprintf "  FAILURE Error: %s (%s deps [%s], want [%s])\n"
                   name node (String.concat "; " deps) (String.concat "; " expected) in
                 failures := msg :: !failures;
                 Printf.printf "%s" msg
               end
           | None ->
               incr fail_count;
-              let msg = Printf.sprintf "  ✗ Error: %s (node `%s` missing from deps)\n" name node in
+              let msg = Printf.sprintf "  FAILURE Error: %s (node `%s` missing from deps)\n" name node in
               failures := msg :: !failures;
               Printf.printf "%s" msg)
      | _ ->
          incr fail_count;
-         let msg = Printf.sprintf "  ✗ Error: %s (no pipeline)\n" name in
+         let msg = Printf.sprintf "  FAILURE Error: %s (no pipeline)\n" name in
          failures := msg :: !failures;
          Printf.printf "%s" msg)
   in

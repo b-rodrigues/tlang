@@ -31,9 +31,9 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     identical(a, b)
   |} env in
   if Ast.Utils.value_to_string result = "true" then begin
-    incr pass_count; Printf.printf "  ✓ sample determinism: same seed → same result\n"
+    incr pass_count; Printf.printf "  SUCCESS sample determinism: same seed → same result\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ sample determinism: expected true, got %s\n" (Ast.Utils.value_to_string result)
+    incr fail_count; Printf.printf "  FAILURE sample determinism: expected true, got %s\n" (Ast.Utils.value_to_string result)
   end;
 
   let env2 = Packages.init_env () in
@@ -45,9 +45,9 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     identical(a, b)
   |} env2 in
   if Ast.Utils.value_to_string result2 = "false" then begin
-    incr pass_count; Printf.printf "  ✓ sample different seeds → different results\n"
+    incr pass_count; Printf.printf "  SUCCESS sample different seeds → different results\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ sample different seeds: expected false, got %s\n" (Ast.Utils.value_to_string result2)
+    incr fail_count; Printf.printf "  FAILURE sample different seeds: expected false, got %s\n" (Ast.Utils.value_to_string result2)
   end;
 
   let env3 = Packages.init_env () in
@@ -60,9 +60,9 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     identical(a, b)
   |} env3 in
   if Ast.Utils.value_to_string result3 = "true" then begin
-    incr pass_count; Printf.printf "  ✓ slice_sample determinism: same seed → same result\n"
+    incr pass_count; Printf.printf "  SUCCESS slice_sample determinism: same seed → same result\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ slice_sample determinism: expected true, got %s\n" (Ast.Utils.value_to_string result3)
+    incr fail_count; Printf.printf "  FAILURE slice_sample determinism: expected true, got %s\n" (Ast.Utils.value_to_string result3)
   end;
 
   print_newline ();

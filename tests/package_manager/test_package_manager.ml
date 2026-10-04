@@ -6,10 +6,10 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env _test
   let test_pm name check =
     if check () then begin
       incr pass_count;
-      Printf.printf "  ✓ %s\n" name
+      Printf.printf "  SUCCESS %s\n" name
     end else begin
       incr fail_count;
-      Printf.printf "  ✗ %s\n" name
+      Printf.printf "  FAILURE %s\n" name
     end
   in
 
@@ -2348,7 +2348,7 @@ workspace = "python"
     let enabled = match Sys.getenv_opt "TLANG_TEST_UV_WRAPPER" with
       | Some ("1" | "true" | "yes") -> true | _ -> false in
     let skip reason =
-      Printf.printf "  ○ uv wrapper build skipped (%s)\n" reason; true in
+      Printf.printf "  SKIP uv wrapper build skipped (%s)\n" reason; true in
     if not enabled then skip "set TLANG_TEST_UV_WRAPPER=1 to run"
     else if Sys.command "command -v nix-build >/dev/null 2>&1" <> 0 then
       skip "no nix-build"

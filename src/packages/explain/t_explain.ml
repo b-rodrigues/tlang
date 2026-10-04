@@ -21,6 +21,10 @@ let contains_sub s sub =
 --# Returns a dictionary describing the structure and content of a value.
 --# Node results from `read_node(...)` are wrapped with node metadata and
 --# expose the explained payload under `contents`.
+--# Computed pipeline nodes (e.g. `p.node`) also expose `foreign_meta` with
+--# shape facts from the build-time `meta` sidecar (dimensions for frames
+--# and arrays, n_obs/n_features/formula/order/metrics for models), or NA
+--# when absent.
 --#
 --# @name explain
 --# @param x :: Any The value to explain.
@@ -48,6 +52,247 @@ let register ?(ensure_docs=ignore) env =
       | None -> List.map fst fields
     in
     VDict (fields @ [("_display_keys", make_display_keys keys)])
+  in
+  (* Foreign-node metadata sidecar (`$out/meta`, written at build time by
+     r_save_meta / py_save_meta / jl_save_meta). Best effort: a missing or
+     malformed file yields no fields, never an error. Full `features` and
+     `formula` values stay in the dict; the tree display only shows the
+     `features_preview` / `formula_preview` short forms. *)
+  let meta_path_of_cn cn =
+    if cn.cn_runtime <> "R" && cn.cn_runtime <> "Python" && cn.cn_runtime <> "Julia" then None
+    else if cn.cn_path = "" || cn.cn_path = Ast.unbuilt_path then None
+    else
+      (* Artifact paths are usually files with the sidecar next door, but
+         some runtimes produce directory artifacts holding meta inside. *)
+      (try
+         if Sys.is_directory cn.cn_path then Some (Filename.concat cn.cn_path "meta")
+         else Some (Filename.concat (Filename.dirname cn.cn_path) "meta")
+       with _ -> None)
+  in
+  let read_small_file path =
+    try
+      let ch = open_in_bin path in
+      Fun.protect ~finally:(fun () -> close_in_noerr ch)
+        (fun () ->
+          let n = in_channel_length ch in
+          if n > 1048576 then None
+          else Some (really_input_string ch n))
+    with _ -> None
+  in
+  let meta_pairs_of_cn cn =
+    match meta_path_of_cn cn with
+    | None -> []
+    | Some path ->
+        (match read_small_file path with
+         | None -> []
+         | Some s ->
+             (match (try Some (Yojson.Safe.from_string s) with _ -> None) with
+              | Some (`Assoc pairs) -> pairs
+              | Some _ -> []
+              | None -> []))
+  in
+  let assoc_string key pairs =
+    match List.assoc_opt key pairs with
+    | Some (`String s) -> Some s
+    | Some _ -> None
+    | None -> None
+  in
+  let finite_float f =
+    match Float.classify_float f with
+    | FP_nan | FP_infinite -> None
+    | _ -> Some f
+  in
+  let assoc_int key pairs =
+    match List.assoc_opt key pairs with
+    | Some (`Int i) -> Some i
+    | Some (`Intlit s) -> (try Some (int_of_string s) with _ -> None)
+    | Some (`Float f) ->
+        (match finite_float f with
+         | None -> None
+         | Some _ -> Some (int_of_float f))
+    | Some _ -> None
+    | None -> None
+  in
+  let assoc_string_list key pairs =
+    match List.assoc_opt key pairs with
+    | Some (`List items) ->
+        let names = List.filter_map (function `String s -> Some s | _ -> None) items in
+        (match names with [] -> None | _ -> Some names)
+    | Some _ -> None
+    | None -> None
+  in
+  let assoc_int_list key pairs =
+    let to_int = function
+      | `Int i -> Some i
+      | `Intlit s -> (try Some (int_of_string s) with _ -> None)
+      | `Float f ->
+          (match finite_float f with
+           | None -> None
+           | Some _ -> Some (int_of_float f))
+      | _ -> None
+    in
+    match List.assoc_opt key pairs with
+    | Some (`List items) ->
+        let ns = List.filter_map to_int items in
+        (match ns with [] -> None | _ -> Some ns)
+    | Some _ -> None
+    | None -> None
+  in
+  let assoc_groups pairs =
+    match List.assoc_opt "groups" pairs with
+    | Some (`Assoc m) ->
+        let fields = List.filter_map (fun (k, v) ->
+          match v with
+          | `Int i -> Some (k, VInt i)
+          | `Intlit s -> (try Some (k, VInt (int_of_string s)) with _ -> None)
+          | `Float f ->
+              (match finite_float f with
+               | None -> None
+               | Some _ -> Some (k, VInt (int_of_float f)))
+          | _ -> None) m in
+        (match fields with [] -> None | _ -> Some fields)
+    | Some _ -> None
+    | None -> None
+  in
+  let assoc_metrics pairs =
+    match List.assoc_opt "metrics" pairs with
+    | Some (`Assoc m) ->
+        (* Numbers only; anything else (including strings) is dropped. *)
+        let fields = List.filter_map (fun (k, v) ->
+          match v with
+          | `Float f ->
+              (match finite_float f with
+               | None -> None
+               | Some g -> Some (k, VFloat g))
+          | `Int i -> Some (k, VInt i)
+          | `Intlit s -> (try Some (k, VInt (int_of_string s)) with _ -> None)
+          | _ -> None) m in
+        (match fields with [] -> None | _ -> Some fields)
+    | Some _ -> None
+    | None -> None
+  in
+  let truncate_string n s =
+    (* Byte-based cut, backed off over UTF-8 continuation bytes so the
+       result is never a split codepoint. *)
+    if String.length s > n then begin
+      let stop = ref n in
+      while !stop > 0 &&
+            Char.code s.[!stop] >= 0x80 && Char.code s.[!stop] < 0xC0 do
+        decr stop
+      done;
+      String.sub s 0 !stop ^ "..."
+    end else s
+  in
+  let features_preview_of names =
+    match names with
+    | [] -> "[]"
+    | _ when List.length names <= 4 ->
+        "[" ^ String.concat ", " (List.map (fun s -> "\"" ^ s ^ "\"") names) ^ "]"
+    | _ ->
+        let rec take n acc rest =
+          match n, rest with
+          | 0, _ -> (List.rev acc, rest)
+          | _, [] -> (List.rev acc, [])
+          | _, x :: xs -> take (n - 1) (x :: acc) xs
+        in
+        let (first, rest) = take 3 [] names in
+        "[" ^ String.concat ", " (List.map (fun s -> "\"" ^ s ^ "\"") first)
+        ^ Printf.sprintf ", ... +%d more]" (List.length rest)
+  in
+  let foreign_meta_of_cn cn =
+    (* Only foreign runtimes produce a meta sidecar; anything else
+       (including built T-native nodes) reports NA. *)
+    if cn.cn_runtime <> "R" && cn.cn_runtime <> "Python" && cn.cn_runtime <> "Julia" then
+      VNA NAGeneric
+    else begin
+    let pairs = meta_pairs_of_cn cn in
+    let fields = ref [] in
+    let add k v = fields := (k, v) :: !fields in
+    (match assoc_string "kind" pairs with Some k -> add "kind" (VString k) | None -> ());
+    (* cn_class is canonical (plot-aware: e.g. plotnine/ggplot); the
+       sidecar class is only a fallback so the two never disagree. *)
+    (match cn.cn_class with
+     | "" | "Unknown" ->
+         (match assoc_string "class" pairs with Some c -> add "class" (VString c) | None -> ())
+     | c -> add "class" (VString c));
+    (match assoc_string "task" pairs with Some t -> add "task" (VString t) | None -> ());
+    (match assoc_int_list "dimensions" pairs with
+     | Some ns -> add "dimensions" (VList (List.map (fun n -> (None, VInt n)) ns))
+     | None -> ());
+    (match assoc_int "n_obs" pairs with Some n -> add "n_obs" (VInt n) | None -> ());
+    (match assoc_int "n_groups" pairs with Some n -> add "n_groups" (VInt n) | None -> ());
+    (match assoc_groups pairs with Some g -> add "groups" (VDict g) | None -> ());
+    (match assoc_int "n_features" pairs with Some n -> add "n_features" (VInt n) | None -> ());
+    (match assoc_int "n_trees" pairs with Some n -> add "n_trees" (VInt n) | None -> ());
+    (match assoc_int "n_rounds" pairs with Some n -> add "n_rounds" (VInt n) | None -> ());
+    (match assoc_int "n_clusters" pairs with Some n -> add "n_clusters" (VInt n) | None -> ());
+    (match assoc_int "n_nodes" pairs with Some n -> add "n_nodes" (VInt n) | None -> ());
+    (match assoc_int "n_levels" pairs with Some n -> add "n_levels" (VInt n) | None -> ());
+    (match assoc_string_list "levels" pairs with
+     | Some names ->
+         add "levels" (VList (List.map (fun s -> (None, VString s)) names));
+         add "levels_preview" (VString (features_preview_of names))
+     | None -> ());
+    (match assoc_string "start" pairs with Some t -> add "start" (VString t) | None -> ());
+    (match assoc_string "end" pairs with Some t -> add "end" (VString t) | None -> ());
+    (match assoc_int "n_components" pairs with Some n -> add "n_components" (VInt n) | None -> ());
+    (match assoc_string "dtype" pairs with Some t -> add "dtype" (VString t) | None -> ());
+    (match assoc_string "method" pairs with Some t -> add "method" (VString t) | None -> ());
+    (match assoc_string "target" pairs with Some t -> add "target" (VString t) | None -> ());
+    (match assoc_int_list "order" pairs with
+     | Some ns -> add "order" (VList (List.map (fun n -> (None, VInt n)) ns))
+     | None -> ());
+    (match assoc_int_list "seasonal_order" pairs with
+     | Some ns -> add "seasonal_order" (VList (List.map (fun n -> (None, VInt n)) ns))
+     | None -> ());
+    (match assoc_string_list "features" pairs with
+     | Some names ->
+         add "features" (VList (List.map (fun s -> (None, VString s)) names));
+         add "features_preview" (VString (features_preview_of names))
+     | None -> ());
+    (match assoc_string "formula" pairs with
+     | Some f when String.length f > 0 ->
+         add "formula" (VString f);
+         add "formula_preview" (VString (truncate_string 80 f))
+     | Some _ -> ()
+     | None -> ());
+    (* Metrics accept numbers only; anything else is dropped, never an error. *)
+    (match assoc_metrics pairs with Some m -> add "metrics" (VDict m) | None -> ());
+    (match cn.cn_path with
+     | "" -> ()
+     | p ->
+         (try
+            if Sys.file_exists p then begin
+              (* Regular files report st_size; directories (e.g. Quarto
+                 sites) sum their regular files, symlinks excluded. *)
+              let rec dir_size acc path =
+                try
+                  let st = Unix.lstat path in
+                  match st.Unix.st_kind with
+                  | Unix.S_REG -> acc + st.Unix.st_size
+                  | Unix.S_DIR ->
+                      Array.fold_left (fun a e ->
+                        if e = "." || e = ".." then a
+                        else dir_size a (Filename.concat path e)
+                      ) acc (Sys.readdir path)
+                  | _ -> acc
+                with _ -> acc
+              in
+              add "artifact_size" (VInt (dir_size 0 p))
+            end
+          with _ -> ()));
+    let ordered = List.rev !fields in
+    (match ordered with
+    | [] -> VNA NAGeneric
+    | _ ->
+        let display = ["kind"; "class"; "task"; "method"; "dimensions"; "n_obs"; "n_groups"; "groups"; "n_features";
+                       "n_trees"; "n_rounds"; "n_clusters"; "n_nodes"; "n_components"; "n_levels";
+                       "dtype";
+                       "target"; "order"; "seasonal_order"; "start"; "end";
+                       "features_preview"; "levels_preview"; "formula_preview"; "metrics"; "artifact_size"] in
+        let shown = List.filter (fun k -> List.mem_assoc k ordered) display in
+        make_explain_dict ~display_keys:shown ordered)
+    end
   in
   let rec do_explain v =
     match v with
@@ -239,6 +484,14 @@ let register ?(ensure_docs=ignore) env =
         let p_node_diagnostics =
           Builder.merge_pipeline_node_diagnostics_with_latest_log pipeline
         in
+        (* Direct children (dependents): nodes listing this one as a
+           dependency. Computed from the same dep map as dependencies,
+           so the two always agree. *)
+        let children_of target =
+          List.filter_map (fun (n, deps) ->
+            if List.mem target deps then Some (None, VString n) else None
+          ) p_deps
+        in
         let nodes_info = VList (List.map (fun (name, v) ->
           let deps = match List.assoc_opt name p_deps with
             | Some d -> VList (List.map (fun s -> (None, VString s)) d)
@@ -253,6 +506,7 @@ let register ?(ensure_docs=ignore) env =
             ("name", VString name);
             ("output_kind", VString (Utils.type_name v));
             ("dependencies", deps);
+            ("children", VList (children_of name));
             ("diagnostics", diagnostics);
           ])
         ) p_nodes) in
@@ -504,6 +758,7 @@ let register ?(ensure_docs=ignore) env =
           ("class", VString cn.cn_class);
           ("dependencies", VList (List.map (fun d -> (None, VString d)) cn.cn_dependencies));
           ("config", config_value);
+          ("foreign_meta", foreign_meta_of_cn cn);
         ]
     | VNode un ->
         make_explain_dict [

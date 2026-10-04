@@ -511,10 +511,10 @@ p |> upstream_of("c") |> pipeline_nodes|}
      not (contains result "\"d\"")
   then begin
     incr pass_count;
-    Printf.printf "  ✓ upstream_of includes node and ancestors\n"
+    Printf.printf "  SUCCESS upstream_of includes node and ancestors\n"
   end else begin
     incr fail_count;
-    let msg = Printf.sprintf "  ✗ upstream_of includes node and ancestors\n    Got: %s\n" result in
+    let msg = Printf.sprintf "  FAILURE upstream_of includes node and ancestors\n    Got: %s\n" result in
     failures := msg :: !failures;
     Printf.printf "%s" msg
   end;
@@ -704,10 +704,10 @@ pipeline_edges(p)|}
     (Packages.init_env ()) in
   (match v with
    | Ast.VString s when String.length s > 10 && String.sub s 0 7 = "digraph" ->
-       incr pass_count; Printf.printf "  ✓ pipeline_to_dot returns DOT string\n"
+       incr pass_count; Printf.printf "  SUCCESS pipeline_to_dot returns DOT string\n"
    | other ->
        incr fail_count;
-       let msg = Printf.sprintf "  ✗ pipeline_to_dot\n    Expected: DOT string\n    Got: %s\n"
+       let msg = Printf.sprintf "  FAILURE pipeline_to_dot\n    Expected: DOT string\n    Got: %s\n"
          (Ast.Utils.value_to_string other) in
        failures := msg :: !failures;
        Printf.printf "%s" msg);
@@ -718,10 +718,10 @@ pipeline_edges(p)|}
     (Packages.init_env ()) in
   (match v with
    | Ast.VString s when String.length s > 10 && String.sub s 0 7 = "digraph" ->
-       incr pass_count; Printf.printf "  ✓ pipeline_to_dot returns DOT string\n"
+       incr pass_count; Printf.printf "  SUCCESS pipeline_to_dot returns DOT string\n"
    | other ->
        incr fail_count;
-       let msg = Printf.sprintf "  ✗ pipeline_to_dot\n    Expected: DOT string\n    Got: %s\n"
+       let msg = Printf.sprintf "  FAILURE pipeline_to_dot\n    Expected: DOT string\n    Got: %s\n"
          (Ast.Utils.value_to_string other) in
        failures := msg :: !failures;
        Printf.printf "%s" msg);
@@ -732,10 +732,10 @@ pipeline_edges(p)|}
     (Packages.init_env ()) in
   (match v with
     | Ast.VString s when String.length s > 10 && contains s "graph LR" ->
-        incr pass_count; Printf.printf "  ✓ pipeline_to_mermaid returns Mermaid string\n"
+        incr pass_count; Printf.printf "  SUCCESS pipeline_to_mermaid returns Mermaid string\n"
     | other ->
         incr fail_count;
-        let msg = Printf.sprintf "  ✗ pipeline_to_mermaid\n    Expected: Mermaid string containing 'graph LR'\n    Got: %s\n"
+        let msg = Printf.sprintf "  FAILURE pipeline_to_mermaid\n    Expected: Mermaid string containing 'graph LR'\n    Got: %s\n"
          (Ast.Utils.value_to_string other) in
        failures := msg :: !failures;
        Printf.printf "%s" msg);
@@ -747,16 +747,16 @@ pipeline_edges(p)|}
   (match v with
        | Ast.VString s ->
        if contains s "etl_raw[\"etl_raw [" && contains s "etl_raw__2[\"etl.raw [" then begin
-         incr pass_count; Printf.printf "  ✓ pipeline_to_mermaid avoids ID collisions\n"
+         incr pass_count; Printf.printf "  SUCCESS pipeline_to_mermaid avoids ID collisions\n"
        end else begin
          incr fail_count;
-         let msg = Printf.sprintf "  ✗ pipeline_to_mermaid collision avoidance\n    Expected to find unique IDs etl_raw and etl_raw__2\n    Got: %s\n" s in
+         let msg = Printf.sprintf "  FAILURE pipeline_to_mermaid collision avoidance\n    Expected to find unique IDs etl_raw and etl_raw__2\n    Got: %s\n" s in
          failures := msg :: !failures;
          Printf.printf "%s" msg
        end
    | other ->
        incr fail_count;
-       let msg = Printf.sprintf "  ✗ pipeline_to_mermaid collision avoidance type\n    Got: %s\n" (Ast.Utils.value_to_string other) in
+       let msg = Printf.sprintf "  FAILURE pipeline_to_mermaid collision avoidance type\n    Got: %s\n" (Ast.Utils.value_to_string other) in
        failures := msg :: !failures;
        Printf.printf "%s" msg);
 
@@ -769,10 +769,10 @@ pipeline_edges(p)|}
     (Packages.init_env ()) in
   (match v with
    | Ast.VString s when String.length s > 10 && String.sub s 0 7 = "digraph" ->
-       incr pass_count; Printf.printf "  ✓ pipeline_to_dot on MetaPipeline returns DOT string\n"
+       incr pass_count; Printf.printf "  SUCCESS pipeline_to_dot on MetaPipeline returns DOT string\n"
    | other ->
        incr fail_count;
-       let msg = Printf.sprintf "  ✗ pipeline_to_dot on MetaPipeline\n    Expected: DOT string\n    Got: %s\n"
+       let msg = Printf.sprintf "  FAILURE pipeline_to_dot on MetaPipeline\n    Expected: DOT string\n    Got: %s\n"
          (Ast.Utils.value_to_string other) in
        failures := msg :: !failures;
        Printf.printf "%s" msg);
@@ -786,10 +786,10 @@ pipeline_edges(p)|}
     (Packages.init_env ()) in
   (match v with
     | Ast.VString s when String.length s > 10 && contains s "graph LR" ->
-        incr pass_count; Printf.printf "  ✓ pipeline_to_mermaid on MetaPipeline returns Mermaid string\n"
+        incr pass_count; Printf.printf "  SUCCESS pipeline_to_mermaid on MetaPipeline returns Mermaid string\n"
      | other ->
          incr fail_count;
-         let msg = Printf.sprintf "  ✗ pipeline_to_mermaid on MetaPipeline\n    Expected: Mermaid string containing 'graph LR'\n    Got: %s\n"
+         let msg = Printf.sprintf "  FAILURE pipeline_to_mermaid on MetaPipeline\n    Expected: Mermaid string containing 'graph LR'\n    Got: %s\n"
           (Ast.Utils.value_to_string other) in
         failures := msg :: !failures;
         Printf.printf "%s" msg);
@@ -803,15 +803,15 @@ pipeline_edges(p)|}
      (Packages.init_env ()) in
    (match v with
     | Ast.VString s when contains s "subgraph etl" && contains s "subgraph stats" ->
-        incr pass_count; Printf.printf "  ✓ pipeline_to_mermaid MetaPipeline renders subgraph blocks\n"
+        incr pass_count; Printf.printf "  SUCCESS pipeline_to_mermaid MetaPipeline renders subgraph blocks\n"
     | Ast.VString s ->
         incr fail_count;
-        let msg = Printf.sprintf "  ✗ pipeline_to_mermaid MetaPipeline subgraphs\n    Expected subgraph blocks, got:\n%s\n" s in
+        let msg = Printf.sprintf "  FAILURE pipeline_to_mermaid MetaPipeline subgraphs\n    Expected subgraph blocks, got:\n%s\n" s in
         failures := msg :: !failures;
         Printf.printf "%s" msg
     | other ->
         incr fail_count;
-        let msg = Printf.sprintf "  ✗ pipeline_to_mermaid MetaPipeline subgraphs type\n    Got: %s\n" (Ast.Utils.value_to_string other) in
+        let msg = Printf.sprintf "  FAILURE pipeline_to_mermaid MetaPipeline subgraphs type\n    Got: %s\n" (Ast.Utils.value_to_string other) in
         failures := msg :: !failures;
         Printf.printf "%s" msg);
 
@@ -824,15 +824,15 @@ pipeline_edges(p)|}
      (Packages.init_env ()) in
    (match v with
     | Ast.VString s when not (contains s "subgraph") && contains s "etl.raw" ->
-        incr pass_count; Printf.printf "  ✓ pipeline_to_mermaid flatten=true omits subgraph blocks\n"
+        incr pass_count; Printf.printf "  SUCCESS pipeline_to_mermaid flatten=true omits subgraph blocks\n"
     | Ast.VString s ->
         incr fail_count;
-        let msg = Printf.sprintf "  ✗ pipeline_to_mermaid flatten=true\n    Expected flat output without subgraph, got:\n%s\n" s in
+        let msg = Printf.sprintf "  FAILURE pipeline_to_mermaid flatten=true\n    Expected flat output without subgraph, got:\n%s\n" s in
         failures := msg :: !failures;
         Printf.printf "%s" msg
     | other ->
         incr fail_count;
-        let msg = Printf.sprintf "  ✗ pipeline_to_mermaid flatten=true type\n    Got: %s\n" (Ast.Utils.value_to_string other) in
+        let msg = Printf.sprintf "  FAILURE pipeline_to_mermaid flatten=true type\n    Got: %s\n" (Ast.Utils.value_to_string other) in
         failures := msg :: !failures;
         Printf.printf "%s" msg);
 
@@ -845,15 +845,15 @@ pipeline_edges(p)|}
      (Packages.init_env ()) in
    (match v with
     | Ast.VString s when contains s "subgraph cluster_etl" && contains s "subgraph cluster_stats" ->
-        incr pass_count; Printf.printf "  ✓ pipeline_to_dot MetaPipeline renders subgraph clusters\n"
+        incr pass_count; Printf.printf "  SUCCESS pipeline_to_dot MetaPipeline renders subgraph clusters\n"
     | Ast.VString s ->
         incr fail_count;
-        let msg = Printf.sprintf "  ✗ pipeline_to_dot MetaPipeline subgraph clusters\n    Expected cluster subgraphs, got:\n%s\n" s in
+        let msg = Printf.sprintf "  FAILURE pipeline_to_dot MetaPipeline subgraph clusters\n    Expected cluster subgraphs, got:\n%s\n" s in
         failures := msg :: !failures;
         Printf.printf "%s" msg
     | other ->
         incr fail_count;
-        let msg = Printf.sprintf "  ✗ pipeline_to_dot MetaPipeline subgraph clusters type\n    Got: %s\n" (Ast.Utils.value_to_string other) in
+        let msg = Printf.sprintf "  FAILURE pipeline_to_dot MetaPipeline subgraph clusters type\n    Got: %s\n" (Ast.Utils.value_to_string other) in
         failures := msg :: !failures;
         Printf.printf "%s" msg);
 
@@ -866,15 +866,15 @@ pipeline_edges(p)|}
      (Packages.init_env ()) in
    (match v with
     | Ast.VString s when not (contains s "subgraph") ->
-        incr pass_count; Printf.printf "  ✓ pipeline_to_dot flatten=true omits cluster subgraphs\n"
+        incr pass_count; Printf.printf "  SUCCESS pipeline_to_dot flatten=true omits cluster subgraphs\n"
     | Ast.VString s ->
         incr fail_count;
-        let msg = Printf.sprintf "  ✗ pipeline_to_dot flatten=true\n    Expected flat output without subgraph, got:\n%s\n" s in
+        let msg = Printf.sprintf "  FAILURE pipeline_to_dot flatten=true\n    Expected flat output without subgraph, got:\n%s\n" s in
         failures := msg :: !failures;
         Printf.printf "%s" msg
     | other ->
         incr fail_count;
-        let msg = Printf.sprintf "  ✗ pipeline_to_dot flatten=true type\n    Got: %s\n" (Ast.Utils.value_to_string other) in
+        let msg = Printf.sprintf "  FAILURE pipeline_to_dot flatten=true type\n    Got: %s\n" (Ast.Utils.value_to_string other) in
         failures := msg :: !failures;
         Printf.printf "%s" msg);
 
@@ -887,15 +887,15 @@ pipeline_edges(p)|}
      (Packages.init_env ()) in
    (match v with
     | Ast.VString s when contains s "subgraph etl" && contains s "subgraph stats" && contains s "etl_clean -->" && contains s "stats_summary_node" ->
-        incr pass_count; Printf.printf "  ✓ pipeline_to_mermaid cross-subgraph edge rendered correctly\n"
+        incr pass_count; Printf.printf "  SUCCESS pipeline_to_mermaid cross-subgraph edge rendered correctly\n"
     | Ast.VString s ->
         incr fail_count;
-        let msg = Printf.sprintf "  ✗ pipeline_to_mermaid cross-subgraph edge\n    Expected subgraphs with cross edge, got:\n%s\n" s in
+        let msg = Printf.sprintf "  FAILURE pipeline_to_mermaid cross-subgraph edge\n    Expected subgraphs with cross edge, got:\n%s\n" s in
         failures := msg :: !failures;
         Printf.printf "%s" msg
     | other ->
         incr fail_count;
-        let msg = Printf.sprintf "  ✗ pipeline_to_mermaid cross-subgraph edge type\n    Got: %s\n" (Ast.Utils.value_to_string other) in
+        let msg = Printf.sprintf "  FAILURE pipeline_to_mermaid cross-subgraph edge type\n    Got: %s\n" (Ast.Utils.value_to_string other) in
         failures := msg :: !failures;
         Printf.printf "%s" msg);
 
@@ -905,15 +905,15 @@ pipeline_edges(p)|}
      (Packages.init_env ()) in
    (match v with
     | Ast.VString s when contains s "Dependency Graph of Project" && contains s "tlang" ->
-        incr pass_count; Printf.printf "  ✓ pipeline_to_mermaid auto-detects project name\n"
+        incr pass_count; Printf.printf "  SUCCESS pipeline_to_mermaid auto-detects project name\n"
     | Ast.VString s ->
         incr fail_count;
-        let msg = Printf.sprintf "  ✗ pipeline_to_mermaid auto-detect title\n    Expected project name in title, got:\n%s\n" s in
+        let msg = Printf.sprintf "  FAILURE pipeline_to_mermaid auto-detect title\n    Expected project name in title, got:\n%s\n" s in
         failures := msg :: !failures;
         Printf.printf "%s" msg
     | other ->
         incr fail_count;
-        let msg = Printf.sprintf "  ✗ pipeline_to_mermaid auto-detect title type\n    Got: %s\n" (Ast.Utils.value_to_string other) in
+        let msg = Printf.sprintf "  FAILURE pipeline_to_mermaid auto-detect title type\n    Got: %s\n" (Ast.Utils.value_to_string other) in
         failures := msg :: !failures;
         Printf.printf "%s" msg);
 
@@ -923,15 +923,15 @@ pipeline_edges(p)|}
      (Packages.init_env ()) in
    (match v with
     | Ast.VString s when contains s "tlang-title: Custom Title" ->
-        incr pass_count; Printf.printf "  ✓ pipeline_to_mermaid with custom title\n"
+        incr pass_count; Printf.printf "  SUCCESS pipeline_to_mermaid with custom title\n"
     | Ast.VString s ->
         incr fail_count;
-        let msg = Printf.sprintf "  ✗ pipeline_to_mermaid custom title\n    Expected title, got:\n%s\n" s in
+        let msg = Printf.sprintf "  FAILURE pipeline_to_mermaid custom title\n    Expected title, got:\n%s\n" s in
         failures := msg :: !failures;
         Printf.printf "%s" msg
     | other ->
         incr fail_count;
-        let msg = Printf.sprintf "  ✗ pipeline_to_mermaid custom title type\n    Got: %s\n" (Ast.Utils.value_to_string other) in
+        let msg = Printf.sprintf "  FAILURE pipeline_to_mermaid custom title type\n    Got: %s\n" (Ast.Utils.value_to_string other) in
         failures := msg :: !failures;
         Printf.printf "%s" msg);
 
@@ -941,15 +941,15 @@ pipeline_edges(p)|}
      (Packages.init_env ()) in
    (match v with
     | Ast.VString s when contains s "Custom DOT Title" ->
-        incr pass_count; Printf.printf "  ✓ pipeline_to_dot with custom title\n"
+        incr pass_count; Printf.printf "  SUCCESS pipeline_to_dot with custom title\n"
     | Ast.VString s ->
         incr fail_count;
-        let msg = Printf.sprintf "  ✗ pipeline_to_dot custom title\n    Expected title, got:\n%s\n" s in
+        let msg = Printf.sprintf "  FAILURE pipeline_to_dot custom title\n    Expected title, got:\n%s\n" s in
         failures := msg :: !failures;
         Printf.printf "%s" msg
     | other ->
         incr fail_count;
-        let msg = Printf.sprintf "  ✗ pipeline_to_dot custom title type\n    Got: %s\n" (Ast.Utils.value_to_string other) in
+        let msg = Printf.sprintf "  FAILURE pipeline_to_dot custom title type\n    Got: %s\n" (Ast.Utils.value_to_string other) in
         failures := msg :: !failures;
         Printf.printf "%s" msg);
 
@@ -1004,10 +1004,10 @@ pipeline_nodes(flat)|}
     (Packages.init_env ()) in
   let result = Ast.Utils.value_to_string v in
   if result = {|["etl.raw", "etl.clean", "stats.summary_node"]|} then begin
-    incr pass_count; Printf.printf "  ✓ meta_flatten namespaces nodes correctly\n"
+    incr pass_count; Printf.printf "  SUCCESS meta_flatten namespaces nodes correctly\n"
   end else begin
     incr fail_count;
-    let msg = Printf.sprintf "  ✗ meta_flatten nodes\n    Expected: [\"etl.raw\", \"etl.clean\", \"stats.summary_node\"]\n    Got: %s\n" result in
+    let msg = Printf.sprintf "  FAILURE meta_flatten nodes\n    Expected: [\"etl.raw\", \"etl.clean\", \"stats.summary_node\"]\n    Got: %s\n" result in
     failures := msg :: !failures;
     Printf.printf "%s" msg
   end;
@@ -1025,10 +1025,10 @@ pipeline_deps(flat)|}
     (Packages.init_env ()) in
   let result = Ast.Utils.value_to_string v in
   if result = {|{`etl.raw`: [], `etl.clean`: ["etl.raw"], `stats.summary_node`: ["etl.clean"]}|} then begin
-    incr pass_count; Printf.printf "  ✓ meta_flatten infers dependencies automatically\n"
+    incr pass_count; Printf.printf "  SUCCESS meta_flatten infers dependencies automatically\n"
   end else begin
     incr fail_count;
-    let msg = Printf.sprintf "  ✗ meta_flatten auto-deps\n    Expected: {`etl.raw`: [], `etl.clean`: [\"etl.raw\"], `stats.summary_node`: [\"etl.clean\"]}\n    Got: %s\n" result in
+    let msg = Printf.sprintf "  FAILURE meta_flatten auto-deps\n    Expected: {`etl.raw`: [], `etl.clean`: [\"etl.raw\"], `stats.summary_node`: [\"etl.clean\"]}\n    Got: %s\n" result in
     failures := msg :: !failures;
     Printf.printf "%s" msg
   end;
@@ -1045,10 +1045,10 @@ pipeline_nodes(meta)|}
     (Packages.init_env ()) in
   let result = Ast.Utils.value_to_string v in
   if result = {|["etl.raw", "etl.clean", "stats.summary_node"]|} then begin
-    incr pass_count; Printf.printf "  ✓ implicit meta-pipeline flattening in built-ins works\n"
+    incr pass_count; Printf.printf "  SUCCESS implicit meta-pipeline flattening in built-ins works\n"
   end else begin
     incr fail_count;
-    let msg = Printf.sprintf "  ✗ implicit meta-pipeline flattening\n    Expected: [\"etl.raw\", \"etl.clean\", \"stats.summary_node\"]\n    Got: %s\n" result in
+    let msg = Printf.sprintf "  FAILURE implicit meta-pipeline flattening\n    Expected: [\"etl.raw\", \"etl.clean\", \"stats.summary_node\"]\n    Got: %s\n" result in
     failures := msg :: !failures;
     Printf.printf "%s" msg
   end;
@@ -1065,10 +1065,10 @@ meta.stats.summary_node.name|}
     (Packages.init_env ()) in
   let result = Ast.Utils.value_to_string v in
   if result = {|"stats.summary_node"|} then begin
-    incr pass_count; Printf.printf "  ✓ nested dot-access namespaces on meta-pipeline work\n"
+    incr pass_count; Printf.printf "  SUCCESS nested dot-access namespaces on meta-pipeline work\n"
   end else begin
     incr fail_count;
-    let msg = Printf.sprintf "  ✗ nested dot-access on meta-pipeline\n    Expected: \"stats.summary_node\"\n    Got: %s\n" result in
+    let msg = Printf.sprintf "  FAILURE nested dot-access on meta-pipeline\n    Expected: \"stats.summary_node\"\n    Got: %s\n" result in
     failures := msg :: !failures;
     Printf.printf "%s" msg
   end;
@@ -1085,20 +1085,20 @@ meta.stats.summary_node.name|}
    | Ast.VPipeline p ->
        (match Pipeline_utils.resolve_pipeline_name env_r p with
         | Some name when name = "my_pipe" ->
-            incr pass_count; Printf.printf "  ✓ resolve_pipeline_name finds regular pipeline\n"
+            incr pass_count; Printf.printf "  SUCCESS resolve_pipeline_name finds regular pipeline\n"
         | Some name ->
             incr fail_count;
-            let msg = Printf.sprintf "  ✗ resolve_pipeline_name regular: expected \"my_pipe\", got \"%s\"\n" name in
+            let msg = Printf.sprintf "  FAILURE resolve_pipeline_name regular: expected \"my_pipe\", got \"%s\"\n" name in
             failures := msg :: !failures;
             Printf.printf "%s" msg
         | None ->
             incr fail_count;
-            let msg = "  ✗ resolve_pipeline_name regular: returned None\n" in
+            let msg = "  FAILURE resolve_pipeline_name regular: returned None\n" in
             failures := msg :: !failures;
             Printf.printf "%s" msg)
    | other ->
        incr fail_count;
-       let msg = Printf.sprintf "  ✗ resolve_pipeline_name regular: expected VPipeline, got %s\n" (Ast.Utils.value_to_string other) in
+       let msg = Printf.sprintf "  FAILURE resolve_pipeline_name regular: expected VPipeline, got %s\n" (Ast.Utils.value_to_string other) in
        failures := msg :: !failures;
        Printf.printf "%s" msg);
 
@@ -1114,20 +1114,20 @@ meta.stats.summary_node.name|}
    | Ast.VPipeline p ->
        (match Pipeline_utils.resolve_pipeline_name env_m p with
         | Some name when name = "meta" ->
-            incr pass_count; Printf.printf "  ✓ resolve_pipeline_name finds meta pipeline\n"
+            incr pass_count; Printf.printf "  SUCCESS resolve_pipeline_name finds meta pipeline\n"
         | Some name ->
             incr fail_count;
-            let msg = Printf.sprintf "  ✗ resolve_pipeline_name meta: expected \"meta\", got \"%s\"\n" name in
+            let msg = Printf.sprintf "  FAILURE resolve_pipeline_name meta: expected \"meta\", got \"%s\"\n" name in
             failures := msg :: !failures;
             Printf.printf "%s" msg
         | None ->
             incr fail_count;
-            let msg = "  ✗ resolve_pipeline_name meta: returned None\n" in
+            let msg = "  FAILURE resolve_pipeline_name meta: returned None\n" in
             failures := msg :: !failures;
             Printf.printf "%s" msg)
    | other ->
        incr fail_count;
-       let msg = Printf.sprintf "  ✗ resolve_pipeline_name meta: meta_flatten should return VPipeline, got %s\n" (Ast.Utils.value_to_string other) in
+       let msg = Printf.sprintf "  FAILURE resolve_pipeline_name meta: meta_flatten should return VPipeline, got %s\n" (Ast.Utils.value_to_string other) in
        failures := msg :: !failures;
        Printf.printf "%s" msg);
 
@@ -1140,15 +1140,15 @@ meta.stats.summary_node.name|}
    | Ast.VPipeline p ->
        (match Pipeline_utils.resolve_pipeline_name env_a p with
         | None ->
-            incr pass_count; Printf.printf "  ✓ resolve_pipeline_name returns None for anonymous pipeline\n"
+            incr pass_count; Printf.printf "  SUCCESS resolve_pipeline_name returns None for anonymous pipeline\n"
         | Some name ->
             incr fail_count;
-            let msg = Printf.sprintf "  ✗ resolve_pipeline_name anonymous: expected None, got \"%s\"\n" name in
+            let msg = Printf.sprintf "  FAILURE resolve_pipeline_name anonymous: expected None, got \"%s\"\n" name in
             failures := msg :: !failures;
             Printf.printf "%s" msg)
    | other ->
        incr fail_count;
-       let msg = Printf.sprintf "  ✗ resolve_pipeline_name anonymous: expected VPipeline, got %s\n" (Ast.Utils.value_to_string other) in
+       let msg = Printf.sprintf "  FAILURE resolve_pipeline_name anonymous: expected VPipeline, got %s\n" (Ast.Utils.value_to_string other) in
        failures := msg :: !failures;
        Printf.printf "%s" msg);
 
@@ -1184,29 +1184,29 @@ meta.stats.summary_node.name|}
              let has_header = String.starts_with ~prefix:"# Pipeline Report" s in
              let has_mermaid = String.contains s '`' in
              if has_header && has_mermaid then begin
-               incr pass_count; Printf.printf "  ✓ pipeline_report generated report content looks correct\n"
+               incr pass_count; Printf.printf "  SUCCESS pipeline_report generated report content looks correct\n"
              end else begin
                incr fail_count;
-               let msg = Printf.sprintf "  ✗ pipeline_report content mismatch. Header: %b, Mermaid: %b\n" has_header has_mermaid in
+               let msg = Printf.sprintf "  FAILURE pipeline_report content mismatch. Header: %b, Mermaid: %b\n" has_header has_mermaid in
                failures := msg :: !failures;
                Printf.printf "%s" msg
              end;
              (try Sys.remove path with _ -> ())
          | _ ->
              incr fail_count;
-             let msg = "  ✗ pipeline_report: read_file did not return string\n" in
+             let msg = "  FAILURE pipeline_report: read_file did not return string\n" in
              failures := msg :: !failures;
              Printf.printf "%s" msg;
              (try Sys.remove path with _ -> ())
        end else begin
          incr fail_count;
-         let msg = Printf.sprintf "  ✗ pipeline_report file not found or path mismatch: %s\n" path in
+         let msg = Printf.sprintf "  FAILURE pipeline_report file not found or path mismatch: %s\n" path in
          failures := msg :: !failures;
          Printf.printf "%s" msg
        end
    | other ->
        incr fail_count;
-       let msg = Printf.sprintf "  ✗ pipeline_report: expected VString path, got %s\n" (Ast.Utils.value_to_string other) in
+       let msg = Printf.sprintf "  FAILURE pipeline_report: expected VString path, got %s\n" (Ast.Utils.value_to_string other) in
        failures := msg :: !failures;
        Printf.printf "%s" msg);
 
@@ -1224,29 +1224,29 @@ meta.stats.summary_node.name|}
              let has_doctype = String.contains s '<' && (String.starts_with ~prefix:"<!DOCTYPE html>" s || String.starts_with ~prefix:"<!doctype html>" (String.lowercase_ascii s)) in
              let has_mermaid = String.contains s 'm' && String.contains s 'e' in
              if has_doctype && has_mermaid then begin
-               incr pass_count; Printf.printf "  ✓ pipeline_report generated HTML report content looks correct\n"
+               incr pass_count; Printf.printf "  SUCCESS pipeline_report generated HTML report content looks correct\n"
              end else begin
                incr fail_count;
-               let msg = Printf.sprintf "  ✗ pipeline_report HTML content mismatch. Doctype: %b, Mermaid: %b\n" has_doctype has_mermaid in
+               let msg = Printf.sprintf "  FAILURE pipeline_report HTML content mismatch. Doctype: %b, Mermaid: %b\n" has_doctype has_mermaid in
                failures := msg :: !failures;
                Printf.printf "%s" msg
              end;
              (try Sys.remove path with _ -> ())
          | _ ->
              incr fail_count;
-             let msg = "  ✗ pipeline_report web: read_file did not return string\n" in
+             let msg = "  FAILURE pipeline_report web: read_file did not return string\n" in
              failures := msg :: !failures;
              Printf.printf "%s" msg;
              (try Sys.remove path with _ -> ())
        end else begin
          incr fail_count;
-         let msg = Printf.sprintf "  ✗ pipeline_report web file not found or path mismatch: %s\n" path in
+         let msg = Printf.sprintf "  FAILURE pipeline_report web file not found or path mismatch: %s\n" path in
          failures := msg :: !failures;
          Printf.printf "%s" msg
        end
    | other ->
         incr fail_count;
-        let msg = Printf.sprintf "  ✗ pipeline_report web: expected VString path, got %s\n" (Ast.Utils.value_to_string other) in
+        let msg = Printf.sprintf "  FAILURE pipeline_report web: expected VString path, got %s\n" (Ast.Utils.value_to_string other) in
         failures := msg :: !failures;
         Printf.printf "%s" msg);
 
@@ -1284,10 +1284,10 @@ meta.stats.summary_node.name|}
     (Packages.init_env ()) in
   (match v with
    | Ast.VInt n when n >= 1 ->
-       incr pass_count; Printf.printf "  ✓ node_when(true, node) includes node\n"
+       incr pass_count; Printf.printf "  SUCCESS node_when(true, node) includes node\n"
    | other ->
        incr fail_count;
-       let msg = Printf.sprintf "  ✗ node_when(true, node) includes node\n    Expected length >= 1\n    Got: %s\n" (Ast.Utils.value_to_string other) in
+       let msg = Printf.sprintf "  FAILURE node_when(true, node) includes node\n    Expected length >= 1\n    Got: %s\n" (Ast.Utils.value_to_string other) in
        failures := msg :: !failures;
        Printf.printf "%s" msg);
 
@@ -1297,10 +1297,10 @@ meta.stats.summary_node.name|}
     (Packages.init_env ()) in
   (match v with
    | Ast.VInt 0 ->
-       incr pass_count; Printf.printf "  ✓ node_when(false, node) excludes node\n"
+       incr pass_count; Printf.printf "  SUCCESS node_when(false, node) excludes node\n"
    | other ->
        incr fail_count;
-       let msg = Printf.sprintf "  ✗ node_when(false, node) excludes node\n    Expected length 0\n    Got: %s\n" (Ast.Utils.value_to_string other) in
+       let msg = Printf.sprintf "  FAILURE node_when(false, node) excludes node\n    Expected length 0\n    Got: %s\n" (Ast.Utils.value_to_string other) in
        failures := msg :: !failures;
        Printf.printf "%s" msg);
 
@@ -1316,10 +1316,10 @@ meta.stats.summary_node.name|}
     (Packages.init_env ()) in
   (match v with
    | Ast.VInt n when n >= 1 ->
-       incr pass_count; Printf.printf "  ✓ node_fork selects first truthy condition\n"
+       incr pass_count; Printf.printf "  SUCCESS node_fork selects first truthy condition\n"
    | other ->
        incr fail_count;
-       let msg = Printf.sprintf "  ✗ node_fork selects first truthy condition\n    Expected length >= 1\n    Got: %s\n" (Ast.Utils.value_to_string other) in
+       let msg = Printf.sprintf "  FAILURE node_fork selects first truthy condition\n    Expected length >= 1\n    Got: %s\n" (Ast.Utils.value_to_string other) in
        failures := msg :: !failures;
        Printf.printf "%s" msg);
 
@@ -1329,10 +1329,10 @@ meta.stats.summary_node.name|}
     (Packages.init_env ()) in
   (match v with
    | Ast.VInt 0 ->
-       incr pass_count; Printf.printf "  ✓ node_fork all false, no default excludes node\n"
+       incr pass_count; Printf.printf "  SUCCESS node_fork all false, no default excludes node\n"
    | other ->
        incr fail_count;
-       let msg = Printf.sprintf "  ✗ node_fork all false, no default excludes node\n    Expected length 0\n    Got: %s\n" (Ast.Utils.value_to_string other) in
+       let msg = Printf.sprintf "  FAILURE node_fork all false, no default excludes node\n    Expected length 0\n    Got: %s\n" (Ast.Utils.value_to_string other) in
        failures := msg :: !failures;
        Printf.printf "%s" msg);
 
@@ -1348,10 +1348,10 @@ meta.stats.summary_node.name|}
     (Packages.init_env ()) in
   (match v with
    | Ast.VInt n when n >= 1 ->
-       incr pass_count; Printf.printf "  ✓ node_fork with .default includes fallback\n"
+       incr pass_count; Printf.printf "  SUCCESS node_fork with .default includes fallback\n"
    | other ->
        incr fail_count;
-       let msg = Printf.sprintf "  ✗ node_fork with .default includes fallback\n    Expected length >= 1\n    Got: %s\n" (Ast.Utils.value_to_string other) in
+       let msg = Printf.sprintf "  FAILURE node_fork with .default includes fallback\n    Expected length >= 1\n    Got: %s\n" (Ast.Utils.value_to_string other) in
        failures := msg :: !failures;
        Printf.printf "%s" msg);
 

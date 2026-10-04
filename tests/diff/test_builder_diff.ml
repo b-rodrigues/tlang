@@ -339,7 +339,7 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
   write_file log_b8 log_mem_b;
   (match Builder_diff.compute_diff log_a8 log_b8 with
    | Error msg ->
-       Printf.printf "  ✗ reasons: %s\n" msg;
+       Printf.printf "  FAILURE reasons: %s\n" msg;
        incr fail_count
    | Ok result ->
        let find n = List.find (fun e -> e.Builder_diff.nde_name = n) result.dr_nodes in

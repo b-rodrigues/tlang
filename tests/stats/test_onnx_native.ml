@@ -16,10 +16,10 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     let (v, _) = eval_string_env (Printf.sprintf {| t_read_onnx("%s") |} filename) env in
     (match v with
      | Ast.VError _ ->
-         incr pass_count; Printf.printf "  ✓ t_read_onnx returns error for invalid model content\n"
+         incr pass_count; Printf.printf "  SUCCESS t_read_onnx returns error for invalid model content\n"
      | _ ->
          incr fail_count; 
-         Printf.printf "  ✗ t_read_onnx should have returned VError for mock content, got: %s\n" (Ast.Utils.value_to_string v))
+         Printf.printf "  FAILURE t_read_onnx should have returned VError for mock content, got: %s\n" (Ast.Utils.value_to_string v))
   ) ~finally:(fun () ->
     if Sys.file_exists filename then Sys.remove filename
   );

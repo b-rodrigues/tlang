@@ -9,6 +9,7 @@
 ### Fixes
 
 - **`explain()` on builtins is deterministic**: argument names no longer depend on whether `help()` ran before. `explain` loads documentation itself, so `explain(explain)` always reports the documented names instead of sometimes falling back to `arg1`, `arg2`.
+- **Richer `explain()` foreign metadata**: pipeline nodes from R, Python, and Julia now report shape and model facts for more object families — `stl` decompositions, `survfit` curves, `rpart` trees, `density` estimates, `coxph`/`PHReg` survival models, multinomial logits (predictor names, not outcome labels), ranking objectives with booster rounds, frozen scipy distributions, and transformer vs model distinction. `t explain --node` also prints direct ancestors and children lineage in text mode and as `ancestors`/`children` arrays with `--json`.
 
 ## [0.55.5] - 2026-10-03
 

@@ -48,12 +48,12 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     let (v_nrow, _) = eval_string_env {|nrow(ans)|} (Ast.Env.add "ans" v env_na) in
     let result_nrow = Ast.Utils.value_to_string v_nrow in
     if result_nrow = "2" then begin
-      incr pass_count; Printf.printf "  ✓ grouped summarize with all-NA values returns 2 rows\n"
+      incr pass_count; Printf.printf "  SUCCESS grouped summarize with all-NA values returns 2 rows\n"
     end else begin
-      incr fail_count; Printf.printf "  ✗ grouped summarize with all-NA values: expected 2 rows, got %s\n" result_nrow
+      incr fail_count; Printf.printf "  FAILURE grouped summarize with all-NA values: expected 2 rows, got %s\n" result_nrow
     end
   | Error msg ->
-    incr fail_count; Printf.printf "  ✗ grouped summarize with all-NA values\n    EXCEPTION: %s\n" msg);
+    incr fail_count; Printf.printf "  FAILURE grouped summarize with all-NA values\n    EXCEPTION: %s\n" msg);
 
   test_env env_na "repeated grouped aggs on nullable column preserve NA error semantics"
     {|df_na |> group_by($name) |> summarize($min_val = min($value), $max_val = max($value))|}

@@ -26,10 +26,10 @@ let run_tests pass_count fail_count _failures eval_string _eval_string_env test 
   if Ast.Utils.value_to_string located_error
      = {|Error(TypeError: "[script.t:L12:C5] expected int, got float")|} then begin
     incr pass_count;
-    Printf.printf "  ✓ located errors include file/line/column prefix\n"
+    Printf.printf "  SUCCESS located errors include file/line/column prefix\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ located errors include file/line/column prefix\n"
+    Printf.printf "  FAILURE located errors include file/line/column prefix\n"
   end;
   let repl_error =
     Ast.make_error
@@ -40,10 +40,10 @@ let run_tests pass_count fail_count _failures eval_string _eval_string_env test 
   if Ast.Utils.value_to_string repl_error
      = {|Error(SyntaxError: "[L3:C9] Parse Error")|} then begin
     incr pass_count;
-    Printf.printf "  ✓ located errors omit filename when unavailable\n"
+    Printf.printf "  SUCCESS located errors omit filename when unavailable\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ located errors omit filename when unavailable\n"
+    Printf.printf "  FAILURE located errors omit filename when unavailable\n"
   end;
   let runtime_error = eval_string "1 / 0" |> Ast.Utils.value_to_string in
   let has_loc =
@@ -54,10 +54,10 @@ let run_tests pass_count fail_count _failures eval_string _eval_string_env test 
   in
   if has_loc then begin
     incr pass_count;
-    Printf.printf "  ✓ runtime errors include source location prefix\n"
+    Printf.printf "  SUCCESS runtime errors include source location prefix\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ runtime errors include source location prefix\n"
+    Printf.printf "  FAILURE runtime errors include source location prefix\n"
   end;
   let contextual_error =
     Ast.make_error
@@ -74,10 +74,10 @@ let run_tests pass_count fail_count _failures eval_string _eval_string_env test 
          na_count = 0;
        } then begin
     incr pass_count;
-    Printf.printf "  ✓ error values keep structured context\n"
+    Printf.printf "  SUCCESS error values keep structured context\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ error values keep structured context\n"
+    Printf.printf "  FAILURE error values keep structured context\n"
   end;
   print_newline ();
 
