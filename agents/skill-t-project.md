@@ -361,7 +361,7 @@ t check --schema src/pipeline.t
 # Explain a specific node's diagnostics (use --json for agent-readable output)
 t explain --node p.clean_data
 t explain --json --node p.clean_data
-# --json adds ancestors/children lineage arrays and a foreign_meta object when present
+# --json adds parents/children lineage arrays and a foreign_meta object when present
 
 # Catch environment drift
 t doctor

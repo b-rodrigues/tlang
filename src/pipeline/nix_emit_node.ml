@@ -1749,6 +1749,7 @@ r_save_meta <- function(object, path) {
       ny <- tryCatch(length(object$y), error = function(e) NULL)
       if (!is.null(ny) && length(ny) == 1 && !is.na(ny) && ny > 0) meta$n_obs <- as.integer(ny)
       tm <- tryCatch(attr(object$terms, "term.labels"), error = function(e) NULL)
+      if (is.null(tm)) tm <- tryCatch(rownames(object$importance), error = function(e) NULL)
       if (!is.null(tm) && length(tm) > 0) {
         feats <- as.character(tm)
         meta$n_features <- length(feats)
@@ -1875,7 +1876,7 @@ r_save_meta <- function(object, path) {
       sse <- tryCatch(as.numeric(object$SSE), error = function(e) NULL)
       if (!is.null(sse) && length(sse) == 1 && !is.na(sse)) metrics$sse <- sse
       if (length(metrics) > 0) meta$metrics <- metrics
-      no <- tryCatch(stats::nobs(object), error = function(e) NULL)
+      no <- tryCatch(length(object$x), error = function(e) NULL)
       if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- as.integer(no)
     } else if (inherits(object, "StructTS")) {
       meta$kind <- "model"
@@ -1885,7 +1886,7 @@ r_save_meta <- function(object, path) {
       if (is.null(ll)) ll <- tryCatch(as.numeric(stats::logLik(object)), error = function(e) NULL)
       if (!is.null(ll) && length(ll) == 1 && !is.na(ll)) metrics$loglik <- ll
       if (length(metrics) > 0) meta$metrics <- metrics
-      no <- tryCatch(stats::nobs(object), error = function(e) NULL)
+      no <- tryCatch(length(object$data), error = function(e) NULL)
       if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- as.integer(no)
     } else if (inherits(object, "stl")) {
       meta$kind <- "model"
@@ -1940,13 +1941,18 @@ r_save_meta <- function(object, path) {
       }
     } else if (inherits(object, "rpart")) {
       meta$kind <- "model"
+      md <- tryCatch(object$method, error = function(e) NULL)
+      if (!is.null(md) && length(md) == 1 && !is.na(md)) {
+        if (md == "class") meta$task <- "classification"
+        else meta$task <- "regression"
+      }
       fr <- tryCatch(object$frame, error = function(e) NULL)
       if (!is.null(fr)) {
         nr <- tryCatch(nrow(fr), error = function(e) NULL)
         if (!is.null(nr) && length(nr) == 1 && !is.na(nr)) meta$n_nodes <- as.integer(nr)
         vv <- tryCatch(fr$var, error = function(e) NULL)
         if (!is.null(vv)) {
-          feats <- as.character(vv[vv != "<leaf>" & !is.na(vv)])
+          feats <- unique(as.character(vv[vv != "<leaf>" & !is.na(vv)]))
           if (length(feats) > 0) {
             meta$n_features <- length(feats)
             meta$features <- as.list(feats)
@@ -2472,7 +2478,7 @@ def py_save_meta(obj, path):
                 meta["task"] = "density"
             elif est_type == "outlier_detector":
                 meta["task"] = "anomaly_detection"
-            elif est_type == "ranker" or "Ranker" in cls.__name__ or "Rank" in cls.__name__:
+            elif est_type == "ranker" or "Ranker" in cls.__name__:
                 meta["task"] = "ranking"
             elif "task" not in meta and any(k in cls.__name__ for k in ("PCA", "TruncatedSVD", "NMF", "FactorAnalysis")):
                 meta["task"] = "dim_reduction"
@@ -2579,12 +2585,23 @@ def py_save_meta(obj, path):
                 bb = getattr(obj, "booster_", None)
                 if bb is not None and "n_rounds" not in meta:
                     try:
-                        meta["n_rounds"] = int(bb.num_trees())
+                        rounds = int(bb.current_iteration())
                     except Exception:
+                        rounds = None
+                    if rounds is None:
                         try:
-                            meta["n_rounds"] = int(bb.current_iteration())
+                            per = int(bb.num_model_per_iteration())
+                            if per > 0:
+                                rounds = int(bb.num_trees()) // per
                         except Exception:
-                            pass
+                            rounds = None
+                    if rounds is None:
+                        try:
+                            rounds = int(bb.num_trees())
+                        except Exception:
+                            rounds = None
+                    if rounds is not None:
+                        meta["n_rounds"] = rounds
             except Exception:
                 pass
         elif mod.startswith("xgboost"):
@@ -2601,7 +2618,30 @@ def py_save_meta(obj, path):
                 except Exception:
                     pass
                 try:
-                    meta["n_rounds"] = int(obj.num_boosted_rounds())
+                    rounds = None
+                    try:
+                        rounds = int(obj.num_boosted_rounds())
+                    except Exception:
+                        rounds = None
+                    if rounds is None:
+                        try:
+                            rounds = int(obj.current_iteration())
+                        except Exception:
+                            rounds = None
+                    if rounds is None:
+                        try:
+                            per = int(obj.num_model_per_iteration())
+                            if per > 0:
+                                rounds = int(obj.num_trees()) // per
+                        except Exception:
+                            rounds = None
+                    if rounds is None:
+                        try:
+                            rounds = int(obj.num_trees())
+                        except Exception:
+                            rounds = None
+                    if rounds is not None:
+                        meta["n_rounds"] = rounds
                 except Exception:
                     pass
                 try:
@@ -2638,11 +2678,11 @@ def py_save_meta(obj, path):
                             meta["task"] = "classification"
                         elif est_type == "regressor":
                             meta["task"] = "regression"
-                        elif est_type == "ranker" or "Ranker" in cls.__name__ or "Rank" in cls.__name__:
+                        elif est_type == "ranker" or "Ranker" in cls.__name__:
                             meta["task"] = "ranking"
                 except Exception:
                     pass
-                if "task" not in meta and ("Ranker" in cls.__name__ or "Rank" in cls.__name__):
+                if "task" not in meta and ("Ranker" in cls.__name__):
                     meta["task"] = "ranking"
                 try:
                     gb = getattr(obj, "get_booster", lambda: None)()
@@ -2705,7 +2745,25 @@ def py_save_meta(obj, path):
                 except Exception:
                     pass
                 try:
-                    meta["n_rounds"] = int(obj.num_trees())
+                    rounds = None
+                    try:
+                        rounds = int(obj.current_iteration())
+                    except Exception:
+                        rounds = None
+                    if rounds is None:
+                        try:
+                            per = int(obj.num_model_per_iteration())
+                            if per > 0:
+                                rounds = int(obj.num_trees()) // per
+                        except Exception:
+                            rounds = None
+                    if rounds is None:
+                        try:
+                            rounds = int(obj.num_trees())
+                        except Exception:
+                            rounds = None
+                    if rounds is not None:
+                        meta["n_rounds"] = rounds
                 except Exception:
                     pass
                 try:
@@ -2786,6 +2844,13 @@ def py_save_meta(obj, path):
                         meta["task"] = "classification"
                     elif "Gaussian" in fname or "Normal" in fname or "Poisson" in fname or "Gamma" in fname:
                         meta["task"] = "regression"
+                except Exception:
+                    pass
+            if "task" not in meta:
+                try:
+                    mname = type(getattr(obj, "model", None)).__name__
+                    if "Logit" in mname or "Probit" in mname:
+                        meta["task"] = "classification"
                 except Exception:
                     pass
             try:

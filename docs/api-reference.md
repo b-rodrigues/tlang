@@ -4395,7 +4395,7 @@ node.foreign_meta.class        -- runtime type name, e.g. "lm", "DataFrame", "AR
 node.foreign_meta.task         -- model task when known: "regression", "classification", "clustering", "time_series", "dim_reduction", "density", "anomaly_detection", "ranking", or "survival"
 node.foreign_meta.dimensions  -- shape as int list, e.g. [32, 11] for frames, [4, 3] for matrices, [3] for vectors
 node.foreign_meta.n_obs       -- training row count (models)
-node.foreign_meta.n_groups    -- grouping units, e.g. 18 subjects (mixed models)
+node.foreign_meta.n_groups    -- grouping units, e.g. 18 subjects (mixed models; summed across grouping factors)
 node.foreign_meta.groups      -- per-group counts, e.g. {Subject: 18} (mixed models)
 node.foreign_meta.n_features  -- input count (models)
 node.foreign_meta.n_trees     -- tree count (forests, when known)
@@ -4416,7 +4416,7 @@ node.foreign_meta.features    -- full feature/column list (first 500 entries; `n
 node.foreign_meta.metrics     -- free numeric metrics (r_squared, aic, bic, ...); numbers only, other values are dropped
 node.foreign_meta.artifact_size -- artifact file size in bytes
 
-Time-series decompositions (`stl`) report component names as features and the seasonal period. Survival models (`coxph`) report event counts and concordance; Kaplan-Meier fits (`survfit`) report per-stratum counts. Trees (`rpart`) report node counts and split variables. Density estimates report bandwidth. Multinomial logits report predictor names (not outcome labels) and `PHReg` reports survival tasks. Rankers report boosting rounds. Frozen scipy distributions report the distribution name and moments. Pure transformers report `transformer` kind; Julia time arrays report `series` kind with timestamps counted as observations.
+Time-series decompositions (`stl`) report component names as features and the seasonal period. Survival models (`coxph`) report event counts and concordance; Kaplan-Meier fits (`survfit`) report per-stratum counts. Trees (`rpart`) report node counts and split variables, with the task read from the fit method. Density estimates report bandwidth. `Logit`/`Probit` results report a classification task from the model class. Density estimates report bandwidth. Multinomial logits report predictor names (not outcome labels) and `PHReg` reports survival tasks. Rankers report boosting rounds. Frozen scipy distributions report the distribution name and moments. Pure transformers report `transformer` kind (detected via sklearn ≥ 1.6 tags; older versions report `model`); Julia time arrays report `series` kind with timestamps counted as observations. Boosting rounds count training rounds (`current_iteration`, falling back to trees per iteration); R `rpart` variables are de-duplicated split variables with the task read from the fit method.
 
 Julia note: fit-metric verbs (`nobs`, `coefnames`, `r2`, `aic`,
 `deviance`, `loglikelihood`) resolve from whatever the node session

@@ -1111,7 +1111,31 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
          "sp <- smooth.spline(mtcars$wt, mtcars$mpg)\n" ^
          "r_save_meta(sp, Sys.getenv(\"T_GOLD_OUT12\"))\n" ^
          "ec <- ecdf(mtcars$mpg)\n" ^
-         "r_save_meta(ec, Sys.getenv(\"T_GOLD_OUT13\"))\n"
+         "r_save_meta(ec, Sys.getenv(\"T_GOLD_OUT13\"))\n" ^
+         "library(randomForest)\n" ^
+         "rfr <- randomForest(Species ~ ., iris, ntree = 10)\n" ^
+         "r_save_meta(rfr, Sys.getenv(\"T_GOLD_OUT14\"))\n" ^
+         "km <- kmeans(mtcars, 3)\n" ^
+         "r_save_meta(km, Sys.getenv(\"T_GOLD_OUT15\"))\n" ^
+         "pc <- prcomp(mtcars)\n" ^
+         "r_save_meta(pc, Sys.getenv(\"T_GOLD_OUT16\"))\n" ^
+         "ar <- arima(AirPassengers, order = c(1, 1, 1))\n" ^
+         "r_save_meta(ar, Sys.getenv(\"T_GOLD_OUT17\"))\n" ^
+         "po <- MASS::polr(Sat ~ Infl + Type + Cont, data = housing, Hess = TRUE)\n" ^
+         "r_save_meta(po, Sys.getenv(\"T_GOLD_OUT18\"))\n" ^
+         "mn <- nnet::multinom(Species ~ ., iris, trace = FALSE)\n" ^
+         "r_save_meta(mn, Sys.getenv(\"T_GOLD_OUT19\"))\n" ^
+         "nn <- nnet::nnet(Species ~ ., iris, size = 2, trace = FALSE)\n" ^
+         "r_save_meta(nn, Sys.getenv(\"T_GOLD_OUT20\"))\n" ^
+         "library(xgboost)\n" ^
+         "data(agaricus.train)\n" ^
+         "dm <- xgb.DMatrix(agaricus.train$data, label = agaricus.train$label)\n" ^
+         "bx <- xgb.train(list(objective = \"binary:logistic\", max_depth = 2), dm, nrounds = 5)\n" ^
+         "r_save_meta(bx, Sys.getenv(\"T_GOLD_OUT21\"))\n" ^
+         "library(lightgbm)\n" ^
+         "ld <- lgb.Dataset(agaricus.train$data, label = agaricus.train$label)\n" ^
+         "lb <- lgb.train(list(objective = \"binary\", num_leaves = 4), ld, 5)\n" ^
+         "r_save_meta(lb, Sys.getenv(\"T_GOLD_OUT22\"))\n"
        in
        (match write_temp "r.R" drv with
         | None -> check_golden "R probe driver written" false
@@ -1129,9 +1153,18 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
             let out11_path = temp_path "r11.json" in
             let out12_path = temp_path "r12.json" in
             let out13_path = temp_path "r13.json" in
-            with_temp_files [drv_path; out_path; out2_path; out3_path; out4_path; out5_path; out6_path; out7_path; out8_path; out9_path; out10_path; out11_path; out12_path; out13_path] (fun () ->
-              let _ = shell_out (Printf.sprintf "T_GOLD_OUT=%s T_GOLD_OUT2=%s T_GOLD_OUT3=%s T_GOLD_OUT4=%s T_GOLD_OUT5=%s T_GOLD_OUT6=%s T_GOLD_OUT7=%s T_GOLD_OUT8=%s T_GOLD_OUT9=%s T_GOLD_OUT10=%s T_GOLD_OUT11=%s T_GOLD_OUT12=%s T_GOLD_OUT13=%s Rscript %s 2>/dev/null"
-                (Filename.quote out_path) (Filename.quote out2_path) (Filename.quote out3_path) (Filename.quote out4_path) (Filename.quote out5_path) (Filename.quote out6_path) (Filename.quote out7_path) (Filename.quote out8_path) (Filename.quote out9_path) (Filename.quote out10_path) (Filename.quote out11_path) (Filename.quote out12_path) (Filename.quote out13_path) (Filename.quote drv_path)) in
+            let out14_path = temp_path "r14.json" in
+            let out15_path = temp_path "r15.json" in
+            let out16_path = temp_path "r16.json" in
+            let out17_path = temp_path "r17.json" in
+            let out18_path = temp_path "r18.json" in
+            let out19_path = temp_path "r19.json" in
+            let out20_path = temp_path "r20.json" in
+            let out21_path = temp_path "r21.json" in
+            let out22_path = temp_path "r22.json" in
+            with_temp_files [drv_path; out_path; out2_path; out3_path; out4_path; out5_path; out6_path; out7_path; out8_path; out9_path; out10_path; out11_path; out12_path; out13_path; out14_path; out15_path; out16_path; out17_path; out18_path; out19_path; out20_path; out21_path; out22_path] (fun () ->
+              let _ = shell_out (Printf.sprintf "T_GOLD_OUT=%s T_GOLD_OUT2=%s T_GOLD_OUT3=%s T_GOLD_OUT4=%s T_GOLD_OUT5=%s T_GOLD_OUT6=%s T_GOLD_OUT7=%s T_GOLD_OUT8=%s T_GOLD_OUT9=%s T_GOLD_OUT10=%s T_GOLD_OUT11=%s T_GOLD_OUT12=%s T_GOLD_OUT13=%s T_GOLD_OUT14=%s T_GOLD_OUT15=%s T_GOLD_OUT16=%s T_GOLD_OUT17=%s T_GOLD_OUT18=%s T_GOLD_OUT19=%s T_GOLD_OUT20=%s T_GOLD_OUT21=%s T_GOLD_OUT22=%s Rscript %s 2>/dev/null"
+                (Filename.quote out_path) (Filename.quote out2_path) (Filename.quote out3_path) (Filename.quote out4_path) (Filename.quote out5_path) (Filename.quote out6_path) (Filename.quote out7_path) (Filename.quote out8_path) (Filename.quote out9_path) (Filename.quote out10_path) (Filename.quote out11_path) (Filename.quote out12_path) (Filename.quote out13_path) (Filename.quote out14_path) (Filename.quote out15_path) (Filename.quote out16_path) (Filename.quote out17_path) (Filename.quote out18_path) (Filename.quote out19_path) (Filename.quote out20_path) (Filename.quote out21_path) (Filename.quote out22_path) (Filename.quote drv_path)) in
               let json = match read_file_opt out_path with Some s -> s | None -> "" in
               let json2 = match read_file_opt out2_path with Some s -> s | None -> "" in
               let json3 = match read_file_opt out3_path with Some s -> s | None -> "" in
@@ -1145,6 +1178,15 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
               let json11 = match read_file_opt out11_path with Some s -> s | None -> "" in
               let json12 = match read_file_opt out12_path with Some s -> s | None -> "" in
               let json13 = match read_file_opt out13_path with Some s -> s | None -> "" in
+              let json14 = match read_file_opt out14_path with Some s -> s | None -> "" in
+              let json15 = match read_file_opt out15_path with Some s -> s | None -> "" in
+              let json16 = match read_file_opt out16_path with Some s -> s | None -> "" in
+              let json17 = match read_file_opt out17_path with Some s -> s | None -> "" in
+              let json18 = match read_file_opt out18_path with Some s -> s | None -> "" in
+              let json19 = match read_file_opt out19_path with Some s -> s | None -> "" in
+              let json20 = match read_file_opt out20_path with Some s -> s | None -> "" in
+              let json21 = match read_file_opt out21_path with Some s -> s | None -> "" in
+              let json22 = match read_file_opt out22_path with Some s -> s | None -> "" in
               check_golden "R probe keeps tiny p-values unrounded"
                 (match json_number json "p_value" with Some f -> f < 1e-6 | None -> false);
               check_golden "R probe keeps full float precision"
@@ -1172,7 +1214,47 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
               check_golden "R probe handles smooth splines"
                 (contains json12 "regression" && contains json12 "lambda");
               check_golden "R probe handles ecdf closures"
-                (contains json13 "distribution" && contains json13 "n_obs"))));
+                (contains json13 "distribution" && contains json13 "n_obs");
+              check_golden "R probe handles randomForest"
+                (contains json14 "classification" && contains json14 "n_trees");
+              check_golden "R probe handles kmeans"
+                (contains json15 "clustering" && contains json15 "n_clusters");
+              check_golden "R probe handles prcomp"
+                (contains json16 "dim_reduction" && contains json16 "n_components");
+              check_golden "R probe handles arima"
+                (contains json17 "time_series" && contains json17 "order");
+              check_golden "R probe handles polr"
+                (contains json18 "classification" && contains json18 "n_features");
+              check_golden "R probe handles multinom"
+                (contains json19 "classification" && contains json19 "deviance");
+              check_golden "R probe handles nnet"
+                (contains json20 "model" && contains json20 "n_obs");
+              check_golden "R probe handles xgboost"
+                (contains json21 "model" && contains json21 "n_rounds");
+              check_golden "R probe handles lightgbm"
+                (contains json22 "model" && contains json22 "n_rounds"))));
+  (* R merMod: needs lme4, skipped when absent. *)
+  (match shell_out "Rscript -e \"cat(requireNamespace(\\\"lme4\\\", quietly = TRUE))\" 2>/dev/null" with
+   | s when contains s "TRUE" ->
+       (match extract_fn "r_save_meta <- function(object, path) {" (fun l -> l = "}") with
+        | None -> check_golden "R probe source found" false
+        | Some src ->
+            let drv = src ^ "\n" ^
+              "library(lme4)\n" ^
+              "mm <- lmer(Reaction ~ Days + (Days | Subject), sleepstudy)\n" ^
+              "r_save_meta(mm, Sys.getenv(\"T_GOLD_OUT\"))\n"
+            in
+            (match write_temp "merMod.R" drv with
+             | None -> check_golden "R probe merMod driver written" false
+             | Some drv_path ->
+                 let out = temp_path "mermod.json" in
+                 with_temp_files [drv_path; out] (fun () ->
+                   let _ = shell_out (Printf.sprintf "T_GOLD_OUT=%s Rscript %s 2>/dev/null"
+                     (Filename.quote out) (Filename.quote drv_path)) in
+                   let json = match read_file_opt out with Some s -> s | None -> "" in
+                   check_golden "R probe handles merMod"
+                     (contains json "regression" && contains json "Subject"))))
+   | _ -> skip_golden "R probe merMod" "no lme4");
   (* Python: array-API const excluded from features; NaN sanitized. *)
   (match extract_fn ~keep_end:false "def py_save_meta(obj, path):" (fun l -> l <> "" && l.[0] <> ' ' && l.[0] <> '\t') with
    | None -> check_golden "Python probe source found" false
@@ -1209,6 +1291,14 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
            "py_save_meta(_tlang_Cal(_tlang_LR(), cv=2).fit(_tlang_Xc, np.array([0,0,0,0,1,1,1,1])), os.environ[\"T_GOLD_OUT8\"])\n" ^
            "from sklearn.multioutput import MultiOutputClassifier as _tlang_MOC\n" ^
            "py_save_meta(_tlang_MOC(_tlang_LR()).fit(_tlang_Xc, np.array([[0,1],[0,1],[0,0],[1,0],[1,0],[1,1],[0,1],[1,0]])), os.environ[\"T_GOLD_OUT9\"])\n" ^
+           "import lightgbm as _tlang_lgb\n" ^
+           "_tlang_ld = _tlang_lgb.Dataset(_tlang_Xc, label = np.array([0, 0, 1, 1, 2, 2, 0, 1]))\n" ^
+           "_tlang_lb = _tlang_lgb.train({\"objective\": \"multiclass\", \"num_class\": 3, \"num_leaves\": 4, \"verbose\": -1}, _tlang_ld, num_boost_round = 4)\n" ^
+           "py_save_meta(_tlang_lb, os.environ[\"T_GOLD_OUT10\"])\n" ^
+           "from sklearn.pipeline import Pipeline as _tlang_Pipe\n" ^
+           "from sklearn.preprocessing import StandardScaler as _tlang_SS\n" ^
+           "from sklearn.linear_model import LogisticRegression as _tlang_LR2\n" ^
+           "py_save_meta(_tlang_Pipe([(\"s\", _tlang_SS()), (\"c\", _tlang_LR2())]).fit(_tlang_Xc, np.array([0,0,0,0,1,1,1,1])), os.environ[\"T_GOLD_OUT11\"])\n" ^
            "san = _tlang_sanitize_json({\"kind\": \"model\", \"metrics\": {\"aic\": float(\"nan\"), \"bic\": 2.5}})\n" ^
            "import json as _tlang_json_check\n" ^
            "with open(os.environ[\"T_GOLD_OUT2\"], \"w\") as f: _tlang_json_check.dump(san, f)\n"
@@ -1225,9 +1315,11 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
               let out7_path = temp_path "py7.json" in
               let out8_path = temp_path "py8.json" in
               let out9_path = temp_path "py9.json" in
-              with_temp_files [drv_path; out_path; out2_path; out3_path; out4_path; out5_path; out6_path; out7_path; out8_path; out9_path] (fun () ->
-                let _ = shell_out (Printf.sprintf "T_GOLD_OUT=%s T_GOLD_OUT2=%s T_GOLD_OUT3=%s T_GOLD_OUT4=%s T_GOLD_OUT5=%s T_GOLD_OUT6=%s T_GOLD_OUT7=%s T_GOLD_OUT8=%s T_GOLD_OUT9=%s python3 %s 2>/dev/null"
-                  (Filename.quote out_path) (Filename.quote out2_path) (Filename.quote out3_path) (Filename.quote out4_path) (Filename.quote out5_path) (Filename.quote out6_path) (Filename.quote out7_path) (Filename.quote out8_path) (Filename.quote out9_path) (Filename.quote drv_path)) in
+              let out10_path = temp_path "py10.json" in
+              let out11_path = temp_path "py11.json" in
+              with_temp_files [drv_path; out_path; out2_path; out3_path; out4_path; out5_path; out6_path; out7_path; out8_path; out9_path; out10_path; out11_path] (fun () ->
+                let _ = shell_out (Printf.sprintf "T_GOLD_OUT=%s T_GOLD_OUT2=%s T_GOLD_OUT3=%s T_GOLD_OUT4=%s T_GOLD_OUT5=%s T_GOLD_OUT6=%s T_GOLD_OUT7=%s T_GOLD_OUT8=%s T_GOLD_OUT9=%s T_GOLD_OUT10=%s T_GOLD_OUT11=%s python3 %s 2>/dev/null"
+                  (Filename.quote out_path) (Filename.quote out2_path) (Filename.quote out3_path) (Filename.quote out4_path) (Filename.quote out5_path) (Filename.quote out6_path) (Filename.quote out7_path) (Filename.quote out8_path) (Filename.quote out9_path) (Filename.quote out10_path) (Filename.quote out11_path) (Filename.quote drv_path)) in
                 let json = match read_file_opt out_path with Some s -> s | None -> "" in
                 let json2 = match read_file_opt out2_path with Some s -> s | None -> "" in
                 let json3 = match read_file_opt out3_path with Some s -> s | None -> "" in
@@ -1237,6 +1329,8 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
                 let json7 = match read_file_opt out7_path with Some s -> s | None -> "" in
                 let json8 = match read_file_opt out8_path with Some s -> s | None -> "" in
                 let json9 = match read_file_opt out9_path with Some s -> s | None -> "" in
+                let json10 = match read_file_opt out10_path with Some s -> s | None -> "" in
+                let json11 = match read_file_opt out11_path with Some s -> s | None -> "" in
                 check_golden "Python probe excludes const from OLS features"
                   (contains json "\"x\"" && not (contains json "const"));
                 check_golden "Python probe tags anomaly detectors"
@@ -1253,6 +1347,10 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
                 (contains json8 "classification" && contains json8 "n_features");
               check_golden "Python probe passes through multioutput wrappers"
                 (contains json9 "classification" && contains json9 "n_features");
+              check_golden "Python probe handles LightGBM multiclass rounds"
+                (contains json10 "classification" && contains json10 "n_rounds");
+              check_golden "Python probe passes through sklearn pipelines"
+                (contains json11 "classification" && contains json11 "n_classes");
                 check_golden "Python sanitizer drops NaN metrics, keeps the rest"
                   (contains json2 "bic" && not (contains json2 "aic"))))));
   (* Julia: end-to-end save_meta on a DataFrame plus the NaN sanitizer. *)
@@ -1333,6 +1431,33 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
                        (contains json5 "model" && contains json5 "TlangGoldTree");
                      check_golden "Julia probe handles hypothesis tests"
                        (contains json6 "test" && contains json6 "p_value")))));
+  (* Julia GLM: needs the GLM package, skipped when absent. *)
+  (match shell_out "julia -e 'using GLM' 2>/dev/null && echo IMPORT-OK" with
+   | pre when not (contains pre "IMPORT-OK") -> skip_golden "Julia GLM golden" "no GLM"
+   | _ ->
+       (match extract_fn "function jl_save_meta(obj, path)" (fun l -> l = "end") with
+        | None -> check_golden "Julia probe source found" false
+        | Some probe ->
+            let san_src_opt = extract_fn "function jl_sanitize_json_value(v)" (fun l -> l = "end") in
+            let drv = (match san_src_opt with Some s -> s ^ "\n" | None -> "") ^ probe ^ "\n" ^
+              "module JSON\n" ^
+              "print(io::IO, d) = Base.print(io, d)\n" ^
+              "end\n" ^
+              "using GLM, DataFrames\n" ^
+              "df = DataFrame(x = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0], y = [0, 0, 0, 1, 1, 1])\n" ^
+              "m = glm(@formula(y ~ x), df, Binomial(), LogitLink())\n" ^
+              "jl_save_meta(m, ENV[\"T_GOLD_OUT\"])\n"
+            in
+            (match write_temp "jlglm.jl" drv with
+             | None -> check_golden "Julia GLM driver written" false
+             | Some drv_path ->
+                 let out = temp_path "jlglm.json" in
+                 with_temp_files [drv_path; out] (fun () ->
+                   let _ = shell_out (Printf.sprintf "T_GOLD_OUT=%s julia %s 2>/dev/null"
+                     (Filename.quote out) (Filename.quote drv_path)) in
+                   let json = match read_file_opt out with Some s -> s | None -> "" in
+                   check_golden "Julia probe handles GLM fits"
+                     (contains json "classification" && contains json "deviance")))));
   (* Skips are environmental (missing runtime), never code regressions:
      extraction breakage fails loudly above. They are reported loudly
      but do not fail, so cross-platform CI (e.g. macOS images without a

@@ -9936,7 +9936,7 @@ Now that you can work with numerical arrays, explore statistical modeling and re
 
 ### `t explain` — Node Introspection
 
-- **`t explain --node <pipeline>.t:<node_id>`**: Prints a human-readable summary of a pipeline node's inputs, outputs, language, and dependencies. Supports `--json` for machine-readable output (YAML front matter style with `node_id`, `language`, `inputs`, `outputs`, `dependencies`, and `command`). Also reports direct `ancestors`/`children` lineage and a `foreign_meta` object with shape/model facts for R/Python/Julia nodes when present.
+- **`t explain --node <pipeline>.t:<node_id>`**: Prints a human-readable summary of a pipeline node's inputs, outputs, language, and dependencies. Supports `--json` for machine-readable output (YAML front matter style with `node_id`, `language`, `inputs`, `outputs`, `dependencies`, and `command`). Also reports direct `parents`/`children` lineage and a `foreign_meta` object with shape/model facts for R/Python/Julia nodes when present.
 
 ### `t add` — Package & Tool Management CLI
 

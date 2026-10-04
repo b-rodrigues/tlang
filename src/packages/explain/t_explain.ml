@@ -145,7 +145,10 @@ let register ?(ensure_docs=ignore) env =
           match v with
           | `Int i -> Some (k, VInt i)
           | `Intlit s -> (try Some (k, VInt (int_of_string s)) with _ -> None)
-          | `Float f -> Some (k, VInt (int_of_float f))
+          | `Float f ->
+              (match finite_float f with
+               | None -> None
+               | Some _ -> Some (k, VInt (int_of_float f)))
           | _ -> None) m in
         (match fields with [] -> None | _ -> Some fields)
     | Some _ -> None
