@@ -1963,6 +1963,30 @@ r_save_meta <- function(object, path) {
       kn <- tryCatch(object$kernel, error = function(e) NULL)
       if (!is.null(kn) && length(kn) == 1 && !is.na(kn) && nzchar(kn)) meta$method <- kn
       if (length(metrics) > 0) meta$metrics <- metrics
+    } else if (inherits(object, "acf")) {
+      meta$kind <- "model"
+      meta$task <- "time_series"
+      no <- tryCatch(object$n.used, error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- as.integer(no)
+      tp <- tryCatch(object$type, error = function(e) NULL)
+      if (!is.null(tp) && length(tp) == 1 && !is.na(tp) && nzchar(tp)) meta$method <- tp
+      se <- tryCatch(object$series, error = function(e) NULL)
+      if (!is.null(se) && length(se) == 1 && !is.na(se) && nzchar(se)) meta$target <- se
+    } else if (inherits(object, "smooth.spline")) {
+      meta$kind <- "model"
+      meta$task <- "regression"
+      no <- tryCatch(object$n, error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- as.integer(no)
+      metrics <- list()
+      lam <- tryCatch(as.numeric(object$lambda), error = function(e) NULL)
+      if (!is.null(lam) && length(lam) == 1 && !is.na(lam)) metrics$lambda <- lam
+      df <- tryCatch(as.numeric(object$df), error = function(e) NULL)
+      if (!is.null(df) && length(df) == 1 && !is.na(df)) metrics$df <- df
+      if (length(metrics) > 0) meta$metrics <- metrics
+    } else if (inherits(object, "ecdf")) {
+      meta$kind <- "distribution"
+      no <- tryCatch(get("nobs", envir = environment(object)), error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- as.integer(no)
     } else if (inherits(object, "merMod")) {
       meta$kind <- "model"
       if (inherits(object, "glmerMod")) {

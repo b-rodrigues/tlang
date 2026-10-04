@@ -283,6 +283,8 @@ Use this workflow to understand what a pipeline node does, what it produced, and
 | `pipeline_copy(node?, target_dir?)` | Copies built artifacts from Nix store to local directory | Export files (HTML, CSV, plots) to workspace |
 | `warning_msg(p.node)` | Formatted warning text (own + upstream) | Diagnose warnings without raw diagnostics |
 | `explain(read_node(p.node))` | Structured dict of the value's type, shape, columns, preview | Understand what the data looks like |
+| `explain(p.node).foreign_meta` | Dict of foreign shape/model facts (dimensions, task, metrics) | Understand R/Python/Julia outputs without loading them |
+| `explain(p)` | Per-node dependencies and children | Trace lineage through the pipeline |
 | `rebuild_node(p.node)` | Rebuilds a single node, returns updated ComputedNode | One node changed, don't rebuild entire pipeline |
 | `debug_node(p.node)` | Launches interactive REPL in the node's runtime env | Deep debugging of R/Python/Julia code |
 
@@ -359,6 +361,7 @@ t check --schema src/pipeline.t
 # Explain a specific node's diagnostics (use --json for agent-readable output)
 t explain --node p.clean_data
 t explain --json --node p.clean_data
+# --json adds ancestors/children lineage arrays and a foreign_meta object when present
 
 # Catch environment drift
 t doctor
