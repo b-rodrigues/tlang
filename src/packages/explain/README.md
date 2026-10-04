@@ -45,14 +45,14 @@ next to `artifact`/`class` (best effort — the build never fails for it):
 ```t
 e = explain(p.fit)
 e.foreign_meta.kind        -- "dataframe", "model", or "other"
-e.foreign_meta.nrow        -- frame rows
-e.foreign_meta.ncol        -- frame columns
+e.foreign_meta.dimensions  -- shape as int list, e.g. [32, 11] for frames, [4, 3] for matrices, [3] for vectors
 e.foreign_meta.n_obs       -- training rows (models)
 e.foreign_meta.n_features  -- input count (models)
 e.foreign_meta.n_trees     -- tree count (forests, when known)
 e.foreign_meta.n_rounds    -- boosting rounds (boosted trees, when known)
 e.foreign_meta.n_clusters  -- cluster count (clustering, when known)
 e.foreign_meta.n_components -- component count (PCA, when known)
+e.foreign_meta.dtype        -- element type, e.g. "float64" (arrays, when known)
 e.foreign_meta.method      -- algorithm variant, e.g. hclust linkage (when known)
 e.foreign_meta.target      -- response name (when known)
 e.foreign_meta.formula     -- full formula (R models, when known)

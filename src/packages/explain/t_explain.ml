@@ -22,8 +22,9 @@ let contains_sub s sub =
 --# Node results from `read_node(...)` are wrapped with node metadata and
 --# expose the explained payload under `contents`.
 --# Computed pipeline nodes (e.g. `p.node`) also expose `foreign_meta` with
---# shape facts from the build-time `meta` sidecar (nrow/ncol for frames,
---# n_obs/n_features/formula/metrics for models), or NA when absent.
+--# shape facts from the build-time `meta` sidecar (dimensions for frames
+--# and arrays, n_obs/n_features/formula/order/metrics for models), or NA
+--# when absent.
 --#
 --# @name explain
 --# @param x :: Any The value to explain.
@@ -166,14 +167,16 @@ let register ?(ensure_docs=ignore) env =
     in
     (match class_opt with Some c -> add "class" (VString c) | None -> ());
     (match assoc_string "task" pairs with Some t -> add "task" (VString t) | None -> ());
-    (match assoc_int "nrow" pairs with Some n -> add "nrow" (VInt n) | None -> ());
-    (match assoc_int "ncol" pairs with Some n -> add "ncol" (VInt n) | None -> ());
+    (match assoc_int_list "dimensions" pairs with
+     | Some ns -> add "dimensions" (VList (List.map (fun n -> (None, VInt n)) ns))
+     | None -> ());
     (match assoc_int "n_obs" pairs with Some n -> add "n_obs" (VInt n) | None -> ());
     (match assoc_int "n_features" pairs with Some n -> add "n_features" (VInt n) | None -> ());
     (match assoc_int "n_trees" pairs with Some n -> add "n_trees" (VInt n) | None -> ());
     (match assoc_int "n_rounds" pairs with Some n -> add "n_rounds" (VInt n) | None -> ());
     (match assoc_int "n_clusters" pairs with Some n -> add "n_clusters" (VInt n) | None -> ());
     (match assoc_int "n_components" pairs with Some n -> add "n_components" (VInt n) | None -> ());
+    (match assoc_string "dtype" pairs with Some t -> add "dtype" (VString t) | None -> ());
     (match assoc_string "method" pairs with Some t -> add "method" (VString t) | None -> ());
     (match assoc_string "target" pairs with Some t -> add "target" (VString t) | None -> ());
     (match assoc_int_list "order" pairs with
@@ -206,8 +209,9 @@ let register ?(ensure_docs=ignore) env =
     match ordered with
     | [] -> VNA NAGeneric
     | _ ->
-        let display = ["kind"; "class"; "task"; "method"; "nrow"; "ncol"; "n_obs"; "n_features";
+        let display = ["kind"; "class"; "task"; "method"; "dimensions"; "n_obs"; "n_features";
                        "n_trees"; "n_rounds"; "n_clusters"; "n_components";
+                       "dtype";
                        "target"; "order"; "seasonal_order";
                        "features_preview"; "formula_preview"; "metrics"; "artifact_size"] in
         let shown = List.filter (fun k -> List.mem_assoc k ordered) display in

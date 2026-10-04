@@ -1643,14 +1643,24 @@ r_save_meta <- function(object, path) {
     if (!is.null(cls) && length(cls) == 1 && !is.na(cls) && nzchar(cls)) meta$class <- cls
     if (is.data.frame(object)) {
       meta$kind <- "dataframe"
-      meta$nrow <- nrow(object)
-      meta$ncol <- ncol(object)
+      meta$dimensions <- list(nrow(object), ncol(object))
       nms <- tryCatch(names(object), error = function(e) NULL)
       if (!is.null(nms)) meta$features <- as.list(as.character(nms))
     } else if (!is.null(dim(object)) && length(dim(object)) == 2) {
       meta$kind <- "matrix"
-      meta$nrow <- dim(object)[1]
-      meta$ncol <- dim(object)[2]
+      meta$dimensions <- as.list(as.integer(dim(object)))
+      tp <- tryCatch(typeof(object), error = function(e) NULL)
+      if (!is.null(tp) && length(tp) == 1 && !is.na(tp) && nzchar(tp)) meta$dtype <- tp
+    } else if (!is.null(dim(object)) && length(dim(object)) > 2) {
+      meta$kind <- "array"
+      meta$dimensions <- as.list(as.integer(dim(object)))
+      tp <- tryCatch(typeof(object), error = function(e) NULL)
+      if (!is.null(tp) && length(tp) == 1 && !is.na(tp) && nzchar(tp)) meta$dtype <- tp
+    } else if (is.atomic(object) && is.null(dim(object)) && !inherits(object, "factor")) {
+      meta$kind <- "vector"
+      meta$dimensions <- list(length(object))
+      tp <- tryCatch(typeof(object), error = function(e) NULL)
+      if (!is.null(tp) && length(tp) == 1 && !is.na(tp) && nzchar(tp)) meta$dtype <- tp
     } else if (inherits(object, "lm") || inherits(object, "glm")) {
       meta$kind <- "model"
       fam <- tryCatch(object$family$family, error = function(e) NULL)
@@ -2063,20 +2073,18 @@ def py_save_meta(obj, path):
         meta["class"] = cls.__name__
         mod = getattr(cls, "__module__", "") or ""
         shape = getattr(obj, "shape", None)
-        if (mod.startswith("pandas") or mod.startswith("polars")) and shape is not None:
+        frame_2d = False
+        try:
+            frame_2d = (mod.startswith("pandas") or mod.startswith("polars")) and shape is not None and len(shape) == 2
+        except Exception:
+            frame_2d = False
+        if frame_2d:
+            meta["kind"] = "dataframe"
+            meta["dimensions"] = [int(shape[0]), int(shape[1])]
             try:
-                if len(shape) == 2:
-                    meta["kind"] = "dataframe"
-                    meta["nrow"] = int(shape[0])
-                    meta["ncol"] = int(shape[1])
-                    try:
-                        meta["features"] = [str(c) for c in list(obj.columns)]
-                    except Exception:
-                        pass
-                else:
-                    meta["kind"] = "other"
+                meta["features"] = [str(c) for c in list(obj.columns)]
             except Exception:
-                meta["kind"] = "other"
+                pass
         elif mod.startswith("sklearn") or (mod.startswith("lightgbm") and cls.__name__ != "Booster"):
             meta["kind"] = "model"
             est_type = None
@@ -2302,13 +2310,34 @@ def py_save_meta(obj, path):
                     pass
         elif shape is not None:
             try:
-                if len(shape) == 2:
-                    meta["kind"] = "matrix"
-                    meta["nrow"] = int(shape[0])
-                    meta["ncol"] = int(shape[1])
-                else:
-                    meta["kind"] = "other"
+                dims = [int(v) for v in list(shape)]
             except Exception:
+                dims = None
+            dtype = None
+            try:
+                dt = getattr(obj, "dtype", None)
+                if dt is not None:
+                    dtype = getattr(dt, "name", None) or str(dt)
+            except Exception:
+                dtype = None
+            if dims is None:
+                meta["kind"] = "other"
+            elif len(dims) == 2:
+                meta["kind"] = "matrix"
+                meta["dimensions"] = dims
+                if dtype is not None:
+                    meta["dtype"] = dtype
+            elif len(dims) == 1:
+                meta["kind"] = "vector"
+                meta["dimensions"] = dims
+                if dtype is not None:
+                    meta["dtype"] = dtype
+            elif len(dims) > 2:
+                meta["kind"] = "array"
+                meta["dimensions"] = dims
+                if dtype is not None:
+                    meta["dtype"] = dtype
+            else:
                 meta["kind"] = "other"
         else:
             meta["kind"] = "other"
@@ -2738,17 +2767,34 @@ function jl_save_meta(obj, path)
         meta["class"] = string(typeof(obj))
         if obj isa AbstractDataFrame
             meta["kind"] = "dataframe"
-            meta["nrow"] = nrow(obj)
-            meta["ncol"] = ncol(obj)
+            try
+                meta["dimensions"] = [Int(nrow(obj)), Int(ncol(obj))]
+            catch
+            end
             try
                 meta["features"] = string.(names(obj))
             catch
             end
-        elseif obj isa AbstractArray && ndims(obj) == 2
-            s = size(obj)
-            meta["kind"] = "matrix"
-            meta["nrow"] = s[1]
-            meta["ncol"] = s[2]
+        elseif obj isa AbstractArray
+            shp = try
+                Int.(collect(size(obj)))
+            catch
+                nothing
+            end
+            if shp !== nothing
+                meta["dimensions"] = shp
+            end
+            try
+                meta["dtype"] = string(eltype(obj))
+            catch
+            end
+            if ndims(obj) == 2
+                meta["kind"] = "matrix"
+            elseif ndims(obj) == 1
+                meta["kind"] = "vector"
+            else
+                meta["kind"] = "array"
+            end
         else
             meta["kind"] = "other"
             isforest = try

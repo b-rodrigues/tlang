@@ -293,16 +293,19 @@ let run_tests _pass_count _fail_count _failures _eval_string eval_string_env tes
   let df_dir = make_node_dir "fake-py-frame" in
   write_file (Filename.concat df_dir "artifact") "0123456789";
   write_file (Filename.concat df_dir "meta")
-    {|{"kind":"dataframe","nrow":100,"ncol":6,"features":["a","b","c","d","e","f"]}|};
+    {|{"kind":"dataframe","dimensions":[100,6],"features":["a","b","c","d","e","f"]}|};
   let env_fm_df =
     Ast.Env.add "fake_py_frame"
       (Ast.VComputedNode (fake_cn ~name:"fake_py_frame_foreign_meta_test" ~runtime:"Python"
         ~path:(Filename.concat df_dir "artifact") ~class_:"DataFrame"))
       (Packages.init_env ())
   in
-  test_env env_fm_df "explain foreign meta frame shape"
-    "explain(fake_py_frame).foreign_meta.nrow"
+  test_env env_fm_df "explain foreign meta frame dimensions"
+    "get(explain(fake_py_frame).foreign_meta.dimensions, 0)"
     "100";
+  test_env env_fm_df "explain foreign meta frame dimensions rank"
+    "length(explain(fake_py_frame).foreign_meta.dimensions)"
+    "2";
   test_env env_fm_df "explain foreign meta frame features count"
     "length(explain(fake_py_frame).foreign_meta.features)"
     "6";
@@ -479,4 +482,53 @@ let run_tests _pass_count _fail_count _failures _eval_string eval_string_env tes
   test_env env_fm_jlkm "explain foreign meta julia kmeans cost"
     "explain(fake_jlkm).foreign_meta.metrics.totalcost"
     "4";
+  (* Matrix / array / vector shapes across runtimes *)
+  let mat_dir = make_node_dir "fake-mat" in
+  write_file (Filename.concat mat_dir "artifact") "0123456789";
+  write_file (Filename.concat mat_dir "meta")
+    {|{"kind":"matrix","class":"matrix","dimensions":[4,3],"dtype":"integer"}|};
+  let env_fm_mat =
+    Ast.Env.add "fake_mat"
+      (Ast.VComputedNode (fake_cn ~name:"fake_mat_foreign_meta_test" ~runtime:"R"
+        ~path:(Filename.concat mat_dir "artifact") ~class_:"matrix"))
+      (Packages.init_env ())
+  in
+  test_env env_fm_mat "explain foreign meta matrix dimensions"
+    "get(explain(fake_mat).foreign_meta.dimensions, 1)"
+    "3";
+  test_env env_fm_mat "explain foreign meta matrix dtype"
+    "explain(fake_mat).foreign_meta.dtype"
+    {|"integer"|};
+  let arr_dir = make_node_dir "fake-arr" in
+  write_file (Filename.concat arr_dir "artifact") "0123456789";
+  write_file (Filename.concat arr_dir "meta")
+    {|{"kind":"array","dimensions":[2,2,2],"dtype":"float64"}|};
+  let env_fm_arr =
+    Ast.Env.add "fake_arr"
+      (Ast.VComputedNode (fake_cn ~name:"fake_arr_foreign_meta_test" ~runtime:"Python"
+        ~path:(Filename.concat arr_dir "artifact") ~class_:"ndarray"))
+      (Packages.init_env ())
+  in
+  test_env env_fm_arr "explain foreign meta array kind"
+    "explain(fake_arr).foreign_meta.kind"
+    {|"array"|};
+  test_env env_fm_arr "explain foreign meta array dimensions rank"
+    "length(explain(fake_arr).foreign_meta.dimensions)"
+    "3";
+  let vec_dir = make_node_dir "fake-vec" in
+  write_file (Filename.concat vec_dir "artifact") "0123456789";
+  write_file (Filename.concat vec_dir "meta")
+    {|{"kind":"vector","class":"Vector{Int64}","dimensions":[3],"dtype":"Int64"}|};
+  let env_fm_vec =
+    Ast.Env.add "fake_vec"
+      (Ast.VComputedNode (fake_cn ~name:"fake_vec_foreign_meta_test" ~runtime:"Julia"
+        ~path:(Filename.concat vec_dir "artifact") ~class_:"Vector{Int64}"))
+      (Packages.init_env ())
+  in
+  test_env env_fm_vec "explain foreign meta vector dimensions"
+    "get(explain(fake_vec).foreign_meta.dimensions, 0)"
+    "3";
+  test_env env_fm_vec "explain foreign meta vector dtype"
+    "explain(fake_vec).foreign_meta.dtype"
+    {|"Int64"|};
   print_newline ()
