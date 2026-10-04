@@ -4401,6 +4401,7 @@ node.foreign_meta.n_features  -- input count (models)
 node.foreign_meta.n_trees     -- tree count (forests, when known)
 node.foreign_meta.n_rounds    -- boosting rounds (boosted trees, when known)
 node.foreign_meta.n_clusters  -- cluster count (clustering, when known)
+node.foreign_meta.n_nodes      -- tree node count (`rpart`, when known)
 node.foreign_meta.n_components -- component count (PCA, when known)
 node.foreign_meta.dtype        -- element type, e.g. "float64" (arrays, when known)
 node.foreign_meta.n_levels     -- level count with levels list (R factors)
@@ -4415,7 +4416,7 @@ node.foreign_meta.features    -- full feature/column list (first 500 entries; `n
 node.foreign_meta.metrics     -- free numeric metrics (r_squared, aic, bic, ...); numbers only, other values are dropped
 node.foreign_meta.artifact_size -- artifact file size in bytes
 
-Time-series decompositions (`stl`) report component names as features and the seasonal period. Survival models (`coxph`) report event counts and concordance. Rankers report boosting rounds. Frozen scipy distributions report the distribution name and moments. Pure transformers report `transformer` kind; Julia time arrays report `series` kind with timestamps counted as observations.
+Time-series decompositions (`stl`) report component names as features and the seasonal period. Survival models (`coxph`) report event counts and concordance; Kaplan-Meier fits (`survfit`) report per-stratum counts. Trees (`rpart`) report node counts and split variables. Density estimates report bandwidth. Multinomial logits report predictor names (not outcome labels) and `PHReg` reports survival tasks. Rankers report boosting rounds. Frozen scipy distributions report the distribution name and moments. Pure transformers report `transformer` kind; Julia time arrays report `series` kind with timestamps counted as observations.
 
 Julia note: fit-metric verbs (`nobs`, `coefnames`, `r2`, `aic`,
 `deviance`, `loglikelihood`) resolve from whatever the node session

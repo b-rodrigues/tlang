@@ -223,6 +223,7 @@ let register ?(ensure_docs=ignore) env =
     (match assoc_int "n_trees" pairs with Some n -> add "n_trees" (VInt n) | None -> ());
     (match assoc_int "n_rounds" pairs with Some n -> add "n_rounds" (VInt n) | None -> ());
     (match assoc_int "n_clusters" pairs with Some n -> add "n_clusters" (VInt n) | None -> ());
+    (match assoc_int "n_nodes" pairs with Some n -> add "n_nodes" (VInt n) | None -> ());
     (match assoc_int "n_levels" pairs with Some n -> add "n_levels" (VInt n) | None -> ());
     (match assoc_string_list "levels" pairs with
      | Some names ->
@@ -282,7 +283,7 @@ let register ?(ensure_docs=ignore) env =
     | [] -> VNA NAGeneric
     | _ ->
         let display = ["kind"; "class"; "task"; "method"; "dimensions"; "n_obs"; "n_groups"; "groups"; "n_features";
-                       "n_trees"; "n_rounds"; "n_clusters"; "n_components"; "n_levels";
+                       "n_trees"; "n_rounds"; "n_clusters"; "n_nodes"; "n_components"; "n_levels";
                        "dtype";
                        "target"; "order"; "seasonal_order"; "start"; "end";
                        "features_preview"; "levels_preview"; "formula_preview"; "metrics"; "artifact_size"] in

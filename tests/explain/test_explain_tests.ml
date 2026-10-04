@@ -623,6 +623,51 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
   test_env env_fm_tsobj "explain foreign meta series period"
     "explain(fake_tsobj).foreign_meta.metrics.period"
     "12";
+  let surv_dir = make_node_dir "fake-survfit" in
+  write_file (Filename.concat surv_dir "artifact") "0123456789";
+  write_file (Filename.concat surv_dir "meta")
+    {|{"kind":"model","class":"survfit","task":"survival","n_obs":228,"n_groups":2}|};
+  let env_fm_surv =
+    Ast.Env.add "fake_surv"
+      (Ast.VComputedNode (fake_cn ~name:"fake_surv_foreign_meta_test" ~runtime:"R"
+        ~path:(Filename.concat surv_dir "artifact") ~class_:"survfit"))
+      (Packages.init_env ())
+  in
+  test_env env_fm_surv "explain foreign meta survfit task"
+    "explain(fake_surv).foreign_meta.task"
+    {|"survival"|};
+  test_env env_fm_surv "explain foreign meta survfit groups"
+    "explain(fake_surv).foreign_meta.n_groups"
+    "2";
+  let rpart_dir = make_node_dir "fake-rpart" in
+  write_file (Filename.concat rpart_dir "artifact") "0123456789";
+  write_file (Filename.concat rpart_dir "meta")
+    {|{"kind":"model","class":"rpart","n_nodes":5,"n_features":2}|};
+  let env_fm_rpart =
+    Ast.Env.add "fake_rpart"
+      (Ast.VComputedNode (fake_cn ~name:"fake_rpart_foreign_meta_test" ~runtime:"R"
+        ~path:(Filename.concat rpart_dir "artifact") ~class_:"rpart"))
+      (Packages.init_env ())
+  in
+  test_env env_fm_rpart "explain foreign meta rpart nodes"
+    "explain(fake_rpart).foreign_meta.n_nodes"
+    "5";
+  let dens_dir = make_node_dir "fake-density" in
+  write_file (Filename.concat dens_dir "artifact") "0123456789";
+  write_file (Filename.concat dens_dir "meta")
+    {|{"kind":"distribution","class":"density","n_obs":32,"metrics":{"bw":2.476}}|};
+  let env_fm_dens =
+    Ast.Env.add "fake_dens"
+      (Ast.VComputedNode (fake_cn ~name:"fake_dens_foreign_meta_test" ~runtime:"R"
+        ~path:(Filename.concat dens_dir "artifact") ~class_:"density"))
+      (Packages.init_env ())
+  in
+  test_env env_fm_dens "explain foreign meta density kind"
+    "explain(fake_dens).foreign_meta.kind"
+    {|"distribution"|};
+  test_env env_fm_dens "explain foreign meta density bw"
+    "explain(fake_dens).foreign_meta.metrics.bw"
+    "2.476";
   let tbl_dir = make_node_dir "fake-table" in
   write_file (Filename.concat tbl_dir "artifact") "0123456789";
   write_file (Filename.concat tbl_dir "meta")
@@ -1011,7 +1056,14 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
          "r_save_meta(sstl, Sys.getenv(\"T_GOLD_OUT6\"))\n" ^
          "library(survival)\n" ^
          "cfit <- coxph(Surv(time, status) ~ age + sex, data = lung)\n" ^
-         "r_save_meta(cfit, Sys.getenv(\"T_GOLD_OUT7\"))\n"
+         "r_save_meta(cfit, Sys.getenv(\"T_GOLD_OUT7\"))\n" ^
+         "sfit <- survfit(Surv(time, status) ~ sex, data = lung)\n" ^
+         "r_save_meta(sfit, Sys.getenv(\"T_GOLD_OUT8\"))\n" ^
+         "library(rpart)\n" ^
+         "rp <- rpart(Species ~ ., iris)\n" ^
+         "r_save_meta(rp, Sys.getenv(\"T_GOLD_OUT9\"))\n" ^
+         "dn <- density(mtcars$mpg)\n" ^
+         "r_save_meta(dn, Sys.getenv(\"T_GOLD_OUT10\"))\n"
        in
        (match write_temp "r.R" drv with
         | None -> check_golden "R probe driver written" false
@@ -1023,9 +1075,12 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
             let out5_path = temp_path "r5.json" in
             let out6_path = temp_path "r6.json" in
             let out7_path = temp_path "r7.json" in
-            with_temp_files [drv_path; out_path; out2_path; out3_path; out4_path; out5_path; out6_path; out7_path] (fun () ->
-              let _ = shell_out (Printf.sprintf "T_GOLD_OUT=%s T_GOLD_OUT2=%s T_GOLD_OUT3=%s T_GOLD_OUT4=%s T_GOLD_OUT5=%s T_GOLD_OUT6=%s T_GOLD_OUT7=%s Rscript %s 2>/dev/null"
-                (Filename.quote out_path) (Filename.quote out2_path) (Filename.quote out3_path) (Filename.quote out4_path) (Filename.quote out5_path) (Filename.quote out6_path) (Filename.quote out7_path) (Filename.quote drv_path)) in
+            let out8_path = temp_path "r8.json" in
+            let out9_path = temp_path "r9.json" in
+            let out10_path = temp_path "r10.json" in
+            with_temp_files [drv_path; out_path; out2_path; out3_path; out4_path; out5_path; out6_path; out7_path; out8_path; out9_path; out10_path] (fun () ->
+              let _ = shell_out (Printf.sprintf "T_GOLD_OUT=%s T_GOLD_OUT2=%s T_GOLD_OUT3=%s T_GOLD_OUT4=%s T_GOLD_OUT5=%s T_GOLD_OUT6=%s T_GOLD_OUT7=%s T_GOLD_OUT8=%s T_GOLD_OUT9=%s T_GOLD_OUT10=%s Rscript %s 2>/dev/null"
+                (Filename.quote out_path) (Filename.quote out2_path) (Filename.quote out3_path) (Filename.quote out4_path) (Filename.quote out5_path) (Filename.quote out6_path) (Filename.quote out7_path) (Filename.quote out8_path) (Filename.quote out9_path) (Filename.quote out10_path) (Filename.quote drv_path)) in
               let json = match read_file_opt out_path with Some s -> s | None -> "" in
               let json2 = match read_file_opt out2_path with Some s -> s | None -> "" in
               let json3 = match read_file_opt out3_path with Some s -> s | None -> "" in
@@ -1033,6 +1088,9 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
               let json5 = match read_file_opt out5_path with Some s -> s | None -> "" in
               let json6 = match read_file_opt out6_path with Some s -> s | None -> "" in
               let json7 = match read_file_opt out7_path with Some s -> s | None -> "" in
+              let json8 = match read_file_opt out8_path with Some s -> s | None -> "" in
+              let json9 = match read_file_opt out9_path with Some s -> s | None -> "" in
+              let json10 = match read_file_opt out10_path with Some s -> s | None -> "" in
               check_golden "R probe keeps tiny p-values unrounded"
                 (match json_number json "p_value" with Some f -> f < 1e-6 | None -> false);
               check_golden "R probe keeps full float precision"
@@ -1048,7 +1106,13 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
               check_golden "R probe handles stl decomposition"
                 (contains json6 "time_series" && contains json6 "seasonal");
               check_golden "R probe handles coxph survival"
-                (contains json7 "survival" && contains json7 "concordance"))));
+                (contains json7 "survival" && contains json7 "concordance");
+              check_golden "R probe handles survfit curves"
+                (contains json8 "survival" && contains json8 "n_groups");
+              check_golden "R probe handles rpart trees"
+                (contains json9 "n_nodes" && contains json9 "Petal");
+              check_golden "R probe handles density estimates"
+                (contains json10 "distribution" && contains json10 "bw"))););
   (* Python: array-API const excluded from features; NaN sanitized. *)
   (match extract_fn ~keep_end:false "def py_save_meta(obj, path):" (fun l -> l <> "" && l.[0] <> ' ' && l.[0] <> '\t') with
    | None -> check_golden "Python probe source found" false
@@ -1073,6 +1137,12 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
            "py_save_meta(XGBRanker(n_estimators = 3).fit(_tlang_X, np.array([0, 0, 1, 1]), qid = np.array([0, 0, 0, 0])), os.environ[\"T_GOLD_OUT4\"])\n" ^
            "from scipy import stats as _tlang_stats\n" ^
            "py_save_meta(_tlang_stats.norm(0, 1), os.environ[\"T_GOLD_OUT5\"])\n" ^
+           "import statsmodels.formula.api as _tlang_smf\n" ^
+           "_tlang_mndf = pd.DataFrame({\"ym\": [0, 1, 1, 0, 1, 0], \"a\": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]})\n" ^
+           "py_save_meta(_tlang_smf.mnlogit(\"ym ~ a\", _tlang_mndf).fit(disp=0), os.environ[\"T_GOLD_OUT6\"])\n" ^
+           "from statsmodels.duration.hazard_regression import PHReg as _tlang_PHReg\n" ^
+           "_tlang_phdf = pd.DataFrame({\"t\": [5.0, 6.0, 6.0, 2.5, 4.0, 4.0], \"e\": [1, 0, 0, 1, 1, 1], \"x\": [0.0, 1.0, 2.0, 3.0, 4.0, 5.0]})\n" ^
+           "py_save_meta(_tlang_PHReg(_tlang_phdf[\"t\"], _tlang_phdf[[\"x\"]], status=_tlang_phdf[\"e\"]).fit(), os.environ[\"T_GOLD_OUT7\"])\n" ^
            "san = _tlang_sanitize_json({\"kind\": \"model\", \"metrics\": {\"aic\": float(\"nan\"), \"bic\": 2.5}})\n" ^
            "import json as _tlang_json_check\n" ^
            "with open(os.environ[\"T_GOLD_OUT2\"], \"w\") as f: _tlang_json_check.dump(san, f)\n"
@@ -1085,14 +1155,18 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
               let out3_path = temp_path "py3.json" in
               let out4_path = temp_path "py4.json" in
               let out5_path = temp_path "py5.json" in
-              with_temp_files [drv_path; out_path; out2_path; out3_path; out4_path; out5_path] (fun () ->
-                let _ = shell_out (Printf.sprintf "T_GOLD_OUT=%s T_GOLD_OUT2=%s T_GOLD_OUT3=%s T_GOLD_OUT4=%s T_GOLD_OUT5=%s python3 %s 2>/dev/null"
-                  (Filename.quote out_path) (Filename.quote out2_path) (Filename.quote out3_path) (Filename.quote out4_path) (Filename.quote out5_path) (Filename.quote drv_path)) in
+              let out6_path = temp_path "py6.json" in
+              let out7_path = temp_path "py7.json" in
+              with_temp_files [drv_path; out_path; out2_path; out3_path; out4_path; out5_path; out6_path; out7_path] (fun () ->
+                let _ = shell_out (Printf.sprintf "T_GOLD_OUT=%s T_GOLD_OUT2=%s T_GOLD_OUT3=%s T_GOLD_OUT4=%s T_GOLD_OUT5=%s T_GOLD_OUT6=%s T_GOLD_OUT7=%s python3 %s 2>/dev/null"
+                  (Filename.quote out_path) (Filename.quote out2_path) (Filename.quote out3_path) (Filename.quote out4_path) (Filename.quote out5_path) (Filename.quote out6_path) (Filename.quote out7_path) (Filename.quote drv_path)) in
                 let json = match read_file_opt out_path with Some s -> s | None -> "" in
                 let json2 = match read_file_opt out2_path with Some s -> s | None -> "" in
                 let json3 = match read_file_opt out3_path with Some s -> s | None -> "" in
                 let json4 = match read_file_opt out4_path with Some s -> s | None -> "" in
                 let json5 = match read_file_opt out5_path with Some s -> s | None -> "" in
+                let json6 = match read_file_opt out6_path with Some s -> s | None -> "" in
+                let json7 = match read_file_opt out7_path with Some s -> s | None -> "" in
                 check_golden "Python probe excludes const from OLS features"
                   (contains json "\"x\"" && not (contains json "const"));
                 check_golden "Python probe tags anomaly detectors"
@@ -1101,6 +1175,10 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
                   (contains json4 "ranking" && contains json4 "n_rounds");
                 check_golden "Python probe handles frozen distributions"
                   (contains json5 "distribution" && contains json5 "norm");
+                check_golden "Python probe handles multinomial logits"
+                  (contains json6 "classification" && contains json6 "\"a\"");
+                check_golden "Python probe handles Cox PH regression"
+                  (contains json7 "survival" && contains json7 "loglik");
                 check_golden "Python sanitizer drops NaN metrics, keeps the rest"
                   (contains json2 "bic" && not (contains json2 "aic"))))));
   (* Julia: end-to-end save_meta on a DataFrame plus the NaN sanitizer. *)

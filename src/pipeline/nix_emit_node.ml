@@ -1928,6 +1928,41 @@ r_save_meta <- function(object, path) {
       nev <- tryCatch(as.integer(object$nevent), error = function(e) NULL)
       if (!is.null(nev) && length(nev) == 1 && !is.na(nev)) metrics$n_events <- nev
       if (length(metrics) > 0) meta$metrics <- metrics
+    } else if (inherits(object, "survfit")) {
+      meta$kind <- "model"
+      meta$task <- "survival"
+      no <- tryCatch(object$n, error = function(e) NULL)
+      if (!is.null(no) && length(no) > 0 && !any(is.na(no))) meta$n_obs <- as.integer(sum(no))
+      st <- tryCatch(names(object$strata), error = function(e) NULL)
+      if (!is.null(st) && length(st) > 0) {
+        meta$n_groups <- length(st)
+        if (length(st) <= 50) meta$groups <- as.list(setNames(as.integer(object$n), st))
+      }
+    } else if (inherits(object, "rpart")) {
+      meta$kind <- "model"
+      fr <- tryCatch(object$frame, error = function(e) NULL)
+      if (!is.null(fr)) {
+        nr <- tryCatch(nrow(fr), error = function(e) NULL)
+        if (!is.null(nr) && length(nr) == 1 && !is.na(nr)) meta$n_nodes <- as.integer(nr)
+        vv <- tryCatch(fr$var, error = function(e) NULL)
+        if (!is.null(vv)) {
+          feats <- as.character(vv[vv != "<leaf>" & !is.na(vv)])
+          if (length(feats) > 0) {
+            meta$n_features <- length(feats)
+            meta$features <- as.list(feats)
+          }
+        }
+      }
+    } else if (inherits(object, "density")) {
+      meta$kind <- "distribution"
+      no <- tryCatch(object$n, error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- as.integer(no)
+      metrics <- list()
+      bw <- tryCatch(as.numeric(object$bw), error = function(e) NULL)
+      if (!is.null(bw) && length(bw) == 1 && !is.na(bw)) metrics$bw <- bw
+      kn <- tryCatch(object$kernel, error = function(e) NULL)
+      if (!is.null(kn) && length(kn) == 1 && !is.na(kn) && nzchar(kn)) meta$method <- kn
+      if (length(metrics) > 0) meta$metrics <- metrics
     } else if (inherits(object, "merMod")) {
       meta$kind <- "model"
       if (inherits(object, "glmerMod")) {
@@ -2697,6 +2732,18 @@ def py_save_meta(obj, path):
                     pass
             if "task" not in meta:
                 try:
+                    if "MNLogit" in cls.__name__ or "Multinomial" in cls.__name__:
+                        meta["task"] = "classification"
+                except Exception:
+                    pass
+            if "task" not in meta:
+                try:
+                    if "PHReg" in cls.__name__:
+                        meta["task"] = "survival"
+                except Exception:
+                    pass
+            if "task" not in meta:
+                try:
                     if "VAR" in cls.__name__:
                         meta["task"] = "time_series"
                 except Exception:
@@ -2729,12 +2776,19 @@ def py_save_meta(obj, path):
                     pass
                 elif params is not None:
                     names = None
+                    # Multinomial outcomes sit in columns; predictors are the index.
+                    is_mnlogit = False
                     try:
-                        cols = getattr(params, "columns", None)
-                        if cols is not None:
-                            names = [str(v) for v in list(cols)]
+                        is_mnlogit = "MNLogit" in cls.__name__ or "Multinomial" in cls.__name__
                     except Exception:
-                        names = None
+                        pass
+                    if not is_mnlogit:
+                        try:
+                            cols = getattr(params, "columns", None)
+                            if cols is not None:
+                                names = [str(v) for v in list(cols)]
+                        except Exception:
+                            names = None
                     if names is None:
                         try:
                             idx = getattr(params, "index", None)
