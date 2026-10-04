@@ -2039,7 +2039,22 @@ r_save_meta <- function(object, path) {
       meta$kind <- "other"
     }
     if (!is.null(meta$features) && length(meta$features) > 500) meta$features <- meta$features[1:500]
-    jsonlite::write_json(meta, path, auto_unbox = TRUE, null = "null", digits = NA)
+    meta_write_ok <- tryCatch({
+      jsonlite::write_json(meta, path, auto_unbox = TRUE, null = "null", digits = NA)
+      TRUE
+    }, error = function(e) FALSE)
+    if (!isTRUE(meta_write_ok)) {
+      meta$metrics <- NULL
+      meta$features <- NULL
+      meta$formula <- NULL
+      meta_write_ok2 <- tryCatch({
+        jsonlite::write_json(meta, path, auto_unbox = TRUE, null = "null", digits = NA)
+        TRUE
+      }, error = function(e) FALSE)
+      if (!isTRUE(meta_write_ok2)) {
+        try(jsonlite::write_json(list(kind = "unknown"), path, auto_unbox = TRUE), silent = TRUE)
+      }
+    }
   }, error = function(e) {
     try(jsonlite::write_json(list(kind = "unknown"), path, auto_unbox = TRUE), silent = TRUE)
   })
@@ -2288,6 +2303,15 @@ def py_save_meta(obj, path):
                 meta["task"] = "density"
             elif "task" not in meta and any(k in cls.__name__ for k in ("PCA", "TruncatedSVD", "NMF", "FactorAnalysis")):
                 meta["task"] = "dim_reduction"
+            if "task" not in meta:
+                try:
+                    tags_fn2 = getattr(obj, "__sklearn_tags__", None)
+                    if callable(tags_fn2):
+                        ttags = getattr(tags_fn2(), "transformer_tags", None)
+                        if ttags is not None:
+                            meta["kind"] = "transformer"
+                except Exception:
+                    pass
             n_feat = getattr(obj, "n_features_in_", None)
             if n_feat is not None:
                 try:
@@ -3318,8 +3342,20 @@ function jl_save_meta(obj, path)
         catch
         end
         meta = jl_sanitize_json_value(meta)
-        open(path, "w") do f
-            JSON.print(f, meta)
+        try
+            open(path, "w") do f
+                JSON.print(f, meta)
+            end
+        catch
+            try
+                delete!(meta, "metrics")
+                delete!(meta, "features")
+                delete!(meta, "formula")
+                open(path, "w") do f
+                    JSON.print(f, meta)
+                end
+            catch
+            end
         end
     catch
         try

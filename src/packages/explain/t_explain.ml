@@ -250,8 +250,24 @@ let register ?(ensure_docs=ignore) env =
      | "" -> ()
      | p ->
          (try
-            if Sys.file_exists p && not (Sys.is_directory p) then
-              add "artifact_size" (VInt (Unix.stat p).Unix.st_size)
+            if Sys.file_exists p then begin
+              (* Regular files report st_size; directories (e.g. Quarto
+                 sites) sum their regular files, symlinks excluded. *)
+              let rec dir_size acc path =
+                try
+                  let st = Unix.lstat path in
+                  match st.Unix.st_kind with
+                  | Unix.S_REG -> acc + st.Unix.st_size
+                  | Unix.S_DIR ->
+                      Array.fold_left (fun a e ->
+                        if e = "." || e = ".." then a
+                        else dir_size a (Filename.concat path e)
+                      ) acc (Sys.readdir path)
+                  | _ -> acc
+                with _ -> acc
+              in
+              add "artifact_size" (VInt (dir_size 0 p))
+            end
           with _ -> ()));
     let ordered = List.rev !fields in
     (match ordered with

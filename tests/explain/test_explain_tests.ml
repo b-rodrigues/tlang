@@ -578,6 +578,19 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
   test_env env_fm_dm "explain foreign meta data container dimensions"
     "get(explain(fake_dm).foreign_meta.dimensions, 0)"
     "6";
+  let tr_dir = make_node_dir "fake-transformer" in
+  write_file (Filename.concat tr_dir "artifact") "0123456789";
+  write_file (Filename.concat tr_dir "meta")
+    {|{"kind":"transformer","class":"StandardScaler","n_features":1}|};
+  let env_fm_tr =
+    Ast.Env.add "fake_tr"
+      (Ast.VComputedNode (fake_cn ~name:"fake_tr_foreign_meta_test" ~runtime:"Python"
+        ~path:(Filename.concat tr_dir "artifact") ~class_:"StandardScaler"))
+      (Packages.init_env ())
+  in
+  test_env env_fm_tr "explain foreign meta transformer kind"
+    "explain(fake_tr).foreign_meta.kind"
+    {|"transformer"|};
   (* Julia PCA and statespace nodes share the same schema keys *)
   let jlpc_dir = make_node_dir "fake-jlpca" in
   write_file (Filename.concat jlpc_dir "artifact") "0123456789";
