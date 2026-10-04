@@ -125,6 +125,13 @@ let register_keywords scope =
 
 let builtin_typ_cache = Hashtbl.create 100
 
+(** Drop cached builtin types derived from documentation.
+    Call after the documentation registry changes (load, restore):
+    cached `TFunction` shapes would otherwise outlive the registry
+    content they were derived from. *)
+let clear_builtin_typ_cache () =
+  Hashtbl.clear builtin_typ_cache
+
 (** Infer the semantic type of a runtime AST value.
     
     Utilizes caching for builtins to optimize repeated queries.
