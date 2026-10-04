@@ -100,11 +100,11 @@ let rec from_string str =
      regardless of arity (see `Ast.types_compatible`), because arity lives
      in the arrow and a bare `Function` name cannot name one. They add
      precision without new mismatch classes: a misspelled name simply
-     never matches a real annotation. Call-site checking stays absent by
-     design (the analyzer has no call checking), so these contracts
-     document and display but never reject a call. Deliberately excluded:
-     Error/VError/Null (descriptive positions, not contracts) and NA
-     (bottom rules own it). *)
+     never matches a real annotation. Argument-type checking stays absent
+     by design (`t check` warns on arity only, via `Check_utils`); these
+     contracts document and display but never reject a call. Deliberately
+     excluded: Error/VError/Null (descriptive positions, not contracts)
+     and NA (bottom rules own it). *)
   | "pipeline" -> TCustom "Pipeline"
   | "metapipeline" -> TCustom "MetaPipeline"
   | "model" -> TCustom "Model"

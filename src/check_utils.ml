@@ -625,6 +625,104 @@ let generic_body_diagnostics program filename =
   ) sites;
   List.rev !diags
 
+(** Call arity diagnostics (warn-only).
+    Mirrors the runtime arity rule in `Eval.eval_call` exactly: a
+    non-variadic builtin takes exactly `b_arity` arguments, counting
+    positional and named args together. A call on the right of `|>`
+    or `?|>` gets the piped value as an implicit first argument, so
+    one is added there (a bare `x |> f` counts one). Everything else
+    stays silent: variadic builtins, unknown names, and names bound
+    anywhere in the program (a local binding shadows the builtin).
+    This catches mistakes the evaluator never reaches — calls inside
+    lambdas, node blocks, and match arms — at check time. Severity is
+    Warning. The builtin table is a parameter so this module stays a
+    leaf (`Analyzer -> Packages -> Check_utils` must not cycle). *)
+let call_arity_diagnostics ~builtins program filename =
+  (* Every name with a local binding program-wide: assignments,
+     reassignments, lambda parameters, and match pattern binders.
+     Calling such a name may hit the local, not the builtin. *)
+  let bound = Hashtbl.create 32 in
+  let bind name = Hashtbl.replace bound name true in
+  let rec bind_pattern = function
+    | PVar s -> bind s
+    | PList (ps, rest) ->
+        List.iter bind_pattern ps;
+        (match rest with Some s -> bind s | None -> ())
+    | PError (Some s) -> bind s
+    | PUnion { pu_args; _ } -> List.iter bind_pattern pu_args
+    | PWildcard | PNA | PError None -> ()
+  in
+  let rec collect_expr e =
+    (match e.node with
+     | Lambda l -> List.iter bind l.params
+     | Match { cases; _ } -> List.iter (fun (p, _) -> bind_pattern p) cases
+     | _ -> ());
+    List.iter collect_expr (children_of_expr e)
+  and collect_stmt s =
+    (match s.node with
+     | Assignment { name; _ } | Reassignment { name; _ } -> bind name
+     | _ -> ());
+    List.iter collect_expr (children_of_stmt s)
+  in
+  List.iter collect_stmt program;
+  (* Call sites with pipe context: a call directly right of `|>`/`?|>`
+     sees one implicit extra argument. *)
+  let sites = ref [] in
+  let rec walk_expr piped e =
+    match e.node with
+    | Call { fn = { node = Var name; _ }; args; _ } ->
+        List.iter (fun (_, a) -> walk_expr false a) args;
+        sites := (name, List.length args + (if piped then 1 else 0), e.loc) :: !sites
+    | Call { fn; args; _ } ->
+        walk_expr false fn;
+        List.iter (fun (_, a) -> walk_expr false a) args
+    | BinOp { op = (Pipe | MaybePipe); left; right; _ } ->
+        walk_expr false left;
+        (match right.node with
+         | Call _ -> walk_expr true right
+         | Var name ->
+             sites := (name, 1, right.loc) :: !sites
+         | _ -> walk_expr false right)
+    | _ ->
+        List.iter (walk_expr false) (children_of_expr e)
+  in
+  List.iter (fun s -> List.iter (walk_expr false) (children_of_stmt s)) program;
+  let diags = ref [] in
+  List.iter (fun (name, received, loc) ->
+    if Hashtbl.mem bound name then ()
+    else match List.assoc_opt name builtins with
+    | Some (expected, false) when received <> expected ->
+        let line = match loc with
+          | Some (l : source_location) -> Some l.line
+          | None -> None
+        in
+        let col = match loc with
+          | Some (l : source_location) -> Some l.column
+          | None -> None
+        in
+        diags := { Diagnostics.diag_id = Diagnostics.gen_id ();
+          Diagnostics.diag_error_class = Diagnostics.Arity_error;
+          Diagnostics.diag_severity = Diagnostics.Warning;
+          Diagnostics.diag_phase = Diagnostics.Schema;
+          Diagnostics.diag_node_id = None;
+          Diagnostics.diag_node_lang = None;
+          Diagnostics.diag_file = Some filename;
+          Diagnostics.diag_line = line;
+          Diagnostics.diag_column = col;
+          Diagnostics.diag_end_line = None;
+          Diagnostics.diag_end_column = None;
+          Diagnostics.diag_message = Printf.sprintf
+            "Function `%s` expects %d argument(s) but received %d. The call fails at runtime."
+            name expected received;
+          Diagnostics.diag_expected = Some (string_of_int expected);
+          Diagnostics.diag_actual = Some (string_of_int received);
+          Diagnostics.diag_caused_by = [];
+          Diagnostics.diag_suggested_fix = Diagnostics.no_fix;
+        } :: !diags
+    | _ -> ()
+  ) (List.rev !sites);
+  List.rev !diags
+
 let run_check ?(schema=false) ?(env_check=false) ?(offline=false) mode filename env =
   let run () =
     Ast.check_mode := true;

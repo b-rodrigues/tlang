@@ -722,10 +722,20 @@ let check_type_annotations filename =
     let scope = Symbol_table.create_scope () in
     Symbol_table.register_keywords scope;
     let analysis = Analyzer.analyze program scope in
+    let builtins =
+      let acc = ref [] in
+      Ast.Env.iter (fun name v ->
+        match v with
+        | Ast.VBuiltin { Ast.b_name = Some n; Ast.b_arity; Ast.b_variadic; _ } when n = name ->
+            acc := (n, (b_arity, b_variadic)) :: !acc
+        | _ -> ()) (Packages.init_env ());
+      !acc
+    in
     Check_utils.annotation_diagnostics program analysis.Analyzer.stmt_types filename
     @ Check_utils.match_exhaustiveness_diagnostics program filename
     @ Check_utils.match_union_diagnostics program filename
     @ Check_utils.generic_body_diagnostics program filename
+    @ Check_utils.call_arity_diagnostics ~builtins program filename
   with
   | Lexer.SyntaxError _ ->
     (* Parse/syntax errors are already reported by check_utils normal flow. *)

@@ -709,7 +709,7 @@ let fct_c_impl (args : (string option * value) list) _env =
 --# Converts values to factor-encoded vectors with derived or explicit levels.
 --#
 --# @name to_factor
---# @param x :: Vector | List | Any The values to convert to factors.
+--# @param x :: Any The values to convert to factors. Accepts a vector, a list, or a scalar.
 --# @param levels :: Vector[String] | List[String] (Optional) Explicit level order. Defaults to sorted unique values.
 --# @param ordered :: Bool = false Mark the factor as ordered for ordinal comparisons.
 --# @return :: Vector[Factor] A factor vector.
@@ -927,7 +927,7 @@ let fct_c_impl (args : (string option * value) list) _env =
 --# Creates factor vectors marked as ordered for ordinal comparisons.
 --#
 --# @name ordered
---# @param x :: Vector | List | Any The values to convert to an ordered factor.
+--# @param x :: Any The values to convert to an ordered factor. Accepts a vector, a list, or a scalar.
 --# @param levels :: Vector[String] | List[String] (Optional) Explicit level order.
 --# @return :: Vector[Factor] An ordered factor vector.
 --# @example

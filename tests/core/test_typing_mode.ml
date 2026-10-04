@@ -207,6 +207,75 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
   check_generic "nested generic return stays silent"
     {|f = \<T>(x: T -> List[T]) x|} 0 None;
 
+  (* Call arity check (warn-only): a non-variadic builtin takes exactly
+     its registered arity; a call right of `|>`/`?|>` counts the piped
+     value as one more argument. Variadic builtins, unknown names, and
+     locally shadowed names stay silent. Direct calls keep the helper
+     honest. *)
+  let check_arity name code expect_count expect_sub =
+    let program =
+      try parse_program code
+      with _ -> []
+    in
+    let builtins =
+      let acc = ref [] in
+      Ast.Env.iter (fun name v ->
+        match v with
+        | Ast.VBuiltin { Ast.b_name = Some n; Ast.b_arity; Ast.b_variadic; _ } when n = name ->
+            acc := (n, (b_arity, b_variadic)) :: !acc
+        | _ -> ()) (Packages.init_env ());
+      !acc
+    in
+    let diags =
+      try Check_utils.call_arity_diagnostics ~builtins program "test.t"
+      with _ -> []
+    in
+    let n = List.length diags in
+    let sub_ok =
+      match expect_sub with
+      | None -> true
+      | Some sub ->
+          List.exists (fun d ->
+            let msg = d.Diagnostics.diag_message in
+            let sl = String.length msg and bl = String.length sub in
+            if bl = 0 then true
+            else begin
+              let rec loop i =
+                if i + bl > sl then false
+                else if String.sub msg i bl = sub then true
+                else loop (i + 1)
+              in
+              loop 0
+            end) diags
+    in
+    let sev_ok =
+      List.for_all (fun d -> d.Diagnostics.diag_severity = Diagnostics.Warning) diags
+    in
+    report name (n = expect_count && sub_ok && sev_ok)
+  in
+  check_arity "arity exact count stays silent"
+    {|identical(1, 1)|} 0 None;
+  check_arity "arity too few warns"
+    {|identical(1)|} 1 (Some "expects 2 argument(s) but received 1");
+  check_arity "arity too many warns"
+    {|identical(1, 2, 3)|} 1 (Some "expects 2 argument(s) but received 3");
+  check_arity "arity none given warns"
+    {|type()|} 1 (Some "expects 1 argument(s) but received 0");
+  check_arity "arity inside lambda warns"
+    {|f = \(x) identical(x)|} 1 (Some "expects 2 argument(s) but received 1");
+  check_arity "arity pipe adds one stays silent"
+    {|1 |> identical(1)|} 0 None;
+  check_arity "arity pipe too many warns"
+    {|1 |> identical(1, 2)|} 1 (Some "expects 2 argument(s) but received 3");
+  check_arity "arity bare pipe counts one"
+    {|1 |> identical|} 1 (Some "expects 2 argument(s) but received 1");
+  check_arity "arity shadowed name stays silent"
+    {|identical = \(x) x; identical(1)|} 0 None;
+  check_arity "arity variadic stays silent"
+    {|sum(1, 2, 3)|} 0 None;
+  check_arity "arity unknown function stays silent"
+    {|nosuchfn(1, 2, 3)|} 0 None;
+
   (* Typing coverage audit (spec typesystem item 5): what fraction of
      builtins carry precise Tdoc signatures that inference actually uses?
      A builtin counts as fully precise when its return and every parameter

@@ -4,7 +4,8 @@
 
 ### New features
 
-- **More precise documented signatures for static types**: string helpers, joins, verbs, factor helpers, converters, and pipeline set operations now carry exact parameter and return types, and the checker knows the `Function`, `Column`, `Selection`, `KeywordArgs`, and `Expressions` vocabulary as named contracts. Typing coverage moved from 382 to 444 of 533 fully precise builtins. Signatures document only; call checking stays absent, and the full suite in strict mode shows no new diagnostics on existing programs. The new precision is visible in reference pages and hover text.
+- **More precise documented signatures for static types**: string helpers, joins, verbs, factor helpers, converters, and pipeline set operations now carry exact parameter and return types, and the checker knows the `Function`, `Column`, `Selection`, `KeywordArgs`, and `Expressions` vocabulary as named contracts. Typing coverage moved from 382 to 444 of 533 fully precise builtins. Signatures document only; argument-type checking stays absent (arity is now warned on, see below), and the full suite in strict mode shows no new diagnostics on existing programs. The new precision is visible in reference pages and hover text.
+- **`t check` warns on builtin arity mismatches**: a non-variadic builtin called with the wrong argument count warns naming expected and received counts. Calls right of `|>`/`?|>` count the piped value as one argument. Variadic builtins, unknown names, and locally shadowed names stay silent. This catches calls the evaluator never reaches, such as calls inside lambda bodies. Five `Any`-collapsed signatures (`ifelse` values, `to_factor`/`ordered` inputs) now read bare `Any`, so the unknown-signature watch list is empty.
 
 ### Fixes
 

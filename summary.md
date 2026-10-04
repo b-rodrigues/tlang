@@ -223,6 +223,7 @@ add = \(a, b) a + b
 - Mismatches produce warnings: `Variable 'z' annotated as Int, but expression infers to string.`
 - Type annotations are optional — unannotated variables are inferred freely
 - Expression-level inference covers `BinOp`, `UnOp`, `IfElse`, `Match`, `ListLit`, `DotAccess`, and `Lambda` return types. Division always infers `Float`; comparison operators infer `Bool`
+- `t check` warns on builtin arity mismatches: a non-variadic builtin called with the wrong count warns naming expected and received (pipe-fed values count as one argument). Variadic builtins, unknown names, and locally shadowed names stay silent. This catches calls the evaluator never reaches, such as calls inside lambda bodies.
 
 The analyzer also propagates types through pipeline operations:
 - `mutate` infers column types from expressions

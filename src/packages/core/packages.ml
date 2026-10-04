@@ -353,11 +353,11 @@ let register env =
 --#
 --# @name ifelse
 --# @param condition :: Bool | Vector[Bool] The condition to check.
---# @param true_val :: Any | Vector[Any] Value to return if condition is true.
---# @param false_val :: Any | Vector[Any] Value to return if condition is false.
+--# @param true_val :: Any Value to return if condition is true. Accepts a scalar or a vector.
+--# @param false_val :: Any Value to return if condition is false. Accepts a scalar or a vector.
 --# @param missing :: Any (Optional) Value to return if condition is NA. Defaults to NA.
 --# @param out_type :: String (Optional) Force-cast output values to Int, Float, String, or Bool.
---# @return :: Any | Vector[Any] A scalar when `condition` is scalar, otherwise a vector aligned to `condition`.
+--# @return :: Any A scalar when `condition` is scalar, otherwise a vector aligned to `condition`.
 --# @example
 --#   ifelse(x > 5, "High", "Low")
 --#   ifelse(x % 2 == 0, x, 0)
