@@ -87,6 +87,7 @@
         ]);
 
         julia-with-packages = pkgs.julia-lts.withPackages [
+          "Clustering"
           "DataFrames"
           "DecisionTree"
           "GLM"

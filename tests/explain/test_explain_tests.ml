@@ -463,4 +463,20 @@ let run_tests _pass_count _fail_count _failures _eval_string eval_string_env tes
   test_env env_fm_pc "explain foreign meta pca task"
     "explain(fake_pca).foreign_meta.task"
     {|"dim_reduction"|};
+  let jlkm_dir = make_node_dir "fake-jlkm" in
+  write_file (Filename.concat jlkm_dir "artifact") "0123456789";
+  write_file (Filename.concat jlkm_dir "meta")
+    {|{"kind":"model","class":"KmeansResult","task":"clustering","n_clusters":2,"n_obs":4,"n_features":2,"metrics":{"totalcost":4.0}}|};
+  let env_fm_jlkm =
+    Ast.Env.add "fake_jlkm"
+      (Ast.VComputedNode (fake_cn ~name:"fake_jlkm_foreign_meta_test" ~runtime:"Julia"
+        ~path:(Filename.concat jlkm_dir "artifact") ~class_:"KmeansResult"))
+      (Packages.init_env ())
+  in
+  test_env env_fm_jlkm "explain foreign meta julia kmeans task"
+    "explain(fake_jlkm).foreign_meta.task"
+    {|"clustering"|};
+  test_env env_fm_jlkm "explain foreign meta julia kmeans cost"
+    "explain(fake_jlkm).foreign_meta.metrics.totalcost"
+    "4";
   print_newline ()

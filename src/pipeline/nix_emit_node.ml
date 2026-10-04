@@ -2772,6 +2772,56 @@ function jl_save_meta(obj, path)
                 catch
                 end
             end
+            iskmeans = try
+                hasproperty(obj, :counts) && hasproperty(obj, :centers) && hasproperty(obj, :totalcost)
+            catch
+                false
+            end
+            if iskmeans
+                meta["kind"] = "model"
+                meta["task"] = "clustering"
+                try
+                    meta["n_clusters"] = Int(length(obj.counts))
+                catch
+                end
+                try
+                    meta["n_obs"] = Int(sum(obj.counts))
+                catch
+                end
+                try
+                    meta["n_features"] = Int(size(obj.centers, 1))
+                catch
+                end
+                try
+                    mm = haskey(meta, "metrics") ? meta["metrics"] : Dict{String, Any}()
+                    mm["totalcost"] = Float64(obj.totalcost)
+                    meta["metrics"] = mm
+                catch
+                end
+            end
+            ishclust = try
+                hasproperty(obj, :merges) && hasproperty(obj, :heights) && hasproperty(obj, :order) && hasproperty(obj, :linkage)
+            catch
+                false
+            end
+            if ishclust
+                meta["kind"] = "model"
+                meta["task"] = "clustering"
+                try
+                    meta["method"] = string(obj.linkage)
+                catch
+                end
+                try
+                    meta["n_obs"] = Int(length(obj.order))
+                catch
+                end
+                try
+                    mm = haskey(meta, "metrics") ? meta["metrics"] : Dict{String, Any}()
+                    mm["max_height"] = Float64(maximum(obj.heights))
+                    meta["metrics"] = mm
+                catch
+                end
+            end
             try
                 meta["n_obs"] = Int(nobs(obj))
             catch
@@ -2822,7 +2872,7 @@ function jl_save_meta(obj, path)
             catch
             end
             try
-                metrics = Dict{String, Any}()
+                metrics = haskey(meta, "metrics") ? meta["metrics"] : Dict{String, Any}()
                 try
                     metrics["r_squared"] = Float64(r2(obj))
                 catch
