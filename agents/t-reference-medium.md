@@ -70,7 +70,7 @@ node_info.diagnostics
 - Use `pipeline_run(p)` to re-run an already defined pipeline.
 - Use `explain(read_node("name"))` when debugging node outputs; diagnostics live alongside explained `contents`.
 - Use `explain(p)` for lineage: each node lists `dependencies` and `children`.
-- Use `explain(p.node).foreign_meta` for foreign shape/model facts (dimensions, task, metrics); `t explain --node p.name` prints the same plus ancestors/children.
+- Use `explain(p.node).foreign_meta` for foreign shape/model facts (dimensions, task, metrics); `t explain --node p.name` prints the same plus parents/children.
 - Use `suppress_warnings(node)` when a node is intentionally noisy but should stay auditable.
 
 ---

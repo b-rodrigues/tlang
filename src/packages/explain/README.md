@@ -75,6 +75,16 @@ for frames, forests, and discriminant means; fitted coefficient names
 for `lm`-family models. `seasonal_order` is only emitted for genuinely
 seasonal fits. Metrics are best effort per runtime and differ by family;
 check presence before use.
+
+Per-family facts: `stl` reports components and period; `acf` reports
+correlation type and series name; `smooth.spline` reports penalty and
+degrees of freedom; `ecdf` reports observation counts; `survfit` reports
+per-stratum counts; `rpart` reports node counts and de-duplicated split
+variables with task from the fit method; `Logit`/`Probit` report
+classification; multinomial logits report predictor names; `PHReg`
+reports survival; rankers report training rounds via `current_iteration`
+with per-iteration fallback; frozen scipy distributions report name and
+moments; R factors report levels and R `ts` objects report start/end.
 ```
 
 The tree display shows short `features_preview`/`formula_preview` forms;
