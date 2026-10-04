@@ -864,24 +864,30 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
          "tt <- t.test(rnorm(50, 0, 1), rnorm(50, 10, 1))\n" ^
          "r_save_meta(tt, Sys.getenv(\"T_GOLD_OUT\"))\n" ^
          "fit <- lm(mpg ~ wt + hp, data = mtcars)\n" ^
-         "r_save_meta(fit, Sys.getenv(\"T_GOLD_OUT2\"))\n"
+         "r_save_meta(fit, Sys.getenv(\"T_GOLD_OUT2\"))\n" ^
+         "gfit <- mgcv::gam(mpg ~ s(wt) + hp, data = mtcars)\n" ^
+         "r_save_meta(gfit, Sys.getenv(\"T_GOLD_OUT3\"))\n"
        in
        (match write_temp "r.R" drv with
         | None -> check_golden "R probe driver written" false
         | Some drv_path ->
             let out_path = temp_path "r.json" in
             let out2_path = temp_path "r2.json" in
-            with_temp_files [drv_path; out_path; out2_path] (fun () ->
-              let _ = shell_out (Printf.sprintf "T_GOLD_OUT=%s T_GOLD_OUT2=%s Rscript %s 2>/dev/null"
-                (Filename.quote out_path) (Filename.quote out2_path) (Filename.quote drv_path)) in
+            let out3_path = temp_path "r3.json" in
+            with_temp_files [drv_path; out_path; out2_path; out3_path] (fun () ->
+              let _ = shell_out (Printf.sprintf "T_GOLD_OUT=%s T_GOLD_OUT2=%s T_GOLD_OUT3=%s Rscript %s 2>/dev/null"
+                (Filename.quote out_path) (Filename.quote out2_path) (Filename.quote out3_path) (Filename.quote drv_path)) in
               let json = match read_file_opt out_path with Some s -> s | None -> "" in
               let json2 = match read_file_opt out2_path with Some s -> s | None -> "" in
+              let json3 = match read_file_opt out3_path with Some s -> s | None -> "" in
               check_golden "R probe keeps tiny p-values unrounded"
                 (match json_number json "p_value" with Some f -> f < 1e-6 | None -> false);
               check_golden "R probe keeps full float precision"
                 (match json_number json2 "r_squared" with
                  | Some f -> abs_float (f -. 0.826785451882791) < 1e-6
-                 | None -> false))));
+                 | None -> false);
+              check_golden "R probe handles gam through the glm branch"
+                (contains json3 "regression" && contains json3 "s(wt)"))));
   (* Python: array-API const excluded from features; NaN sanitized. *)
   (match extract_fn ~keep_end:false "def py_save_meta(obj, path):" (fun l -> l <> "" && l.[0] <> ' ' && l.[0] <> '\t') with
    | None -> check_golden "Python probe source found" false
@@ -899,6 +905,8 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
            "df = pd.DataFrame({\"y\": [2.0, 4.0, 5.0, 4.0], \"x\": [1.0, 2.0, 3.0, 4.0]})\n" ^
            "import os\n" ^
            "py_save_meta(sm.OLS(df[\"y\"], sm.add_constant(df[[\"x\"]])).fit(), os.environ[\"T_GOLD_OUT\"])\n" ^
+           "from sklearn.ensemble import IsolationForest\n" ^
+           "py_save_meta(IsolationForest().fit(np.array([[1.0],[2.0],[3.0]])), os.environ[\"T_GOLD_OUT3\"])\n" ^
            "san = _tlang_sanitize_json({\"kind\": \"model\", \"metrics\": {\"aic\": float(\"nan\"), \"bic\": 2.5}})\n" ^
            "import json as _tlang_json_check\n" ^
            "with open(os.environ[\"T_GOLD_OUT2\"], \"w\") as f: _tlang_json_check.dump(san, f)\n"
@@ -908,13 +916,17 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
           | Some drv_path ->
               let out_path = temp_path "py.json" in
               let out2_path = temp_path "py2.json" in
-              with_temp_files [drv_path; out_path; out2_path] (fun () ->
-                let _ = shell_out (Printf.sprintf "T_GOLD_OUT=%s T_GOLD_OUT2=%s python3 %s 2>/dev/null"
-                  (Filename.quote out_path) (Filename.quote out2_path) (Filename.quote drv_path)) in
+              let out3_path = temp_path "py3.json" in
+              with_temp_files [drv_path; out_path; out2_path; out3_path] (fun () ->
+                let _ = shell_out (Printf.sprintf "T_GOLD_OUT=%s T_GOLD_OUT2=%s T_GOLD_OUT3=%s python3 %s 2>/dev/null"
+                  (Filename.quote out_path) (Filename.quote out2_path) (Filename.quote out3_path) (Filename.quote drv_path)) in
                 let json = match read_file_opt out_path with Some s -> s | None -> "" in
                 let json2 = match read_file_opt out2_path with Some s -> s | None -> "" in
+                let json3 = match read_file_opt out3_path with Some s -> s | None -> "" in
                 check_golden "Python probe excludes const from OLS features"
                   (contains json "\"x\"" && not (contains json "const"));
+                check_golden "Python probe tags anomaly detectors"
+                  (contains json3 "anomaly_detection");
                 check_golden "Python sanitizer drops NaN metrics, keeps the rest"
                   (contains json2 "bic" && not (contains json2 "aic"))))));
   (* Julia: end-to-end save_meta on a DataFrame plus the NaN sanitizer. *)
@@ -937,6 +949,12 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
                 "end\n" ^
                 "using DataFrames\n" ^
                 "jl_save_meta(DataFrame(a = [1, 2, 3]), ENV[\"T_GOLD_OUT\"])\n" ^
+                "struct TlangGoldMedoids\n" ^
+                "    counts::Vector{Int}\n" ^
+                "    medoids::Vector{Int}\n" ^
+                "    totalcost::Float64\n" ^
+                "end\n" ^
+                "jl_save_meta(TlangGoldMedoids([2, 2], [1, 3], 4.0), ENV[\"T_GOLD_OUT3\"])\n" ^
                 "d = jl_sanitize_json_value(Dict(\"kind\" => \"model\", \"metrics\" => Dict(\"aic\" => NaN, \"bic\" => 1.5)))\n" ^
                 "open(ENV[\"T_GOLD_OUT2\"], \"w\") do f\n" ^
                 "    print(f, d)\n" ^
@@ -947,15 +965,19 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
                | Some drv_path ->
                    let out_path = temp_path "jl.json" in
                    let out2_path = temp_path "jl2.json" in
-                   with_temp_files [drv_path; out_path; out2_path] (fun () ->
-                     let _ = shell_out (Printf.sprintf "T_GOLD_OUT=%s T_GOLD_OUT2=%s julia %s 2>/dev/null"
-                       (Filename.quote out_path) (Filename.quote out2_path) (Filename.quote drv_path)) in
+                   let out3_path = temp_path "jl3.json" in
+                   with_temp_files [drv_path; out_path; out2_path; out3_path] (fun () ->
+                     let _ = shell_out (Printf.sprintf "T_GOLD_OUT=%s T_GOLD_OUT2=%s T_GOLD_OUT3=%s julia %s 2>/dev/null"
+                       (Filename.quote out_path) (Filename.quote out2_path) (Filename.quote out3_path) (Filename.quote drv_path)) in
                      let json = match read_file_opt out_path with Some s -> s | None -> "" in
                      let txt = match read_file_opt out2_path with Some s -> s | None -> "" in
+                     let json3 = match read_file_opt out3_path with Some s -> s | None -> "" in
                      check_golden "Julia probe writes a real sidecar end to end"
                        (contains json "dataframe" && contains json "dimensions");
                      check_golden "Julia sanitizer drops NaN metrics, keeps the rest"
-                       (contains txt "bic" && not (contains txt "aic"))))));
+                       (contains txt "bic" && not (contains txt "aic"));
+                     check_golden "Julia probe detects medoids clustering"
+                       (contains json3 "clustering" && contains json3 "n_clusters")))));
   (* Skips are environmental (missing runtime), never code regressions:
      extraction breakage fails loudly above. They are reported loudly
      but do not fail, so cross-platform CI (e.g. macOS images without a
