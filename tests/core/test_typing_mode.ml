@@ -250,6 +250,8 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
     {|identical = \(x) x; identical(1)|} 0 None;
   check_arity "arity package alias shadows builtin"
     {|import core [identical = sum]; identical(1)|} 0 None;
+  check_arity "arity selective import without alias still checks"
+    {|import core [identical]; identical(1)|} 1 (Some "expects 2 argument(s) but received 1");
   (* A file import binding a builtin name shadows it just as well. *)
   let shadow_path = Filename.temp_file "t_shadow_import" ".t" in
   (let oc = open_out shadow_path in
@@ -257,6 +259,7 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
    close_out oc);
   check_arity "arity file import shadows builtin"
     (Printf.sprintf {|import "%s" [identical]; identical(1)|} shadow_path) 0 None;
+  (try Sys.remove shadow_path with _ -> ());
   check_arity "arity variadic stays silent"
     {|sum(1, 2, 3)|} 0 None;
   check_arity "arity unknown function stays silent"
@@ -425,7 +428,13 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
   with_prod_docs (fun () ->
     check_ret "return mismatch warns on annotation"
       {|s: String = nrow(df)|} `Annot 1 (Some "annotated as String, but expression infers to Int");
-    check_ret "return match stays silent on annotation"
+    (* `ifelse` accepts scalar conditions and returns scalars for them
+       (verified at runtime), so neither the argument nor the
+       annotation check may warn here. *)
+    check_ret "ifelse scalar condition stays silent"
+      {|ifelse(true, 1, 2)|} `Types 0 None;
+    check_ret "ifelse scalar result matches Int annotation"
+      {|r: Int = ifelse(true, 1, 2)|} `Annot 0 None;    check_ret "return match stays silent on annotation"
       {|nn: Int = nrow(df)|} `Annot 0 None;
     check_ret "import keeps builtin return precision"
       {|import core
@@ -437,7 +446,52 @@ s2: String = nrow(df)|} `Annot 1 (Some "annotated as String, but expression infe
     check_ret "chained calls stay silent when types agree"
       {|str_squish(str_squish("  a  "))|} `Types 0 None;
     check_ret "arity failure skips argument types on real builtins"
-      {|str_squish(nrow(df), "extra")|} `Types 0 None
+      {|str_squish(nrow(df), "extra")|} `Types 0 None;
+    (* Import scoping guard: the analyzer scopes imports from the
+       static per-package lists, while `package_info` merges documented
+       names. Every documented-only name must need no scope entry
+       (live builtin covered by the populated scope, eval special form,
+       concept doc, or internal helper) — otherwise `import pkg` would
+       scope differently from what the docs promise. The documented set
+       is recomputed here from this block's src-derived registry (never
+       `package_functions`, which would fire the one-shot documentation
+       loader), so this stays hermetic under any suite order. New
+       internal --# blocks must either stay @private or join the
+       allowlist below. *)
+    (let no_scope_needed = [
+       (* Eval special forms (see eval.ml): callable, never in the env. *)
+       "node"; "pyn"; "rn"; "jln"; "qn"; "shn";
+       (* Concept doc, not a callable. *)
+       "lens";
+       (* Internal OCaml helpers with --# blocks, never callable from T. *)
+       "parse_file"; "run_doctor"; "scaffold_package"; "scaffold_project";
+       "update_flake_lock"; "build_pipeline_internal";
+     ] in
+     let env = Packages.init_env () in
+     let unaccounted =
+       List.filter_map (fun pkg ->
+         let static = pkg.Packages.functions in
+         let fams = Packages.package_families pkg.Packages.name in
+         let documented =
+           List.filter_map (fun (e : Tdoc_types.doc_entry) ->
+             match e.Tdoc_types.family with
+             | Some f when List.mem f fams && e.Tdoc_types.is_export ->
+                 Some e.Tdoc_types.name
+             | _ -> None
+           ) (Tdoc_registry.get_all ())
+         in
+         let only_doc = List.filter (fun f -> not (List.mem f static)) documented in
+         let accounted f = Ast.Env.mem f env || List.mem f no_scope_needed in
+         (match List.filter (fun f -> not (accounted f)) only_doc with
+          | [] -> None
+          | bad -> Some (pkg.Packages.name ^ ": " ^ String.concat "," bad))
+       ) Packages.all_packages
+     in
+     match unaccounted with
+     | [] -> report "documented-only names need no import scope" true
+     | ms ->
+         List.iter (fun m -> Printf.printf "    unaccounted: %s\n" m) ms;
+         report "documented-only names need no import scope" false)
   );
   check_arity "arity real builtin too many warns"
     {|str_squish("a", "b")|} 1 (Some "expects 1 argument(s) but received 2");

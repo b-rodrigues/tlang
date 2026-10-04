@@ -40,19 +40,22 @@ let closure step target =
     dependents in dependency-map order, de-duplicated. Nodes without
     dependents are absent; look them up with `Hashtbl.find_opt`. *)
 let children_table p_deps =
-  let tbl = Hashtbl.create 16 in
+  let acc = Hashtbl.create 16 in
   List.iter (fun (n, deps) ->
     List.iter (fun d ->
-      let cur = match Hashtbl.find_opt tbl d with
+      let cur = match Hashtbl.find_opt acc d with
         | Some l -> l
         | None -> []
       in
-      Hashtbl.replace tbl d (n :: cur)
+      Hashtbl.replace acc d (n :: cur)
     ) deps
   ) p_deps;
+  (* A second table is built instead of replacing during iteration:
+     mutating a hash table while iterating it is unspecified. *)
+  let tbl = Hashtbl.create 16 in
   Hashtbl.iter (fun d l ->
-    Hashtbl.replace tbl d (dedup (List.rev l))
-  ) tbl;
+    Hashtbl.add tbl d (dedup (List.rev l))
+  ) acc;
   tbl
 
 (** Direct children of a node via a table built by [children_table]. *)
@@ -60,3 +63,29 @@ let direct_children tbl target =
   match Hashtbl.find_opt tbl target with
   | Some l -> l
   | None -> []
+
+(** Indexed dependency map: both directions precomputed once, so every
+    per-node closure below stays linear. *)
+type index = {
+  parents : (string, string list) Hashtbl.t;
+  children : (string, string list) Hashtbl.t;
+}
+
+(** Build both directions from `[(node, direct_dependencies)]`.
+    Neighbors keep dependency-map order, de-duplicated. *)
+let index p_deps =
+  let parents = Hashtbl.create 16 in
+  List.iter (fun (n, deps) ->
+    Hashtbl.replace parents n (dedup deps)
+  ) p_deps;
+  { parents; children = children_table p_deps }
+
+(** Direct inputs (parents) of a node. Empty when unknown. *)
+let parents_of idx target =
+  match Hashtbl.find_opt idx.parents target with
+  | Some l -> l
+  | None -> []
+
+(** Direct dependents (children) of a node. Empty when unknown. *)
+let children_of idx target =
+  direct_children idx.children target

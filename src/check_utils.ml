@@ -666,12 +666,19 @@ let builtin_sigs_of_env env =
     Calling such a name may hit the local, not the builtin, so call
     checks stay silent for it. Shared by the arity and argument-type
     checks below. A bare `import package` is deliberately excluded: it
-    re-exposes the same builtins, so builtin signatures still apply. *)
+    re-exposes the same builtins, so builtin signatures still apply.
+    Selective package imports without an alias (`import m [name]`) are
+    likewise excluded — they bind the package member under its own
+    name, and for the standard packages that is the builtin itself.
+    Only an alias can introduce a genuinely new local binding there.
+    File imports always bind (user code may shadow anything). *)
 let locally_bound_names program =
   let bound = Hashtbl.create 32 in
   let bind name = Hashtbl.replace bound name true in
-  let bind_import_spec (import_item : import_spec) =
-    bind (Option.value ~default:import_item.import_name import_item.import_alias)
+  let bind_import_spec bind_plain (import_item : import_spec) =
+    match import_item.import_alias with
+    | Some nick -> bind nick
+    | None -> if bind_plain then bind import_item.import_name else ()
   in
   let rec bind_pattern = function
     | PVar s -> bind s
@@ -691,8 +698,10 @@ let locally_bound_names program =
   and collect_stmt s =
     (match s.node with
      | Assignment { name; _ } | Reassignment { name; _ } -> bind name
-     | ImportFrom { names; _ } | ImportFileFrom { names; _ } ->
-         List.iter bind_import_spec names
+     | ImportFrom { names; _ } ->
+         List.iter (bind_import_spec false) names
+     | ImportFileFrom { names; _ } ->
+         List.iter (bind_import_spec true) names
      | _ -> ());
     List.iter collect_expr (children_of_stmt s)
   in
@@ -850,7 +859,11 @@ let call_type_diagnostics ~sigs ~infer program filename =
              parameter can only warn falsely — e.g. `f(a = 1, "x")`
              binds `a = 1` either way. Claimed slots are therefore
              removed before assigning positionals; named arguments
-             always check against their named parameter. *)
+             always check against their named parameter. Note this is
+             more lenient than runtime for plain builtins (where
+             `f(opt = "x", 1)` would misbind `"x"` to the first
+             parameter): that only ever misses warnings, never adds
+             false ones. *)
           let claimed = List.map fst named in
           let params_open =
             List.filter (fun (n, _) -> not (List.mem n claimed)) params

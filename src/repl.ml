@@ -995,18 +995,13 @@ let cmd_explain ?failfast mode rest env =
                     plus the transitive closures (ancestors of ancestors,
                     descendants of descendants), nearest-first,
                     de-duplicated, self excluded and cycle-safe (shared
-                    with `explain` via `Lineage`). The child table is
-                    built once, so lookups stay linear. *)
-                 let children_tbl = Lineage.children_table p.Ast.p_deps in
-                 let step_parents n =
-                   match List.assoc_opt n p.Ast.p_deps with
-                   | Some ds -> Lineage.dedup ds
-                   | None -> []
-                 in
-                 let parents = step_parents node_name in
-                 let children = Lineage.direct_children children_tbl node_name in
-                 let ancestors = Lineage.closure step_parents node_name in
-                 let descendants = Lineage.closure (Lineage.direct_children children_tbl) node_name in
+                    with `explain` via `Lineage`). The index is built
+                    once, so lookups stay linear. *)
+                 let idx = Lineage.index p.Ast.p_deps in
+                 let parents = Lineage.parents_of idx node_name in
+                 let children = Lineage.children_of idx node_name in
+                 let ancestors = Lineage.closure (Lineage.parents_of idx) node_name in
+                 let descendants = Lineage.closure (Lineage.children_of idx) node_name in
                  (* Best-effort foreign metadata: evaluate
                     explain(<pipeline>.<node>).foreign_meta in the loaded
                     env. Absent (NA/error) when the node is unbuilt or has

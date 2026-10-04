@@ -489,18 +489,15 @@ let register ?(ensure_docs=ignore) env =
         in
         (* Direct children (dependents): nodes listing this one as a
            dependency. Computed from the same dep map as dependencies,
-           so the two always agree. The table is built once per explain
+           so the two always agree. The index is built once per explain
            call, so every per-node closure below stays linear. *)
-        let children_tbl = Lineage.children_table p_deps in
+        let idx = Lineage.index p_deps in
         let children_of target =
           List.map (fun n -> (None, VString n))
-            (Lineage.direct_children children_tbl target)
+            (Lineage.children_of idx target)
         in
-        let direct_parents target =
-          match List.assoc_opt target p_deps with
-          | Some d -> Lineage.dedup d
-          | None -> []
-        in
+        let direct_parents = Lineage.parents_of idx in
+        let direct_children = Lineage.children_of idx in
         let str_list names =
           VList (List.map (fun s -> (None, VString s)) names)
         in
@@ -520,7 +517,7 @@ let register ?(ensure_docs=ignore) env =
             ("dependencies", deps);
             ("children", VList (children_of name));
             ("ancestors", str_list (Lineage.closure direct_parents name));
-            ("descendants", str_list (Lineage.closure (Lineage.direct_children children_tbl) name));
+            ("descendants", str_list (Lineage.closure direct_children name));
             ("diagnostics", diagnostics);
           ])
         ) p_nodes) in
