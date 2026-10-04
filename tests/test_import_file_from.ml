@@ -66,4 +66,45 @@ let run_tests _pass_count _fail_count _failures _eval_string eval_string_env tes
   (try Sys.remove tmp_file with _ -> ());
   (try Sys.remove bad_file with _ -> ());
 
+  print_newline ();
+
+  Printf.printf "ImportPackage — static and documented function sets agree:\n";
+
+  (* The analyzer scopes imports from the static per-package lists
+     (without triggering documentation loading), while `package_info`
+     merges in documented names — and the two sets differ. That is
+     harmless as long as every documented-only name needs no scope
+     entry, i.e. it is either an eval-level special form (resolved
+     without environment lookup) or not callable from T at all
+     (concept docs, internal OCaml helpers). A documented-only name
+     outside this list would be a live builtin that lost import
+     scoping — fail loudly on it. This runs late in the suite, where
+     firing the documentation loader is harmless. *)
+  let no_scope_needed = [
+    (* Eval special forms (see eval.ml): callable, never in the env. *)
+    "node"; "pyn"; "rn"; "jln"; "qn"; "shn";
+    (* Concept doc, not a callable. *)
+    "lens";
+    (* Internal OCaml helpers with --# blocks, never callable from T. *)
+    "parse_file"; "run_doctor"; "scaffold_package"; "scaffold_project";
+    "update_flake_lock"; "build_pipeline_internal";
+  ] in
+  let env = Packages.init_env () in
+  let unaccounted =
+    List.filter_map (fun pkg ->
+      let static = pkg.Packages.functions in
+      let merged = Packages.package_functions pkg in
+      let only_doc = List.filter (fun f -> not (List.mem f static)) merged in
+      let accounted f = Ast.Env.mem f env || List.mem f no_scope_needed in
+      (match List.filter (fun f -> not (accounted f)) only_doc with
+       | [] -> None
+       | bad -> Some (pkg.Packages.name ^ ": " ^ String.concat "," bad))
+    ) Packages.all_packages
+  in
+  test "documented-only names need no import scope"
+    (match unaccounted with
+     | [] -> {|"ok"|}
+     | ms -> Printf.sprintf {|"unaccounted: %s"|} (String.concat "; " ms))
+    {|"ok"|};
+
   print_newline ()
