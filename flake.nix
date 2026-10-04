@@ -92,6 +92,8 @@
           "DataFrames"
           "DecisionTree"
           "GLM"
+          "MultivariateStats"
+          "StateSpaceModels"
           "Tidier"
           "TidierPlots"
           "CSV"

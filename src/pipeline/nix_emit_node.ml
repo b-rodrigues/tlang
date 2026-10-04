@@ -3095,6 +3095,60 @@ function jl_save_meta(obj, path)
                 catch
                 end
             end
+            ispca = try
+                hasproperty(obj, :prinvars) && hasproperty(obj, :tvar)
+            catch
+                false
+            end
+            if ispca
+                meta["kind"] = "model"
+                meta["task"] = "dim_reduction"
+                try
+                    pv = obj.prinvars
+                    meta["n_components"] = Int(length(pv))
+                    tv = obj.tvar
+                    if tv != 0
+                        mm = haskey(meta, "metrics") ? meta["metrics"] : Dict{String, Any}()
+                        mm["var_first"] = Float64(pv[1] / tv)
+                        meta["metrics"] = mm
+                    end
+                catch
+                end
+                try
+                    meta["n_features"] = Int(size(obj.proj, 1))
+                catch
+                end
+            end
+            isssm = try
+                hasproperty(obj, :order) && hasproperty(obj, :results)
+            catch
+                false
+            end
+            if isssm
+                meta["kind"] = "model"
+                meta["task"] = "time_series"
+                try
+                    o = obj.order
+                    if o isa Tuple
+                        meta["order"] = Int.(collect(o[1]))
+                        if length(o) > 1
+                            meta["seasonal_order"] = Int.(collect(o[2]))
+                        end
+                    else
+                        meta["order"] = Int.([o.p, o.d, o.q])
+                        if o.s > 1
+                            meta["seasonal_order"] = Int.([o.P, o.D, o.Q, o.s])
+                        end
+                    end
+                catch
+                end
+                try
+                    mm = haskey(meta, "metrics") ? meta["metrics"] : Dict{String, Any}()
+                    mm["loglik"] = Float64(loglike(obj))
+                    meta["metrics"] = mm
+                catch
+                end
+            end
             try
                 meta["n_obs"] = Int(nobs(obj))
             catch

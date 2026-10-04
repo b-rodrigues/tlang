@@ -564,6 +564,23 @@ let run_tests _pass_count _fail_count _failures _eval_string eval_string_env tes
   test_env env_fm_dm "explain foreign meta data container dimensions"
     "get(explain(fake_dm).foreign_meta.dimensions, 0)"
     "6";
+  (* Julia PCA and statespace nodes share the same schema keys *)
+  let jlpc_dir = make_node_dir "fake-jlpca" in
+  write_file (Filename.concat jlpc_dir "artifact") "0123456789";
+  write_file (Filename.concat jlpc_dir "meta")
+    {|{"kind":"model","class":"PCA{Float64}","task":"dim_reduction","n_features":2,"n_components":1,"metrics":{"var_first":1.0}}|};
+  let env_fm_jlpc =
+    Ast.Env.add "fake_jlpca"
+      (Ast.VComputedNode (fake_cn ~name:"fake_jlpca_foreign_meta_test" ~runtime:"Julia"
+        ~path:(Filename.concat jlpc_dir "artifact") ~class_:"PCA{Float64}"))
+      (Packages.init_env ())
+  in
+  test_env env_fm_jlpc "explain foreign meta julia pca task"
+    "explain(fake_jlpca).foreign_meta.task"
+    {|"dim_reduction"|};
+  test_env env_fm_jlpc "explain foreign meta julia pca components"
+    "explain(fake_jlpca).foreign_meta.n_components"
+    "1";
   (* Matrix / array / vector shapes across runtimes *)
   let mat_dir = make_node_dir "fake-mat" in
   write_file (Filename.concat mat_dir "artifact") "0123456789";
