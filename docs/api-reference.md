@@ -4390,7 +4390,7 @@ node_info.contents        -- explained node payload
 
 -- Computed pipeline nodes (R, Python, Julia) carry build-time metadata:
 node = explain(p.fit)
-node.foreign_meta.kind        -- value kind: "dataframe", "matrix", "vector", "array", "factor", "series", "model", "test", "data", "transformer", "other", or "unknown"
+node.foreign_meta.kind        -- value kind: "dataframe", "matrix", "vector", "array", "factor", "series", "table", "model", "test", "data", "transformer", "other", or "unknown"
 node.foreign_meta.class        -- runtime type name, e.g. "lm", "DataFrame", "ARIMA"
 node.foreign_meta.task         -- model task when known: "regression", "classification", "clustering", "time_series", "dim_reduction", "density", or "anomaly_detection"
 node.foreign_meta.dimensions  -- shape as int list, e.g. [32, 11] for frames, [4, 3] for matrices, [3] for vectors

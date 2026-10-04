@@ -480,6 +480,14 @@ let register ?(ensure_docs=ignore) env =
         let p_node_diagnostics =
           Builder.merge_pipeline_node_diagnostics_with_latest_log pipeline
         in
+        (* Direct children (dependents): nodes listing this one as a
+           dependency. Computed from the same dep map as dependencies,
+           so the two always agree. *)
+        let children_of target =
+          List.filter_map (fun (n, deps) ->
+            if List.mem target deps then Some (None, VString n) else None
+          ) p_deps
+        in
         let nodes_info = VList (List.map (fun (name, v) ->
           let deps = match List.assoc_opt name p_deps with
             | Some d -> VList (List.map (fun s -> (None, VString s)) d)
@@ -494,6 +502,7 @@ let register ?(ensure_docs=ignore) env =
             ("name", VString name);
             ("output_kind", VString (Utils.type_name v));
             ("dependencies", deps);
+            ("children", VList (children_of name));
             ("diagnostics", diagnostics);
           ])
         ) p_nodes) in

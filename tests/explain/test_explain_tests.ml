@@ -623,6 +623,45 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
   test_env env_fm_tsobj "explain foreign meta series period"
     "explain(fake_tsobj).foreign_meta.metrics.period"
     "12";
+  let tbl_dir = make_node_dir "fake-table" in
+  write_file (Filename.concat tbl_dir "artifact") "0123456789";
+  write_file (Filename.concat tbl_dir "meta")
+    {|{"kind":"table","class":"table","dimensions":[3,3],"dtype":"integer"}|};
+  let env_fm_tbl =
+    Ast.Env.add "fake_tbl"
+      (Ast.VComputedNode (fake_cn ~name:"fake_tbl_foreign_meta_test" ~runtime:"R"
+        ~path:(Filename.concat tbl_dir "artifact") ~class_:"table"))
+      (Packages.init_env ())
+  in
+  test_env env_fm_tbl "explain foreign meta table kind"
+    "explain(fake_tbl).foreign_meta.kind"
+    {|"table"|};
+  test_env env_fm_tbl "explain foreign meta table dimensions"
+    "get(explain(fake_tbl).foreign_meta.dimensions, 0)"
+    "3";
+  let pam_dir = make_node_dir "fake-pam" in
+  write_file (Filename.concat pam_dir "artifact") "0123456789";
+  write_file (Filename.concat pam_dir "meta")
+    {|{"kind":"model","class":"pam","task":"clustering","n_clusters":4,"n_obs":75}|};
+  let env_fm_pam =
+    Ast.Env.add "fake_pam"
+      (Ast.VComputedNode (fake_cn ~name:"fake_pam_foreign_meta_test" ~runtime:"R"
+        ~path:(Filename.concat pam_dir "artifact") ~class_:"pam"))
+      (Packages.init_env ())
+  in
+  test_env env_fm_pam "explain foreign meta pam clusters"
+    "explain(fake_pam).foreign_meta.n_clusters"
+    "4";
+  (* Pipeline lineage: direct children per node. *)
+  test "explain pipeline node children"
+    {|p_lin = pipeline { x = 10; y = x + 5; z = x + y }; e_lin = explain(p_lin); get(get(e_lin.nodes, 0).children, 0)|}
+    {|"y"|};
+  test "explain pipeline node children count"
+    {|p_lin = pipeline { x = 10; y = x + 5; z = x + y }; e_lin = explain(p_lin); length(get(e_lin.nodes, 0).children)|}
+    "2";
+  test "explain pipeline leaf has no children"
+    {|p_lin = pipeline { x = 10; y = x + 5; z = x + y }; e_lin = explain(p_lin); length(get(e_lin.nodes, 2).children)|}
+    "0";
   (* Julia PCA and statespace nodes share the same schema keys *)
   let jlpc_dir = make_node_dir "fake-jlpca" in
   write_file (Filename.concat jlpc_dir "artifact") "0123456789";
