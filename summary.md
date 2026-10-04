@@ -224,6 +224,7 @@ add = \(a, b) a + b
 - Type annotations are optional — unannotated variables are inferred freely
 - Expression-level inference covers `BinOp`, `UnOp`, `IfElse`, `Match`, `ListLit`, `DotAccess`, and `Lambda` return types. Division always infers `Float`; comparison operators infer `Bool`
 - `t check` warns on builtin arity mismatches: a non-variadic builtin called with the wrong count warns naming expected and received (pipe-fed values count as one argument). Variadic builtins, unknown names, and locally shadowed names stay silent. This catches calls the evaluator never reaches, such as calls inside lambda bodies.
+- `t check` warns on definite argument-type mismatches: inferred argument types are compared against documented parameter types (positionals in order, named by name). Any doubtful position stays silent: missing/`Any`/`Unknown` types, argument-shape vocabulary, `$col`-mentioning expressions, undocumented extras, unknown names. Sites already failing arity are skipped.
 
 The analyzer also propagates types through pipeline operations:
 - `mutate` infers column types from expressions

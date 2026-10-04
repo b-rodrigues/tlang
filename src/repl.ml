@@ -727,7 +727,17 @@ let check_type_annotations filename =
       Ast.Env.iter (fun name v ->
         match v with
         | Ast.VBuiltin { Ast.b_name = Some n; Ast.b_arity; Ast.b_variadic; _ } when n = name ->
-            acc := (n, (b_arity, b_variadic)) :: !acc
+            let params =
+              match Tdoc_registry.lookup n with
+              | Some e ->
+                  List.map (fun (p : Tdoc_types.param_doc) ->
+                    (p.Tdoc_types.name, p.Tdoc_types.type_info)
+                  ) e.Tdoc_types.params
+              | None -> []
+            in
+            acc := (n, { Check_utils.bs_arity = b_arity;
+                         Check_utils.bs_variadic = b_variadic;
+                         Check_utils.bs_params = params }) :: !acc
         | _ -> ()) (Packages.init_env ());
       !acc
     in
@@ -736,6 +746,8 @@ let check_type_annotations filename =
     @ Check_utils.match_union_diagnostics program filename
     @ Check_utils.generic_body_diagnostics program filename
     @ Check_utils.call_arity_diagnostics ~builtins program filename
+    @ Check_utils.call_type_diagnostics ~sigs:builtins
+        ~infer:(Analyzer.infer_type scope) program filename
   with
   | Lexer.SyntaxError _ ->
     (* Parse/syntax errors are already reported by check_utils normal flow. *)

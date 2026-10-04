@@ -222,7 +222,9 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
       Ast.Env.iter (fun name v ->
         match v with
         | Ast.VBuiltin { Ast.b_name = Some n; Ast.b_arity; Ast.b_variadic; _ } when n = name ->
-            acc := (n, (b_arity, b_variadic)) :: !acc
+            acc := (n, { Check_utils.bs_arity = b_arity;
+                         Check_utils.bs_variadic = b_variadic;
+                         Check_utils.bs_params = [] }) :: !acc
         | _ -> ()) (Packages.init_env ());
       !acc
     in
@@ -275,6 +277,102 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
     {|sum(1, 2, 3)|} 0 None;
   check_arity "arity unknown function stays silent"
     {|nosuchfn(1, 2, 3)|} 0 None;
+
+  (* Call argument-type check (warn-only): inferred argument types are
+     compared against documented parameter types; definite mismatches
+     warn. Anything doubtful stays silent. Direct calls keep the
+     helper honest. *)
+  let sig_builtins =
+    let sig_of arity variadic params =
+      { Check_utils.bs_arity = arity; Check_utils.bs_variadic = variadic;
+        Check_utils.bs_params = params }
+    in
+    [ ("takes_int", sig_of 1 false ["x", Some "Int"]);
+      ("takes_float", sig_of 1 false ["x", Some "Float"]);
+      ("takes_df", sig_of 1 false ["data", Some "DataFrame"]);
+      ("takes_fn", sig_of 1 false ["fn", Some "Function"]);
+      ("takes_col", sig_of 1 false ["col", Some "Column"]);
+      ("takes_any", sig_of 1 false ["x", Some "Any"]);
+      ("takes_named", sig_of 2 false ["a", Some "Int"; "opt", Some "String"]);
+      ("takes_pred", sig_of 2 false ["data", Some "DataFrame"; "predicate", Some "Function"]);
+      ("takes_nums", sig_of 1 false ["x", Some "List[Float] | Vector[Float]"]) ]
+  in
+  let check_sig name code expect_count expect_sub =
+    let program =
+      try parse_program code
+      with _ -> []
+    in
+    let scope = Symbol_table.create_scope () in
+    Symbol_table.register_keywords scope;
+    (try ignore (Analyzer.analyze program scope) with _ -> ());
+    let diags =
+      try Check_utils.call_type_diagnostics ~sigs:sig_builtins
+        ~infer:(Analyzer.infer_type scope) program "test.t"
+      with _ -> []
+    in
+    let n = List.length diags in
+    let sub_ok =
+      match expect_sub with
+      | None -> true
+      | Some sub ->
+          List.exists (fun d ->
+            let msg = d.Diagnostics.diag_message in
+            let sl = String.length msg and bl = String.length sub in
+            if bl = 0 then true
+            else begin
+              let rec loop i =
+                if i + bl > sl then false
+                else if String.sub msg i bl = sub then true
+                else loop (i + 1)
+              in
+              loop 0
+            end) diags
+    in
+    let sev_ok =
+      List.for_all (fun d -> d.Diagnostics.diag_severity = Diagnostics.Warning) diags
+    in
+    report name (n = expect_count && sub_ok && sev_ok)
+  in
+  check_sig "sig exact type stays silent"
+    {|takes_int(1)|} 0 None;
+  check_sig "sig wrong type warns"
+    {|takes_int("s")|} 1 (Some "expects argument `x` to be Int, but it infers to String");
+  check_sig "sig int for float stays silent"
+    {|takes_float(1)|} 0 None;
+  check_sig "sig float for int warns"
+    {|takes_int(1.5)|} 1 (Some "to be Int, but it infers to Float");
+  check_sig "sig unknown variable stays silent"
+    {|takes_int(y)|} 0 None;
+  check_sig "sig NA stays silent"
+    {|takes_int(NA)|} 0 None;
+  check_sig "sig dataframe mismatch warns"
+    {|takes_df(1)|} 1 (Some "to be DataFrame, but it infers to Int");
+  check_sig "sig function accepts lambda"
+    {|takes_fn(\(x) x)|} 0 None;
+  check_sig "sig function rejects scalar"
+    {|takes_fn(1)|} 1 (Some "to be Function, but it infers to Int");
+  check_sig "sig shape word stays silent"
+    {|takes_col(1)|} 0 None;
+  check_sig "sig any stays silent"
+    {|takes_any("s")|} 0 None;
+  check_sig "sig named args map by name"
+    {|takes_named(1, opt = "a")|} 0 None;
+  check_sig "sig named arg mismatch warns"
+    {|takes_named(1, opt = 1)|} 1 (Some "expects argument `opt` to be String");
+  check_sig "sig arity mismatch skips types"
+    {|takes_int()|} 0 None;
+  check_sig "sig pipe value checks first position"
+    {|"s" |> takes_int|} 1 (Some "to be Int, but it infers to String");
+  check_sig "sig pipe value silent when right"
+    {|1 |> takes_int|} 0 None;
+  check_sig "sig shadowed stays silent"
+    {|takes_int = \(x) x; takes_int("s")|} 0 None;
+  check_sig "sig unknown function stays silent"
+    {|nosuchfn("s")|} 0 None;
+  check_sig "sig NSE expression stays silent"
+    {|takes_pred(1, $mpg > 20)|} 1 (Some "expects argument `data`");
+  check_sig "sig expected quotes signature verbatim"
+    {|takes_nums("s")|} 1 (Some "to be List[Float] | Vector[Float]");
 
   (* Typing coverage audit (spec typesystem item 5): what fraction of
      builtins carry precise Tdoc signatures that inference actually uses?

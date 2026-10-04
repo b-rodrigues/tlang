@@ -100,8 +100,8 @@ let rec from_string str =
      regardless of arity (see `Ast.types_compatible`), because arity lives
      in the arrow and a bare `Function` name cannot name one. They add
      precision without new mismatch classes: a misspelled name simply
-     never matches a real annotation. Argument-type checking stays absent
-     by design (`t check` warns on arity only, via `Check_utils`); these
+     never matches a real annotation. Argument-type checking warns on
+     definite mismatches only (`t check`, via `Check_utils`); these
      contracts document and display but never reject a call. Deliberately
      excluded: Error/VError/Null (descriptive positions, not contracts)
      and NA (bottom rules own it). *)
@@ -124,7 +124,9 @@ let rec from_string str =
      them reject everything but `Any`/`Unknown`/NA. That is intentional:
      a permissive arm (e.g. `VBuiltin` matching `Selection`) would also
      admit non-selections like `sum`. They document call shapes for
-     readers and future call checking, not checkable contracts today. *)
+     readers; `t check` skips them (plus `Strategy` and `$col`-mentioning
+     expressions) and checks the remaining positions, `Function`
+     included. *)
   | "function" -> TCustom "Function"
   | "column" -> TCustom "Column"
   | "selection" -> TCustom "Selection"
