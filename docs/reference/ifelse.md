@@ -6,7 +6,7 @@ Evaluates a condition and returns values from `true_val` or `false_val` dependin
 
 ## Parameters
 
-- **condition** (`Vector[Bool]`): The logical condition to evaluate.
+- **condition** (`Bool | Vector[Bool]`): The logical condition to evaluate. Accepts a scalar or a vector.
 
 - **true_val** (`Any`): Expected return value when condition is true.
 
@@ -19,7 +19,7 @@ Evaluates a condition and returns values from `true_val` or `false_val` dependin
 
 ## Returns
 
-A vector of the resulting values.
+A scalar when `condition` is scalar, otherwise a vector aligned to `condition`.
 
 ## Examples
 

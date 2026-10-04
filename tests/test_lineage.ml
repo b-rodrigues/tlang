@@ -43,4 +43,19 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
   check "children table dedupes"
     (let tbl2 = Lineage.children_table ["d", ["a"; "a"]] in
      Lineage.direct_children tbl2 "a" = ["d"]);
+  let idx = Lineage.index ["a", []; "b", ["a"]; "c", ["a"; "b"]; "d", ["b"; "c"]] in
+  check "index parents follow map order deduped"
+    (Lineage.parents_of idx "c" = ["a"; "b"]);
+  check "index parents of root is empty"
+    (Lineage.parents_of idx "a" = []);
+  check "index parents of unknown is empty"
+    (Lineage.parents_of idx "z" = []);
+  check "index children follow map order deduped"
+    (Lineage.children_of idx "a" = ["b"; "c"]);
+  check "index children of leaf is empty"
+    (Lineage.children_of idx "d" = []);
+  check "index closure over parents reaches root"
+    (Lineage.closure (Lineage.parents_of idx) "d" = ["b"; "c"; "a"]);
+  check "index closure over children reaches leaf"
+    (Lineage.closure (Lineage.children_of idx) "a" = ["b"; "c"; "d"]);
   print_newline ()
