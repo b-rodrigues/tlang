@@ -2236,7 +2236,12 @@ def _tlang_sanitize_json(v):
                 out[k] = sx
         return out
     if isinstance(v, (list, tuple)):
-        return [_tlang_sanitize_json(x) for x in v if _tlang_sanitize_json(x) is not None]
+        out = []
+        for x in v:
+            sx = _tlang_sanitize_json(x)
+            if sx is not None:
+                out.append(sx)
+        return out
     return v
 
 def py_save_meta(obj, path):
@@ -2618,7 +2623,7 @@ def py_save_meta(obj, path):
             pass
         meta = _tlang_sanitize_json(meta)
         with open(path, "w") as f:
-            _tlang_json.dump(meta, f)
+            _tlang_json.dump(meta, f, default=str)
     except Exception:
         try:
             import json as _tlang_json2
