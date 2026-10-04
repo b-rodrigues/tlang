@@ -984,7 +984,23 @@ let cmd_explain ?failfast mode rest env =
                     explain(<pipeline>.<node>).foreign_meta in the loaded
                     env. Absent (NA/error) when the node is unbuilt or has
                     no meta sidecar — never fails the command. *)
+                 (* Names are validated as plain identifiers first so the eval
+                    string cannot smuggle extra expressions. *)
+                 let is_plain_ident s =
+                   let n = String.length s in
+                   n > 0 &&
+                   (let c = s.[0] in
+                    (c = '_' || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'))) &&
+                   (let ok = ref true in
+                    String.iter (fun c ->
+                      if not (c = '_' || (c >= 'a' && c <= 'z') ||
+                              (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')) then
+                        ok := false) s;
+                    !ok)
+                 in
                  let foreign_meta_opt =
+                   if not (is_plain_ident pipeline_var && is_plain_ident node_name) then None
+                   else
                    try
                      let (fm_result, _) = parse_and_eval ?failfast mode env_val
                        (Printf.sprintf "explain(%s.%s).foreign_meta" pipeline_var node_name) in
@@ -993,7 +1009,9 @@ let cmd_explain ?failfast mode rest env =
                       | Ast.VNA _ -> None
                       | Ast.VError _ -> None
                       | _ -> None)
-                   with _ -> None
+                   with
+                   | (Out_of_memory | Sys.Break) as e -> raise e
+                   | _ -> None
                  in
                  if json then begin
                    let fields = ref [

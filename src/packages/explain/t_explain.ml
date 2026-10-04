@@ -59,12 +59,19 @@ let register ?(ensure_docs=ignore) env =
      `formula` values stay in the dict; the tree display only shows the
      `features_preview` / `formula_preview` short forms. *)
   let meta_path_of_cn cn =
-    if cn.cn_path = "" || cn.cn_path = Ast.unbuilt_path then None
-    else Some (Filename.concat (Filename.dirname cn.cn_path) "meta")
+    if cn.cn_runtime <> "R" && cn.cn_runtime <> "Python" && cn.cn_runtime <> "Julia" then None
+    else if cn.cn_path = "" || cn.cn_path = Ast.unbuilt_path then None
+    else
+      (* Artifact paths are usually files with the sidecar next door, but
+         some runtimes produce directory artifacts holding meta inside. *)
+      (try
+         if Sys.is_directory cn.cn_path then Some (Filename.concat cn.cn_path "meta")
+         else Some (Filename.concat (Filename.dirname cn.cn_path) "meta")
+       with _ -> None)
   in
   let read_small_file path =
     try
-      let ch = open_in path in
+      let ch = open_in_bin path in
       Fun.protect ~finally:(fun () -> close_in_noerr ch)
         (fun () ->
           let n = in_channel_length ch in
@@ -136,19 +143,28 @@ let register ?(ensure_docs=ignore) env =
   let assoc_metrics pairs =
     match List.assoc_opt "metrics" pairs with
     | Some (`Assoc m) ->
+        (* Numbers only; anything else (including strings) is dropped. *)
         let fields = List.filter_map (fun (k, v) ->
           match v with
           | `Float f -> Some (k, VFloat f)
           | `Int i -> Some (k, VInt i)
           | `Intlit s -> (try Some (k, VInt (int_of_string s)) with _ -> None)
-          | `String s -> Some (k, VString s)
           | _ -> None) m in
         (match fields with [] -> None | _ -> Some fields)
     | Some _ -> None
     | None -> None
   in
   let truncate_string n s =
-    if String.length s > n then String.sub s 0 n ^ "..." else s
+    (* Byte-based cut, backed off over UTF-8 continuation bytes so the
+       result is never a split codepoint. *)
+    if String.length s > n then begin
+      let stop = ref n in
+      while !stop > 0 &&
+            Char.code s.[!stop] >= 0x80 && Char.code s.[!stop] < 0xC0 do
+        decr stop
+      done;
+      String.sub s 0 !stop ^ "..."
+    end else s
   in
   let features_preview_of names =
     match names with
@@ -167,18 +183,21 @@ let register ?(ensure_docs=ignore) env =
         ^ Printf.sprintf ", ... +%d more]" (List.length rest)
   in
   let foreign_meta_of_cn cn =
+    (* Only foreign runtimes produce a meta sidecar; anything else
+       (including built T-native nodes) reports NA. *)
+    if cn.cn_runtime <> "R" && cn.cn_runtime <> "Python" && cn.cn_runtime <> "Julia" then
+      VNA NAGeneric
+    else begin
     let pairs = meta_pairs_of_cn cn in
     let fields = ref [] in
     let add k v = fields := (k, v) :: !fields in
     (match assoc_string "kind" pairs with Some k -> add "kind" (VString k) | None -> ());
-    let class_opt =
-      match assoc_string "class" pairs with
-      | Some c -> Some c
-      | None ->
-          if cn.cn_class <> "" && cn.cn_class <> "Unknown" then Some cn.cn_class
-          else None
-    in
-    (match class_opt with Some c -> add "class" (VString c) | None -> ());
+    (* cn_class is canonical (plot-aware: e.g. plotnine/ggplot); the
+       sidecar class is only a fallback so the two never disagree. *)
+    (match cn.cn_class with
+     | "" | "Unknown" ->
+         (match assoc_string "class" pairs with Some c -> add "class" (VString c) | None -> ())
+     | c -> add "class" (VString c));
     (match assoc_string "task" pairs with Some t -> add "task" (VString t) | None -> ());
     (match assoc_int_list "dimensions" pairs with
      | Some ns -> add "dimensions" (VList (List.map (fun n -> (None, VInt n)) ns))
@@ -221,7 +240,7 @@ let register ?(ensure_docs=ignore) env =
               add "artifact_size" (VInt (Unix.stat p).Unix.st_size)
           with _ -> ()));
     let ordered = List.rev !fields in
-    match ordered with
+    (match ordered with
     | [] -> VNA NAGeneric
     | _ ->
         let display = ["kind"; "class"; "task"; "method"; "dimensions"; "n_obs"; "n_groups"; "groups"; "n_features";
@@ -230,7 +249,8 @@ let register ?(ensure_docs=ignore) env =
                        "target"; "order"; "seasonal_order";
                        "features_preview"; "formula_preview"; "metrics"; "artifact_size"] in
         let shown = List.filter (fun k -> List.mem_assoc k ordered) display in
-        make_explain_dict ~display_keys:shown ordered
+        make_explain_dict ~display_keys:shown ordered)
+    end
   in
   let rec do_explain v =
     match v with

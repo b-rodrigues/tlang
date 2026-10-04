@@ -44,7 +44,9 @@ next to `artifact`/`class` (best effort — the build never fails for it):
 
 ```t
 e = explain(p.fit)
-e.foreign_meta.kind        -- "dataframe", "model", "test", "data", or "other"
+e.foreign_meta.kind        -- value kind: "dataframe", "matrix", "vector", "array", "model", "test", "data", "other", or "unknown"
+e.foreign_meta.class        -- runtime type name, e.g. "lm", "DataFrame", "ARIMA"
+e.foreign_meta.task         -- model task when known: "regression", "classification", "clustering", "time_series", "dim_reduction", or "density"
 e.foreign_meta.dimensions  -- shape as int list, e.g. [32, 11] for frames, [4, 3] for matrices, [3] for vectors
 e.foreign_meta.n_obs       -- training rows (models)
 e.foreign_meta.n_groups    -- grouping units, e.g. 18 subjects (mixed models)
@@ -55,14 +57,20 @@ e.foreign_meta.n_rounds    -- boosting rounds (boosted trees, when known)
 e.foreign_meta.n_clusters  -- cluster count (clustering, when known)
 e.foreign_meta.n_components -- component count (PCA, when known)
 e.foreign_meta.dtype        -- element type, e.g. "float64" (arrays, when known)
-e.foreign_meta.method      -- algorithm variant, e.g. hclust linkage (when known)
+e.foreign_meta.method      -- algorithm variant: hclust linkage, or the test name for `htest` results
 e.foreign_meta.target      -- response name (when known)
 e.foreign_meta.formula     -- full formula (R models, when known)
 e.foreign_meta.order       -- [p, d, q] (time-series models, when known)
 e.foreign_meta.seasonal_order -- [P, D, Q, m] (seasonal models, when known)
-e.foreign_meta.features    -- full feature/column list
-e.foreign_meta.metrics     -- free metrics (r_squared, aic, bic, ...)
+e.foreign_meta.features    -- full feature/column list (first 500 entries; `n_features` stays exact)
+e.foreign_meta.metrics     -- free numeric metrics (r_squared, aic, bic, ...); numbers only, other values are dropped
 e.foreign_meta.artifact_size -- artifact size in bytes
+
+`features`/`n_features` meaning varies by family: input variable names
+for frames, forests, and discriminant means; fitted coefficient names
+for `lm`-family models. `seasonal_order` is only emitted for genuinely
+seasonal fits. Metrics are best effort per runtime and differ by family;
+check presence before use.
 ```
 
 The tree display shows short `features_preview`/`formula_preview` forms;

@@ -4390,7 +4390,9 @@ node_info.contents        -- explained node payload
 
 -- Computed pipeline nodes (R, Python, Julia) carry build-time metadata:
 node = explain(p.fit)
-node.foreign_meta.kind        -- "dataframe", "model", "test", "data", or "other"
+node.foreign_meta.kind        -- value kind: "dataframe", "matrix", "vector", "array", "model", "test", "data", "other", or "unknown"
+node.foreign_meta.class        -- runtime type name, e.g. "lm", "DataFrame", "ARIMA"
+node.foreign_meta.task         -- model task when known: "regression", "classification", "clustering", "time_series", "dim_reduction", or "density"
 node.foreign_meta.dimensions  -- shape as int list, e.g. [32, 11] for frames, [4, 3] for matrices, [3] for vectors
 node.foreign_meta.n_obs       -- training row count (models)
 node.foreign_meta.n_groups    -- grouping units, e.g. 18 subjects (mixed models)
@@ -4401,14 +4403,30 @@ node.foreign_meta.n_rounds    -- boosting rounds (boosted trees, when known)
 node.foreign_meta.n_clusters  -- cluster count (clustering, when known)
 node.foreign_meta.n_components -- component count (PCA, when known)
 node.foreign_meta.dtype        -- element type, e.g. "float64" (arrays, when known)
-node.foreign_meta.method      -- algorithm variant, e.g. hclust linkage (when known)
+node.foreign_meta.method      -- algorithm variant: hclust linkage, or the test name for `htest` results
 node.foreign_meta.target      -- response name (models, when known)
 node.foreign_meta.formula     -- full model formula (R models, when known)
 node.foreign_meta.order       -- [p, d, q] (time-series models, when known)
 node.foreign_meta.seasonal_order -- [P, D, Q, m] (seasonal models, when known)
-node.foreign_meta.features    -- full feature/column list
-node.foreign_meta.metrics     -- free metrics (r_squared, aic, bic, ...)
+node.foreign_meta.features    -- full feature/column list (first 500 entries; `n_features` stays exact)
+node.foreign_meta.metrics     -- free numeric metrics (r_squared, aic, bic, ...); numbers only, other values are dropped
 node.foreign_meta.artifact_size -- artifact file size in bytes
+
+Julia note: fit-metric verbs (`nobs`, `coefnames`, `r2`, `aic`,
+`deviance`, `loglikelihood`) resolve from whatever the node session
+loaded — normally the modeling package itself, so keys are present
+for supported families and silently absent otherwise.
+
+`features`/`n_features` meaning varies by family: input variable names
+for frames, forests, and discriminant means; fitted coefficient names
+for `lm`-family models (so factors expand to dummy columns, ARIMA
+reports `ar1`/`ma1`, and variance terms such as `sigma2` are included).
+`seasonal_order` is only emitted for genuinely seasonal fits.
+`n_rounds` counts boosting rounds, except the R xgboost tree-dump
+fallback which counts trees (rounds times classes for multiclass).
+Metrics are best effort per runtime and differ by family
+(e.g. `var_explained` for R kmeans, `inertia` for sklearn, `totalcost`
+for Julia); check presence before use.
 -- Tree display shows short previews (`features_preview`, `formula_preview`);
 -- dot access returns the full values. Absent when the node is unbuilt (NA).
 ```

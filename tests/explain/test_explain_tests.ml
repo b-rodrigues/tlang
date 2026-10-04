@@ -1,4 +1,4 @@
-let run_tests _pass_count _fail_count _failures _eval_string eval_string_env test test_env _test_equal =
+let run_tests pass_count fail_count failures _eval_string eval_string_env test test_env _test_equal =
   Printf.printf "Phase 6 — Intent Blocks:\n";
   test "intent block creation"
     {|intent { description: "Load data", assumes: "File exists" }|}
@@ -231,8 +231,22 @@ let run_tests _pass_count _fail_count _failures _eval_string eval_string_env tes
   print_newline ();
 
   Printf.printf "Phase 6 — Explain: Foreign Meta (meta sidecar):\n";
-  let meta_base = Filename.concat (Filename.get_temp_dir_name ()) "tlang-explain-foreign-meta" in
+  (* Unique per-process scratch dir, removed at the end of the section. *)
+  let meta_base =
+    Filename.concat (Filename.get_temp_dir_name ())
+      ("tlang-explain-foreign-meta-" ^ string_of_int (Unix.getpid ()))
+  in
   (try Unix.mkdir meta_base 0o755 with Unix.Unix_error (Unix.EEXIST, _, _) -> ());
+  let rec rm_rf path =
+    (try
+       if Sys.is_directory path then begin
+         Array.iter (fun e ->
+           if e <> "." && e <> ".." then rm_rf (Filename.concat path e)
+         ) (Sys.readdir path);
+         Unix.rmdir path
+       end else Sys.remove path
+     with _ -> ())
+  in
   let make_node_dir name =
     let dir = Filename.concat meta_base name in
     (try Unix.mkdir dir 0o755 with Unix.Unix_error (Unix.EEXIST, _, _) -> ());
@@ -630,4 +644,239 @@ let run_tests _pass_count _fail_count _failures _eval_string eval_string_env tes
   test_env env_fm_vec "explain foreign meta vector dtype"
     "explain(fake_vec).foreign_meta.dtype"
     {|"Int64"|};
+  (* Degraded inputs never crash: malformed JSON, non-object top level,
+     oversize files, and non-numeric metrics. The artifact size is still
+     reported whenever the artifact file exists. *)
+  let bad_dir = make_node_dir "fake-bad" in
+  write_file (Filename.concat bad_dir "artifact") "0123456789";
+  write_file (Filename.concat bad_dir "meta") "{oops";
+  let env_fm_bad =
+    Ast.Env.add "fake_bad"
+      (Ast.VComputedNode (fake_cn ~name:"fake_bad_foreign_meta_test" ~runtime:"R"
+        ~path:(Filename.concat bad_dir "artifact") ~class_:"lm"))
+      (Packages.init_env ())
+  in
+  test_env env_fm_bad "explain foreign meta malformed json degrades gracefully"
+    "explain(fake_bad).foreign_meta.artifact_size"
+    "10";
+  let arr2_dir = make_node_dir "fake-arr2" in
+  write_file (Filename.concat arr2_dir "artifact") "0123456789";
+  write_file (Filename.concat arr2_dir "meta") "[1, 2]";
+  let env_fm_arr2 =
+    Ast.Env.add "fake_arr2"
+      (Ast.VComputedNode (fake_cn ~name:"fake_arr2_foreign_meta_test" ~runtime:"Python"
+        ~path:(Filename.concat arr2_dir "artifact") ~class_:"ndarray"))
+      (Packages.init_env ())
+  in
+  test_env env_fm_arr2 "explain foreign meta non-object top level degrades gracefully"
+    "explain(fake_arr2).foreign_meta.artifact_size"
+    "10";
+  let big_dir = make_node_dir "fake-big" in
+  write_file (Filename.concat big_dir "artifact") "0123456789";
+  write_file (Filename.concat big_dir "meta")
+    ("{\"kind\":\"model\"" ^ String.make 2000000 ' ' ^ "}");
+  let env_fm_big =
+    Ast.Env.add "fake_big"
+      (Ast.VComputedNode (fake_cn ~name:"fake_big_foreign_meta_test" ~runtime:"R"
+        ~path:(Filename.concat big_dir "artifact") ~class_:"lm"))
+      (Packages.init_env ())
+  in
+  test_env env_fm_big "explain foreign meta oversize file degrades gracefully"
+    "explain(fake_big).foreign_meta.artifact_size"
+    "10";
+  let strm_dir = make_node_dir "fake-strmetric" in
+  write_file (Filename.concat strm_dir "artifact") "0123456789";
+  write_file (Filename.concat strm_dir "meta")
+    {|{"kind":"model","metrics":{"note":"hi","aic":5.0}}|};
+  let env_fm_strm =
+    Ast.Env.add "fake_strm"
+      (Ast.VComputedNode (fake_cn ~name:"fake_strm_foreign_meta_test" ~runtime:"R"
+        ~path:(Filename.concat strm_dir "artifact") ~class_:"lm"))
+      (Packages.init_env ())
+  in
+  test_env env_fm_strm "explain foreign meta keeps numeric metrics"
+    "explain(fake_strm).foreign_meta.metrics.aic"
+    "5";
+  test_env env_fm_strm "explain foreign meta drops string metrics"
+    "explain(fake_strm).foreign_meta.metrics.note"
+    {|Error(KeyError: "Key `note` not found in Dict.")|};
+  (* Non-foreign runtimes never get foreign_meta, even with a sidecar. *)
+  let t_dir = make_node_dir "fake-tnode" in
+  write_file (Filename.concat t_dir "artifact") "0123456789";
+  write_file (Filename.concat t_dir "meta")
+    {|{"kind":"model","task":"regression"}|};
+  let env_fm_t =
+    Ast.Env.add "fake_tnode"
+      (Ast.VComputedNode (fake_cn ~name:"fake_t_foreign_meta_test" ~runtime:"T"
+        ~path:(Filename.concat t_dir "artifact") ~class_:"Int"))
+      (Packages.init_env ())
+  in
+  test_env env_fm_t "explain foreign meta gated on foreign runtimes"
+    "type(explain(fake_tnode).foreign_meta)"
+    {|"NA"|};
+  rm_rf meta_base;
+  print_newline ();
+
+  Printf.printf "Phase 6 — Explain: Golden Runtime Probes:\n";
+  (* These execute the real r_save_meta / py_save_meta / jl_save_meta
+     helpers extracted from src/pipeline/nix_emit_node.ml against fixed
+     fixtures. Runtimes missing from PATH skip with a passing note. *)
+  let shell_out cmd =
+    try
+      let ic = Unix.open_process_in cmd in
+      let buf = Buffer.create 256 in
+      (try while true do Buffer.add_char buf (input_char ic) done
+       with End_of_file -> ());
+      let _ = Unix.close_process_in ic in
+      Buffer.contents buf
+    with _ -> ""
+  in
+  let has_bin name =
+    let out = shell_out (Printf.sprintf "command -v %s 2>/dev/null" name) in
+    String.trim out <> ""
+  in
+  let contains hay needle =
+    let h = String.length hay and n = String.length needle in
+    n = 0 ||
+    (let rec loop i =
+       i + n <= h && (String.sub hay i n = needle || loop (i + 1))
+     in loop 0)
+  in
+  let check_golden name cond =
+    if cond then begin
+      incr pass_count;
+      Printf.printf "  ✓ %s\n" name
+    end else begin
+      incr fail_count;
+      let msg = Printf.sprintf "  ✗ %s\n" name in
+      failures := msg :: !failures;
+      Printf.printf "%s" msg
+    end
+  in
+  let emit_src =
+    let cands = ["src/pipeline/nix_emit_node.ml";
+                 "../src/pipeline/nix_emit_node.ml";
+                 "../../src/pipeline/nix_emit_node.ml"] in
+    List.find_opt Sys.file_exists cands
+  in
+  let extract_fn ?(keep_end = true) start_marker end_pred =
+    match emit_src with
+    | None -> None
+    | Some path ->
+        (try
+           let ic = open_in path in
+           Fun.protect ~finally:(fun () -> close_in_noerr ic)
+             (fun () ->
+               let buf = Buffer.create 4096 in
+               let rec skip () =
+                 match (try Some (input_line ic) with End_of_file -> None) with
+                 | None -> None
+                 | Some line ->
+                     if line = start_marker then (Buffer.add_string buf (line ^ "\n"); take ())
+                     else skip ()
+               and take () =
+                 match (try Some (input_line ic) with End_of_file -> None) with
+                 | None -> Some (Buffer.contents buf)
+                 | Some line ->
+                     if end_pred line then begin
+                       if keep_end then Buffer.add_string buf (line ^ "\n");
+                       Some (Buffer.contents buf)
+                     end else begin
+                       Buffer.add_string buf (line ^ "\n");
+                       take ()
+                     end
+               in
+               skip ())
+         with _ -> None)
+  in
+  let write_temp name content =
+    let path = Filename.concat (Filename.get_temp_dir_name ()) name in
+    (try
+       let oc = open_out path in
+       Fun.protect ~finally:(fun () -> close_out_noerr oc)
+         (fun () -> output_string oc content);
+       Some path
+     with _ -> None)
+  in
+  (* R: full precision survives (digits = NA), tiny p-values intact. *)
+  (match extract_fn "r_save_meta <- function(object, path) {" (fun l -> l = "}") with
+   | None -> check_golden "R probe source found" false
+   | Some _ when not (has_bin "Rscript") ->
+       check_golden "R probe golden (skipped, no Rscript)" true
+   | Some src ->
+       let drv = src ^ "\n" ^
+         "set.seed(42)\n" ^
+         "tt <- t.test(rnorm(50, 0, 1), rnorm(50, 10, 1))\n" ^
+         "r_save_meta(tt, Sys.getenv(\"T_GOLD_OUT\"))\n"
+       in
+       (match write_temp "tlang-golden-r.R" drv with
+        | None -> check_golden "R probe driver written" false
+        | Some drv_path ->
+            let out_path = Filename.concat (Filename.get_temp_dir_name ()) "tlang-golden-r.json" in
+            let _ = shell_out (Printf.sprintf "T_GOLD_OUT=%s Rscript %s 2>/dev/null"
+              (Filename.quote out_path) (Filename.quote drv_path)) in
+            let json =
+              (try
+                 let ic = open_in out_path in
+                 Fun.protect ~finally:(fun () -> close_in_noerr ic)
+                   (fun () -> really_input_string ic (in_channel_length ic))
+               with _ -> "")
+            in
+            check_golden "R probe keeps full precision on tiny p-values"
+              (contains json "p_value" && contains json "e-")));
+  (* Python: array-API const excluded from features. *)
+  (match extract_fn ~keep_end:false "def py_save_meta(obj, path):" (fun l -> l <> "" && l.[0] <> ' ' && l.[0] <> '\t') with
+   | None -> check_golden "Python probe source found" false
+   | Some _ when not (has_bin "python3") ->
+       check_golden "Python probe golden (skipped, no python3)" true
+   | Some src ->
+       let drv = src ^ "\n" ^
+         "import numpy as np, pandas as pd\n" ^
+         "import statsmodels.api as sm\n" ^
+         "df = pd.DataFrame({\"y\": [2.0, 4.0, 5.0, 4.0], \"x\": [1.0, 2.0, 3.0, 4.0]})\n" ^
+         "import os\n" ^
+         "py_save_meta(sm.OLS(df[\"y\"], sm.add_constant(df[[\"x\"]])).fit(), os.environ[\"T_GOLD_OUT\"])\n"
+       in
+       (match write_temp "tlang-golden-py.py" drv with
+        | None -> check_golden "Python probe driver written" false
+        | Some drv_path ->
+            let out_path = Filename.concat (Filename.get_temp_dir_name ()) "tlang-golden-py.json" in
+            let _ = shell_out (Printf.sprintf "T_GOLD_OUT=%s python3 %s 2>/dev/null"
+              (Filename.quote out_path) (Filename.quote drv_path)) in
+            let json =
+              (try
+                 let ic = open_in out_path in
+                 Fun.protect ~finally:(fun () -> close_in_noerr ic)
+                   (fun () -> really_input_string ic (in_channel_length ic))
+               with _ -> "")
+            in
+            check_golden "Python probe excludes const from OLS features"
+              (contains json "\"x\"" && not (contains json "const"))));
+  (* Julia: NaN metrics are dropped, the rest of the sidecar survives. *)
+  (match extract_fn "function jl_sanitize_json_value(v)" (fun l -> l = "end") with
+   | None -> check_golden "Julia sanitizer source found" false
+   | Some _ when not (has_bin "julia") ->
+       check_golden "Julia sanitizer golden (skipped, no julia)" true
+   | Some src ->
+       let drv = src ^ "\n" ^
+         "d = jl_sanitize_json_value(Dict(\"kind\" => \"model\", \"metrics\" => Dict(\"aic\" => NaN, \"bic\" => 1.5)))\n" ^
+         "open(ENV[\"T_GOLD_OUT\"], \"w\") do f\n" ^
+         "    print(f, d)\n" ^
+         "end\n"
+       in
+       (match write_temp "tlang-golden-jl.jl" drv with
+        | None -> check_golden "Julia driver written" false
+        | Some drv_path ->
+            let out_path = Filename.concat (Filename.get_temp_dir_name ()) "tlang-golden-jl.json" in
+            let _ = shell_out (Printf.sprintf "T_GOLD_OUT=%s julia %s 2>/dev/null"
+              (Filename.quote out_path) (Filename.quote drv_path)) in
+            let txt =
+              (try
+                 let ic = open_in out_path in
+                 Fun.protect ~finally:(fun () -> close_in_noerr ic)
+                   (fun () -> really_input_string ic (in_channel_length ic))
+               with _ -> "")
+            in
+            check_golden "Julia sanitizer drops NaN metrics, keeps the rest"
+              (contains txt "bic" && not (contains txt "aic"))));
   print_newline ()

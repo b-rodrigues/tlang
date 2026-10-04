@@ -1737,7 +1737,7 @@ r_save_meta <- function(object, path) {
       }
       nr <- tryCatch(object$niter, error = function(e) NULL)
       if (is.null(nr)) nr <- tryCatch({
-        dt <- xgb.model.dt.tree(model = object)
+        dt <- xgboost::xgb.model.dt.tree(model = object)
         length(unique(dt$Tree))
       }, error = function(e) NULL)
       if (!is.null(nr) && length(nr) == 1 && !is.na(nr)) meta$n_rounds <- as.integer(nr)
@@ -1803,11 +1803,11 @@ r_save_meta <- function(object, path) {
     } else if (inherits(object, "prcomp") || inherits(object, "princomp")) {
       meta$kind <- "model"
       meta$task <- "dim_reduction"
-      sd <- tryCatch(object$sdev, error = function(e) NULL)
-      if (!is.null(sd) && length(sd) > 0 && !any(is.na(sd))) {
-        meta$n_components <- length(sd)
-        vv <- sd^2
-        if (sum(vv) != 0) meta$metrics <- list(pc1_var = as.numeric(vv[1] / sum(vv)))
+      sdv <- tryCatch(object$sdev, error = function(e) NULL)
+      if (!is.null(sdv) && length(sdv) > 0 && !any(is.na(sdv))) {
+        meta$n_components <- length(sdv)
+        vv <- sdv^2
+        if (sum(vv) != 0) meta$metrics <- list(var_first = as.numeric(vv[1] / sum(vv)))
       }
       rot <- tryCatch(object$rotation, error = function(e) NULL)
       if (is.null(rot)) rot <- tryCatch(object$loadings, error = function(e) NULL)
@@ -1823,6 +1823,10 @@ r_save_meta <- function(object, path) {
       if (!is.null(xx)) {
         nr <- tryCatch(nrow(xx), error = function(e) NULL)
         if (!is.null(nr) && length(nr) == 1 && !is.na(nr)) meta$n_obs <- as.integer(nr)
+      }
+      if (is.null(meta$n_obs)) {
+        no <- tryCatch(object$n.obs, error = function(e) NULL)
+        if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- as.integer(no)
       }
     } else if (inherits(object, "HoltWinters")) {
       meta$kind <- "model"
@@ -2034,7 +2038,8 @@ r_save_meta <- function(object, path) {
     } else {
       meta$kind <- "other"
     }
-    jsonlite::write_json(meta, path, auto_unbox = TRUE, null = "null")
+    if (!is.null(meta$features) && length(meta$features) > 500) meta$features <- meta$features[1:500]
+    jsonlite::write_json(meta, path, auto_unbox = TRUE, null = "null", digits = NA)
   }, error = function(e) {
     try(jsonlite::write_json(list(kind = "unknown"), path, auto_unbox = TRUE), silent = TRUE)
   })
@@ -2446,7 +2451,9 @@ def py_save_meta(obj, path):
                 try:
                     so = getattr(obj.model, "seasonal_order", None)
                     if so is not None:
-                        meta["seasonal_order"] = [int(v) for v in list(so)]
+                        so_list = [int(v) for v in list(so)]
+                        if len(so_list) == 4 and so_list[3] > 1 and any(v > 0 for v in so_list[:3]):
+                            meta["seasonal_order"] = so_list
                 except Exception:
                     pass
             if "task" not in meta:
@@ -2484,7 +2491,7 @@ def py_save_meta(obj, path):
                 elif params is not None:
                     idx = getattr(params, "index", None)
                     if idx is not None:
-                        names = [str(v) for v in list(idx) if str(v) != "Intercept"]
+                        names = [str(v) for v in list(idx) if str(v) not in ("Intercept", "const")]
                         if names:
                             meta["n_features"] = len(names)
                             meta["features"] = names
@@ -2525,8 +2532,6 @@ def py_save_meta(obj, path):
                         meta["n_groups"] = len(_names)
                         if len(_names) <= 50:
                             meta["groups"] = dict(zip(_names, _counts))
-                        else:
-                            meta["groups"] = {"n_groups": len(_names)}
             except Exception:
                 pass
         elif shape is not None:
@@ -2568,6 +2573,12 @@ def py_save_meta(obj, path):
                 pass
         else:
             meta["kind"] = "other"
+        try:
+            _feats = meta.get("features")
+            if isinstance(_feats, list) and len(_feats) > 500:
+                meta["features"] = _feats[:500]
+        except Exception:
+            pass
         with open(path, "w") as f:
             _tlang_json.dump(meta, f)
     except Exception:
@@ -2988,10 +2999,42 @@ function jl_save_viz_metadata(obj, path)
     true
 end
 
+function jl_sanitize_json_value(v)
+    if v === nothing || v === missing
+        return nothing
+    elseif v isa AbstractFloat
+        return isfinite(v) ? v : nothing
+    elseif v isa AbstractDict
+        out = Dict{String, Any}()
+        for (k, x) in v
+            sx = jl_sanitize_json_value(x)
+            if sx !== nothing
+                out[string(k)] = sx
+            end
+        end
+        return out
+    elseif v isa AbstractVector && !(v isa AbstractString)
+        out = Any[]
+        for x in v
+            sx = jl_sanitize_json_value(x)
+            if sx !== nothing
+                push!(out, sx)
+            end
+        end
+        return out
+    else
+        return v
+    end
+end
+
 function jl_save_meta(obj, path)
     try
         meta = Dict{String, Any}()
-        meta["class"] = string(typeof(obj))
+        cls = string(typeof(obj))
+        if length(cls) > 200
+            cls = cls[1:prevind(cls, 201)] * "..."
+        end
+        meta["class"] = cls
         if obj isa AbstractDataFrame
             meta["kind"] = "dataframe"
             try
@@ -3225,6 +3268,13 @@ function jl_save_meta(obj, path)
                 meta["kind"] = "model"
             end
         end
+        try
+            if haskey(meta, "features") && meta["features"] isa AbstractVector && length(meta["features"]) > 500
+                meta["features"] = collect(meta["features"])[1:500]
+            end
+        catch
+        end
+        meta = jl_sanitize_json_value(meta)
         open(path, "w") do f
             JSON.print(f, meta)
         end
