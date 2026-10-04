@@ -703,7 +703,7 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
      raise e);
 
   (* Transitive lineage over a chained pipeline *)
-  let temp_chain_path = "/tmp/explain_test_chain.t" in
+  let temp_chain_path = Filename.temp_file "explain_test_chain" ".t" in
   (try
      let oc = open_out temp_chain_path in
      output_string oc "p = pipeline { a = 1; b = a + 1; c = b + 1 }\n";
@@ -721,8 +721,7 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
      test_message "explain --json --node carries transitive lineage arrays"
        (code9 = 0 &&
         contains out9 "\"ancestors\": []" &&
-        contains out9 "\"descendants\"" &&
-        contains out9 "\"c\"");
+        contains out9 "\"descendants\": [ \"b\", \"c\" ]");
 
      Sys.remove temp_chain_path
    with e ->

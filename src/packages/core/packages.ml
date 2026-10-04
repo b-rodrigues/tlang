@@ -344,26 +344,9 @@ let register env =
 
   in
 
-  (* Register Boolean functions *)
-(*
---# Vectorized if-else
---#
---# Vectorized conditional selection. Returns values from `true_val` or `false_val`
---# depending on whether `condition` is true or false.
---#
---# @name ifelse
---# @param condition :: Bool | Vector[Bool] The condition to check.
---# @param true_val :: Any Value to return if condition is true. Accepts a scalar or a vector.
---# @param false_val :: Any Value to return if condition is false. Accepts a scalar or a vector.
---# @param missing :: Any (Optional) Value to return if condition is NA. Defaults to NA.
---# @param out_type :: String (Optional) Force-cast output values to Int, Float, String, or Bool.
---# @return :: Any A scalar when `condition` is scalar, otherwise a vector aligned to `condition`.
---# @example
---#   ifelse(x > 5, "High", "Low")
---#   ifelse(x % 2 == 0, x, 0)
---# @family boolean
---# @export
-*)
+  (* Register Boolean functions.
+     `ifelse` is documented once, canonically, in t_boolean.ml; a second
+     --# block here would only shadow it in rank ties, so none is kept. *)
   let env = Env.add "ifelse" (make_builtin_named ~name:"ifelse" ~variadic:true 3 T_boolean.ifelse) env in
   let env = Env.add "identical" (make_builtin ~name:"identical" 2 (fun args env -> T_boolean.identical args env)) env in
 

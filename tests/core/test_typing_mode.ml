@@ -118,6 +118,33 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
     end
   in
 
+  (* Shared assertion for diagnostics helpers: exact count, expected
+     substring when given, and warning severity throughout. *)
+  let assess name diags expect_count expect_sub =
+    let n = List.length diags in
+    let sub_ok =
+      match expect_sub with
+      | None -> true
+      | Some sub ->
+          List.exists (fun d ->
+            let msg = d.Diagnostics.diag_message in
+            let sl = String.length msg and bl = String.length sub in
+            if bl = 0 then true
+            else begin
+              let rec loop i =
+                if i + bl > sl then false
+                else if String.sub msg i bl = sub then true
+                else loop (i + 1)
+              in
+              loop 0
+            end) diags
+    in
+    let sev_ok =
+      List.for_all (fun d -> d.Diagnostics.diag_severity = Diagnostics.Warning) diags
+    in
+    report name (n = expect_count && sub_ok && sev_ok)
+  in
+
   let strict_ok =
     match Typecheck.validate_program ~mode:Typecheck.Strict
       (parse_program "id = \\(x: Int -> Int) x") with
@@ -163,28 +190,7 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
       try Check_utils.generic_body_diagnostics program "test.t"
       with _ -> []
     in
-    let n = List.length diags in
-    let sub_ok =
-      match expect_sub with
-      | None -> true
-      | Some sub ->
-          List.exists (fun d ->
-            let msg = d.Diagnostics.diag_message in
-            let sl = String.length msg and bl = String.length sub in
-            if bl = 0 then true
-            else begin
-              let rec loop i =
-                if i + bl > sl then false
-                else if String.sub msg i bl = sub then true
-                else loop (i + 1)
-              in
-              loop 0
-            end) diags
-    in
-    let sev_ok =
-      List.for_all (fun d -> d.Diagnostics.diag_severity = Diagnostics.Warning) diags
-    in
-    report name (n = expect_count && sub_ok && sev_ok)
+    assess name diags expect_count expect_sub
   in
   check_generic "generic body with fixed string warns"
     {|id = \<T>(x: T -> T) "oops"|} 1 (Some "declares return `T`");
@@ -217,43 +223,12 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
       try parse_program code
       with _ -> []
     in
-    let builtins =
-      let acc = ref [] in
-      Ast.Env.iter (fun name v ->
-        match v with
-        | Ast.VBuiltin { Ast.b_name = Some n; Ast.b_arity; Ast.b_variadic; _ } when n = name ->
-            acc := (n, { Check_utils.bs_arity = b_arity;
-                         Check_utils.bs_variadic = b_variadic;
-                         Check_utils.bs_params = [] }) :: !acc
-        | _ -> ()) (Packages.init_env ());
-      !acc
-    in
+    let builtins = Check_utils.builtin_sigs_of_env (Packages.init_env ()) in
     let diags =
       try Check_utils.call_arity_diagnostics ~builtins program "test.t"
       with _ -> []
     in
-    let n = List.length diags in
-    let sub_ok =
-      match expect_sub with
-      | None -> true
-      | Some sub ->
-          List.exists (fun d ->
-            let msg = d.Diagnostics.diag_message in
-            let sl = String.length msg and bl = String.length sub in
-            if bl = 0 then true
-            else begin
-              let rec loop i =
-                if i + bl > sl then false
-                else if String.sub msg i bl = sub then true
-                else loop (i + 1)
-              in
-              loop 0
-            end) diags
-    in
-    let sev_ok =
-      List.for_all (fun d -> d.Diagnostics.diag_severity = Diagnostics.Warning) diags
-    in
-    report name (n = expect_count && sub_ok && sev_ok)
+    assess name diags expect_count expect_sub
   in
   check_arity "arity exact count stays silent"
     {|identical(1, 1)|} 0 None;
@@ -273,6 +248,15 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
     {|1 |> identical|} 1 (Some "expects 2 argument(s) but received 1");
   check_arity "arity shadowed name stays silent"
     {|identical = \(x) x; identical(1)|} 0 None;
+  check_arity "arity package alias shadows builtin"
+    {|import core [identical = sum]; identical(1)|} 0 None;
+  (* A file import binding a builtin name shadows it just as well. *)
+  let shadow_path = Filename.temp_file "t_shadow_import" ".t" in
+  (let oc = open_out shadow_path in
+   output_string oc "identical = 1\n";
+   close_out oc);
+  check_arity "arity file import shadows builtin"
+    (Printf.sprintf {|import "%s" [identical]; identical(1)|} shadow_path) 0 None;
   check_arity "arity variadic stays silent"
     {|sum(1, 2, 3)|} 0 None;
   check_arity "arity unknown function stays silent"
@@ -310,28 +294,7 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
         ~infer:(Analyzer.infer_type scope) program "test.t"
       with _ -> []
     in
-    let n = List.length diags in
-    let sub_ok =
-      match expect_sub with
-      | None -> true
-      | Some sub ->
-          List.exists (fun d ->
-            let msg = d.Diagnostics.diag_message in
-            let sl = String.length msg and bl = String.length sub in
-            if bl = 0 then true
-            else begin
-              let rec loop i =
-                if i + bl > sl then false
-                else if String.sub msg i bl = sub then true
-                else loop (i + 1)
-              in
-              loop 0
-            end) diags
-    in
-    let sev_ok =
-      List.for_all (fun d -> d.Diagnostics.diag_severity = Diagnostics.Warning) diags
-    in
-    report name (n = expect_count && sub_ok && sev_ok)
+    assess name diags expect_count expect_sub
   in
   check_sig "sig exact type stays silent"
     {|takes_int(1)|} 0 None;
@@ -369,8 +332,16 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
     {|takes_int = \(x) x; takes_int("s")|} 0 None;
   check_sig "sig unknown function stays silent"
     {|nosuchfn("s")|} 0 None;
-  check_sig "sig NSE expression stays silent"
+  check_sig "sig NSE predicate stays silent"
+    {|takes_pred(df, $mpg > 20)|} 0 None;
+  check_sig "sig NSE skipped while other arg warns"
     {|takes_pred(1, $mpg > 20)|} 1 (Some "expects argument `data`");
+  check_sig "sig named claimed before positional stays silent"
+    {|takes_named(a = 1, "x")|} 0 None;
+  check_sig "sig positional fills unclaimed parameter"
+    {|takes_named(opt = "x", 1)|} 0 None;
+  check_sig "sig positional warns against unclaimed parameter"
+    {|takes_named(opt = "s", "x")|} 1 (Some "expects argument `a` to be Int, but it infers to String");
   check_sig "sig expected quotes signature verbatim"
     {|takes_nums("s")|} 1 (Some "to be List[Float] | Vector[Float]");
 
@@ -395,7 +366,11 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
           ) ["src"; "../src"]
         in
         (match roots with
-         | [] -> ()
+         | [] ->
+             (* Failing loudly beats passing vacuously: without the src
+                tree every warning-expecting case below degrades to
+                silent and the suite would lie green. *)
+             report "prod docs setup found src tree" false
          | root :: _ ->
              let rec walk acc dir =
                let entries =
@@ -428,47 +403,7 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
   (* Same construction as production (repl.ml): runtime arity plus the
      documented parameter list per builtin. *)
   let prod_sigs () =
-    let acc = ref [] in
-    Ast.Env.iter (fun name v ->
-      match v with
-      | Ast.VBuiltin { Ast.b_name = Some n; Ast.b_arity; Ast.b_variadic; _ } when n = name ->
-          let params =
-            match Tdoc_registry.lookup n with
-            | Some e ->
-                List.map (fun (p : Tdoc_types.param_doc) ->
-                  (p.Tdoc_types.name, p.Tdoc_types.type_info)
-                ) e.Tdoc_types.params
-            | None -> []
-          in
-          acc := (n, { Check_utils.bs_arity = b_arity;
-                       Check_utils.bs_variadic = b_variadic;
-                       Check_utils.bs_params = params }) :: !acc
-      | _ -> ()) (Packages.init_env ());
-    !acc
-  in
-  let assess name diags expect_count expect_sub =
-    let n = List.length diags in
-    let sub_ok =
-      match expect_sub with
-      | None -> true
-      | Some sub ->
-          List.exists (fun d ->
-            let msg = d.Diagnostics.diag_message in
-            let sl = String.length msg and bl = String.length sub in
-            if bl = 0 then true
-            else begin
-              let rec loop i =
-                if i + bl > sl then false
-                else if String.sub msg i bl = sub then true
-                else loop (i + 1)
-              in
-              loop 0
-            end) diags
-    in
-    let sev_ok =
-      List.for_all (fun d -> d.Diagnostics.diag_severity = Diagnostics.Warning) diags
-    in
-    report name (n = expect_count && sub_ok && sev_ok)
+    Check_utils.builtin_sigs_of_env (Packages.init_env ())
   in
   let check_ret name code which expect_count expect_sub =
     let program =

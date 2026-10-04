@@ -627,22 +627,52 @@ let generic_body_diagnostics program filename =
 
 (** Registry shape for builtin call checks: runtime arity plus the
     documented parameter list (name and declared type string, when
-    present). Callers build it (see `repl.ml`); this module stays a
-    leaf so the `Analyzer -> Packages -> Check_utils` order holds. *)
+    present). Built by [builtin_sigs_of_env] below, so the CLI hook and
+    tests share one construction and cannot drift. This module stays a
+    leaf: callers pass the environment in (`Analyzer -> Packages ->
+    Check_utils` must not cycle). *)
 type builtin_sig = {
   bs_arity : int;
   bs_variadic : bool;
   bs_params : (string * string option) list;
 }
 
+(** Derive call-check signatures for every builtin in an environment.
+    Runtime arity comes from the builtin value; parameter names and
+    declared types come from the documentation registry (empty when
+    undocumented, which stays silent downstream). *)
+let builtin_sigs_of_env env =
+  let acc = ref [] in
+  Ast.Env.iter (fun name v ->
+    match v with
+    | Ast.VBuiltin { Ast.b_name = Some n; Ast.b_arity; Ast.b_variadic; _ } when n = name ->
+        let params =
+          match Tdoc_registry.lookup n with
+          | Some e ->
+              List.map (fun (p : Tdoc_types.param_doc) ->
+                (p.Tdoc_types.name, p.Tdoc_types.type_info)
+              ) e.Tdoc_types.params
+          | None -> []
+        in
+        acc := (n, { bs_arity = b_arity;
+                     bs_variadic = b_variadic;
+                     bs_params = params }) :: !acc
+    | _ -> ()) env;
+  !acc
+
 (** Every name with a local binding program-wide: assignments,
-    reassignments, lambda parameters, and match pattern binders.
+    reassignments, lambda parameters, match pattern binders, and import
+    aliases (`import m [nick = name]`, `import "f.t" [nick = name]`).
     Calling such a name may hit the local, not the builtin, so call
     checks stay silent for it. Shared by the arity and argument-type
-    checks below. *)
+    checks below. A bare `import package` is deliberately excluded: it
+    re-exposes the same builtins, so builtin signatures still apply. *)
 let locally_bound_names program =
   let bound = Hashtbl.create 32 in
   let bind name = Hashtbl.replace bound name true in
+  let bind_import_spec (import_item : import_spec) =
+    bind (Option.value ~default:import_item.import_name import_item.import_alias)
+  in
   let rec bind_pattern = function
     | PVar s -> bind s
     | PList (ps, rest) ->
@@ -661,6 +691,8 @@ let locally_bound_names program =
   and collect_stmt s =
     (match s.node with
      | Assignment { name; _ } | Reassignment { name; _ } -> bind name
+     | ImportFrom { names; _ } | ImportFileFrom { names; _ } ->
+         List.iter bind_import_spec names
      | _ -> ());
     List.iter collect_expr (children_of_stmt s)
   in
@@ -809,6 +841,20 @@ let call_type_diagnostics ~sigs ~infer program filename =
           in
           let named = List.filter_map (fun (n, e) ->
             match n with Some s -> Some (s, e) | None -> None) args in
+          (* Positionals fill the parameters not already claimed by
+             name, in order. Runtime arg matching differs per builtin
+             (plain builtins bind values in written order with names
+             stripped; named-aware ones like `ifelse` match positionals
+             in order and named arguments by name, erroring on
+             double-binds), so mapping a positional onto a name-claimed
+             parameter can only warn falsely — e.g. `f(a = 1, "x")`
+             binds `a = 1` either way. Claimed slots are therefore
+             removed before assigning positionals; named arguments
+             always check against their named parameter. *)
+          let claimed = List.map fst named in
+          let params_open =
+            List.filter (fun (n, _) -> not (List.mem n claimed)) params
+          in
           let check_one pname ptype_opt arg =
             match ptype_opt with
             | None -> ()
@@ -842,7 +888,7 @@ let call_type_diagnostics ~sigs ~infer program filename =
                   end
           in
           List.iteri (fun i (_, e) ->
-            match List.nth_opt params i with
+            match List.nth_opt params_open i with
             | Some (pname, ptype) -> check_one pname ptype e
             | None -> ()
           ) positionals;

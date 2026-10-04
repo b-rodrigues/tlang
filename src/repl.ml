@@ -728,25 +728,7 @@ let check_type_annotations filename =
     Packages.ensure_docs_loaded ();
     Symbol_table.populate_from_env scope (Packages.init_env ());
     let analysis = Analyzer.analyze program scope in
-    let builtins =
-      let acc = ref [] in
-      Ast.Env.iter (fun name v ->
-        match v with
-        | Ast.VBuiltin { Ast.b_name = Some n; Ast.b_arity; Ast.b_variadic; _ } when n = name ->
-            let params =
-              match Tdoc_registry.lookup n with
-              | Some e ->
-                  List.map (fun (p : Tdoc_types.param_doc) ->
-                    (p.Tdoc_types.name, p.Tdoc_types.type_info)
-                  ) e.Tdoc_types.params
-              | None -> []
-            in
-            acc := (n, { Check_utils.bs_arity = b_arity;
-                         Check_utils.bs_variadic = b_variadic;
-                         Check_utils.bs_params = params }) :: !acc
-        | _ -> ()) (Packages.init_env ());
-      !acc
-    in
+    let builtins = Check_utils.builtin_sigs_of_env (Packages.init_env ()) in
     Check_utils.annotation_diagnostics program analysis.Analyzer.stmt_types filename
     @ Check_utils.match_exhaustiveness_diagnostics program filename
     @ Check_utils.match_union_diagnostics program filename
@@ -1012,42 +994,19 @@ let cmd_explain ?failfast mode rest env =
                     (dependencies) and direct children (dependents),
                     plus the transitive closures (ancestors of ancestors,
                     descendants of descendants), nearest-first,
-                    de-duplicated, self excluded. The visited sets keep
-                    this safe on cyclic maps; validation rejects cycles
-                    at build time, but this also runs unbuilt. *)
+                    de-duplicated, self excluded and cycle-safe (shared
+                    with `explain` via `Lineage`). The child table is
+                    built once, so lookups stay linear. *)
+                 let children_tbl = Lineage.children_table p.Ast.p_deps in
                  let step_parents n =
                    match List.assoc_opt n p.Ast.p_deps with
-                   | Some ds -> ds
+                   | Some ds -> Lineage.dedup ds
                    | None -> []
                  in
-                 let step_children n =
-                   List.filter_map (fun (m, deps) ->
-                     if List.mem n deps then Some m else None
-                   ) p.Ast.p_deps
-                 in
-                 let closure step target =
-                   let seen = Hashtbl.create 16 in
-                   Hashtbl.replace seen target ();
-                   let queue = Queue.create () in
-                   List.iter (fun d ->
-                     if not (Hashtbl.mem seen d) then
-                       (Hashtbl.replace seen d (); Queue.add d queue)
-                   ) (step target);
-                   let acc = ref [] in
-                   (try while true do
-                      let n = Queue.take queue in
-                      acc := n :: !acc;
-                      List.iter (fun d ->
-                        if not (Hashtbl.mem seen d) then
-                          (Hashtbl.replace seen d (); Queue.add d queue)
-                      ) (step n)
-                    done with Queue.Empty -> ());
-                   List.rev !acc
-                 in
                  let parents = step_parents node_name in
-                 let children = step_children node_name in
-                 let ancestors = closure step_parents node_name in
-                 let descendants = closure step_children node_name in
+                 let children = Lineage.direct_children children_tbl node_name in
+                 let ancestors = Lineage.closure step_parents node_name in
+                 let descendants = Lineage.closure (Lineage.direct_children children_tbl) node_name in
                  (* Best-effort foreign metadata: evaluate
                     explain(<pipeline>.<node>).foreign_meta in the loaded
                     env. Absent (NA/error) when the node is unbuilt or has
