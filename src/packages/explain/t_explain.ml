@@ -223,6 +223,14 @@ let register ?(ensure_docs=ignore) env =
     (match assoc_int "n_trees" pairs with Some n -> add "n_trees" (VInt n) | None -> ());
     (match assoc_int "n_rounds" pairs with Some n -> add "n_rounds" (VInt n) | None -> ());
     (match assoc_int "n_clusters" pairs with Some n -> add "n_clusters" (VInt n) | None -> ());
+    (match assoc_int "n_levels" pairs with Some n -> add "n_levels" (VInt n) | None -> ());
+    (match assoc_string_list "levels" pairs with
+     | Some names ->
+         add "levels" (VList (List.map (fun s -> (None, VString s)) names));
+         add "levels_preview" (VString (features_preview_of names))
+     | None -> ());
+    (match assoc_string "start" pairs with Some t -> add "start" (VString t) | None -> ());
+    (match assoc_string "end" pairs with Some t -> add "end" (VString t) | None -> ());
     (match assoc_int "n_components" pairs with Some n -> add "n_components" (VInt n) | None -> ());
     (match assoc_string "dtype" pairs with Some t -> add "dtype" (VString t) | None -> ());
     (match assoc_string "method" pairs with Some t -> add "method" (VString t) | None -> ());
@@ -274,10 +282,10 @@ let register ?(ensure_docs=ignore) env =
     | [] -> VNA NAGeneric
     | _ ->
         let display = ["kind"; "class"; "task"; "method"; "dimensions"; "n_obs"; "n_groups"; "groups"; "n_features";
-                       "n_trees"; "n_rounds"; "n_clusters"; "n_components";
+                       "n_trees"; "n_rounds"; "n_clusters"; "n_components"; "n_levels";
                        "dtype";
-                       "target"; "order"; "seasonal_order";
-                       "features_preview"; "formula_preview"; "metrics"; "artifact_size"] in
+                       "target"; "order"; "seasonal_order"; "start"; "end";
+                       "features_preview"; "levels_preview"; "formula_preview"; "metrics"; "artifact_size"] in
         let shown = List.filter (fun k -> List.mem_assoc k ordered) display in
         make_explain_dict ~display_keys:shown ordered)
     end

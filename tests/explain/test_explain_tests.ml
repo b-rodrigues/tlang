@@ -591,6 +591,38 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
   test_env env_fm_tr "explain foreign meta transformer kind"
     "explain(fake_tr).foreign_meta.kind"
     {|"transformer"|};
+  let fac_dir = make_node_dir "fake-factor" in
+  write_file (Filename.concat fac_dir "artifact") "0123456789";
+  write_file (Filename.concat fac_dir "meta")
+    {|{"kind":"factor","class":"factor","n_levels":2,"levels":["a","b"]}|};
+  let env_fm_fac =
+    Ast.Env.add "fake_fac"
+      (Ast.VComputedNode (fake_cn ~name:"fake_fac_foreign_meta_test" ~runtime:"R"
+        ~path:(Filename.concat fac_dir "artifact") ~class_:"factor"))
+      (Packages.init_env ())
+  in
+  test_env env_fm_fac "explain foreign meta factor levels"
+    "explain(fake_fac).foreign_meta.levels_preview"
+    {|"[\"a\", \"b\"]"|};
+  test_env env_fm_fac "explain foreign meta factor level count"
+    "explain(fake_fac).foreign_meta.n_levels"
+    "2";
+  let ts_dir = make_node_dir "fake-tsobj" in
+  write_file (Filename.concat ts_dir "artifact") "0123456789";
+  write_file (Filename.concat ts_dir "meta")
+    {|{"kind":"series","class":"ts","n_obs":144,"metrics":{"period":12},"start":"1949-1","end":"1960-12"}|};
+  let env_fm_tsobj =
+    Ast.Env.add "fake_tsobj"
+      (Ast.VComputedNode (fake_cn ~name:"fake_tsobj_foreign_meta_test" ~runtime:"R"
+        ~path:(Filename.concat ts_dir "artifact") ~class_:"ts"))
+      (Packages.init_env ())
+  in
+  test_env env_fm_tsobj "explain foreign meta series range"
+    "explain(fake_tsobj).foreign_meta.start"
+    {|"1949-1"|};
+  test_env env_fm_tsobj "explain foreign meta series period"
+    "explain(fake_tsobj).foreign_meta.metrics.period"
+    "12";
   (* Julia PCA and statespace nodes share the same schema keys *)
   let jlpc_dir = make_node_dir "fake-jlpca" in
   write_file (Filename.concat jlpc_dir "artifact") "0123456789";
@@ -866,7 +898,12 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
          "fit <- lm(mpg ~ wt + hp, data = mtcars)\n" ^
          "r_save_meta(fit, Sys.getenv(\"T_GOLD_OUT2\"))\n" ^
          "gfit <- mgcv::gam(mpg ~ s(wt) + hp, data = mtcars)\n" ^
-         "r_save_meta(gfit, Sys.getenv(\"T_GOLD_OUT3\"))\n"
+         "r_save_meta(gfit, Sys.getenv(\"T_GOLD_OUT3\"))\n" ^
+         "rfit <- MASS::rlm(mpg ~ wt, mtcars)\n" ^
+         "r_save_meta(rfit, Sys.getenv(\"T_GOLD_OUT4\"))\n" ^
+         "library(MASS)\n" ^
+         "nbfit <- MASS::glm.nb(Days ~ Eth + Age, data = quine)\n" ^
+         "r_save_meta(nbfit, Sys.getenv(\"T_GOLD_OUT5\"))\n"
        in
        (match write_temp "r.R" drv with
         | None -> check_golden "R probe driver written" false
@@ -874,12 +911,16 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
             let out_path = temp_path "r.json" in
             let out2_path = temp_path "r2.json" in
             let out3_path = temp_path "r3.json" in
-            with_temp_files [drv_path; out_path; out2_path; out3_path] (fun () ->
-              let _ = shell_out (Printf.sprintf "T_GOLD_OUT=%s T_GOLD_OUT2=%s T_GOLD_OUT3=%s Rscript %s 2>/dev/null"
-                (Filename.quote out_path) (Filename.quote out2_path) (Filename.quote out3_path) (Filename.quote drv_path)) in
+            let out4_path = temp_path "r4.json" in
+            let out5_path = temp_path "r5.json" in
+            with_temp_files [drv_path; out_path; out2_path; out3_path; out4_path; out5_path] (fun () ->
+              let _ = shell_out (Printf.sprintf "T_GOLD_OUT=%s T_GOLD_OUT2=%s T_GOLD_OUT3=%s T_GOLD_OUT4=%s T_GOLD_OUT5=%s Rscript %s 2>/dev/null"
+                (Filename.quote out_path) (Filename.quote out2_path) (Filename.quote out3_path) (Filename.quote out4_path) (Filename.quote out5_path) (Filename.quote drv_path)) in
               let json = match read_file_opt out_path with Some s -> s | None -> "" in
               let json2 = match read_file_opt out2_path with Some s -> s | None -> "" in
               let json3 = match read_file_opt out3_path with Some s -> s | None -> "" in
+              let json4 = match read_file_opt out4_path with Some s -> s | None -> "" in
+              let json5 = match read_file_opt out5_path with Some s -> s | None -> "" in
               check_golden "R probe keeps tiny p-values unrounded"
                 (match json_number json "p_value" with Some f -> f < 1e-6 | None -> false);
               check_golden "R probe keeps full float precision"
@@ -887,7 +928,11 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
                  | Some f -> abs_float (f -. 0.826785451882791) < 1e-6
                  | None -> false);
               check_golden "R probe handles gam through the glm branch"
-                (contains json3 "regression" && contains json3 "s(wt)"))));
+                (contains json3 "regression" && contains json3 "s(wt)");
+              check_golden "R probe handles rlm through the lm branch"
+                (contains json4 "regression" && contains json4 "n_obs");
+              check_golden "R probe handles glm.nb through the glm branch"
+                (contains json5 "regression" && contains json5 "n_features"))));
   (* Python: array-API const excluded from features; NaN sanitized. *)
   (match extract_fn ~keep_end:false "def py_save_meta(obj, path):" (fun l -> l <> "" && l.[0] <> ' ' && l.[0] <> '\t') with
    | None -> check_golden "Python probe source found" false

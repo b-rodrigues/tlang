@@ -1656,6 +1656,26 @@ r_save_meta <- function(object, path) {
       meta$dimensions <- as.list(as.integer(dim(object)))
       tp <- tryCatch(typeof(object), error = function(e) NULL)
       if (!is.null(tp) && length(tp) == 1 && !is.na(tp) && nzchar(tp)) meta$dtype <- tp
+    } else if (inherits(object, "factor")) {
+      meta$kind <- "factor"
+      lv <- tryCatch(levels(object), error = function(e) NULL)
+      if (!is.null(lv) && length(lv) > 0) {
+        meta$n_levels <- length(lv)
+        lv <- as.character(lv)
+        if (length(lv) > 500) lv <- lv[1:500]
+        meta$levels <- as.list(lv)
+      }
+    } else if (inherits(object, "ts")) {
+      meta$kind <- "series"
+      meta$n_obs <- as.integer(length(object))
+      fr <- tryCatch(stats::frequency(object), error = function(e) NULL)
+      metrics <- list()
+      if (!is.null(fr) && length(fr) == 1 && !is.na(fr) && fr > 0) metrics$period <- as.integer(fr)
+      if (length(metrics) > 0) meta$metrics <- metrics
+      st <- tryCatch(stats::start(object), error = function(e) NULL)
+      if (!is.null(st) && length(st) > 0 && !any(is.na(st))) meta$start <- paste(st, collapse = "-")
+      en <- tryCatch(stats::end(object), error = function(e) NULL)
+      if (!is.null(en) && length(en) > 0 && !any(is.na(en))) meta$end <- paste(en, collapse = "-")
     } else if (is.atomic(object) && is.null(dim(object)) && !inherits(object, "factor")) {
       meta$kind <- "vector"
       meta$dimensions <- list(length(object))
@@ -2279,6 +2299,16 @@ def py_save_meta(obj, path):
                 meta["features"] = [str(c) for c in list(obj.columns)]
             except Exception:
                 pass
+        elif (mod.startswith("pyarrow") and cls.__name__ == "Table"):
+            meta["kind"] = "dataframe"
+            try:
+                meta["dimensions"] = [int(obj.num_rows), int(obj.num_columns)]
+            except Exception:
+                pass
+            try:
+                meta["features"] = [str(c) for c in list(obj.column_names)]
+            except Exception:
+                pass
         elif mod.startswith("sklearn") or (mod.startswith("lightgbm") and cls.__name__ not in ("Booster", "Dataset")):
             meta["kind"] = "model"
             est_type = None
@@ -2301,6 +2331,8 @@ def py_save_meta(obj, path):
                 meta["task"] = "clustering"
             elif est_type == "density_estimator":
                 meta["task"] = "density"
+            elif est_type == "outlier_detector":
+                meta["task"] = "anomaly_detection"
             elif "task" not in meta and any(k in cls.__name__ for k in ("PCA", "TruncatedSVD", "NMF", "FactorAnalysis")):
                 meta["task"] = "dim_reduction"
             if "task" not in meta:
@@ -2351,6 +2383,22 @@ def py_save_meta(obj, path):
                 cc = getattr(obj, "cluster_centers_", None)
                 if cc is not None:
                     meta["n_clusters"] = int(len(cc))
+                else:
+                    nc = getattr(obj, "n_clusters_", None)
+                    if nc is not None:
+                        meta["n_clusters"] = int(nc)
+                    else:
+                        lab = getattr(obj, "labels_", None)
+                        if lab is not None:
+                            uniq = set()
+                            for v in list(lab):
+                                try:
+                                    iv = int(v)
+                                except Exception:
+                                    continue
+                                if iv != -1:
+                                    uniq.add(iv)
+                            meta["n_clusters"] = len(uniq)
             except Exception:
                 pass
             try:
@@ -3156,7 +3204,7 @@ function jl_save_meta(obj, path)
                 end
             end
             iskmeans = try
-                hasproperty(obj, :counts) && hasproperty(obj, :centers) && hasproperty(obj, :totalcost)
+                hasproperty(obj, :counts) && hasproperty(obj, :totalcost) && (hasproperty(obj, :centers) || hasproperty(obj, :medoids))
             catch
                 false
             end

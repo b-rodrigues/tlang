@@ -44,9 +44,9 @@ next to `artifact`/`class` (best effort — the build never fails for it):
 
 ```t
 e = explain(p.fit)
-e.foreign_meta.kind        -- value kind: "dataframe", "matrix", "vector", "array", "model", "test", "data", "transformer", "other", or "unknown"
+e.foreign_meta.kind        -- value kind: "dataframe", "matrix", "vector", "array", "factor", "series", "model", "test", "data", "transformer", "other", or "unknown"
 e.foreign_meta.class        -- runtime type name, e.g. "lm", "DataFrame", "ARIMA"
-e.foreign_meta.task         -- model task when known: "regression", "classification", "clustering", "time_series", "dim_reduction", or "density"
+e.foreign_meta.task         -- model task when known: "regression", "classification", "clustering", "time_series", "dim_reduction", "density", or "anomaly_detection"
 e.foreign_meta.dimensions  -- shape as int list, e.g. [32, 11] for frames, [4, 3] for matrices, [3] for vectors
 e.foreign_meta.n_obs       -- training rows (models)
 e.foreign_meta.n_groups    -- grouping units, e.g. 18 subjects (mixed models)
@@ -57,6 +57,9 @@ e.foreign_meta.n_rounds    -- boosting rounds (boosted trees, when known)
 e.foreign_meta.n_clusters  -- cluster count (clustering, when known)
 e.foreign_meta.n_components -- component count (PCA, when known)
 e.foreign_meta.dtype        -- element type, e.g. "float64" (arrays, when known)
+e.foreign_meta.n_levels     -- level count with levels list (R factors)
+e.foreign_meta.start        -- series start, e.g. "1949-1" (R ts)
+e.foreign_meta.end          -- series end, e.g. "1960-12" (R ts)
 e.foreign_meta.method      -- algorithm variant: hclust linkage, or the test name for `htest` results
 e.foreign_meta.target      -- response name (when known)
 e.foreign_meta.formula     -- full formula (R models, when known)
