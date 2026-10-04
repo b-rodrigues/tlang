@@ -4390,9 +4390,9 @@ node_info.contents        -- explained node payload
 
 -- Computed pipeline nodes (R, Python, Julia) carry build-time metadata:
 node = explain(p.fit)
-node.foreign_meta.kind        -- value kind: "dataframe", "matrix", "vector", "array", "factor", "series", "table", "model", "test", "data", "transformer", "other", or "unknown"
+node.foreign_meta.kind        -- value kind: "dataframe", "matrix", "vector", "array", "factor", "series", "table", "model", "test", "data", "transformer", "distribution", "other", or "unknown"
 node.foreign_meta.class        -- runtime type name, e.g. "lm", "DataFrame", "ARIMA"
-node.foreign_meta.task         -- model task when known: "regression", "classification", "clustering", "time_series", "dim_reduction", "density", or "anomaly_detection"
+node.foreign_meta.task         -- model task when known: "regression", "classification", "clustering", "time_series", "dim_reduction", "density", "anomaly_detection", "ranking", or "survival"
 node.foreign_meta.dimensions  -- shape as int list, e.g. [32, 11] for frames, [4, 3] for matrices, [3] for vectors
 node.foreign_meta.n_obs       -- training row count (models)
 node.foreign_meta.n_groups    -- grouping units, e.g. 18 subjects (mixed models)
@@ -4414,6 +4414,8 @@ node.foreign_meta.seasonal_order -- [P, D, Q, m] (seasonal models, when known)
 node.foreign_meta.features    -- full feature/column list (first 500 entries; `n_features` stays exact)
 node.foreign_meta.metrics     -- free numeric metrics (r_squared, aic, bic, ...); numbers only, other values are dropped
 node.foreign_meta.artifact_size -- artifact file size in bytes
+
+Time-series decompositions (`stl`) report component names as features and the seasonal period. Survival models (`coxph`) report event counts and concordance. Rankers report boosting rounds. Frozen scipy distributions report the distribution name and moments. Pure transformers report `transformer` kind; Julia time arrays report `series` kind with timestamps counted as observations.
 
 Julia note: fit-metric verbs (`nobs`, `coefnames`, `r2`, `aic`,
 `deviance`, `loglikelihood`) resolve from whatever the node session

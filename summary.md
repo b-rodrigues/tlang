@@ -557,6 +557,7 @@ Purpose: value introspection and intent-block inspection.
 - Introspection: `explain(x)`, `explain_json(x)`
 - Node introspection: `explain(read_node(...))` separates node metadata (`node_name`, `diagnostics`) from explained payload via `contents`
 - Pipeline lineage: `explain(p)` lists per-node `dependencies` (ancestors) and `children` (direct dependents)
+- CLI lineage: `t explain --node p.name` prints direct ancestors and children (and `--json` adds `ancestors`/`children` arrays) from the static dependency map
 - Foreign-node metadata: `explain(p.node)` for R/Python/Julia nodes exposes `foreign_meta` from the build-time `meta` sidecar — `kind`, one `dimensions` int list for all array-likes (frames, matrices, vectors), `task`, `n_obs`, `n_features`, `target`, full `formula` (R) and `features` plus free `metrics` for models, `artifact_size`; tree display shows short `features_preview`/`formula_preview` while dot access returns full values; `NA` when unbuilt
 - CLI: `t explain --node p.name` prints a `Foreign metadata` section (and a `foreign_meta` object with `--json`) from the same sidecar when present
 - CLI presentation: `explain(...)` returns regular `Dict` values, and `pretty_print()` (including default REPL/CLI display) renders large or nested `Dict`, `List`, and `Pipeline` outputs as trees for readability.

@@ -980,6 +980,18 @@ let cmd_explain ?failfast mode rest env =
                  Printf.eprintf "Error: Node '%s' not found in the pipeline.\n" node_name;
                  exit 1
              | Some d ->
+                 (* Lineage from the static dep map: direct ancestors
+                    (dependencies) and direct children (dependents). *)
+                 let ancestors =
+                   match List.assoc_opt node_name p.Ast.p_deps with
+                   | Some ds -> ds
+                   | None -> []
+                 in
+                 let children =
+                   List.filter_map (fun (n, deps) ->
+                     if List.mem node_name deps then Some n else None
+                   ) p.Ast.p_deps
+                 in
                  (* Best-effort foreign metadata: evaluate
                     explain(<pipeline>.<node>).foreign_meta in the loaded
                     env. Absent (NA/error) when the node is unbuilt or has
@@ -1038,6 +1050,8 @@ let cmd_explain ?failfast mode rest env =
                      ) d.nd_warnings
                    in
                    fields := !fields @ [("warnings", `List warnings_json)];
+                   fields := !fields @ [("ancestors", `List (List.map (fun s -> `String s) ancestors))];
+                   fields := !fields @ [("children", `List (List.map (fun s -> `String s) children))];
                    (match foreign_meta_opt with
                     | Some fm ->
                         (try
@@ -1071,6 +1085,11 @@ let cmd_explain ?failfast mode rest env =
                           (let s = Pretty_print.pretty_print_value fm in
                            if s <> "" && s.[String.length s - 1] <> '\n' then s ^ "\n" else s)
                     | None -> ());
+                   if ancestors <> [] || children <> [] then begin
+                     has_output := true;
+                     Printf.printf "Lineage for node '%s': ancestors=[%s] children=[%s]\n" node_name
+                       (String.concat ", " ancestors) (String.concat ", " children);
+                   end;
                    if not !has_output then
                      Printf.printf "Node '%s' compiled/built successfully with no errors or warnings.\n" node_name
                  end

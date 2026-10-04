@@ -1887,6 +1887,47 @@ r_save_meta <- function(object, path) {
       if (length(metrics) > 0) meta$metrics <- metrics
       no <- tryCatch(stats::nobs(object), error = function(e) NULL)
       if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- as.integer(no)
+    } else if (inherits(object, "stl")) {
+      meta$kind <- "model"
+      meta$task <- "time_series"
+      tsm <- tryCatch(object$time.series, error = function(e) NULL)
+      if (!is.null(tsm)) {
+        nr <- tryCatch(nrow(tsm), error = function(e) NULL)
+        if (!is.null(nr) && length(nr) == 1 && !is.na(nr)) meta$n_obs <- as.integer(nr)
+        vn <- tryCatch(colnames(tsm), error = function(e) NULL)
+        if (!is.null(vn) && length(vn) > 0) {
+          meta$n_features <- length(vn)
+          meta$features <- as.list(as.character(vn))
+        }
+        fr <- tryCatch(stats::frequency(tsm), error = function(e) NULL)
+        metrics <- list()
+        if (!is.null(fr) && length(fr) == 1 && !is.na(fr) && fr > 0) metrics$period <- as.integer(fr)
+        if (length(metrics) > 0) meta$metrics <- metrics
+      }
+    } else if (inherits(object, "coxph")) {
+      meta$kind <- "model"
+      meta$task <- "survival"
+      no <- tryCatch(as.integer(object$n), error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- no
+      cf <- tryCatch(names(stats::coef(object)), error = function(e) NULL)
+      if (!is.null(cf) && length(cf) > 0) {
+        meta$n_features <- length(cf)
+        meta$features <- as.list(as.character(cf))
+      }
+      fm <- tryCatch(stats::formula(object), error = function(e) NULL)
+      if (!is.null(fm)) {
+        meta$formula <- paste(deparse(fm), collapse = " ")
+        fch <- tryCatch(as.character(fm), error = function(e) NULL)
+        if (!is.null(fch) && length(fch) == 3 && !is.na(fch[2]) && nzchar(fch[2])) meta$target <- fch[2]
+      }
+      metrics <- list()
+      ll <- tryCatch(as.numeric(utils::tail(object$loglik, 1)), error = function(e) NULL)
+      if (!is.null(ll) && length(ll) == 1 && !is.na(ll)) metrics$loglik <- ll
+      ci <- tryCatch(as.numeric(object$concordance[["concordance"]]), error = function(e) NULL)
+      if (!is.null(ci) && length(ci) == 1 && !is.na(ci)) metrics$concordance <- ci
+      nev <- tryCatch(as.integer(object$nevent), error = function(e) NULL)
+      if (!is.null(nev) && length(nev) == 1 && !is.na(nev)) metrics$n_events <- nev
+      if (length(metrics) > 0) meta$metrics <- metrics
     } else if (inherits(object, "merMod")) {
       meta$kind <- "model"
       if (inherits(object, "glmerMod")) {
@@ -2372,6 +2413,8 @@ def py_save_meta(obj, path):
                 meta["task"] = "density"
             elif est_type == "outlier_detector":
                 meta["task"] = "anomaly_detection"
+            elif est_type == "ranker" or "Ranker" in cls.__name__ or "Rank" in cls.__name__:
+                meta["task"] = "ranking"
             elif "task" not in meta and any(k in cls.__name__ for k in ("PCA", "TruncatedSVD", "NMF", "FactorAnalysis")):
                 meta["task"] = "dim_reduction"
             if "task" not in meta:
@@ -2473,6 +2516,18 @@ def py_save_meta(obj, path):
                     meta.setdefault("metrics", {})["lower_bound"] = float(lb)
             except Exception:
                 pass
+            try:
+                bb = getattr(obj, "booster_", None)
+                if bb is not None and "n_rounds" not in meta:
+                    try:
+                        meta["n_rounds"] = int(bb.num_trees())
+                    except Exception:
+                        try:
+                            meta["n_rounds"] = int(bb.current_iteration())
+                        except Exception:
+                            pass
+            except Exception:
+                pass
         elif mod.startswith("xgboost"):
             if cls.__name__ == "Booster":
                 meta["kind"] = "model"
@@ -2524,6 +2579,25 @@ def py_save_meta(obj, path):
                             meta["task"] = "classification"
                         elif est_type == "regressor":
                             meta["task"] = "regression"
+                        elif est_type == "ranker" or "Ranker" in cls.__name__ or "Rank" in cls.__name__:
+                            meta["task"] = "ranking"
+                except Exception:
+                    pass
+                if "task" not in meta and ("Ranker" in cls.__name__ or "Rank" in cls.__name__):
+                    meta["task"] = "ranking"
+                try:
+                    gb = getattr(obj, "get_booster", lambda: None)()
+                    if gb is not None:
+                        try:
+                            meta["n_rounds"] = int(gb.num_boosted_rounds())
+                        except Exception:
+                            pass
+                        try:
+                            nf = gb.num_features()
+                            if nf is not None and "n_features" not in meta:
+                                meta["n_features"] = int(nf)
+                        except Exception:
+                            pass
                 except Exception:
                     pass
                 try:
@@ -2716,6 +2790,23 @@ def py_save_meta(obj, path):
                     pass
                 try:
                     meta.setdefault("metrics", {})["p_value"] = float(pv)
+                except Exception:
+                    pass
+            elif "frozen" in cls.__name__:
+                meta["kind"] = "distribution"
+                try:
+                    d = getattr(obj, "dist", None)
+                    dn = getattr(d, "name", None) if d is not None else None
+                    if dn:
+                        meta["method"] = str(dn)
+                except Exception:
+                    pass
+                try:
+                    meta.setdefault("metrics", {})["mean"] = float(obj.mean())
+                except Exception:
+                    pass
+                try:
+                    meta.setdefault("metrics", {})["std"] = float(obj.std())
                 except Exception:
                     pass
             else:
@@ -3322,6 +3413,58 @@ function jl_save_meta(obj, path)
                     mm = haskey(meta, "metrics") ? meta["metrics"] : Dict{String, Any}()
                     mm["max_height"] = Float64(maximum(obj.heights))
                     meta["metrics"] = mm
+                catch
+                end
+            end
+            istimearray = try
+                hasproperty(obj, :timestamp) && hasproperty(obj, :values)
+            catch
+                false
+            end
+            if istimearray
+                meta["kind"] = "series"
+                try
+                    meta["n_obs"] = Int(length(obj.timestamp))
+                catch
+                end
+                try
+                    vv = obj.values
+                    if vv isa AbstractArray && ndims(vv) == 2
+                        meta["n_features"] = Int(size(vv, 2))
+                    end
+                catch
+                end
+            end
+            issingletree = try
+                !isforest && hasproperty(obj, :feature) && hasproperty(obj, :threshold) && (hasproperty(obj, :left) || hasproperty(obj, :right))
+            catch
+                false
+            end
+            if issingletree
+                meta["kind"] = "model"
+            end
+            ishypotest = try
+                tn = string(typeof(obj))
+                (occursin("Test", tn) || occursin("test", tn)) && (hasproperty(obj, :pvalue) || hasproperty(obj, :statistic))
+            catch
+                false
+            end
+            if ishypotest
+                meta["kind"] = "test"
+                try
+                    if hasproperty(obj, :pvalue)
+                        mm = haskey(meta, "metrics") ? meta["metrics"] : Dict{String, Any}()
+                        mm["p_value"] = Float64(obj.pvalue)
+                        meta["metrics"] = mm
+                    end
+                catch
+                end
+                try
+                    if hasproperty(obj, :statistic)
+                        mm = haskey(meta, "metrics") ? meta["metrics"] : Dict{String, Any}()
+                        mm["statistic"] = Float64(obj.statistic)
+                        meta["metrics"] = mm
+                    end
                 catch
                 end
             end

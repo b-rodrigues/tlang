@@ -652,6 +652,70 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
   test_env env_fm_pam "explain foreign meta pam clusters"
     "explain(fake_pam).foreign_meta.n_clusters"
     "4";
+  let stl_dir = make_node_dir "fake-stl" in
+  write_file (Filename.concat stl_dir "artifact") "0123456789";
+  write_file (Filename.concat stl_dir "meta")
+    {|{"kind":"model","class":"stl","task":"time_series","n_obs":144,"n_features":3,"metrics":{"period":12}}|};
+  let env_fm_stl =
+    Ast.Env.add "fake_stl"
+      (Ast.VComputedNode (fake_cn ~name:"fake_stl_foreign_meta_test" ~runtime:"R"
+        ~path:(Filename.concat stl_dir "artifact") ~class_:"stl"))
+      (Packages.init_env ())
+  in
+  test_env env_fm_stl "explain foreign meta stl task"
+    "explain(fake_stl).foreign_meta.task"
+    {|"time_series"|};
+  test_env env_fm_stl "explain foreign meta stl period"
+    "explain(fake_stl).foreign_meta.metrics.period"
+    "12";
+  let cox_dir = make_node_dir "fake-cox" in
+  write_file (Filename.concat cox_dir "artifact") "0123456789";
+  write_file (Filename.concat cox_dir "meta")
+    {|{"kind":"model","class":"coxph","task":"survival","n_obs":228,"n_features":2,"metrics":{"concordance":0.6028,"n_events":165}}|};
+  let env_fm_cox =
+    Ast.Env.add "fake_cox"
+      (Ast.VComputedNode (fake_cn ~name:"fake_cox_foreign_meta_test" ~runtime:"R"
+        ~path:(Filename.concat cox_dir "artifact") ~class_:"coxph"))
+      (Packages.init_env ())
+  in
+  test_env env_fm_cox "explain foreign meta coxph task"
+    "explain(fake_cox).foreign_meta.task"
+    {|"survival"|};
+  test_env env_fm_cox "explain foreign meta coxph events"
+    "explain(fake_cox).foreign_meta.metrics.n_events"
+    "165";
+  let rank_dir = make_node_dir "fake-ranker" in
+  write_file (Filename.concat rank_dir "artifact") "0123456789";
+  write_file (Filename.concat rank_dir "meta")
+    {|{"kind":"model","class":"XGBRanker","task":"ranking","n_rounds":3,"n_features":3}|};
+  let env_fm_rank =
+    Ast.Env.add "fake_rank"
+      (Ast.VComputedNode (fake_cn ~name:"fake_rank_foreign_meta_test" ~runtime:"Python"
+        ~path:(Filename.concat rank_dir "artifact") ~class_:"XGBRanker"))
+      (Packages.init_env ())
+  in
+  test_env env_fm_rank "explain foreign meta ranker task"
+    "explain(fake_rank).foreign_meta.task"
+    {|"ranking"|};
+  test_env env_fm_rank "explain foreign meta ranker rounds"
+    "explain(fake_rank).foreign_meta.n_rounds"
+    "3";
+  let fz_dir = make_node_dir "fake-frozen" in
+  write_file (Filename.concat fz_dir "artifact") "0123456789";
+  write_file (Filename.concat fz_dir "meta")
+    {|{"kind":"distribution","class":"rv_continuous_frozen","method":"norm","metrics":{"mean":0.0,"std":1.0}}|};
+  let env_fm_fz =
+    Ast.Env.add "fake_fz"
+      (Ast.VComputedNode (fake_cn ~name:"fake_fz_foreign_meta_test" ~runtime:"Python"
+        ~path:(Filename.concat fz_dir "artifact") ~class_:"rv_continuous_frozen"))
+      (Packages.init_env ())
+  in
+  test_env env_fm_fz "explain foreign meta frozen dist kind"
+    "explain(fake_fz).foreign_meta.kind"
+    {|"distribution"|};
+  test_env env_fm_fz "explain foreign meta frozen dist name"
+    "explain(fake_fz).foreign_meta.method"
+    {|"norm"|};
   (* Pipeline lineage: direct children per node. *)
   test "explain pipeline node children"
     {|p_lin = pipeline { x = 10; y = x + 5; z = x + y }; e_lin = explain(p_lin); get(get(e_lin.nodes, 0).children, 0)|}
@@ -942,7 +1006,12 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
          "r_save_meta(rfit, Sys.getenv(\"T_GOLD_OUT4\"))\n" ^
          "library(MASS)\n" ^
          "nbfit <- MASS::glm.nb(Days ~ Eth + Age, data = quine)\n" ^
-         "r_save_meta(nbfit, Sys.getenv(\"T_GOLD_OUT5\"))\n"
+         "r_save_meta(nbfit, Sys.getenv(\"T_GOLD_OUT5\"))\n" ^
+         "sstl <- stl(AirPassengers, s.window = \"periodic\")\n" ^
+         "r_save_meta(sstl, Sys.getenv(\"T_GOLD_OUT6\"))\n" ^
+         "library(survival)\n" ^
+         "cfit <- coxph(Surv(time, status) ~ age + sex, data = lung)\n" ^
+         "r_save_meta(cfit, Sys.getenv(\"T_GOLD_OUT7\"))\n"
        in
        (match write_temp "r.R" drv with
         | None -> check_golden "R probe driver written" false
@@ -952,14 +1021,18 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
             let out3_path = temp_path "r3.json" in
             let out4_path = temp_path "r4.json" in
             let out5_path = temp_path "r5.json" in
-            with_temp_files [drv_path; out_path; out2_path; out3_path; out4_path; out5_path] (fun () ->
-              let _ = shell_out (Printf.sprintf "T_GOLD_OUT=%s T_GOLD_OUT2=%s T_GOLD_OUT3=%s T_GOLD_OUT4=%s T_GOLD_OUT5=%s Rscript %s 2>/dev/null"
-                (Filename.quote out_path) (Filename.quote out2_path) (Filename.quote out3_path) (Filename.quote out4_path) (Filename.quote out5_path) (Filename.quote drv_path)) in
+            let out6_path = temp_path "r6.json" in
+            let out7_path = temp_path "r7.json" in
+            with_temp_files [drv_path; out_path; out2_path; out3_path; out4_path; out5_path; out6_path; out7_path] (fun () ->
+              let _ = shell_out (Printf.sprintf "T_GOLD_OUT=%s T_GOLD_OUT2=%s T_GOLD_OUT3=%s T_GOLD_OUT4=%s T_GOLD_OUT5=%s T_GOLD_OUT6=%s T_GOLD_OUT7=%s Rscript %s 2>/dev/null"
+                (Filename.quote out_path) (Filename.quote out2_path) (Filename.quote out3_path) (Filename.quote out4_path) (Filename.quote out5_path) (Filename.quote out6_path) (Filename.quote out7_path) (Filename.quote drv_path)) in
               let json = match read_file_opt out_path with Some s -> s | None -> "" in
               let json2 = match read_file_opt out2_path with Some s -> s | None -> "" in
               let json3 = match read_file_opt out3_path with Some s -> s | None -> "" in
               let json4 = match read_file_opt out4_path with Some s -> s | None -> "" in
               let json5 = match read_file_opt out5_path with Some s -> s | None -> "" in
+              let json6 = match read_file_opt out6_path with Some s -> s | None -> "" in
+              let json7 = match read_file_opt out7_path with Some s -> s | None -> "" in
               check_golden "R probe keeps tiny p-values unrounded"
                 (match json_number json "p_value" with Some f -> f < 1e-6 | None -> false);
               check_golden "R probe keeps full float precision"
@@ -971,7 +1044,11 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
               check_golden "R probe handles rlm through the lm branch"
                 (contains json4 "regression" && contains json4 "n_obs");
               check_golden "R probe handles glm.nb through the glm branch"
-                (contains json5 "regression" && contains json5 "n_features"))));
+                (contains json5 "regression" && contains json5 "n_features");
+              check_golden "R probe handles stl decomposition"
+                (contains json6 "time_series" && contains json6 "seasonal");
+              check_golden "R probe handles coxph survival"
+                (contains json7 "survival" && contains json7 "concordance"))));
   (* Python: array-API const excluded from features; NaN sanitized. *)
   (match extract_fn ~keep_end:false "def py_save_meta(obj, path):" (fun l -> l <> "" && l.[0] <> ' ' && l.[0] <> '\t') with
    | None -> check_golden "Python probe source found" false
@@ -991,6 +1068,11 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
            "py_save_meta(sm.OLS(df[\"y\"], sm.add_constant(df[[\"x\"]])).fit(), os.environ[\"T_GOLD_OUT\"])\n" ^
            "from sklearn.ensemble import IsolationForest\n" ^
            "py_save_meta(IsolationForest().fit(np.array([[1.0],[2.0],[3.0]])), os.environ[\"T_GOLD_OUT3\"])\n" ^
+           "from xgboost import XGBRanker\n" ^
+           "_tlang_X = np.array([[1.0],[2.0],[3.0],[4.0]])\n" ^
+           "py_save_meta(XGBRanker(n_estimators = 3).fit(_tlang_X, np.array([0, 0, 1, 1]), qid = np.array([0, 0, 0, 0])), os.environ[\"T_GOLD_OUT4\"])\n" ^
+           "from scipy import stats as _tlang_stats\n" ^
+           "py_save_meta(_tlang_stats.norm(0, 1), os.environ[\"T_GOLD_OUT5\"])\n" ^
            "san = _tlang_sanitize_json({\"kind\": \"model\", \"metrics\": {\"aic\": float(\"nan\"), \"bic\": 2.5}})\n" ^
            "import json as _tlang_json_check\n" ^
            "with open(os.environ[\"T_GOLD_OUT2\"], \"w\") as f: _tlang_json_check.dump(san, f)\n"
@@ -1001,16 +1083,24 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
               let out_path = temp_path "py.json" in
               let out2_path = temp_path "py2.json" in
               let out3_path = temp_path "py3.json" in
-              with_temp_files [drv_path; out_path; out2_path; out3_path] (fun () ->
-                let _ = shell_out (Printf.sprintf "T_GOLD_OUT=%s T_GOLD_OUT2=%s T_GOLD_OUT3=%s python3 %s 2>/dev/null"
-                  (Filename.quote out_path) (Filename.quote out2_path) (Filename.quote out3_path) (Filename.quote drv_path)) in
+              let out4_path = temp_path "py4.json" in
+              let out5_path = temp_path "py5.json" in
+              with_temp_files [drv_path; out_path; out2_path; out3_path; out4_path; out5_path] (fun () ->
+                let _ = shell_out (Printf.sprintf "T_GOLD_OUT=%s T_GOLD_OUT2=%s T_GOLD_OUT3=%s T_GOLD_OUT4=%s T_GOLD_OUT5=%s python3 %s 2>/dev/null"
+                  (Filename.quote out_path) (Filename.quote out2_path) (Filename.quote out3_path) (Filename.quote out4_path) (Filename.quote out5_path) (Filename.quote drv_path)) in
                 let json = match read_file_opt out_path with Some s -> s | None -> "" in
                 let json2 = match read_file_opt out2_path with Some s -> s | None -> "" in
                 let json3 = match read_file_opt out3_path with Some s -> s | None -> "" in
+                let json4 = match read_file_opt out4_path with Some s -> s | None -> "" in
+                let json5 = match read_file_opt out5_path with Some s -> s | None -> "" in
                 check_golden "Python probe excludes const from OLS features"
                   (contains json "\"x\"" && not (contains json "const"));
                 check_golden "Python probe tags anomaly detectors"
                   (contains json3 "anomaly_detection");
+                check_golden "Python probe tags rankers"
+                  (contains json4 "ranking" && contains json4 "n_rounds");
+                check_golden "Python probe handles frozen distributions"
+                  (contains json5 "distribution" && contains json5 "norm");
                 check_golden "Python sanitizer drops NaN metrics, keeps the rest"
                   (contains json2 "bic" && not (contains json2 "aic"))))));
   (* Julia: end-to-end save_meta on a DataFrame plus the NaN sanitizer. *)
@@ -1039,6 +1129,23 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
                 "    totalcost::Float64\n" ^
                 "end\n" ^
                 "jl_save_meta(TlangGoldMedoids([2, 2], [1, 3], 4.0), ENV[\"T_GOLD_OUT3\"])\n" ^
+                "struct TlangGoldTimeArray\n" ^
+                "    timestamp::Vector{Int}\n" ^
+                "    values::Matrix{Float64}\n" ^
+                "end\n" ^
+                "struct TlangGoldTree\n" ^
+                "    feature::Int\n" ^
+                "    threshold::Float64\n" ^
+                "    left::Int\n" ^
+                "    right::Int\n" ^
+                "end\n" ^
+                "struct TlangGoldTTest\n" ^
+                "    pvalue::Float64\n" ^
+                "    statistic::Float64\n" ^
+                "end\n" ^
+                "jl_save_meta(TlangGoldTimeArray([1,2,3], [1.0 2.0; 3.0 4.0; 5.0 6.0]), ENV[\"T_GOLD_OUT4\"])\n" ^
+                "jl_save_meta(TlangGoldTree(2, 0.5, 1, 2), ENV[\"T_GOLD_OUT5\"])\n" ^
+                "jl_save_meta(TlangGoldTTest(0.03, 2.1), ENV[\"T_GOLD_OUT6\"])\n" ^
                 "d = jl_sanitize_json_value(Dict(\"kind\" => \"model\", \"metrics\" => Dict(\"aic\" => NaN, \"bic\" => 1.5)))\n" ^
                 "open(ENV[\"T_GOLD_OUT2\"], \"w\") do f\n" ^
                 "    print(f, d)\n" ^
@@ -1050,18 +1157,30 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
                    let out_path = temp_path "jl.json" in
                    let out2_path = temp_path "jl2.json" in
                    let out3_path = temp_path "jl3.json" in
-                   with_temp_files [drv_path; out_path; out2_path; out3_path] (fun () ->
-                     let _ = shell_out (Printf.sprintf "T_GOLD_OUT=%s T_GOLD_OUT2=%s T_GOLD_OUT3=%s julia %s 2>/dev/null"
-                       (Filename.quote out_path) (Filename.quote out2_path) (Filename.quote out3_path) (Filename.quote drv_path)) in
+                   let out4_path = temp_path "jl4.json" in
+                   let out5_path = temp_path "jl5.json" in
+                   let out6_path = temp_path "jl6.json" in
+                   with_temp_files [drv_path; out_path; out2_path; out3_path; out4_path; out5_path; out6_path] (fun () ->
+                     let _ = shell_out (Printf.sprintf "T_GOLD_OUT=%s T_GOLD_OUT2=%s T_GOLD_OUT3=%s T_GOLD_OUT4=%s T_GOLD_OUT5=%s T_GOLD_OUT6=%s julia %s 2>/dev/null"
+                       (Filename.quote out_path) (Filename.quote out2_path) (Filename.quote out3_path) (Filename.quote out4_path) (Filename.quote out5_path) (Filename.quote out6_path) (Filename.quote drv_path)) in
                      let json = match read_file_opt out_path with Some s -> s | None -> "" in
                      let txt = match read_file_opt out2_path with Some s -> s | None -> "" in
                      let json3 = match read_file_opt out3_path with Some s -> s | None -> "" in
+                     let json4 = match read_file_opt out4_path with Some s -> s | None -> "" in
+                     let json5 = match read_file_opt out5_path with Some s -> s | None -> "" in
+                     let json6 = match read_file_opt out6_path with Some s -> s | None -> "" in
                      check_golden "Julia probe writes a real sidecar end to end"
                        (contains json "dataframe" && contains json "dimensions");
                      check_golden "Julia sanitizer drops NaN metrics, keeps the rest"
                        (contains txt "bic" && not (contains txt "aic"));
                      check_golden "Julia probe detects medoids clustering"
-                       (contains json3 "clustering" && contains json3 "n_clusters")))));
+                       (contains json3 "clustering" && contains json3 "n_clusters");
+                     check_golden "Julia probe handles time arrays"
+                       (contains json4 "series" && contains json4 "n_obs");
+                     check_golden "Julia probe handles single trees"
+                       (contains json5 "model" && contains json5 "TlangGoldTree");
+                     check_golden "Julia probe handles hypothesis tests"
+                       (contains json6 "test" && contains json6 "p_value")))));
   (* Skips are environmental (missing runtime), never code regressions:
      extraction breakage fails loudly above. They are reported loudly
      but do not fail, so cross-platform CI (e.g. macOS images without a
