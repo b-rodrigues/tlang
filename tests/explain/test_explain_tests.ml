@@ -698,8 +698,8 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
     "explain(fake_strm).foreign_meta.metrics.aic"
     "5";
   test_env env_fm_strm "explain foreign meta drops string metrics"
-    "explain(fake_strm).foreign_meta.metrics.note"
-    {|Error(KeyError: "Key `note` not found in Dict.")|};
+    "length(explain(fake_strm).foreign_meta.metrics)"
+    "1";
   (* Non-foreign runtimes never get foreign_meta, even with a sidecar. *)
   let t_dir = make_node_dir "fake-tnode" in
   write_file (Filename.concat t_dir "artifact") "0123456789";
@@ -789,8 +789,50 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
                skip ())
          with _ -> None)
   in
+  let golden_skips = ref 0 in
+  let skip_golden name reason =
+    incr golden_skips;
+    incr pass_count;
+    Printf.printf "  ○ %s (skipped: %s)\n" name reason
+  in
+  let pid = Unix.getpid () in
+  let temp_path name =
+    Filename.concat (Filename.get_temp_dir_name ()) (Printf.sprintf "tlang-golden-%d-%s" pid name)
+  in
+  let read_file_opt path =
+    try
+      let ic = open_in_bin path in
+      Fun.protect ~finally:(fun () -> close_in_noerr ic)
+        (fun () -> Some (really_input_string ic (in_channel_length ic)))
+    with _ -> None
+  in
+  let with_temp_files paths f =
+    Fun.protect ~finally:(fun () -> List.iter (fun p -> try Sys.remove p with _ -> ()) paths) f
+  in
+  (* Small JSON number reader: float following a "key": token. *)
+  let json_number hay key =
+    let pat = "\"" ^ key ^ "\":" in
+    let h = String.length hay and n = String.length pat in
+    let rec find i =
+      if i + n > h then None
+      else if String.sub hay i n = pat then begin
+        let j = ref (i + n) in
+        while !j < h && (hay.[!j] = ' ' || hay.[!j] = '\t') do incr j done;
+        let k = ref !j in
+        while !k < h &&
+              (let c = hay.[!k] in
+               (c >= '0' && c <= '9') || c = '.' || c = '-' || c = '+' || c = 'e' || c = 'E') do
+          incr k
+        done;
+        if !k > !j then
+          (try Some (float_of_string (String.sub hay !j (!k - !j))) with _ -> None)
+        else None
+      end else find (i + 1)
+    in
+    find 0
+  in
   let write_temp name content =
-    let path = Filename.concat (Filename.get_temp_dir_name ()) name in
+    let path = temp_path name in
     (try
        let oc = open_out path in
        Fun.protect ~finally:(fun () -> close_out_noerr oc)
@@ -798,85 +840,117 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
        Some path
      with _ -> None)
   in
-  (* R: full precision survives (digits = NA), tiny p-values intact. *)
+  (* R: full precision survives (digits = NA): tiny p-value unrounded,
+     r_squared exact well past 4 significant digits. *)
   (match extract_fn "r_save_meta <- function(object, path) {" (fun l -> l = "}") with
    | None -> check_golden "R probe source found" false
-   | Some _ when not (has_bin "Rscript") ->
-       check_golden "R probe golden (skipped, no Rscript)" true
+   | Some _ when not (has_bin "Rscript") -> skip_golden "R probe golden" "no Rscript"
    | Some src ->
        let drv = src ^ "\n" ^
          "set.seed(42)\n" ^
          "tt <- t.test(rnorm(50, 0, 1), rnorm(50, 10, 1))\n" ^
-         "r_save_meta(tt, Sys.getenv(\"T_GOLD_OUT\"))\n"
+         "r_save_meta(tt, Sys.getenv(\"T_GOLD_OUT\"))\n" ^
+         "fit <- lm(mpg ~ wt + hp, data = mtcars)\n" ^
+         "r_save_meta(fit, Sys.getenv(\"T_GOLD_OUT2\"))\n"
        in
-       (match write_temp "tlang-golden-r.R" drv with
+       (match write_temp "r.R" drv with
         | None -> check_golden "R probe driver written" false
         | Some drv_path ->
-            let out_path = Filename.concat (Filename.get_temp_dir_name ()) "tlang-golden-r.json" in
-            let _ = shell_out (Printf.sprintf "T_GOLD_OUT=%s Rscript %s 2>/dev/null"
-              (Filename.quote out_path) (Filename.quote drv_path)) in
-            let json =
-              (try
-                 let ic = open_in out_path in
-                 Fun.protect ~finally:(fun () -> close_in_noerr ic)
-                   (fun () -> really_input_string ic (in_channel_length ic))
-               with _ -> "")
-            in
-            check_golden "R probe keeps full precision on tiny p-values"
-              (contains json "p_value" && contains json "e-")));
-  (* Python: array-API const excluded from features. *)
+            let out_path = temp_path "r.json" in
+            let out2_path = temp_path "r2.json" in
+            with_temp_files [drv_path; out_path; out2_path] (fun () ->
+              let _ = shell_out (Printf.sprintf "T_GOLD_OUT=%s T_GOLD_OUT2=%s Rscript %s 2>/dev/null"
+                (Filename.quote out_path) (Filename.quote out2_path) (Filename.quote drv_path)) in
+              let json = match read_file_opt out_path with Some s -> s | None -> "" in
+              let json2 = match read_file_opt out2_path with Some s -> s | None -> "" in
+              check_golden "R probe keeps tiny p-values unrounded"
+                (match json_number json "p_value" with Some f -> f < 1e-6 | None -> false);
+              check_golden "R probe keeps full float precision"
+                (match json_number json2 "r_squared" with
+                 | Some f -> abs_float (f -. 0.826785451882791) < 1e-6
+                 | None -> false))));
+  (* Python: array-API const excluded from features; NaN sanitized. *)
   (match extract_fn ~keep_end:false "def py_save_meta(obj, path):" (fun l -> l <> "" && l.[0] <> ' ' && l.[0] <> '\t') with
    | None -> check_golden "Python probe source found" false
-   | Some _ when not (has_bin "python3") ->
-       check_golden "Python probe golden (skipped, no python3)" true
+   | Some _ when not (has_bin "python3") -> skip_golden "Python probe golden" "no python3"
    | Some src ->
-       let drv = src ^ "\n" ^
-         "import numpy as np, pandas as pd\n" ^
-         "import statsmodels.api as sm\n" ^
-         "df = pd.DataFrame({\"y\": [2.0, 4.0, 5.0, 4.0], \"x\": [1.0, 2.0, 3.0, 4.0]})\n" ^
-         "import os\n" ^
-         "py_save_meta(sm.OLS(df[\"y\"], sm.add_constant(df[[\"x\"]])).fit(), os.environ[\"T_GOLD_OUT\"])\n"
-       in
-       (match write_temp "tlang-golden-py.py" drv with
-        | None -> check_golden "Python probe driver written" false
-        | Some drv_path ->
-            let out_path = Filename.concat (Filename.get_temp_dir_name ()) "tlang-golden-py.json" in
-            let _ = shell_out (Printf.sprintf "T_GOLD_OUT=%s python3 %s 2>/dev/null"
-              (Filename.quote out_path) (Filename.quote drv_path)) in
-            let json =
-              (try
-                 let ic = open_in out_path in
-                 Fun.protect ~finally:(fun () -> close_in_noerr ic)
-                   (fun () -> really_input_string ic (in_channel_length ic))
-               with _ -> "")
-            in
-            check_golden "Python probe excludes const from OLS features"
-              (contains json "\"x\"" && not (contains json "const"))));
-  (* Julia: NaN metrics are dropped, the rest of the sidecar survives. *)
+       let pre = shell_out "python3 -c \"import pandas, statsmodels; print('IMPORT-OK')\" 2>/dev/null" in
+       if not (contains pre "IMPORT-OK") then skip_golden "Python probe golden" "no pandas/statsmodels"
+       else
+         (match extract_fn ~keep_end:false "def _tlang_sanitize_json(v):" (fun l -> l <> "" && l.[0] <> ' ' && l.[0] <> '\t') with
+          | None -> check_golden "Python sanitizer source found" false
+          | Some san ->
+          let drv = san ^ "\n" ^ src ^ "\n" ^
+           "import numpy as np, pandas as pd\n" ^
+           "import statsmodels.api as sm\n" ^
+           "df = pd.DataFrame({\"y\": [2.0, 4.0, 5.0, 4.0], \"x\": [1.0, 2.0, 3.0, 4.0]})\n" ^
+           "import os\n" ^
+           "py_save_meta(sm.OLS(df[\"y\"], sm.add_constant(df[[\"x\"]])).fit(), os.environ[\"T_GOLD_OUT\"])\n" ^
+           "san = _tlang_sanitize_json({\"kind\": \"model\", \"metrics\": {\"aic\": float(\"nan\"), \"bic\": 2.5}})\n" ^
+           "import json as _tlang_json_check\n" ^
+           "with open(os.environ[\"T_GOLD_OUT2\"], \"w\") as f: _tlang_json_check.dump(san, f)\n"
+         in
+         (match write_temp "py.py" drv with
+          | None -> check_golden "Python probe driver written" false
+          | Some drv_path ->
+              let out_path = temp_path "py.json" in
+              let out2_path = temp_path "py2.json" in
+              with_temp_files [drv_path; out_path; out2_path] (fun () ->
+                let _ = shell_out (Printf.sprintf "T_GOLD_OUT=%s T_GOLD_OUT2=%s python3 %s 2>/dev/null"
+                  (Filename.quote out_path) (Filename.quote out2_path) (Filename.quote drv_path)) in
+                let json = match read_file_opt out_path with Some s -> s | None -> "" in
+                let json2 = match read_file_opt out2_path with Some s -> s | None -> "" in
+                check_golden "Python probe excludes const from OLS features"
+                  (contains json "\"x\"" && not (contains json "const"));
+                check_golden "Python sanitizer drops NaN metrics, keeps the rest"
+                  (contains json2 "bic" && not (contains json2 "aic"))))));
+  (* Julia: end-to-end save_meta on a DataFrame plus the NaN sanitizer. *)
   (match extract_fn "function jl_sanitize_json_value(v)" (fun l -> l = "end") with
    | None -> check_golden "Julia sanitizer source found" false
-   | Some _ when not (has_bin "julia") ->
-       check_golden "Julia sanitizer golden (skipped, no julia)" true
-   | Some src ->
-       let drv = src ^ "\n" ^
-         "d = jl_sanitize_json_value(Dict(\"kind\" => \"model\", \"metrics\" => Dict(\"aic\" => NaN, \"bic\" => 1.5)))\n" ^
-         "open(ENV[\"T_GOLD_OUT\"], \"w\") do f\n" ^
-         "    print(f, d)\n" ^
-         "end\n"
-       in
-       (match write_temp "tlang-golden-jl.jl" drv with
-        | None -> check_golden "Julia driver written" false
-        | Some drv_path ->
-            let out_path = Filename.concat (Filename.get_temp_dir_name ()) "tlang-golden-jl.json" in
-            let _ = shell_out (Printf.sprintf "T_GOLD_OUT=%s julia %s 2>/dev/null"
-              (Filename.quote out_path) (Filename.quote drv_path)) in
-            let txt =
-              (try
-                 let ic = open_in out_path in
-                 Fun.protect ~finally:(fun () -> close_in_noerr ic)
-                   (fun () -> really_input_string ic (in_channel_length ic))
-               with _ -> "")
-            in
-            check_golden "Julia sanitizer drops NaN metrics, keeps the rest"
-              (contains txt "bic" && not (contains txt "aic"))));
+   | Some _ when not (has_bin "julia") -> skip_golden "Julia sanitizer golden" "no julia"
+   | Some san_src ->
+       (* Real JSON is unavailable in bare dev shells (node envs ship
+          it), so the driver stubs JSON.print and exercises the real
+          detection paths plus file writing. *)
+       let pre = shell_out "julia -e 'using DataFrames' 2>/dev/null && echo IMPORT-OK" in
+       if not (contains pre "IMPORT-OK") then skip_golden "Julia golden" "no DataFrames"
+       else
+         (match extract_fn "function jl_save_meta(obj, path)" (fun l -> l = "end") with
+          | None -> check_golden "Julia probe source found" false
+          | Some probe ->
+              let drv = san_src ^ "\n" ^ probe ^ "\n" ^
+                "module JSON\n" ^
+                "print(io::IO, d) = Base.print(io, d)\n" ^
+                "end\n" ^
+                "using DataFrames\n" ^
+                "jl_save_meta(DataFrame(a = [1, 2, 3]), ENV[\"T_GOLD_OUT\"])\n" ^
+                "d = jl_sanitize_json_value(Dict(\"kind\" => \"model\", \"metrics\" => Dict(\"aic\" => NaN, \"bic\" => 1.5)))\n" ^
+                "open(ENV[\"T_GOLD_OUT2\"], \"w\") do f\n" ^
+                "    print(f, d)\n" ^
+                "end\n"
+              in
+              (match write_temp "jl.jl" drv with
+               | None -> check_golden "Julia driver written" false
+               | Some drv_path ->
+                   let out_path = temp_path "jl.json" in
+                   let out2_path = temp_path "jl2.json" in
+                   with_temp_files [drv_path; out_path; out2_path] (fun () ->
+                     let _ = shell_out (Printf.sprintf "T_GOLD_OUT=%s T_GOLD_OUT2=%s julia %s 2>/dev/null"
+                       (Filename.quote out_path) (Filename.quote out2_path) (Filename.quote drv_path)) in
+                     let json = match read_file_opt out_path with Some s -> s | None -> "" in
+                     let txt = match read_file_opt out2_path with Some s -> s | None -> "" in
+                     check_golden "Julia probe writes a real sidecar end to end"
+                       (contains json "dataframe" && contains json "dimensions");
+                     check_golden "Julia sanitizer drops NaN metrics, keeps the rest"
+                       (contains txt "bic" && not (contains txt "aic"))))));
+  (if !golden_skips > 0 then begin
+     Printf.printf "  (%d golden probe(s) skipped: runtimes unavailable)\n" !golden_skips;
+     match Sys.getenv_opt "CI" with
+     | Some _ ->
+         incr fail_count;
+         let msg = Printf.sprintf "  ✗ golden probes skipped under CI\n" in
+         failures := msg :: !failures;
+         Printf.printf "%s" msg
+     | None -> ()
+   end);
   print_newline ()

@@ -1068,7 +1068,8 @@ let cmd_explain ?failfast mode rest env =
                     | Some fm ->
                         has_output := true;
                         Printf.printf "Foreign metadata for node '%s':\n%s" node_name
-                          (Pretty_print.pretty_print_value fm)
+                          (let s = Pretty_print.pretty_print_value fm in
+                           if s <> "" && s.[String.length s - 1] <> '\n' then s ^ "\n" else s)
                     | None -> ());
                    if not !has_output then
                      Printf.printf "Node '%s' compiled/built successfully with no errors or warnings.\n" node_name

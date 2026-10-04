@@ -2222,6 +2222,23 @@ def py_save_viz_metadata(obj, path):
         with open(path, "w") as f:
             json.dump(metadata, f)
 
+def _tlang_sanitize_json(v):
+    import math as _tlang_math
+    if isinstance(v, bool):
+        return v
+    if isinstance(v, float):
+        return v if _tlang_math.isfinite(v) else None
+    if isinstance(v, dict):
+        out = {}
+        for k, x in v.items():
+            sx = _tlang_sanitize_json(x)
+            if sx is not None:
+                out[k] = sx
+        return out
+    if isinstance(v, (list, tuple)):
+        return [_tlang_sanitize_json(x) for x in v if _tlang_sanitize_json(x) is not None]
+    return v
+
 def py_save_meta(obj, path):
     try:
         import json as _tlang_json
@@ -2397,6 +2414,26 @@ def py_save_meta(obj, path):
                     nf = getattr(obj, "n_features_in_", None)
                     if nf is not None:
                         meta["n_features"] = int(nf)
+                except Exception:
+                    pass
+                try:
+                    feats = getattr(obj, "feature_names_in_", None)
+                    if feats is not None:
+                        meta["features"] = [str(f) for f in list(feats)]
+                except Exception:
+                    pass
+                try:
+                    classes = getattr(obj, "classes_", None)
+                    if classes is not None:
+                        meta.setdefault("metrics", {})["n_classes"] = int(len(list(classes)))
+                except Exception:
+                    pass
+                try:
+                    bi = getattr(obj, "best_iteration", None)
+                    if bi is None:
+                        bi = getattr(obj, "best_iteration_", None)
+                    if bi is not None:
+                        meta.setdefault("metrics", {})["best_iteration"] = int(bi)
                 except Exception:
                     pass
         elif mod.startswith("lightgbm"):
@@ -2579,6 +2616,7 @@ def py_save_meta(obj, path):
                 meta["features"] = _feats[:500]
         except Exception:
             pass
+        meta = _tlang_sanitize_json(meta)
         with open(path, "w") as f:
             _tlang_json.dump(meta, f)
     except Exception:

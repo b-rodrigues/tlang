@@ -97,11 +97,19 @@ let register ?(ensure_docs=ignore) env =
     | Some _ -> None
     | None -> None
   in
+  let finite_float f =
+    match Float.classify_float f with
+    | FP_nan | FP_infinite -> None
+    | _ -> Some f
+  in
   let assoc_int key pairs =
     match List.assoc_opt key pairs with
     | Some (`Int i) -> Some i
     | Some (`Intlit s) -> (try Some (int_of_string s) with _ -> None)
-    | Some (`Float f) -> Some (int_of_float f)
+    | Some (`Float f) ->
+        (match finite_float f with
+         | None -> None
+         | Some _ -> Some (int_of_float f))
     | Some _ -> None
     | None -> None
   in
@@ -117,7 +125,10 @@ let register ?(ensure_docs=ignore) env =
     let to_int = function
       | `Int i -> Some i
       | `Intlit s -> (try Some (int_of_string s) with _ -> None)
-      | `Float f -> Some (int_of_float f)
+      | `Float f ->
+          (match finite_float f with
+           | None -> None
+           | Some _ -> Some (int_of_float f))
       | _ -> None
     in
     match List.assoc_opt key pairs with
@@ -146,7 +157,10 @@ let register ?(ensure_docs=ignore) env =
         (* Numbers only; anything else (including strings) is dropped. *)
         let fields = List.filter_map (fun (k, v) ->
           match v with
-          | `Float f -> Some (k, VFloat f)
+          | `Float f ->
+              (match finite_float f with
+               | None -> None
+               | Some g -> Some (k, VFloat g))
           | `Int i -> Some (k, VInt i)
           | `Intlit s -> (try Some (k, VInt (int_of_string s)) with _ -> None)
           | _ -> None) m in
