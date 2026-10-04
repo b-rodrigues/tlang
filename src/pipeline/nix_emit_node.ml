@@ -1847,6 +1847,49 @@ r_save_meta <- function(object, path) {
       if (length(metrics) > 0) meta$metrics <- metrics
       no <- tryCatch(stats::nobs(object), error = function(e) NULL)
       if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- as.integer(no)
+    } else if (inherits(object, "merMod")) {
+      meta$kind <- "model"
+      if (inherits(object, "glmerMod")) {
+        fam <- tryCatch(stats::family(object)$family, error = function(e) NULL)
+        if (!is.null(fam) && length(fam) == 1 && !is.na(fam) && fam == "binomial") {
+          meta$task <- "classification"
+        } else {
+          meta$task <- "regression"
+        }
+      } else {
+        meta$task <- "regression"
+      }
+      no <- tryCatch(stats::nobs(object), error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- as.integer(no)
+      fm <- tryCatch(stats::formula(object), error = function(e) NULL)
+      if (!is.null(fm)) {
+        meta$formula <- paste(deparse(fm), collapse = " ")
+        fch <- tryCatch(as.character(fm), error = function(e) NULL)
+        if (!is.null(fch) && length(fch) == 3 && !is.na(fch[2]) && nzchar(fch[2])) meta$target <- fch[2]
+      }
+      cf <- tryCatch(names(lme4::fixef(object)), error = function(e) NULL)
+      if (!is.null(cf) && length(cf) > 0) {
+        feats <- cf[!is.na(cf) & cf != "(Intercept)"]
+        meta$n_features <- length(feats)
+        meta$features <- as.list(feats)
+      }
+      ng <- tryCatch(lme4::ngrps(object), error = function(e) NULL)
+      if (!is.null(ng) && length(ng) > 0 && !any(is.na(ng))) {
+        meta$n_groups <- as.integer(sum(ng))
+        gnm <- names(ng)
+        if (is.null(gnm)) gnm <- paste0("group", seq_along(ng))
+        meta$groups <- as.list(setNames(as.integer(ng), gnm))
+      }
+      metrics <- list()
+      ll <- tryCatch(as.numeric(stats::logLik(object)), error = function(e) NULL)
+      if (!is.null(ll) && length(ll) == 1 && !is.na(ll)) metrics$loglik <- ll
+      dv <- tryCatch(as.numeric(stats::deviance(object)), error = function(e) NULL)
+      if (!is.null(dv) && length(dv) == 1 && !is.na(dv)) metrics$deviance <- dv
+      aic <- tryCatch(stats::AIC(object), error = function(e) NULL)
+      if (!is.null(aic) && length(aic) == 1 && !is.na(aic)) metrics$aic <- as.numeric(aic)
+      bic <- tryCatch(stats::BIC(object), error = function(e) NULL)
+      if (!is.null(bic) && length(bic) == 1 && !is.na(bic)) metrics$bic <- as.numeric(bic)
+      if (length(metrics) > 0) meta$metrics <- metrics
     } else if (inherits(object, "Arima") || inherits(object, "arima")) {
       meta$kind <- "model"
       meta$task <- "time_series"
@@ -2265,6 +2308,12 @@ def py_save_meta(obj, path):
                     pass
             if "task" not in meta:
                 try:
+                    if "MixedLM" in cls.__name__:
+                        meta["task"] = "regression"
+                except Exception:
+                    pass
+            if "task" not in meta:
+                try:
                     fam = getattr(getattr(obj, "model", None), "family", None)
                     fname = type(fam).__name__ if fam is not None else ""
                     if "Binomial" in fname or "Bernoulli" in fname:
@@ -2308,6 +2357,21 @@ def py_save_meta(obj, path):
                         meta.setdefault("metrics", {})[_mkey] = float(_mv)
                 except Exception:
                     pass
+            try:
+                _groups = getattr(getattr(obj, "model", None), "groups", None)
+                if _groups is not None:
+                    import numpy as _tlang_np
+                    _u, _c = _tlang_np.unique(_tlang_np.asarray(_groups, dtype=str), return_counts=True)
+                    _names = [str(v) for v in list(_u)]
+                    _counts = [int(v) for v in list(_c)]
+                    if _names:
+                        meta["n_groups"] = len(_names)
+                        if len(_names) <= 50:
+                            meta["groups"] = dict(zip(_names, _counts))
+                        else:
+                            meta["groups"] = {"n_groups": len(_names)}
+            except Exception:
+                pass
         elif shape is not None:
             try:
                 dims = [int(v) for v in list(shape)]

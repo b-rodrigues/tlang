@@ -47,6 +47,8 @@ e = explain(p.fit)
 e.foreign_meta.kind        -- "dataframe", "model", or "other"
 e.foreign_meta.dimensions  -- shape as int list, e.g. [32, 11] for frames, [4, 3] for matrices, [3] for vectors
 e.foreign_meta.n_obs       -- training rows (models)
+e.foreign_meta.n_groups    -- grouping units, e.g. 18 subjects (mixed models)
+e.foreign_meta.groups      -- per-group counts, e.g. {Subject: 18} (mixed models)
 e.foreign_meta.n_features  -- input count (models)
 e.foreign_meta.n_trees     -- tree count (forests, when known)
 e.foreign_meta.n_rounds    -- boosting rounds (boosted trees, when known)

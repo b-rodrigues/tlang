@@ -120,6 +120,19 @@ let register ?(ensure_docs=ignore) env =
     | Some _ -> None
     | None -> None
   in
+  let assoc_groups pairs =
+    match List.assoc_opt "groups" pairs with
+    | Some (`Assoc m) ->
+        let fields = List.filter_map (fun (k, v) ->
+          match v with
+          | `Int i -> Some (k, VInt i)
+          | `Intlit s -> (try Some (k, VInt (int_of_string s)) with _ -> None)
+          | `Float f -> Some (k, VInt (int_of_float f))
+          | _ -> None) m in
+        (match fields with [] -> None | _ -> Some fields)
+    | Some _ -> None
+    | None -> None
+  in
   let assoc_metrics pairs =
     match List.assoc_opt "metrics" pairs with
     | Some (`Assoc m) ->
@@ -171,6 +184,8 @@ let register ?(ensure_docs=ignore) env =
      | Some ns -> add "dimensions" (VList (List.map (fun n -> (None, VInt n)) ns))
      | None -> ());
     (match assoc_int "n_obs" pairs with Some n -> add "n_obs" (VInt n) | None -> ());
+    (match assoc_int "n_groups" pairs with Some n -> add "n_groups" (VInt n) | None -> ());
+    (match assoc_groups pairs with Some g -> add "groups" (VDict g) | None -> ());
     (match assoc_int "n_features" pairs with Some n -> add "n_features" (VInt n) | None -> ());
     (match assoc_int "n_trees" pairs with Some n -> add "n_trees" (VInt n) | None -> ());
     (match assoc_int "n_rounds" pairs with Some n -> add "n_rounds" (VInt n) | None -> ());
@@ -209,7 +224,7 @@ let register ?(ensure_docs=ignore) env =
     match ordered with
     | [] -> VNA NAGeneric
     | _ ->
-        let display = ["kind"; "class"; "task"; "method"; "dimensions"; "n_obs"; "n_features";
+        let display = ["kind"; "class"; "task"; "method"; "dimensions"; "n_obs"; "n_groups"; "groups"; "n_features";
                        "n_trees"; "n_rounds"; "n_clusters"; "n_components";
                        "dtype";
                        "target"; "order"; "seasonal_order";

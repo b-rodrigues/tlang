@@ -64,6 +64,7 @@
             MASS
             forcats
             car
+            lme4
           ] ++ [ tlang-r ];
         };
 

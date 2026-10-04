@@ -482,6 +482,26 @@ let run_tests _pass_count _fail_count _failures _eval_string eval_string_env tes
   test_env env_fm_jlkm "explain foreign meta julia kmeans cost"
     "explain(fake_jlkm).foreign_meta.metrics.totalcost"
     "4";
+  (* Mixed-effects model node: groups dict *)
+  let mix_dir = make_node_dir "fake-mixed" in
+  write_file (Filename.concat mix_dir "artifact") "0123456789";
+  write_file (Filename.concat mix_dir "meta")
+    {|{"kind":"model","class":"lmerMod","task":"regression","n_obs":180,"formula":"Reaction ~ Days + (Days | Subject)","target":"Reaction","n_features":1,"n_groups":18,"groups":{"Subject":18},"metrics":{"loglik":-871.81}}|};
+  let env_fm_mix =
+    Ast.Env.add "fake_mixed"
+      (Ast.VComputedNode (fake_cn ~name:"fake_mixed_foreign_meta_test" ~runtime:"R"
+        ~path:(Filename.concat mix_dir "artifact") ~class_:"lmerMod"))
+      (Packages.init_env ())
+  in
+  test_env env_fm_mix "explain foreign meta mixed groups"
+    "explain(fake_mixed).foreign_meta.groups.Subject"
+    "18";
+  test_env env_fm_mix "explain foreign meta mixed group count"
+    "explain(fake_mixed).foreign_meta.n_groups"
+    "18";
+  test_env env_fm_mix "explain foreign meta mixed formula keeps random effects"
+    "explain(fake_mixed).foreign_meta.formula"
+    {|"Reaction ~ Days + (Days | Subject)"|};
   (* Matrix / array / vector shapes across runtimes *)
   let mat_dir = make_node_dir "fake-mat" in
   write_file (Filename.concat mat_dir "artifact") "0123456789";
