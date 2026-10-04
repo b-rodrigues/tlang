@@ -625,6 +625,295 @@ let generic_body_diagnostics program filename =
   ) sites;
   List.rev !diags
 
+(** Registry shape for builtin call checks: runtime arity plus the
+    documented parameter list (name and declared type string, when
+    present). Built by [builtin_sigs_of_env] below, so the CLI hook and
+    tests share one construction and cannot drift. This module stays a
+    leaf: callers pass the environment in (`Analyzer -> Packages ->
+    Check_utils` must not cycle). *)
+type builtin_sig = {
+  bs_arity : int;
+  bs_variadic : bool;
+  bs_params : (string * string option) list;
+}
+
+(** Derive call-check signatures for every builtin in an environment.
+    Runtime arity comes from the builtin value; parameter names and
+    declared types come from the documentation registry (empty when
+    undocumented, which stays silent downstream). *)
+let builtin_sigs_of_env env =
+  let acc = ref [] in
+  Ast.Env.iter (fun name v ->
+    match v with
+    | Ast.VBuiltin { Ast.b_name = Some n; Ast.b_arity; Ast.b_variadic; _ } when n = name ->
+        let params =
+          match Tdoc_registry.lookup n with
+          | Some e ->
+              List.map (fun (p : Tdoc_types.param_doc) ->
+                (p.Tdoc_types.name, p.Tdoc_types.type_info)
+              ) e.Tdoc_types.params
+          | None -> []
+        in
+        acc := (n, { bs_arity = b_arity;
+                     bs_variadic = b_variadic;
+                     bs_params = params }) :: !acc
+    | _ -> ()) env;
+  !acc
+
+(** Every name with a local binding program-wide: assignments,
+    reassignments, lambda parameters, match pattern binders, and import
+    aliases (`import m [nick = name]`, `import "f.t" [nick = name]`).
+    Calling such a name may hit the local, not the builtin, so call
+    checks stay silent for it. Shared by the arity and argument-type
+    checks below. A bare `import package` is deliberately excluded: it
+    re-exposes the same builtins, so builtin signatures still apply.
+    Selective package imports without an alias (`import m [name]`) are
+    likewise excluded — they bind the package member under its own
+    name, and for the standard packages that is the builtin itself.
+    Only an alias can introduce a genuinely new local binding there.
+    File imports always bind (user code may shadow anything). *)
+let locally_bound_names program =
+  let bound = Hashtbl.create 32 in
+  let bind name = Hashtbl.replace bound name true in
+  let bind_import_spec bind_plain (import_item : import_spec) =
+    match import_item.import_alias with
+    | Some nick -> bind nick
+    | None -> if bind_plain then bind import_item.import_name else ()
+  in
+  let rec bind_pattern = function
+    | PVar s -> bind s
+    | PList (ps, rest) ->
+        List.iter bind_pattern ps;
+        (match rest with Some s -> bind s | None -> ())
+    | PError (Some s) -> bind s
+    | PUnion { pu_args; _ } -> List.iter bind_pattern pu_args
+    | PWildcard | PNA | PError None -> ()
+  in
+  let rec collect_expr e =
+    (match e.node with
+     | Lambda l -> List.iter bind l.params
+     | Match { cases; _ } -> List.iter (fun (p, _) -> bind_pattern p) cases
+     | _ -> ());
+    List.iter collect_expr (children_of_expr e)
+  and collect_stmt s =
+    (match s.node with
+     | Assignment { name; _ } | Reassignment { name; _ } -> bind name
+     | ImportFrom { names; _ } ->
+         List.iter (bind_import_spec false) names
+     | ImportFileFrom { names; _ } ->
+         List.iter (bind_import_spec true) names
+     | _ -> ());
+    List.iter collect_expr (children_of_stmt s)
+  in
+  List.iter collect_stmt program;
+  bound
+
+(** Call sites with pipe context: a call directly right of `|>`/`?|>`
+    sees the piped value as an implicit first argument, so the site
+    keeps the left-hand expression. A bare `x |> f` is a site with no
+    written arguments. Shared by the arity and argument-type checks. *)
+let collect_call_sites program =
+  let sites = ref [] in
+  let rec walk_expr piped_left e =
+    match e.node with
+    | Call { fn = { node = Var name; _ }; args; _ } ->
+        List.iter (fun (_, a) -> walk_expr None a) args;
+        sites := (name, args, piped_left, e.loc) :: !sites
+    | Call { fn; args; _ } ->
+        walk_expr None fn;
+        List.iter (fun (_, a) -> walk_expr None a) args
+    | BinOp { op = (Pipe | MaybePipe); left; right; _ } ->
+        walk_expr None left;
+        (match right.node with
+         | Call _ -> walk_expr (Some left) right
+         | Var name ->
+             sites := (name, [], Some left, right.loc) :: !sites
+         | _ -> walk_expr None right)
+    | _ ->
+        List.iter (walk_expr None) (children_of_expr e)
+  in
+  List.iter (fun s -> List.iter (walk_expr None) (children_of_stmt s)) program;
+  List.rev !sites
+
+(** Shared constructor for call-check diagnostics (all Warning,
+    Schema phase). *)
+let mk_call_diag ~error_class ~message ~expected ~actual loc filename =
+  let line = match loc with
+    | Some (l : source_location) -> Some l.line
+    | None -> None
+  in
+  let col = match loc with
+    | Some (l : source_location) -> Some l.column
+    | None -> None
+  in
+  { Diagnostics.diag_id = Diagnostics.gen_id ();
+    Diagnostics.diag_error_class = error_class;
+    Diagnostics.diag_severity = Diagnostics.Warning;
+    Diagnostics.diag_phase = Diagnostics.Schema;
+    Diagnostics.diag_node_id = None;
+    Diagnostics.diag_node_lang = None;
+    Diagnostics.diag_file = Some filename;
+    Diagnostics.diag_line = line;
+    Diagnostics.diag_column = col;
+    Diagnostics.diag_end_line = None;
+    Diagnostics.diag_end_column = None;
+    Diagnostics.diag_message = message;
+    Diagnostics.diag_expected = Some expected;
+    Diagnostics.diag_actual = Some actual;
+    Diagnostics.diag_caused_by = [];
+    Diagnostics.diag_suggested_fix = Diagnostics.no_fix;
+  }
+
+(** Call arity diagnostics (warn-only).
+    Mirrors the runtime arity rule in `Eval.eval_call` exactly: a
+    non-variadic builtin takes exactly `b_arity` arguments, counting
+    positional and named args together (a piped value counts one).
+    Everything else stays silent: variadic builtins, unknown names,
+    and names bound anywhere in the program (a local binding shadows
+    the builtin). This catches mistakes the evaluator never reaches —
+    calls inside lambdas, node blocks, and match arms — at check time.
+    Severity is Warning. The builtin table is a parameter so this
+    module stays a leaf (`Analyzer -> Packages -> Check_utils` must
+    not cycle). *)
+let call_arity_diagnostics ~builtins program filename =
+  let bound = locally_bound_names program in
+  let diags = ref [] in
+  List.iter (fun (name, args, piped_left, loc) ->
+    let received = List.length args + (match piped_left with Some _ -> 1 | None -> 0) in
+    if Hashtbl.mem bound name then ()
+    else match List.assoc_opt name builtins with
+    | Some entry when not entry.bs_variadic && received <> entry.bs_arity ->
+        diags := mk_call_diag
+          ~error_class:Diagnostics.Arity_error
+          ~message:(Printf.sprintf
+            "Function `%s` expects %d argument(s) but received %d. The call fails at runtime."
+            name entry.bs_arity received)
+          ~expected:(string_of_int entry.bs_arity)
+          ~actual:(string_of_int received)
+          loc filename :: !diags
+    | _ -> ()
+  ) (collect_call_sites program);
+  List.rev !diags
+
+(** Call argument-type diagnostics (warn-only).
+    Compares each argument's inferred type against the documented
+    parameter type and warns on definite mismatches only. Positionals
+    map to documented parameters in order (a piped value is the first
+    positional); named arguments map by parameter name. A position
+    stays silent whenever doubt exists: no documented type, `Any` or
+    `Unknown` anywhere on either side, a parameter from the
+    argument-shape vocabulary with no value inhabitants (`Column`,
+    `Selection`, `KeywordArgs`, `Expressions`, `Strategy`), an
+    undocumented extra position, or an unknown named argument. Sites
+    whose count already fails the arity rule are skipped (the arity
+    warning covers them). Severity is Warning. Inference arrives as a
+    parameter so this module stays a leaf (see the arity check). *)
+let call_type_diagnostics ~sigs ~infer program filename =
+  let rec has_unknown = function
+    | Semantic_type.TUnknown -> true
+    | Semantic_type.TList u | Semantic_type.TVector u -> has_unknown u
+    | Semantic_type.TDict (k, v) -> has_unknown k || has_unknown v
+    | Semantic_type.TUnion ts -> List.exists has_unknown ts
+    | Semantic_type.TFunction (args, ret) ->
+        List.exists (fun (_, u) -> has_unknown u) args || has_unknown ret
+    | _ -> false
+  in
+  (* Argument-shape words name call positions, not values: no runtime
+     value ever infers to them, so any concrete comparison would warn
+     falsely. `Strategy` owns custom formats with pipeline context. *)
+  let shape_word = function
+    | "Column" | "Selection" | "KeywordArgs" | "Expressions" | "Strategy" -> true
+    | _ -> false
+  in
+  let bound = locally_bound_names program in
+  (* NSE verbs wrap `$col`-mentioning expressions in row lambdas before
+     evaluation, so an inferred per-row type (e.g. `Bool` for `$mpg > 20`
+     in `filter`) never meets the documented parameter type. Any
+     argument mentioning a column reference stays silent. *)
+  let rec uses_columnref e =
+    (match e.node with ColumnRef _ -> true | _ -> false)
+    || List.exists uses_columnref (children_of_expr e)
+  in
+  let diags = ref [] in
+  List.iter (fun (name, args, piped_left, loc) ->
+    if Hashtbl.mem bound name then ()
+    else match List.assoc_opt name sigs with
+    | None -> ()
+    | Some entry ->
+        let received = List.length args + (match piped_left with Some _ -> 1 | None -> 0) in
+        if not entry.bs_variadic && received <> entry.bs_arity then ()
+        else begin
+          let params = List.filter (fun (n, _) -> n <> "...") entry.bs_params in
+          let positionals =
+            (match piped_left with Some l -> [(None, l)] | None -> [])
+            @ List.filter (fun (n, _) -> n = None) args
+          in
+          let named = List.filter_map (fun (n, e) ->
+            match n with Some s -> Some (s, e) | None -> None) args in
+          (* Positionals fill the parameters not already claimed by
+             name, in order. Runtime arg matching differs per builtin
+             (plain builtins bind values in written order with names
+             stripped; named-aware ones like `ifelse` match positionals
+             in order and named arguments by name, erroring on
+             double-binds), so mapping a positional onto a name-claimed
+             parameter can only warn falsely — e.g. `f(a = 1, "x")`
+             binds `a = 1` either way. Claimed slots are therefore
+             removed before assigning positionals; named arguments
+             always check against their named parameter. Note this is
+             more lenient than runtime for plain builtins (where
+             `f(opt = "x", 1)` would misbind `"x"` to the first
+             parameter): that only ever misses warnings, never adds
+             false ones. *)
+          let claimed = List.map fst named in
+          let params_open =
+            List.filter (fun (n, _) -> not (List.mem n claimed)) params
+          in
+          let check_one pname ptype_opt arg =
+            match ptype_opt with
+            | None -> ()
+            | Some s ->
+                let param = Semantic_type.from_string s in
+                if param = Semantic_type.TAny || has_unknown param then ()
+                else
+                  let expected = Semantic_type.to_ast_typ param in
+                  let skip_expected = match expected with
+                    | TCustom w -> shape_word w
+                    | _ -> false
+                  in
+                  (* The expected text quotes the documented signature
+                     verbatim (`List[Float] | Vector[Float]`), since the
+                     AST rendering collapses `Vector` into `List`. *)
+                  if skip_expected || uses_columnref arg then ()
+                  else begin
+                    let actual =
+                      try Semantic_type.to_ast_typ (infer arg)
+                      with _ -> TUnknown
+                    in
+                    if not (types_compatible actual expected) then
+                      diags := mk_call_diag
+                        ~error_class:Diagnostics.Type_error
+                        ~message:(Printf.sprintf
+                          "Function `%s` expects argument `%s` to be %s, but it infers to %s."
+                          name pname s (Utils.typ_to_string actual))
+                        ~expected:s
+                        ~actual:(Utils.typ_to_string actual)
+                        loc filename :: !diags
+                  end
+          in
+          List.iteri (fun i (_, e) ->
+            match List.nth_opt params_open i with
+            | Some (pname, ptype) -> check_one pname ptype e
+            | None -> ()
+          ) positionals;
+          List.iter (fun (n, e) ->
+            match List.find_opt (fun (p, _) -> p = n) params with
+            | Some (_, ptype) -> check_one n ptype e
+            | None -> ()
+          ) named
+        end
+  ) (collect_call_sites program);
+  List.rev !diags
+
 let run_check ?(schema=false) ?(env_check=false) ?(offline=false) mode filename env =
   let run () =
     Ast.check_mode := true;

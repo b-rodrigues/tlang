@@ -6077,6 +6077,15 @@ node_info = explain(read_node("model"))
 node_info.node_name       -- node/container metadata
 node_info.diagnostics     -- node diagnostics
 node_info.contents        -- explained node payload
+
+-- Explaining a pipeline lists per-node lineage:
+pline = explain(p)
+pline.nodes               -- one dict per node: name, output_kind, diagnostics
+node  = get(pline.nodes, 0)
+node.dependencies         -- direct inputs (parents)
+node.children             -- direct dependents
+node.ancestors            -- all transitive inputs, nearest-first, de-duplicated
+node.descendants          -- all transitive dependents, nearest-first, de-duplicated
 ```
 
 ---
@@ -9936,7 +9945,7 @@ Now that you can work with numerical arrays, explore statistical modeling and re
 
 ### `t explain` — Node Introspection
 
-- **`t explain --node <pipeline>.t:<node_id>`**: Prints a human-readable summary of a pipeline node's inputs, outputs, language, and dependencies. Supports `--json` for machine-readable output (YAML front matter style with `node_id`, `language`, `inputs`, `outputs`, `dependencies`, and `command`). Also reports direct `parents`/`children` lineage and a `foreign_meta` object with shape/model facts for R/Python/Julia nodes when present.
+- **`t explain --node <pipeline>.t:<node_id>`**: Prints a human-readable summary of a pipeline node's inputs, outputs, language, and dependencies. Supports `--json` for machine-readable output (YAML front matter style with `node_id`, `language`, `inputs`, `outputs`, `dependencies`, and `command`). Also reports direct `parents`/`children` lineage (plus transitive `ancestors`/`descendants`, in text when indirect nodes exist and always in JSON) and a `foreign_meta` object with shape/model facts for R/Python/Julia nodes when present.
 
 ### `t add` — Package & Tool Management CLI
 
@@ -27574,7 +27583,7 @@ The JSON description.
 
 Explain Value
 
-Returns a dictionary describing the structure and content of a value. Node results from `read_node(...)` are wrapped with node metadata and expose the explained payload under `contents`.
+Returns a dictionary describing the structure and content of a value. Node results from `read_node(...)` are wrapped with node metadata and expose the explained payload under `contents`. Computed pipeline nodes (e.g. `p.node`) also expose `foreign_meta` with shape facts from the build-time `meta` sidecar (dimensions for frames and arrays, n_obs/n_features/formula/order/metrics for models), or NA when absent. Explaining a pipeline lists per-node `dependencies` (direct inputs) and `children` (direct dependents) plus the transitive `ancestors` and `descendants` closures (nearest-first, de-duplicated).
 
 ## Parameters
 
@@ -28707,7 +28716,7 @@ Evaluates a condition and returns values from `true_val` or `false_val` dependin
 
 ## Parameters
 
-- **condition** (`Vector[Bool]`): The logical condition to evaluate.
+- **condition** (`Bool | Vector[Bool]`): The logical condition to evaluate. Accepts a scalar or a vector.
 
 - **true_val** (`Any`): Expected return value when condition is true.
 
@@ -28720,7 +28729,7 @@ Evaluates a condition and returns values from `true_val` or `false_val` dependin
 
 ## Returns
 
-A vector of the resulting values.
+A scalar when `condition` is scalar, otherwise a vector aligned to `condition`.
 
 ## Examples
 
@@ -31508,7 +31517,7 @@ Creates factor vectors marked as ordered for ordinal comparisons.
 
 ## Parameters
 
-- **x** (`Vector | List | Any`): The values to convert to an ordered factor.
+- **x** (`Any`): The values to convert to an ordered factor. Accepts a vector, a list, or a scalar.
 
 - **levels** (`Vector[String] | List[String]`): (Optional) Explicit level order.
 
@@ -37083,7 +37092,7 @@ Converts values to factor-encoded vectors with derived or explicit levels.
 
 ## Parameters
 
-- **x** (`Vector | List | Any`): The values to convert to factors.
+- **x** (`Any`): The values to convert to factors. Accepts a vector, a list, or a scalar.
 
 - **levels** (`Vector[String] | List[String]`): (Optional) Explicit level order. Defaults to sorted unique values.
 

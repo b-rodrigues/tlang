@@ -25,6 +25,9 @@ let contains_sub s sub =
 --# shape facts from the build-time `meta` sidecar (dimensions for frames
 --# and arrays, n_obs/n_features/formula/order/metrics for models), or NA
 --# when absent.
+--# Explaining a pipeline lists per-node `dependencies` (direct inputs)
+--# and `children` (direct dependents) plus the transitive `ancestors`
+--# and `descendants` closures (nearest-first, de-duplicated).
 --#
 --# @name explain
 --# @param x :: Any The value to explain.
@@ -486,15 +489,21 @@ let register ?(ensure_docs=ignore) env =
         in
         (* Direct children (dependents): nodes listing this one as a
            dependency. Computed from the same dep map as dependencies,
-           so the two always agree. *)
+           so the two always agree. The index is built once per explain
+           call, so every per-node closure below stays linear. *)
+        let idx = Lineage.index p_deps in
         let children_of target =
-          List.filter_map (fun (n, deps) ->
-            if List.mem target deps then Some (None, VString n) else None
-          ) p_deps
+          List.map (fun n -> (None, VString n))
+            (Lineage.children_of idx target)
+        in
+        let direct_parents = Lineage.parents_of idx in
+        let direct_children = Lineage.children_of idx in
+        let str_list names =
+          VList (List.map (fun s -> (None, VString s)) names)
         in
         let nodes_info = VList (List.map (fun (name, v) ->
           let deps = match List.assoc_opt name p_deps with
-            | Some d -> VList (List.map (fun s -> (None, VString s)) d)
+            | Some d -> str_list (Lineage.dedup d)
             | None -> VList []
           in
           let diagnostics =
@@ -507,6 +516,8 @@ let register ?(ensure_docs=ignore) env =
             ("output_kind", VString (Utils.type_name v));
             ("dependencies", deps);
             ("children", VList (children_of name));
+            ("ancestors", str_list (Lineage.closure direct_parents name));
+            ("descendants", str_list (Lineage.closure direct_children name));
             ("diagnostics", diagnostics);
           ])
         ) p_nodes) in

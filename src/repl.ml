@@ -721,11 +721,21 @@ let check_type_annotations filename =
     let program = Parser.program Lexer.token lexbuf in
     let scope = Symbol_table.create_scope () in
     Symbol_table.register_keywords scope;
+    (* Builtins carry their documented `TFunction` shapes here, so call
+       results infer to documented return types and the annotation and
+       argument checks see through calls. Without documentation every
+       builtin falls back to all-Any, which stays silent everywhere. *)
+    Packages.ensure_docs_loaded ();
+    Symbol_table.populate_from_env scope (Packages.init_env ());
     let analysis = Analyzer.analyze program scope in
+    let builtins = Check_utils.builtin_sigs_of_env (Packages.init_env ()) in
     Check_utils.annotation_diagnostics program analysis.Analyzer.stmt_types filename
     @ Check_utils.match_exhaustiveness_diagnostics program filename
     @ Check_utils.match_union_diagnostics program filename
     @ Check_utils.generic_body_diagnostics program filename
+    @ Check_utils.call_arity_diagnostics ~builtins program filename
+    @ Check_utils.call_type_diagnostics ~sigs:builtins
+        ~infer:(Analyzer.infer_type scope) program filename
   with
   | Lexer.SyntaxError _ ->
     (* Parse/syntax errors are already reported by check_utils normal flow. *)
@@ -981,17 +991,17 @@ let cmd_explain ?failfast mode rest env =
                  exit 1
              | Some d ->
                  (* Lineage from the static dep map: direct parents
-                    (dependencies) and direct children (dependents). *)
-                 let parents =
-                   match List.assoc_opt node_name p.Ast.p_deps with
-                   | Some ds -> ds
-                   | None -> []
-                 in
-                 let children =
-                   List.filter_map (fun (n, deps) ->
-                     if List.mem node_name deps then Some n else None
-                   ) p.Ast.p_deps
-                 in
+                    (dependencies) and direct children (dependents),
+                    plus the transitive closures (ancestors of ancestors,
+                    descendants of descendants), nearest-first,
+                    de-duplicated, self excluded and cycle-safe (shared
+                    with `explain` via `Lineage`). The index is built
+                    once, so lookups stay linear. *)
+                 let idx = Lineage.index p.Ast.p_deps in
+                 let parents = Lineage.parents_of idx node_name in
+                 let children = Lineage.children_of idx node_name in
+                 let ancestors = Lineage.closure (Lineage.parents_of idx) node_name in
+                 let descendants = Lineage.closure (Lineage.children_of idx) node_name in
                  (* Best-effort foreign metadata: evaluate
                     explain(<pipeline>.<node>).foreign_meta in the loaded
                     env. Absent (NA/error) when the node is unbuilt or has
@@ -1052,6 +1062,8 @@ let cmd_explain ?failfast mode rest env =
                    fields := !fields @ [("warnings", `List warnings_json)];
                    fields := !fields @ [("parents", `List (List.map (fun s -> `String s) parents))];
                    fields := !fields @ [("children", `List (List.map (fun s -> `String s) children))];
+                   fields := !fields @ [("ancestors", `List (List.map (fun s -> `String s) ancestors))];
+                   fields := !fields @ [("descendants", `List (List.map (fun s -> `String s) descendants))];
                    (match foreign_meta_opt with
                     | Some fm ->
                         (try
@@ -1089,6 +1101,15 @@ let cmd_explain ?failfast mode rest env =
                      has_output := true;
                      Printf.printf "Lineage for node '%s': parents=[%s] children=[%s]\n" node_name
                        (String.concat ", " parents) (String.concat ", " children);
+                   end;
+                   (* The transitive line prints only when it adds nodes
+                      beyond the direct ones (closures start with the
+                      direct neighbors in the same order, so list
+                      inequality means exactly that). *)
+                   if ancestors <> parents || descendants <> children then begin
+                     has_output := true;
+                     Printf.printf "Transitive lineage for node '%s': ancestors=[%s] descendants=[%s]\n" node_name
+                       (String.concat ", " ancestors) (String.concat ", " descendants);
                    end;
                    if not !has_output then
                      Printf.printf "Node '%s' compiled/built successfully with no errors or warnings.\n" node_name

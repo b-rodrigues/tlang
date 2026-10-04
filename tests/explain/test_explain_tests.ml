@@ -813,6 +813,32 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
   test "explain pipeline leaf has no children"
     {|p_lin = pipeline { x = 10; y = x + 5; z = x + y }; e_lin = explain(p_lin); length(get(e_lin.nodes, 2).children)|}
     "0";
+  (* Pipeline lineage: transitive ancestors and descendants. *)
+  test "explain pipeline transitive ancestors"
+    {|p_ch = pipeline { a = 1; b = a + 1; c = b + 1 }; e_ch = explain(p_ch); get(get(e_ch.nodes, 2).ancestors, 1)|}
+    {|"a"|};
+  test "explain pipeline transitive ancestors count"
+    {|p_ch = pipeline { a = 1; b = a + 1; c = b + 1 }; e_ch = explain(p_ch); length(get(e_ch.nodes, 2).ancestors)|}
+    "2";
+  test "explain pipeline transitive descendants"
+    {|p_ch = pipeline { a = 1; b = a + 1; c = b + 1 }; e_ch = explain(p_ch); get(get(e_ch.nodes, 0).descendants, 1)|}
+    {|"c"|};
+  test "explain pipeline root has no ancestors"
+    {|p_ch = pipeline { a = 1; b = a + 1; c = b + 1 }; e_ch = explain(p_ch); length(get(e_ch.nodes, 0).ancestors)|}
+    "0";
+  test "explain pipeline leaf has no descendants"
+    {|p_ch = pipeline { a = 1; b = a + 1; c = b + 1 }; e_ch = explain(p_ch); length(get(e_ch.nodes, 2).descendants)|}
+    "0";
+  (* Diamond graph: `a` reaches `d` by two paths but appears once. *)
+  test "explain pipeline diamond ancestors deduped"
+    {|p_dia = pipeline { a = 1; b = a + 1; c = a + 1; d = b + c }; e_dia = explain(p_dia); length(get(e_dia.nodes, 3).ancestors)|}
+    "3";
+  test "explain pipeline diamond ancestor appears once"
+    {|p_dia = pipeline { a = 1; b = a + 1; c = a + 1; d = b + c }; e_dia = explain(p_dia); get(get(e_dia.nodes, 3).ancestors, 2)|}
+    {|"a"|};
+  test "explain pipeline diamond descendants deduped"
+    {|p_dia = pipeline { a = 1; b = a + 1; c = a + 1; d = b + c }; e_dia = explain(p_dia); length(get(e_dia.nodes, 0).descendants)|}
+    "3";
   (* Julia PCA and statespace nodes share the same schema keys *)
   let jlpc_dir = make_node_dir "fake-jlpca" in
   write_file (Filename.concat jlpc_dir "artifact") "0123456789";

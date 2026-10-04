@@ -118,6 +118,33 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
     end
   in
 
+  (* Shared assertion for diagnostics helpers: exact count, expected
+     substring when given, and warning severity throughout. *)
+  let assess name diags expect_count expect_sub =
+    let n = List.length diags in
+    let sub_ok =
+      match expect_sub with
+      | None -> true
+      | Some sub ->
+          List.exists (fun d ->
+            let msg = d.Diagnostics.diag_message in
+            let sl = String.length msg and bl = String.length sub in
+            if bl = 0 then true
+            else begin
+              let rec loop i =
+                if i + bl > sl then false
+                else if String.sub msg i bl = sub then true
+                else loop (i + 1)
+              in
+              loop 0
+            end) diags
+    in
+    let sev_ok =
+      List.for_all (fun d -> d.Diagnostics.diag_severity = Diagnostics.Warning) diags
+    in
+    report name (n = expect_count && sub_ok && sev_ok)
+  in
+
   let strict_ok =
     match Typecheck.validate_program ~mode:Typecheck.Strict
       (parse_program "id = \\(x: Int -> Int) x") with
@@ -163,28 +190,7 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
       try Check_utils.generic_body_diagnostics program "test.t"
       with _ -> []
     in
-    let n = List.length diags in
-    let sub_ok =
-      match expect_sub with
-      | None -> true
-      | Some sub ->
-          List.exists (fun d ->
-            let msg = d.Diagnostics.diag_message in
-            let sl = String.length msg and bl = String.length sub in
-            if bl = 0 then true
-            else begin
-              let rec loop i =
-                if i + bl > sl then false
-                else if String.sub msg i bl = sub then true
-                else loop (i + 1)
-              in
-              loop 0
-            end) diags
-    in
-    let sev_ok =
-      List.for_all (fun d -> d.Diagnostics.diag_severity = Diagnostics.Warning) diags
-    in
-    report name (n = expect_count && sub_ok && sev_ok)
+    assess name diags expect_count expect_sub
   in
   check_generic "generic body with fixed string warns"
     {|id = \<T>(x: T -> T) "oops"|} 1 (Some "declares return `T`");
@@ -206,6 +212,289 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
     {|f = \<T>(x: T -> List[T]) foo()|} 0 None;
   check_generic "nested generic return stays silent"
     {|f = \<T>(x: T -> List[T]) x|} 0 None;
+
+  (* Call arity check (warn-only): a non-variadic builtin takes exactly
+     its registered arity; a call right of `|>`/`?|>` counts the piped
+     value as one more argument. Variadic builtins, unknown names, and
+     locally shadowed names stay silent. Direct calls keep the helper
+     honest. *)
+  let check_arity name code expect_count expect_sub =
+    let program =
+      try parse_program code
+      with _ -> []
+    in
+    let builtins = Check_utils.builtin_sigs_of_env (Packages.init_env ()) in
+    let diags =
+      try Check_utils.call_arity_diagnostics ~builtins program "test.t"
+      with _ -> []
+    in
+    assess name diags expect_count expect_sub
+  in
+  check_arity "arity exact count stays silent"
+    {|identical(1, 1)|} 0 None;
+  check_arity "arity too few warns"
+    {|identical(1)|} 1 (Some "expects 2 argument(s) but received 1");
+  check_arity "arity too many warns"
+    {|identical(1, 2, 3)|} 1 (Some "expects 2 argument(s) but received 3");
+  check_arity "arity none given warns"
+    {|type()|} 1 (Some "expects 1 argument(s) but received 0");
+  check_arity "arity inside lambda warns"
+    {|f = \(x) identical(x)|} 1 (Some "expects 2 argument(s) but received 1");
+  check_arity "arity pipe adds one stays silent"
+    {|1 |> identical(1)|} 0 None;
+  check_arity "arity pipe too many warns"
+    {|1 |> identical(1, 2)|} 1 (Some "expects 2 argument(s) but received 3");
+  check_arity "arity bare pipe counts one"
+    {|1 |> identical|} 1 (Some "expects 2 argument(s) but received 1");
+  check_arity "arity shadowed name stays silent"
+    {|identical = \(x) x; identical(1)|} 0 None;
+  check_arity "arity package alias shadows builtin"
+    {|import core [identical = sum]; identical(1)|} 0 None;
+  check_arity "arity selective import without alias still checks"
+    {|import core [identical]; identical(1)|} 1 (Some "expects 2 argument(s) but received 1");
+  (* A file import binding a builtin name shadows it just as well. *)
+  let shadow_path = Filename.temp_file "t_shadow_import" ".t" in
+  (let oc = open_out shadow_path in
+   output_string oc "identical = 1\n";
+   close_out oc);
+  check_arity "arity file import shadows builtin"
+    (Printf.sprintf {|import "%s" [identical]; identical(1)|} shadow_path) 0 None;
+  (try Sys.remove shadow_path with _ -> ());
+  check_arity "arity variadic stays silent"
+    {|sum(1, 2, 3)|} 0 None;
+  check_arity "arity unknown function stays silent"
+    {|nosuchfn(1, 2, 3)|} 0 None;
+
+  (* Call argument-type check (warn-only): inferred argument types are
+     compared against documented parameter types; definite mismatches
+     warn. Anything doubtful stays silent. Direct calls keep the
+     helper honest. *)
+  let sig_builtins =
+    let sig_of arity variadic params =
+      { Check_utils.bs_arity = arity; Check_utils.bs_variadic = variadic;
+        Check_utils.bs_params = params }
+    in
+    [ ("takes_int", sig_of 1 false ["x", Some "Int"]);
+      ("takes_float", sig_of 1 false ["x", Some "Float"]);
+      ("takes_df", sig_of 1 false ["data", Some "DataFrame"]);
+      ("takes_fn", sig_of 1 false ["fn", Some "Function"]);
+      ("takes_col", sig_of 1 false ["col", Some "Column"]);
+      ("takes_any", sig_of 1 false ["x", Some "Any"]);
+      ("takes_named", sig_of 2 false ["a", Some "Int"; "opt", Some "String"]);
+      ("takes_pred", sig_of 2 false ["data", Some "DataFrame"; "predicate", Some "Function"]);
+      ("takes_nums", sig_of 1 false ["x", Some "List[Float] | Vector[Float]"]) ]
+  in
+  let check_sig name code expect_count expect_sub =
+    let program =
+      try parse_program code
+      with _ -> []
+    in
+    let scope = Symbol_table.create_scope () in
+    Symbol_table.register_keywords scope;
+    (try ignore (Analyzer.analyze program scope) with _ -> ());
+    let diags =
+      try Check_utils.call_type_diagnostics ~sigs:sig_builtins
+        ~infer:(Analyzer.infer_type scope) program "test.t"
+      with _ -> []
+    in
+    assess name diags expect_count expect_sub
+  in
+  check_sig "sig exact type stays silent"
+    {|takes_int(1)|} 0 None;
+  check_sig "sig wrong type warns"
+    {|takes_int("s")|} 1 (Some "expects argument `x` to be Int, but it infers to String");
+  check_sig "sig int for float stays silent"
+    {|takes_float(1)|} 0 None;
+  check_sig "sig float for int warns"
+    {|takes_int(1.5)|} 1 (Some "to be Int, but it infers to Float");
+  check_sig "sig unknown variable stays silent"
+    {|takes_int(y)|} 0 None;
+  check_sig "sig NA stays silent"
+    {|takes_int(NA)|} 0 None;
+  check_sig "sig dataframe mismatch warns"
+    {|takes_df(1)|} 1 (Some "to be DataFrame, but it infers to Int");
+  check_sig "sig function accepts lambda"
+    {|takes_fn(\(x) x)|} 0 None;
+  check_sig "sig function rejects scalar"
+    {|takes_fn(1)|} 1 (Some "to be Function, but it infers to Int");
+  check_sig "sig shape word stays silent"
+    {|takes_col(1)|} 0 None;
+  check_sig "sig any stays silent"
+    {|takes_any("s")|} 0 None;
+  check_sig "sig named args map by name"
+    {|takes_named(1, opt = "a")|} 0 None;
+  check_sig "sig named arg mismatch warns"
+    {|takes_named(1, opt = 1)|} 1 (Some "expects argument `opt` to be String");
+  check_sig "sig arity mismatch skips types"
+    {|takes_int()|} 0 None;
+  check_sig "sig pipe value checks first position"
+    {|"s" |> takes_int|} 1 (Some "to be Int, but it infers to String");
+  check_sig "sig pipe value silent when right"
+    {|1 |> takes_int|} 0 None;
+  check_sig "sig shadowed stays silent"
+    {|takes_int = \(x) x; takes_int("s")|} 0 None;
+  check_sig "sig unknown function stays silent"
+    {|nosuchfn("s")|} 0 None;
+  check_sig "sig NSE predicate stays silent"
+    {|takes_pred(df, $mpg > 20)|} 0 None;
+  check_sig "sig NSE skipped while other arg warns"
+    {|takes_pred(1, $mpg > 20)|} 1 (Some "expects argument `data`");
+  check_sig "sig named claimed before positional stays silent"
+    {|takes_named(a = 1, "x")|} 0 None;
+  check_sig "sig positional fills unclaimed parameter"
+    {|takes_named(opt = "x", 1)|} 0 None;
+  check_sig "sig positional warns against unclaimed parameter"
+    {|takes_named(opt = "s", "x")|} 1 (Some "expects argument `a` to be Int, but it infers to String");
+  check_sig "sig expected quotes signature verbatim"
+    {|takes_nums("s")|} 1 (Some "to be List[Float] | Vector[Float]");
+
+  (* Return-type checks: documented builtin returns flow into inference,
+     so annotations and argument checks see through calls. Setup mirrors
+     production `t check` (repl.ml): exported --# docs registered from
+     src, derived-type cache cleared, scope populated from the live env.
+     One setup for the whole block; the registry is restored after. *)
+  let with_prod_docs f =
+    let snap = Tdoc_registry.snapshot () in
+    Fun.protect ~finally:(fun () -> Tdoc_registry.restore snap)
+      (fun () ->
+        (* Source root is cwd-dependent: `dune exec` from the repo root
+           sees `src/`, but `dune runtest` runs with cwd `tests/` (see
+           the `../src/repl.exe` probe in test_cli). Try both so the
+           setup is hermetic either way instead of silently testing
+           nothing. *)
+        let roots =
+          List.filter (fun d ->
+            try Sys.is_directory (Filename.concat d "packages")
+            with Sys_error _ -> false
+          ) ["src"; "../src"]
+        in
+        (match roots with
+         | [] ->
+             (* Failing loudly beats passing vacuously: without the src
+                tree every warning-expecting case below degrades to
+                silent and the suite would lie green. *)
+             report "prod docs setup found src tree" false
+         | root :: _ ->
+             let rec walk acc dir =
+               let entries =
+                 try Array.to_list (Sys.readdir dir) |> List.sort String.compare
+                 with Sys_error _ -> []
+               in
+               List.fold_left (fun acc e ->
+                 let p = Filename.concat dir e in
+                 if (try Sys.is_directory p with Sys_error _ -> false) then walk acc p
+                 else if Filename.check_suffix e ".ml" then p :: acc
+                 else acc
+               ) acc entries
+             in
+             List.iter (fun file ->
+               List.iter (fun (e : Tdoc_types.doc_entry) ->
+                 if e.Tdoc_types.is_export then Tdoc_registry.register e
+               )
+                 (try Tdoc_parser.parse_file file with _ -> [])
+             ) (walk [] root));
+        Symbol_table.clear_builtin_typ_cache ();
+        f ())
+  in
+  let prod_scope program =
+    let scope = Symbol_table.create_scope () in
+    Symbol_table.register_keywords scope;
+    Symbol_table.populate_from_env scope (Packages.init_env ());
+    let analysis = Analyzer.analyze program scope in
+    (scope, analysis.Analyzer.stmt_types)
+  in
+  (* Same construction as production (repl.ml): runtime arity plus the
+     documented parameter list per builtin. *)
+  let prod_sigs () =
+    Check_utils.builtin_sigs_of_env (Packages.init_env ())
+  in
+  let check_ret name code which expect_count expect_sub =
+    let program =
+      try parse_program code
+      with _ -> []
+    in
+    let (scope, stmt_types) = prod_scope program in
+    let diags =
+      try match which with
+        | `Annot ->
+            Check_utils.annotation_diagnostics program stmt_types "test.t"
+        | `Types ->
+            Check_utils.call_type_diagnostics ~sigs:(prod_sigs ())
+              ~infer:(Analyzer.infer_type scope) program "test.t"
+      with _ -> []
+    in
+    assess name diags expect_count expect_sub
+  in
+  with_prod_docs (fun () ->
+    check_ret "return mismatch warns on annotation"
+      {|s: String = nrow(df)|} `Annot 1 (Some "annotated as String, but expression infers to Int");
+    (* `ifelse` accepts scalar conditions and returns scalars for them
+       (verified at runtime), so neither the argument nor the
+       annotation check may warn here. *)
+    check_ret "ifelse scalar condition stays silent"
+      {|ifelse(true, 1, 2)|} `Types 0 None;
+    check_ret "ifelse scalar result matches Int annotation"
+      {|r: Int = ifelse(true, 1, 2)|} `Annot 0 None;    check_ret "return match stays silent on annotation"
+      {|nn: Int = nrow(df)|} `Annot 0 None;
+    check_ret "import keeps builtin return precision"
+      {|import core
+s2: String = nrow(df)|} `Annot 1 (Some "annotated as String, but expression infers to Int");
+    check_ret "undocumented call stays silent on annotation"
+      {|s3: String = nosuchfn(1)|} `Annot 0 None;
+    check_ret "argument check sees through calls"
+      {|str_squish(nrow(df))|} `Types 1 (Some "expects argument `s` to be String, but it infers to Int");
+    check_ret "chained calls stay silent when types agree"
+      {|str_squish(str_squish("  a  "))|} `Types 0 None;
+    check_ret "arity failure skips argument types on real builtins"
+      {|str_squish(nrow(df), "extra")|} `Types 0 None;
+    (* Import scoping guard: the analyzer scopes imports from the
+       static per-package lists, while `package_info` merges documented
+       names. Every documented-only name must need no scope entry
+       (live builtin covered by the populated scope, eval special form,
+       concept doc, or internal helper) — otherwise `import pkg` would
+       scope differently from what the docs promise. The documented set
+       is recomputed here from this block's src-derived registry (never
+       `package_functions`, which would fire the one-shot documentation
+       loader), so this stays hermetic under any suite order. New
+       internal --# blocks must either stay @private or join the
+       allowlist below. *)
+    (let no_scope_needed = [
+       (* Eval special forms (see eval.ml): callable, never in the env. *)
+       "node"; "pyn"; "rn"; "jln"; "qn"; "shn";
+       (* Concept doc, not a callable. *)
+       "lens";
+       (* Internal OCaml helpers with --# blocks, never callable from T. *)
+       "parse_file"; "run_doctor"; "scaffold_package"; "scaffold_project";
+       "update_flake_lock"; "build_pipeline_internal";
+     ] in
+     let env = Packages.init_env () in
+     let unaccounted =
+       List.filter_map (fun pkg ->
+         let static = pkg.Packages.functions in
+         let fams = Packages.package_families pkg.Packages.name in
+         let documented =
+           List.filter_map (fun (e : Tdoc_types.doc_entry) ->
+             match e.Tdoc_types.family with
+             | Some f when List.mem f fams && e.Tdoc_types.is_export ->
+                 Some e.Tdoc_types.name
+             | _ -> None
+           ) (Tdoc_registry.get_all ())
+         in
+         let only_doc = List.filter (fun f -> not (List.mem f static)) documented in
+         let accounted f = Ast.Env.mem f env || List.mem f no_scope_needed in
+         (match List.filter (fun f -> not (accounted f)) only_doc with
+          | [] -> None
+          | bad -> Some (pkg.Packages.name ^ ": " ^ String.concat "," bad))
+       ) Packages.all_packages
+     in
+     match unaccounted with
+     | [] -> report "documented-only names need no import scope" true
+     | ms ->
+         List.iter (fun m -> Printf.printf "    unaccounted: %s\n" m) ms;
+         report "documented-only names need no import scope" false)
+  );
+  check_arity "arity real builtin too many warns"
+    {|str_squish("a", "b")|} 1 (Some "expects 1 argument(s) but received 2");
 
   (* Typing coverage audit (spec typesystem item 5): what fraction of
      builtins carry precise Tdoc signatures that inference actually uses?

@@ -6,7 +6,7 @@ Creates factor vectors marked as ordered for ordinal comparisons.
 
 ## Parameters
 
-- **x** (`Vector | List | Any`): The values to convert to an ordered factor.
+- **x** (`Any`): The values to convert to an ordered factor. Accepts a vector, a list, or a scalar.
 
 - **levels** (`Vector[String] | List[String]`): (Optional) Explicit level order.
 

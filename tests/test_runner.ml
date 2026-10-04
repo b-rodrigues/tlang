@@ -239,6 +239,7 @@ let () =
   run "Test_onnx_native" Test_onnx_native.run_tests;
   run "Test_broom_golden" Test_broom_golden.run_tests;
   run_with_env "Test_explain_tests" Test_explain_tests.run_tests;
+  run "Test_lineage" Test_lineage.run_tests;
   run "Test_cli" Test_cli.run_tests;
   run "Test_demo" Test_demo.run_tests;
 

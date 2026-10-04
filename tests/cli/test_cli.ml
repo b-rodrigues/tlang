@@ -702,4 +702,30 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
      if Sys.file_exists temp_pipeline_path then Sys.remove temp_pipeline_path;
      raise e);
 
+  (* Transitive lineage over a chained pipeline *)
+  let temp_chain_path = Filename.temp_file "explain_test_chain" ".t" in
+  (try
+     let oc = open_out temp_chain_path in
+     output_string oc "p = pipeline { a = 1; b = a + 1; c = b + 1 }\n";
+     close_out oc;
+
+     (* 8. Plain text prints direct plus transitive lineage *)
+     let (code8, out8) = run_t_explain ["--node"; "p.c"; temp_chain_path] in
+     test_message "explain --node prints transitive lineage"
+       (code8 = 0 &&
+        contains out8 "Lineage for node 'c': parents=[b] children=[]" &&
+        contains out8 "Transitive lineage for node 'c': ancestors=[b, a] descendants=[]");
+
+     (* 9. JSON carries full ancestor/descendant arrays *)
+     let (code9, out9) = run_t_explain ["--json"; "--node"; "p.a"; temp_chain_path] in
+     test_message "explain --json --node carries transitive lineage arrays"
+       (code9 = 0 &&
+        contains out9 "\"ancestors\": []" &&
+        contains out9 "\"descendants\": [ \"b\", \"c\" ]");
+
+     Sys.remove temp_chain_path
+   with e ->
+     if Sys.file_exists temp_chain_path then Sys.remove temp_chain_path;
+     raise e);
+
   print_newline ()

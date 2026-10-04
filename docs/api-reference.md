@@ -4388,6 +4388,15 @@ node_info.node_name       -- node/container metadata
 node_info.diagnostics     -- node diagnostics
 node_info.contents        -- explained node payload
 
+-- Explaining a pipeline lists per-node lineage:
+pline = explain(p)
+pline.nodes               -- one dict per node: name, output_kind, diagnostics
+node  = get(pline.nodes, 0)
+node.dependencies         -- direct inputs (parents)
+node.children             -- direct dependents
+node.ancestors            -- all transitive inputs, nearest-first, de-duplicated
+node.descendants          -- all transitive dependents, nearest-first, de-duplicated
+
 -- Computed pipeline nodes (R, Python, Julia) carry build-time metadata:
 node = explain(p.fit)
 node.foreign_meta.kind        -- value kind: "dataframe", "matrix", "vector", "array", "factor", "series", "table", "model", "test", "data", "transformer", "distribution", "other", or "unknown"
