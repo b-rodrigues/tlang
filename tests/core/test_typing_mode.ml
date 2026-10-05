@@ -472,6 +472,12 @@ s: String = f(1)|} `Annot 0 None;
     check_ret "generic lambda stays silent"
       {|f = \(T)(x: T -> T) x
 s: String = f(1)|} `Annot 0 None;
+    check_ret "user call sees through annotated return"
+      {|f = \(x: Int -> Int) x
+str_squish(f(1))|} `Types 1 (Some "expects argument `s` to be String, but it infers to Int");
+    check_ret "user call match stays silent"
+      {|f = \(x: Int -> String) "hi"
+str_squish(f(1))|} `Types 0 None;
     (* Import scoping guard: the analyzer scopes imports from the
        static per-package lists, while `package_info` merges documented
        names. Every documented-only name must need no scope entry

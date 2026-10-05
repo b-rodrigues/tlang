@@ -149,9 +149,27 @@ let value_to_semantic_type v =
       let cols = List.map (fun name -> Semantic_type.{ name; col_typ = Semantic_type.TUnknown }) col_names in
       if group_keys = [] then Some (Semantic_type.TDataFrame cols)
       else Some (Semantic_type.TGroupedDataFrame (cols, group_keys))
-  | Ast.VLambda { params; _ } ->
-      let args = List.map (fun name -> (name, Semantic_type.TUnknown)) params in
-      Some (Semantic_type.TFunction (args, Semantic_type.TUnknown))
+  | Ast.VLambda { params; param_types; return_type; _ } ->
+      (* Mirror Analyzer Lambda inference: annotated contracts win,
+         unannotated positions stay Unknown (silent). Keeps the two
+         paths from drifting. *)
+      let rec zip ps ts acc =
+        match ps, ts with
+        | [], _ -> List.rev acc
+        | p :: ps', t :: ts' ->
+            let st =
+              match t with
+              | Some at -> Semantic_type.from_string (Ast.Utils.typ_to_string at)
+              | None -> Semantic_type.TUnknown in
+            zip ps' ts' ((p, st) :: acc)
+        | p :: ps', [] -> zip ps' [] ((p, Semantic_type.TUnknown) :: acc)
+      in
+      let args = zip params param_types [] in
+      let ret =
+        match return_type with
+        | Some at -> Semantic_type.from_string (Ast.Utils.typ_to_string at)
+        | None -> Semantic_type.TUnknown in
+      Some (Semantic_type.TFunction (args, ret))
   | Ast.VBuiltin { b_name; b_arity; b_variadic; _ } ->
       let cache_key = match b_name with Some n -> n | None -> "arity:" ^ string_of_int b_arity ^ (if b_variadic then "+" else "") in
       (match Hashtbl.find_opt builtin_typ_cache cache_key with
