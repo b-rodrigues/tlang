@@ -294,7 +294,13 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     {|Error(TypeError: "[L1:C1] Function `pipeline_nodes` expects a Pipeline, but got Int.")|};
   test "pipeline_node missing key"
     {|p = pipeline { a = 1 }; pipeline_node(p, "b")|}
-    {|Error(KeyError: "Node `b` not found in Pipeline.")|};
+    {|Error(KeyError: "Node `b` not found in Pipeline. Did you mean `a`?")|};
+  test "pipeline dot access suggests closest node name"
+    {|p = pipeline { r_survfit = 1 }; p.r_survift|}
+    "Did you mean `r_survfit`";
+  test "read_node surfaces dot-access suggestion"
+    {|p = pipeline { r_survfit = 1 }; read_node(p.r_survift)|}
+    "Did you mean `r_survfit`";
   test "reserved _branch_N node name rejected"
     {|pipeline { a_branch_1 = 1 }|}
     {|Error(NameError: "Node name `a_branch_1` ends with `_branch_N` which is reserved for auto-generated branch nodes from pattern expansion. Choose a different name.")|};

@@ -553,7 +553,11 @@ let read_fn named_args _env =
           | Some (VString n) -> "\n  - Node `" ^ n ^ "` could not be resolved."
           | _ -> ""
         in
-        Error.type_error (not_computed_node_msg "Error" ^ hint)
+        let inner =
+          if err.message = "" then ""
+          else "\n  - Underlying error: " ^ err.message
+        in
+        Error.type_error (not_computed_node_msg "Error" ^ hint ^ inner)
     | other ->
         Error.type_error (not_computed_node_msg (Utils.type_name other))
   in

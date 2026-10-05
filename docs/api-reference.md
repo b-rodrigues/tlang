@@ -3458,7 +3458,7 @@ pipeline_deps(p)  -- {`x`: [], `y`: [], `z`: ["x", "y"]}
 
 ### `pipeline_node(pipeline, node_name)`
 
-Get the value of a specific node. A leading `$` in `node_name` is stripped, so bare-word selectors like `pipeline_node(p, $x)` are accepted, matching the behaviour of `get(p, $x)`.
+Get the value of a specific node. A leading `$` in `node_name` is stripped, so bare-word selectors like `pipeline_node(p, $x)` are accepted, matching the behaviour of `get(p, $x)`. A mistyped name suggests the closest existing node (fuzzy match); the same hint appears on `p.name` dot access and inside `read_node(p.name)` errors.
 
 **Parameters:**
 

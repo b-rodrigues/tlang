@@ -107,7 +107,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
 
   test "golden: pipeline_node missing key"
     {|p = pipeline { a = 1 }; pipeline_node(p, "z")|}
-    {|Error(KeyError: "Node `z` not found in Pipeline.")|};
+    {|Error(KeyError: "Node `z` not found in Pipeline. Did you mean `a`?")|};
 
   (* Golden test: pipeline_to_ga YAML generation *)
   (try
