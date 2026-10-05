@@ -914,6 +914,219 @@ let call_type_diagnostics ~sigs ~infer program filename =
   ) (collect_call_sites program);
   List.rev !diags
 
+(** Declared node names for one pipeline: [pni_names] mirrors the
+    existence checks in runtime reads (`p.field` dot access,
+    `pipeline_node`, two-argument `get` all consult `p_exprs`);
+    [pni_patterns] covers lazy `orig_branch_N` expansion. *)
+type pipeline_node_index = {
+  pni_names : string list;
+  pni_patterns : string list;
+}
+
+(** Dangling pipeline-node read diagnostics (warn-only).
+    Warns when `p.field`, `pipeline_node(p, name)`, or two-argument
+    `get(p, name)` names a node that the pipeline does not declare.
+    This catches typos the evaluator never reaches — reads inside
+    lambdas, node blocks, and match arms — at check time. A pipeline
+    variable resolves only when it has exactly one top-level
+    assignment, no reassignment, and no shadowing binder (lambda
+    parameter, match binder, or import alias) anywhere in the program;
+    anything else stays silent. Unknown pipelines (imports,
+    parameters, meta-pipelines), non-literal node names, three-argument
+    `get` (which returns its default), `orig_branch_N` names whose
+    origin is declared, and `prefix` reads of dotted node names all
+    stay silent, mirroring runtime resolution. Near-miss names carry a
+    `Suggest_identifier` fix, which `t fix` never auto-applies (manual
+    rename). Severity is Warning. *)
+let dangling_node_read_diagnostics ~pipelines program filename =
+  let assign_count = Hashtbl.create 8 in
+  let reassigned = Hashtbl.create 8 in
+  let shadowed = Hashtbl.create 8 in
+  let mark tbl name = Hashtbl.replace tbl name true in
+  let rec mark_pattern = function
+    | PVar s -> mark shadowed s
+    | PList (ps, rest) ->
+        List.iter mark_pattern ps;
+        (match rest with Some s -> mark shadowed s | None -> ())
+    | PError (Some s) -> mark shadowed s
+    | PUnion { pu_args; _ } -> List.iter mark_pattern pu_args
+    | PWildcard | PNA | PError None -> ()
+  in
+  let rec all_exprs e =
+    e :: List.concat_map all_exprs (children_of_expr e)
+  in
+  let exprs =
+    List.concat_map (fun s -> List.concat_map all_exprs (children_of_stmt s)) program
+  in
+  List.iter (fun (s : stmt) ->
+    match s.node with
+    | Assignment { name; _ } ->
+        let n = 1 + Option.value ~default:0 (Hashtbl.find_opt assign_count name) in
+        Hashtbl.replace assign_count name n
+    | Reassignment { name; _ } -> mark reassigned name
+    | ImportFrom { names; _ } ->
+        List.iter (fun (im : import_spec) ->
+          match im.import_alias with
+          | Some nick -> mark shadowed nick
+          | None -> ()
+        ) names
+    | ImportFileFrom { names; _ } ->
+        List.iter (fun (im : import_spec) ->
+          mark shadowed im.import_name;
+          (match im.import_alias with Some nick -> mark shadowed nick | None -> ())
+        ) names
+    | _ -> ()
+  ) program;
+  List.iter (fun e ->
+    match e.node with
+    | Lambda l -> List.iter (mark shadowed) l.params
+    | Match { cases; _ } -> List.iter (fun (p, _) -> mark_pattern p) cases
+    | _ -> ()
+  ) exprs;
+  let shadowed_fn name =
+    Hashtbl.mem shadowed name
+    || Hashtbl.mem assign_count name
+    || Hashtbl.mem reassigned name
+  in
+  let resolvable pname =
+    match List.assoc_opt pname pipelines with
+    | None -> None
+    | Some info ->
+        if Hashtbl.find_opt assign_count pname = Some 1
+           && not (Hashtbl.mem reassigned pname)
+           && not (Hashtbl.mem shadowed pname)
+        then Some info
+        else None
+  in
+  (* A literal node selector: strings as written, symbols and `$name`
+     column references stripped to the bare node name. Anything else
+     (variables, calls) is dynamic and stays silent. *)
+  let literal_node_name e =
+    match e.node with
+    | Value (VString s) -> Some s
+    | Value (VSymbol s) -> Some (Utils.strip_dollar s)
+    | ColumnRef s -> Some s
+    | _ -> None
+  in
+  (* Mirror Eval.try_lazy_expand_branch name parsing: the last
+     `_branch_N` suffix (positive N) resolves when its origin is a
+     declared node or pattern. *)
+  let branch_resolves names pats field =
+    let marker = "_branch_" in
+    let mlen = String.length marker in
+    let flen = String.length field in
+    let rec find pos =
+      if pos < 0 then false
+      else if pos + mlen <= flen && String.sub field pos mlen = marker then
+        let orig = String.sub field 0 pos in
+        let suffix = String.sub field (pos + mlen) (flen - pos - mlen) in
+        (match int_of_string_opt suffix with
+         | Some n when n > 0 ->
+             List.mem orig names || List.mem orig pats
+         | _ -> find (pos - 1))
+      else find (pos - 1)
+    in
+    find (flen - mlen)
+  in
+  (* Mirror Eval.has_node_prefix: `p.prefix` reads on to dotted names. *)
+  let prefix_resolves names field =
+    let pfx = field ^ "." in
+    List.exists (fun n ->
+      String.length n > String.length pfx
+      && String.starts_with ~prefix:pfx n
+    ) names
+  in
+  let diags = ref [] in
+  let check_site pname info node loc =
+    if List.mem node info.pni_names
+       || branch_resolves info.pni_names info.pni_patterns node
+       || prefix_resolves info.pni_names node then ()
+    else begin
+      let names = info.pni_names in
+      let fix =
+        match Ast.suggest_names_with_scores node names with
+        | (best, dist) :: runner :: _ ->
+            Diagnostics.make_suggest_identifier_fix
+              ~name:node ~suggestion:best ~edit_distance:dist
+              ~is_unique:(snd runner > dist)
+              ~file:filename
+              ~line:(match loc with Some (l : source_location) -> l.line | None -> 1)
+              ()
+        | [(best, dist)] ->
+            Diagnostics.make_suggest_identifier_fix
+              ~name:node ~suggestion:best ~edit_distance:dist ~is_unique:true
+              ~file:filename
+              ~line:(match loc with Some (l : source_location) -> l.line | None -> 1)
+              ()
+        | [] -> Diagnostics.no_fix
+      in
+      let valid =
+        if List.length names <= 10 && names <> [] then
+          " Valid nodes: " ^ String.concat ", " names ^ "."
+        else ""
+      in
+      diags := {
+        Diagnostics.diag_id = Diagnostics.gen_id ();
+        Diagnostics.diag_error_class = Diagnostics.Key_error;
+        Diagnostics.diag_severity = Diagnostics.Warning;
+        Diagnostics.diag_phase = Diagnostics.Schema;
+        Diagnostics.diag_node_id = None;
+        Diagnostics.diag_node_lang = None;
+        Diagnostics.diag_file = Some filename;
+        Diagnostics.diag_line = (match loc with Some (l : source_location) -> Some l.line | None -> None);
+        Diagnostics.diag_column = (match loc with Some (l : source_location) -> Some l.column | None -> None);
+        Diagnostics.diag_end_line = None;
+        Diagnostics.diag_end_column = None;
+        Diagnostics.diag_message = Printf.sprintf
+          "Node `%s` not found in pipeline `%s`.%s" node pname valid;
+        Diagnostics.diag_expected = None;
+        Diagnostics.diag_actual = None;
+        Diagnostics.diag_caused_by = [];
+        Diagnostics.diag_suggested_fix = fix;
+      } :: !diags
+    end
+  in
+  let check_call_args fn_name args loc =
+    if shadowed_fn fn_name then ()
+    else match args with
+    | [(_, { node = Var pname; _ }); (_, namex)] ->
+        (match resolvable pname with
+         | Some info ->
+             (match literal_node_name namex with
+              | Some n -> check_site pname info n loc
+              | None -> ())
+         | None -> ())
+    | _ -> ()
+  in
+  List.iter (fun e ->
+    match e.node with
+    | DotAccess { target = { node = Var pname; _ }; field } ->
+        (match resolvable pname with
+         | Some info -> check_site pname info field e.loc
+         | None -> ())
+    | Call { fn = { node = Var "pipeline_node"; _ }; args; _ } ->
+        check_call_args "pipeline_node" args e.loc
+    | Call { fn = { node = Var "get"; _ }; args; _ } ->
+        check_call_args "get" args e.loc
+    | _ -> ()
+  ) exprs;
+  List.rev !diags
+
+(** Parse a file to a program for static checks. Returns None when the
+    file cannot be read or parsed; those failures are already reported
+    through the evaluation path, so the AST walk stays silent. *)
+let parse_program_file filename =
+  try
+    let ch = open_in filename in
+    Fun.protect ~finally:(fun () -> close_in_noerr ch) (fun () ->
+      let content = really_input_string ch (in_channel_length ch) in
+      let lexbuf = Lexing.from_string content in
+      lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = filename };
+      Some (Parser.program Lexer.token lexbuf))
+  with
+  | Sys_error _ | Lexer.SyntaxError _ | Parser.Error
+  | Mixed_bracket_form | Invalid_match_pattern _ | Invalid_type_declaration _ -> None
+
 let run_check ?(schema=false) ?(env_check=false) ?(offline=false) mode filename env =
   let run () =
     Ast.check_mode := true;
@@ -959,7 +1172,32 @@ let run_check ?(schema=false) ?(env_check=false) ?(offline=false) mode filename 
         wire_diags @ schema_diags @ env_diags
       ) pipelines in
       let extra_diags = !extra_diagnostics_hook filename in
-      let unordered = extra_diags @ error_diags @ pipeline_diags in
+      (* Dangling node reads use evaluated pipeline values (accurate
+         for derived pipelines) but only when the file evaluates
+         cleanly: with failfast on, a top-level dangling read already
+         surfaces as the runtime error, so warning again would double
+         report. Clean files still gain warnings for reads hidden in
+         unexecuted code (lambdas, node blocks, match arms). *)
+      let dangling_diags =
+        match result with
+        | VError _ -> []
+        | _ ->
+            let node_maps =
+              List.filter_map (fun (name, v) ->
+                match v with
+                | VPipeline p ->
+                    Some (name, { pni_names = List.map fst p.p_exprs;
+                                  pni_patterns = List.map fst p.p_patterns })
+                | _ -> None
+              ) (Env.bindings new_env)
+            in
+            if node_maps = [] then []
+            else match parse_program_file filename with
+              | None -> []
+              | Some program ->
+                  dangling_node_read_diagnostics ~pipelines:node_maps program filename
+      in
+      let unordered = extra_diags @ error_diags @ pipeline_diags @ dangling_diags in
       (* Diagnostics read better in source order than grouped by category:
          stable sort by location, keeping category order within one spot.
          Location-less diagnostics sort last. Applies to text and JSON. *)
