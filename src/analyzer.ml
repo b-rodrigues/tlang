@@ -206,7 +206,11 @@ let rec infer_type scope expr =
          right-side function return. Left still infers for side effects
          (column observation). A known error on the left stays Unknown:
          `|>` short-circuits it and `?|>` forwards it, so the annotated
-         return never materializes (errors are bottom). Unknown on
+         return never materializes (errors are bottom). Only literals
+         are recognized; a variable holding an error still infers
+         through the call, but that program already fails, so the
+         warning costs nothing actionable. Semantic types carry no
+         error case by design, so variables cannot match. Unknown on
          doubt, never warn falsely. *)
       ignore (infer_type scope left);
       (match left.node with

@@ -962,13 +962,18 @@ let dangling_node_read_diagnostics ~pipelines program filename =
      (`{ p = other; p.nope }`), so top-level statements alone would
      resolve the read to the outer pipeline and warn falsely. Counting
      nested assignments only ever removes pipelines from resolution
-     (safe direction: silence, never a false warning). *)
+     (safe direction: silence, never a false warning). Binder audit:
+     Lambda params, match patterns, assignments, reassignments, and
+     import aliases/names cover every T binder (no loops or
+     comprehensions exist; type names cannot shadow per the eval guard,
+     but are marked anyway). *)
   let rec scan_stmt (s : stmt) =
     (match s.node with
     | Assignment { name; _ } ->
         let n = 1 + Option.value ~default:0 (Hashtbl.find_opt assign_count name) in
         Hashtbl.replace assign_count name n
     | Reassignment { name; _ } -> mark reassigned name
+    | TypeDecl { tname; _ } -> mark shadowed tname
     | ImportFrom { names; _ } ->
         (* Only aliases shadow: a bare `import pkg [name]` re-exposes
            the package member under its own name, which for standard
@@ -989,12 +994,19 @@ let dangling_node_read_diagnostics ~pipelines program filename =
     | _ -> ());
     List.iter scan_expr (children_of_stmt s)
   and scan_expr e =
-    (match e.node with
-     | Block blk -> List.iter scan_stmt blk
-     | Lambda l -> List.iter (mark shadowed) l.params
-     | Match { cases; _ } -> List.iter (fun (p, _) -> mark_pattern p) cases
-     | _ -> ());
-    List.iter scan_expr (children_of_expr e)
+    (* The Block arm is exclusive: children_of_expr on a Block already
+       yields the statements' expressions, so the generic recursion
+       below would walk each nested block twice per level (2^depth).
+       scan_stmt covers names and recurses into child expressions. *)
+    match e.node with
+    | Block blk -> List.iter scan_stmt blk
+    | Lambda l ->
+        List.iter (mark shadowed) l.params;
+        List.iter scan_expr (children_of_expr e)
+    | Match { cases; _ } ->
+        List.iter (fun (p, _) -> mark_pattern p) cases;
+        List.iter scan_expr (children_of_expr e)
+    | _ -> List.iter scan_expr (children_of_expr e)
   in
   let rec all_exprs e =
     e :: List.concat_map all_exprs (children_of_expr e)
@@ -1145,8 +1157,6 @@ let parse_program_string content filename =
     Some (Parser.program Lexer.token lexbuf)
   with
   | Sys.Break -> raise Sys.Break
-  | Sys_error _ | Lexer.SyntaxError _ | Parser.Error
-  | Mixed_bracket_form | Invalid_match_pattern _ | Invalid_type_declaration _ -> None
   | _ -> None
 
 let run_check ?(schema=false) ?(env_check=false) ?(offline=false) mode filename env =

@@ -211,9 +211,9 @@ apply_mutation() {
   done
 
   if [ "$changed" = false ]; then
-    echo -e "${RED}  ✗ Mutation pattern did not match — no change applied ($name)${NC}"
+    echo -e "${RED}  ✗ Mutation pattern did not match — no change applied ($name), marking INVALID${NC}"
     restore_all
-    return 1
+    return 2
   fi
 
   # A mutant that does not compile is discarded, not counted as killed:

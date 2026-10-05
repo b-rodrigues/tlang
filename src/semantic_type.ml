@@ -240,7 +240,11 @@ let of_annotation ~generics (typ : Ast.typ) =
     else if is_word s.[i] then tokens (i + 1) (cur ^ String.make 1 s.[i]) acc
     else tokens (i + 1) "" (if cur = "" then acc else cur :: acc)
   in
-  if List.exists (fun g -> List.mem g (tokens 0 "" [])) generics then TUnknown
+  (* Generics are per-lambda: an inner lambda using an outer lambda's
+     name falls back to the plain parse below (usually unknown and
+     silent). Cross-lambda generics are rare; silence is safe. *)
+  let toks = tokens 0 "" [] in
+  if List.exists (fun g -> List.mem g toks) generics then TUnknown
   else from_string s
 
 (** Pair parameter names with their declared types for lambda shapes.
