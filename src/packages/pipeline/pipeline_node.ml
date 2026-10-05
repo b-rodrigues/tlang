@@ -21,15 +21,7 @@ let register env =
       | [VPipeline p; (VString name | VSymbol name)] ->
           let name = Utils.strip_dollar name in
           if not (List.mem_assoc name p.p_exprs) then
-            let candidates =
-              List.sort_uniq String.compare
-                (List.map fst p.p_nodes @ List.map fst p.p_exprs)
-            in
-            let hint = match suggest_name name candidates with
-              | Some suggestion -> Printf.sprintf " Did you mean `%s`?" suggestion
-              | None -> ""
-            in
-            Error.make_error KeyError (Printf.sprintf "Node `%s` not found in Pipeline.%s" name hint)
+            Ast.missing_node_error name (List.map fst p.p_nodes @ List.map fst p.p_exprs)
           else
             Eval.pipeline_get_node_value (ref _env) p name
       | [VPipeline _; other] ->

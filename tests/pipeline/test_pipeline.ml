@@ -293,8 +293,11 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     "pipeline_nodes(42)"
     {|Error(TypeError: "[L1:C1] Function `pipeline_nodes` expects a Pipeline, but got Int.")|};
   test "pipeline_node missing key"
-    {|p = pipeline { a = 1 }; pipeline_node(p, "b")|}
-    {|Error(KeyError: "Node `b` not found in Pipeline. Did you mean `a`?")|};
+    {|p = pipeline { a = 1 }; pipeline_node(p, "zzzzz")|}
+    {|Error(KeyError: "Node `zzzzz` not found in Pipeline.")|};
+  test "pipeline_node suggests closest node name"
+    {|p = pipeline { r_survfit = 1 }; pipeline_node(p, "r_survift")|}
+    "Did you mean `r_survfit`";
   test "pipeline dot access suggests closest node name"
     {|p = pipeline { r_survfit = 1 }; p.r_survift|}
     "Did you mean `r_survfit`";
