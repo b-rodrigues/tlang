@@ -447,6 +447,16 @@ s2: String = nrow(df)|} `Annot 1 (Some "annotated as String, but expression infe
       {|str_squish(str_squish("  a  "))|} `Types 0 None;
     check_ret "arity failure skips argument types on real builtins"
       {|str_squish(nrow(df), "extra")|} `Types 0 None;
+    check_ret "pipe return warns on annotation"
+      {|s: String = df |> nrow|} `Annot 1 (Some "annotated as String, but expression infers to Int");
+    check_ret "pipe return match stays silent"
+      {|nn: Int = df |> nrow|} `Annot 0 None;
+    check_ret "maybe-pipe return warns on annotation"
+      {|s: String = df ?|> nrow|} `Annot 1 (Some "annotated as String, but expression infers to Int");
+    check_ret "pipe chain sees through calls"
+      {|str_squish(df |> nrow)|} `Types 1 (Some "expects argument `s` to be String, but it infers to Int");
+    check_ret "bare pipe target stays silent"
+      {|s3: String = df |> nosuchfn|} `Annot 0 None;
     (* Import scoping guard: the analyzer scopes imports from the
        static per-package lists, while `package_info` merges documented
        names. Every documented-only name must need no scope entry

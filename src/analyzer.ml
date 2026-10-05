@@ -187,6 +187,22 @@ let rec infer_type scope expr =
       ignore (infer_type scope left);
       ignore (infer_type scope right);
       TBool
+  | BinOp { op = (Pipe | MaybePipe); left; right } ->
+      (* Pipe is special: x |> f(y) runs as f(x, y), x |> f runs as f(x).
+         Mirror eval_binop and collect_call_sites: infer through the
+         right-side function return. Left still infers for side effects
+         (column observation). Unknown on doubt, never warn falsely. *)
+      ignore (infer_type scope left);
+      (match right.node with
+       | Call { fn; args; _ } ->
+           List.iter (fun (_, e) -> ignore (infer_type scope e)) args;
+           (match infer_type scope fn with
+            | TFunction (_, ret) -> ret
+            | _ -> TUnknown)
+       | _ ->
+           (match infer_type scope right with
+            | TFunction (_, ret) -> ret
+            | _ -> TUnknown))
   | BroadcastOp { left; right; _ } ->
       ignore (infer_type scope left);
       ignore (infer_type scope right);
