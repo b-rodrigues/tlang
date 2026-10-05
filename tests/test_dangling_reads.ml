@@ -76,6 +76,8 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
     "f = \\() { p = 1; p.raw }" 0;
   check_count "nested-only binding reads local, stays silent"
     ~bind:"" {|f = \(x) { p = 1; p.b }|} 0;
+  check_count "nested-only reassignment reads local, stays silent"
+    ~bind:"" {|f = \(x) { p := 2; p.b }|} 0;
   check_count "typedecl name shadowing stays silent"
     "type p = { x: Int }\nx = p.raw" 0;
   check_count "deeply nested read still warns once (single-visit walk)"
