@@ -3579,12 +3579,21 @@ function jl_save_meta(obj, path)
                 end
             end
             issingletree = try
-                !isforest && hasproperty(obj, :feature) && hasproperty(obj, :threshold) && (hasproperty(obj, :left) || hasproperty(obj, :right))
+                (!isforest) && ((hasproperty(obj, :feature) && hasproperty(obj, :threshold) && (hasproperty(obj, :left) || hasproperty(obj, :right))) || (hasproperty(obj, :featid) && hasproperty(obj, :featval) && (hasproperty(obj, :left) || hasproperty(obj, :right))) || (hasproperty(obj, :node) && hasproperty(obj, :n_feat)))
             catch
                 false
             end
             if issingletree
                 meta["kind"] = "model"
+                try
+                    meta["n_features"] = Int(obj.n_feat)
+                catch
+                end
+                try
+                    labT = typeof(obj).parameters[2]
+                    meta["task"] = labT <: Real ? "regression" : "classification"
+                catch
+                end
             end
             ishypotest = try
                 tn = string(typeof(obj))

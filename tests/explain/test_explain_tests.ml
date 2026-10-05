@@ -1415,12 +1415,24 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
                 "    left::Int\n" ^
                 "    right::Int\n" ^
                 "end\n" ^
+                "struct TlangGoldFeatNode\n" ^
+                "    featid::Int\n" ^
+                "    featval::Float64\n" ^
+                "    left::Int\n" ^
+                "    right::Int\n" ^
+                "end\n" ^
+                "struct TlangGoldRoot\n" ^
+                "    node::Int\n" ^
+                "    n_feat::Int\n" ^
+                "end\n" ^
                 "struct TlangGoldTTest\n" ^
                 "    pvalue::Float64\n" ^
                 "    statistic::Float64\n" ^
                 "end\n" ^
                 "jl_save_meta(TlangGoldTimeArray([1,2,3], [1.0 2.0; 3.0 4.0; 5.0 6.0]), ENV[\"T_GOLD_OUT4\"])\n" ^
                 "jl_save_meta(TlangGoldTree(2, 0.5, 1, 2), ENV[\"T_GOLD_OUT5\"])\n" ^
+                "jl_save_meta(TlangGoldFeatNode(2, 0.5, 1, 2), ENV[\"T_GOLD_OUT7\"])\n" ^
+                "jl_save_meta(TlangGoldRoot(1, 2), ENV[\"T_GOLD_OUT8\"])\n" ^
                 "jl_save_meta(TlangGoldTTest(0.03, 2.1), ENV[\"T_GOLD_OUT6\"])\n" ^
                 "d = jl_sanitize_json_value(Dict(\"kind\" => \"model\", \"metrics\" => Dict(\"aic\" => NaN, \"bic\" => 1.5)))\n" ^
                 "open(ENV[\"T_GOLD_OUT2\"], \"w\") do f\n" ^
@@ -1436,15 +1448,19 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
                    let out4_path = temp_path "jl4.json" in
                    let out5_path = temp_path "jl5.json" in
                    let out6_path = temp_path "jl6.json" in
-                   with_temp_files [drv_path; out_path; out2_path; out3_path; out4_path; out5_path; out6_path] (fun () ->
-                     let _ = shell_out (Printf.sprintf "T_GOLD_OUT=%s T_GOLD_OUT2=%s T_GOLD_OUT3=%s T_GOLD_OUT4=%s T_GOLD_OUT5=%s T_GOLD_OUT6=%s julia %s 2>/dev/null"
-                       (Filename.quote out_path) (Filename.quote out2_path) (Filename.quote out3_path) (Filename.quote out4_path) (Filename.quote out5_path) (Filename.quote out6_path) (Filename.quote drv_path)) in
+                   let out7_path = temp_path "jl7.json" in
+                   let out8_path = temp_path "jl8.json" in
+                   with_temp_files [drv_path; out_path; out2_path; out3_path; out4_path; out5_path; out6_path; out7_path; out8_path] (fun () ->
+                     let _ = shell_out (Printf.sprintf "T_GOLD_OUT=%s T_GOLD_OUT2=%s T_GOLD_OUT3=%s T_GOLD_OUT4=%s T_GOLD_OUT5=%s T_GOLD_OUT6=%s T_GOLD_OUT7=%s T_GOLD_OUT8=%s julia %s 2>/dev/null"
+                       (Filename.quote out_path) (Filename.quote out2_path) (Filename.quote out3_path) (Filename.quote out4_path) (Filename.quote out5_path) (Filename.quote out6_path) (Filename.quote out7_path) (Filename.quote out8_path) (Filename.quote drv_path)) in
                      let json = match read_file_opt out_path with Some s -> s | None -> "" in
                      let txt = match read_file_opt out2_path with Some s -> s | None -> "" in
                      let json3 = match read_file_opt out3_path with Some s -> s | None -> "" in
                      let json4 = match read_file_opt out4_path with Some s -> s | None -> "" in
                      let json5 = match read_file_opt out5_path with Some s -> s | None -> "" in
                      let json6 = match read_file_opt out6_path with Some s -> s | None -> "" in
+                     let json7 = match read_file_opt out7_path with Some s -> s | None -> "" in
+                     let json8 = match read_file_opt out8_path with Some s -> s | None -> "" in
                      check_golden "Julia probe writes a real sidecar end to end"
                        (contains json "dataframe" && contains json "dimensions");
                      check_golden "Julia sanitizer drops NaN metrics, keeps the rest"
@@ -1455,6 +1471,10 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
                        (contains json4 "series" && contains json4 "n_obs");
                      check_golden "Julia probe handles single trees"
                        (contains json5 "model" && contains json5 "TlangGoldTree");
+                     check_golden "Julia probe handles featid single trees"
+                       (contains json7 "model" && contains json7 "TlangGoldFeatNode");
+                     check_golden "Julia probe handles Root single trees"
+                       (contains json8 "model" && contains json8 "TlangGoldRoot");
                      check_golden "Julia probe handles hypothesis tests"
                        (contains json6 "test" && contains json6 "p_value")))));
   (* Julia GLM: needs the GLM package, skipped when absent. *)
