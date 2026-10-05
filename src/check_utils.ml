@@ -937,8 +937,10 @@ type pipeline_node_index = {
     This catches typos the evaluator never reaches — reads inside
     lambdas, node blocks, and match arms — at check time. A pipeline
     variable resolves only when it has exactly one top-level
-    assignment, no reassignment, and no shadowing binder (lambda
-    parameter, match binder, or import alias) anywhere in the program;
+    assignment, no top-level reassignment, and no other binding: any
+    nested assignment or reassignment rebinds locally and shadows the
+    outer name, as does any shadowing binder anywhere (lambda
+    parameters, match binders, type names, import aliases/names);
     anything else stays silent. Unknown pipelines (imports,
     parameters, meta-pipelines), non-literal node names, three-argument
     `get` (which returns its default), `orig_branch_N` names whose
@@ -960,21 +962,25 @@ let dangling_node_read_diagnostics ~pipelines program filename =
     | PUnion { pu_args; _ } -> List.iter mark_pattern pu_args
     | PWildcard | PNA | PError None -> ()
   in
-  (* Binding names at every level: block bodies can rebind any name
-     (`{ p = other; p.nope }`), so top-level statements alone would
-     resolve the read to the outer pipeline and warn falsely. Counting
-     nested assignments only ever removes pipelines from resolution
-     (safe direction: silence, never a false warning). Binder audit:
-     Lambda params, match patterns, assignments, reassignments, and
-     import aliases/names cover every T binder (no loops or
-     comprehensions exist; type names cannot shadow per the eval guard,
-     but are marked anyway). *)
-  let rec scan_stmt (s : stmt) =
+  (* Binding names at every level. A nested assignment rebinds
+     locally and shadows the outer name for that block (reads after
+     it never touch the pipeline), so nested bindings silence the
+     variable outright instead of counting toward the single
+     top-level assignment. Binder audit: Lambda params, match
+     patterns, assignments, reassignments, type names, and import
+     aliases/names cover every T binder (no loops or comprehensions
+     exist; type names cannot shadow per the eval guard, but are
+     marked anyway). Erring silent is the safe direction throughout. *)
+  let rec scan_stmt ~toplevel (s : stmt) =
     (match s.node with
     | Assignment { name; _ } ->
-        let n = 1 + Option.value ~default:0 (Hashtbl.find_opt assign_count name) in
-        Hashtbl.replace assign_count name n
-    | Reassignment { name; _ } -> mark reassigned name
+        if toplevel then
+          let n = 1 + Option.value ~default:0 (Hashtbl.find_opt assign_count name) in
+          Hashtbl.replace assign_count name n
+        else mark shadowed name
+    | Reassignment { name; _ } ->
+        if toplevel then mark reassigned name
+        else mark shadowed name
     | TypeDecl { tname; _ } -> mark shadowed tname
     | ImportFrom { names; _ } ->
         (* Only aliases shadow: a bare `import pkg [name]` re-exposes
@@ -1002,7 +1008,7 @@ let dangling_node_read_diagnostics ~pipelines program filename =
        level (2^depth). scan_stmt covers names and recurses into child
        expressions. *)
     match e.node with
-    | Block blk -> List.iter scan_stmt blk
+    | Block blk -> List.iter (scan_stmt ~toplevel:false) blk
     | Lambda l ->
         List.iter (mark shadowed) l.params;
         List.iter scan_expr (children_of_expr e)
@@ -1017,7 +1023,7 @@ let dangling_node_read_diagnostics ~pipelines program filename =
   let exprs =
     List.concat_map (fun s -> List.concat_map all_exprs (children_of_stmt s)) program
   in
-  List.iter scan_stmt program;
+  List.iter (scan_stmt ~toplevel:true) program;
   let shadowed_fn name =
     Hashtbl.mem shadowed name
     || Hashtbl.mem assign_count name
