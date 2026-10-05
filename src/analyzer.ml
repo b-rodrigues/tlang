@@ -129,23 +129,12 @@ let rec infer_type scope expr =
        | TFunction (_, ret) -> ret
        | _ -> TUnknown)
 
-  | Lambda { params; param_types; return_type; body; _ } ->
+  | Lambda { params; param_types; return_type; generic_params; body; _ } ->
       (* Respect annotated contracts: param types flow into the body
          scope, annotated return wins over body inference. Unannotated
-         positions stay Unknown (silent). Mirrors runtime checks, which
-         enforce the same annotations at call time. *)
-      let rec zip ps ts acc =
-        match ps, ts with
-        | [], _ -> List.rev acc
-        | p :: ps', t :: ts' ->
-            let st =
-              match t with
-              | Some at -> Semantic_type.from_string (Ast.Utils.typ_to_string at)
-              | None -> TUnknown in
-            zip ps' ts' ((p, st) :: acc)
-        | p :: ps', [] -> zip ps' [] ((p, TUnknown) :: acc)
-      in
-      let args = zip params param_types [] in
+         positions stay Unknown (silent). Declared generic names map
+         to Unknown explicitly (see Semantic_type.of_annotation). *)
+      let args = Semantic_type.zip_params params param_types generic_params in
       let child = Symbol_table.copy_scope scope in
       List.iter (fun (n, t) ->
         Symbol_table.add child { name = n; kind = Variable; typ = Some t; doc = None }
@@ -154,7 +143,7 @@ let rec infer_type scope expr =
       List.iter (Symbol_table.add_observed_column scope)
         (Symbol_table.get_observed_columns child);
       (match return_type with
-       | Some at -> Semantic_type.from_string (Ast.Utils.typ_to_string at)
+       | Some at -> Semantic_type.of_annotation ~generics:generic_params at
        | None -> body_t)
       |> (fun ret -> TFunction (args, ret))
   | ListLit items ->
@@ -215,8 +204,15 @@ let rec infer_type scope expr =
       (* Pipe is special: x |> f(y) runs as f(x, y), x |> f runs as f(x).
          Mirror eval_binop and collect_call_sites: infer through the
          right-side function return. Left still infers for side effects
-         (column observation). Unknown on doubt, never warn falsely. *)
+         (column observation). A known error on the left stays Unknown:
+         `|>` short-circuits it and `?|>` forwards it, so the annotated
+         return never materializes (errors are bottom). Unknown on
+         doubt, never warn falsely. *)
       ignore (infer_type scope left);
+      (match left.node with
+       | Value (VError _) -> TUnknown
+       | Call { fn = { node = Var "error"; _ }; _ } -> TUnknown
+       | _ ->
       (match right.node with
        | Call { fn; args; _ } ->
            List.iter (fun (_, e) -> ignore (infer_type scope e)) args;
@@ -226,7 +222,7 @@ let rec infer_type scope expr =
        | _ ->
            (match infer_type scope right with
             | TFunction (_, ret) -> ret
-            | _ -> TUnknown))
+            | _ -> TUnknown)))
   | BroadcastOp { left; right; _ } ->
       ignore (infer_type scope left);
       ignore (infer_type scope right);

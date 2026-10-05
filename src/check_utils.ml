@@ -82,12 +82,18 @@ let parse_and_eval ?filename ?(failfast=false) mode env input =
   | Sys.Break ->
       (interrupt_error (), env)
 
-let run_file ?failfast mode filename env =
+let run_file ?content ?failfast mode filename env =
   try
-    let ch = open_in filename in
-    let content = really_input_string ch (in_channel_length ch) in
-    close_in ch;
-    parse_and_eval ~filename ?failfast mode env content
+    let input =
+      match content with
+      | Some c -> c
+      | None ->
+          let ch = open_in filename in
+          let c = really_input_string ch (in_channel_length ch) in
+          close_in ch;
+          c
+    in
+    parse_and_eval ~filename ?failfast mode env input
   with
   | Sys_error msg ->
       (VError {
@@ -952,37 +958,51 @@ let dangling_node_read_diagnostics ~pipelines program filename =
     | PUnion { pu_args; _ } -> List.iter mark_pattern pu_args
     | PWildcard | PNA | PError None -> ()
   in
-  let rec all_exprs e =
-    e :: List.concat_map all_exprs (children_of_expr e)
-  in
-  let exprs =
-    List.concat_map (fun s -> List.concat_map all_exprs (children_of_stmt s)) program
-  in
-  List.iter (fun (s : stmt) ->
-    match s.node with
+  (* Binding names at every level: block bodies can rebind any name
+     (`{ p = other; p.nope }`), so top-level statements alone would
+     resolve the read to the outer pipeline and warn falsely. Counting
+     nested assignments only ever removes pipelines from resolution
+     (safe direction: silence, never a false warning). *)
+  let rec scan_stmt (s : stmt) =
+    (match s.node with
     | Assignment { name; _ } ->
         let n = 1 + Option.value ~default:0 (Hashtbl.find_opt assign_count name) in
         Hashtbl.replace assign_count name n
     | Reassignment { name; _ } -> mark reassigned name
     | ImportFrom { names; _ } ->
+        (* Only aliases shadow: a bare `import pkg [name]` re-exposes
+           the package member under its own name, which for standard
+           packages is the builtin itself. *)
         List.iter (fun (im : import_spec) ->
           match im.import_alias with
           | Some nick -> mark shadowed nick
           | None -> ()
         ) names
     | ImportFileFrom { names; _ } ->
+        (* File imports bind user code, which may shadow anything, so
+           both plain names and aliases count (unlike package imports
+           above, where only aliases can introduce new bindings). *)
         List.iter (fun (im : import_spec) ->
           mark shadowed im.import_name;
           (match im.import_alias with Some nick -> mark shadowed nick | None -> ())
         ) names
-    | _ -> ()
-  ) program;
-  List.iter (fun e ->
-    match e.node with
-    | Lambda l -> List.iter (mark shadowed) l.params
-    | Match { cases; _ } -> List.iter (fun (p, _) -> mark_pattern p) cases
-    | _ -> ()
-  ) exprs;
+    | _ -> ());
+    List.iter scan_expr (children_of_stmt s)
+  and scan_expr e =
+    (match e.node with
+     | Block blk -> List.iter scan_stmt blk
+     | Lambda l -> List.iter (mark shadowed) l.params
+     | Match { cases; _ } -> List.iter (fun (p, _) -> mark_pattern p) cases
+     | _ -> ());
+    List.iter scan_expr (children_of_expr e)
+  in
+  let rec all_exprs e =
+    e :: List.concat_map all_exprs (children_of_expr e)
+  in
+  let exprs =
+    List.concat_map (fun s -> List.concat_map all_exprs (children_of_stmt s)) program
+  in
+  List.iter scan_stmt program;
   let shadowed_fn name =
     Hashtbl.mem shadowed name
     || Hashtbl.mem assign_count name
@@ -1043,22 +1063,19 @@ let dangling_node_read_diagnostics ~pipelines program filename =
        || prefix_resolves info.pni_names node then ()
     else begin
       let names = info.pni_names in
+      let loc_line = match loc with Some (l : source_location) -> l.line | None -> 1 in
       let fix =
         match Ast.suggest_names_with_scores node names with
-        | (best, dist) :: runner :: _ ->
-            Diagnostics.make_suggest_identifier_fix
-              ~name:node ~suggestion:best ~edit_distance:dist
-              ~is_unique:(snd runner > dist)
-              ~file:filename
-              ~line:(match loc with Some (l : source_location) -> l.line | None -> 1)
-              ()
-        | [(best, dist)] ->
-            Diagnostics.make_suggest_identifier_fix
-              ~name:node ~suggestion:best ~edit_distance:dist ~is_unique:true
-              ~file:filename
-              ~line:(match loc with Some (l : source_location) -> l.line | None -> 1)
-              ()
         | [] -> Diagnostics.no_fix
+        | (best, dist) :: rest ->
+            let is_unique =
+              match rest with
+              | [] -> true
+              | (_, runner_dist) :: _ -> runner_dist > dist
+            in
+            Diagnostics.make_suggest_identifier_fix
+              ~name:node ~suggestion:best ~edit_distance:dist ~is_unique
+              ~file:filename ~line:loc_line ()
       in
       let valid =
         if List.length names <= 10 && names <> [] then
@@ -1069,7 +1086,10 @@ let dangling_node_read_diagnostics ~pipelines program filename =
         Diagnostics.diag_id = Diagnostics.gen_id ();
         Diagnostics.diag_error_class = Diagnostics.Key_error;
         Diagnostics.diag_severity = Diagnostics.Warning;
-        Diagnostics.diag_phase = Diagnostics.Schema;
+        (* Wire, not Schema: this is name resolution on the DAG
+           (cf. NameError mapping), and tier-1 structural checks
+           ("no dangling node refs") live at this tier. *)
+        Diagnostics.diag_phase = Diagnostics.Wire;
         Diagnostics.diag_node_id = None;
         Diagnostics.diag_node_lang = None;
         Diagnostics.diag_file = Some filename;
@@ -1112,26 +1132,36 @@ let dangling_node_read_diagnostics ~pipelines program filename =
   ) exprs;
   List.rev !diags
 
-(** Parse a file to a program for static checks. Returns None when the
-    file cannot be read or parsed; those failures are already reported
-    through the evaluation path, so the AST walk stays silent. *)
-let parse_program_file filename =
+(** Parse program text for static checks. Returns None when the text
+    cannot be parsed; those failures are already reported through the
+    evaluation path, so the AST walk stays silent. The catch-all is
+    deliberate: the lexer/parser exception surface is open-ended
+    (including resource exhaustion on hostile input), and silence on
+    doubt fits this check's design. *)
+let parse_program_string content filename =
   try
-    let ch = open_in filename in
-    Fun.protect ~finally:(fun () -> close_in_noerr ch) (fun () ->
-      let content = really_input_string ch (in_channel_length ch) in
-      let lexbuf = Lexing.from_string content in
-      lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = filename };
-      Some (Parser.program Lexer.token lexbuf))
+    let lexbuf = Lexing.from_string content in
+    lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = filename };
+    Some (Parser.program Lexer.token lexbuf)
   with
+  | Sys.Break -> raise Sys.Break
   | Sys_error _ | Lexer.SyntaxError _ | Parser.Error
   | Mixed_bracket_form | Invalid_match_pattern _ | Invalid_type_declaration _ -> None
+  | _ -> None
 
 let run_check ?(schema=false) ?(env_check=false) ?(offline=false) mode filename env =
+  (* Read once: evaluation and the dangling-read walk share the text. *)
+  let content =
+    try
+      let ch = open_in filename in
+      Fun.protect ~finally:(fun () -> close_in_noerr ch)
+        (fun () -> Some (really_input_string ch (in_channel_length ch)))
+    with Sys_error _ -> None
+  in
   let run () =
     Ast.check_mode := true;
     Fun.protect ~finally:(fun () -> Ast.check_mode := false)
-      (fun () -> run_file ~failfast:true mode filename env)
+      (fun () -> run_file ?content ~failfast:true mode filename env)
   in
   let (result, new_env) = run () in
   let check_result =
@@ -1186,16 +1216,25 @@ let run_check ?(schema=false) ?(env_check=false) ?(offline=false) mode filename 
               List.filter_map (fun (name, v) ->
                 match v with
                 | VPipeline p ->
-                    Some (name, { pni_names = List.map fst p.p_exprs;
+                    (* Runtime reads consult cached results first, so
+                       materialized node names count alongside declared
+                       ones (covers branch expansion and lens writes). *)
+                    let expr_names = List.map fst p.p_exprs in
+                    let extra = List.filter (fun n -> not (List.mem n expr_names))
+                      (List.map fst p.p_nodes) in
+                    Some (name, { pni_names = expr_names @ extra;
                                   pni_patterns = List.map fst p.p_patterns })
                 | _ -> None
               ) (Env.bindings new_env)
             in
             if node_maps = [] then []
-            else match parse_program_file filename with
+            else match content with
               | None -> []
-              | Some program ->
-                  dangling_node_read_diagnostics ~pipelines:node_maps program filename
+              | Some text ->
+                  (match parse_program_string text filename with
+                   | None -> []
+                   | Some program ->
+                       dangling_node_read_diagnostics ~pipelines:node_maps program filename)
       in
       let unordered = extra_diags @ error_diags @ pipeline_diags @ dangling_diags in
       (* Diagnostics read better in source order than grouped by category:

@@ -177,17 +177,17 @@ apply_mutation() {
     # ── analyzer.ml mutations ────────────────────────────────────────
     pipe_return_unknown)
       backup_file "$REPO_ROOT/src/analyzer.ml"
-      perl -i -pe 's/^            \| TFunction \(_, ret\) -> ret$/            | TFunction (_, ret) -> TUnknown/' "$REPO_ROOT/src/analyzer.ml"
+      perl -i -pe 's/^            \| TFunction \(_, ret\) -> ret$/            | TFunction (_, _) -> TUnknown/' "$REPO_ROOT/src/analyzer.ml"
       ;;
     lambda_return_body)
       backup_file "$REPO_ROOT/src/analyzer.ml"
-      perl -i -0pe 's/\(match return_type with\n       \| Some at -> Semantic_type\.from_string \(Ast\.Utils\.typ_to_string at\)\n       \| None -> body_t\)/body_t/' "$REPO_ROOT/src/analyzer.ml"
+      perl -i -pe 's/^       \| Some at -> Semantic_type\.of_annotation ~generics:generic_params at$/       | Some _ -> body_t/' "$REPO_ROOT/src/analyzer.ml"
       ;;
 
     # ── check_utils.ml mutations ─────────────────────────────────────
     dangling_always_silent)
       backup_file "$REPO_ROOT/src/check_utils.ml"
-      perl -i -pe 's/then Some info/then None/' "$REPO_ROOT/src/check_utils.ml"
+      perl -i -0pe 's/\| Some info ->\n        if Hashtbl\.find_opt assign_count pname = Some 1\n           && not \(Hashtbl\.mem reassigned pname\)\n           && not \(Hashtbl\.mem shadowed pname\)\n        then Some info\n        else None/| Some _ ->\n        if Hashtbl.find_opt assign_count pname = Some 1\n           && not (Hashtbl.mem reassigned pname)\n           && not (Hashtbl.mem shadowed pname)\n        then None\n        else None/' "$REPO_ROOT/src/check_utils.ml"
       ;;
 
     # ── fix.ml mutations ───────────────────────────────────────────────
@@ -216,10 +216,18 @@ apply_mutation() {
     return 1
   fi
 
+  # A mutant that does not compile is discarded, not counted as killed:
+  # only a green build plus failing tests proves the suite catches it.
+  local build_ok=true
   if [ -n "${TLANG_NO_NIX:-}" ]; then
-    dune build 2>/dev/null
+    dune build 2>/dev/null || build_ok=false
   else
-    nix develop --command dune build 2>/dev/null
+    nix develop --command dune build 2>/dev/null || build_ok=false
+  fi
+  if [ "$build_ok" = false ]; then
+    echo -e "${RED}  ✗ MUTANT INVALID ($name): build failed, discarding (tests never ran)${NC}"
+    restore_all
+    return 2
   fi
   local result
   result=$(run_tests)
@@ -283,7 +291,9 @@ declare -a MUTATION_NAMES=(
 
 KILLED=0
 SURVIVED=0
+INVALID=0
 FAILED_MUTATIONS=()
+INVALID_MUTATIONS=()
 
 SINGLE_MUTATION="${1:-}"
 for name in "${MUTATION_NAMES[@]}"; do
@@ -291,8 +301,13 @@ for name in "${MUTATION_NAMES[@]}"; do
     continue
   fi
   echo -e "${YELLOW}Testing mutation: $name${NC}"
-  if apply_mutation "$name"; then
+  rc=0
+  apply_mutation "$name" || rc=$?
+  if [ "$rc" -eq 0 ]; then
     KILLED=$((KILLED + 1))
+  elif [ "$rc" -eq 2 ]; then
+    INVALID=$((INVALID + 1))
+    INVALID_MUTATIONS+=("$name")
   else
     SURVIVED=$((SURVIVED + 1))
     FAILED_MUTATIONS+=("$name")
@@ -316,7 +331,7 @@ else
 fi
 
 echo ""
-TOTAL=$((KILLED + SURVIVED))
+TOTAL=$((KILLED + SURVIVED + INVALID))
 if [ "$TOTAL" -eq 0 ]; then
   echo -e "${RED}=== No mutations matched${NC}"
   if [ -n "$SINGLE_MUTATION" ]; then
@@ -325,8 +340,8 @@ if [ "$TOTAL" -eq 0 ]; then
   fi
   exit 1
 fi
-if [ "$SURVIVED" -gt 0 ]; then
-  echo -e "${RED}=== Mutation test: $KILLED/$TOTAL killed, $SURVIVED survived: ${FAILED_MUTATIONS[*]} ===${NC}"
+if [ "$SURVIVED" -gt 0 ] || [ "$INVALID" -gt 0 ]; then
+  echo -e "${RED}=== Mutation test: $KILLED/$TOTAL killed, $SURVIVED survived: ${FAILED_MUTATIONS[*]}, $INVALID invalid: ${INVALID_MUTATIONS[*]} ===${NC}"
   exit 1
 else
   echo -e "${GREEN}=== Mutation test: $KILLED/$TOTAL killed — test suite is healthy ===${NC}"

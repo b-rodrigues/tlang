@@ -455,6 +455,20 @@ s2: String = nrow(df)|} `Annot 1 (Some "annotated as String, but expression infe
       {|s: String = df ?|> nrow|} `Annot 1 (Some "annotated as String, but expression infers to Int");
     check_ret "pipe chain sees through calls"
       {|str_squish(df |> nrow)|} `Types 1 (Some "expects argument `s` to be String, but it infers to Int");
+    check_ret "pipe chain infers through"
+      {|f = \(x: Int -> Int) x
+g = \(x: Int -> Int) x
+s: String = 1 |> f |> g|} `Annot 1 (Some "annotated as String, but expression infers to Int");
+    check_ret "pipe into call with args infers through"
+      {|f = \(x: Int, y: Int -> Int) x + y
+s: String = 1 |> f(2)|} `Annot 1 (Some "annotated as String, but expression infers to Int");
+    check_ret "error left of pipe stays silent (short-circuit)"
+      {|s: String = error("x") |> nrow|} `Annot 0 None;
+    check_ret "error left of maybe-pipe stays silent (forwarded)"
+      {|s: String = error("x") ?|> nrow|} `Annot 0 None;
+    check_ret "generic container return stays silent (static generics out of scope)"
+      {|f = \(T)(x: List[T] -> List[T]) x
+l: List[String] = f([1])|} `Annot 0 None;
     check_ret "bare pipe target stays silent"
       {|s3: String = df |> nosuchfn|} `Annot 0 None;
     check_ret "annotated lambda return warns on annotation"

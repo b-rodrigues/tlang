@@ -64,8 +64,16 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
     {|pipeline_node(p, "clean")|} 0;
   check_count "pipeline_node typo warns"
     {|pipeline_node(p, "clena")|} 1;
-  check_count "pipeline_node bare-word selector stays silent"
+  check_count "pipeline_node bare-word selector resolves silently"
     {|pipeline_node(p, $raw)|} 0;
+  check_count "pipeline_node bare-word typo warns"
+    {|pipeline_node(p, $modle)|} 1;
+  check_count "match binder shadowing stays silent"
+    "match(1) { p => p.raw }" 0;
+  check_count "import alias shadowing stays silent"
+    "import core [p = sum]\nx = p.raw" 0;
+  check_count "block-local rebind stays silent"
+    "f = \\() { p = 1; p.raw }" 0;
   check_count "two-argument get typo warns"
     {|get(p, "modle")|} 1;
   check_count "three-argument get stays silent (returns default)"
@@ -96,5 +104,39 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
         (match d.Diagnostics.diag_suggested_fix with
          | Diagnostics.NoFix -> true
          | _ -> false)
+    | _ -> false);
+  (* End-to-end wiring through run_check with real files: the evaluated
+     pipeline feeds node names, the VError gate skips the walk, and a
+     top-level typo reports once as the runtime error. *)
+  let write_tmp body =
+    let path = Filename.temp_file "dangling_e2e" ".t" in
+    let ch = open_out path in
+    Fun.protect ~finally:(fun () -> close_out_noerr ch)
+      (fun () -> output_string ch body);
+    path
+  in
+  let run_file_check body =
+    let path = write_tmp body in
+    Fun.protect ~finally:(fun () -> (try Sys.remove path with Sys_error _ -> ()))
+      (fun () ->
+        let hook = !Check_utils.extra_diagnostics_hook in
+        Fun.protect ~finally:(fun () -> Check_utils.extra_diagnostics_hook := hook)
+          (fun () ->
+            Check_utils.extra_diagnostics_hook := (fun _ -> []);
+            let env = Packages.init_env () in
+            Check_utils.run_check Typecheck.Strict path env))
+  in
+  let entries body =
+    Diagnostics.check_result_entries (run_file_check body)
+  in
+  check "lambda-hidden typo warns once through run_check" (
+    match entries "p = pipeline { a = 1 }\nf = \\(x: Int -> Int) read_node(p.b)\n1\n" with
+    | [d] ->
+        d.Diagnostics.diag_severity = Diagnostics.Warning
+        && d.Diagnostics.diag_message = "Node `b` not found in pipeline `p`. Valid nodes: a."
+    | _ -> false);
+  check "top-level typo reports once as runtime error (no double warn)" (
+    match entries "p = pipeline { a = 1 }\nx = read_node(p.b)\n" with
+    | [d] -> d.Diagnostics.diag_severity = Diagnostics.Error
     | _ -> false);
   print_newline ()
