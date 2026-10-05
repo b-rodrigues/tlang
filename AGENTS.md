@@ -476,10 +476,13 @@ Current mutation targets:
 | `clean_collision` | `src/packages/dataframe/clean_colnames.ml` | Collision counter `count + 1` → `count - 1` | Duplicate column name tests |
 | `csv_type_fallback` | `src/packages/dataframe/t_read_csv.ml` | String fallback → `VInt 0` | CSV type inference tests |
 | `global_deps_guard` | `src/packages/pipeline/set_pipeline_global_options.ml` | `p_explicit_deps` rewritten unconditionally (flips `None` → `Some []`) when `dependencies` omitted | `set_pipeline_global_options` deps-omitted regression test |
+| `pipe_return_unknown` | `src/analyzer.ml` | Pipe inference returns `TUnknown` on both paths | Pipe return annotation tests |
+| `lambda_return_body` | `src/analyzer.ml` | Annotated lambda return ignored (body type wins) | Annotated-return-wins test |
+| `dangling_always_silent` | `src/check_utils.ml` | Node-read resolvability never resolves | Dangling-read warn tests |
 | `fix_node_def_prefix` | `src/fix.ml` | `is_node_definition` prefix check inverted (`= prefix` → `<> prefix`), so no line ever counts as a node definition | `apply_add_node_arg` / `test_dry_run_outcome` add_node_arg tests |
 | `fix_scan_always_found` | `src/fix.ml` | `scan_add_node_arg` always returns `Some true`, so the Add_node_arg dry-run never reports a missing node as skipped | `test_dry_run_outcome` add_node_arg (node absent) test |
 
-The script verifies each mutation was actually applied (via `diff -q`) before building/testing. If a mutation pattern doesn't match the current source, it reports "pattern did not match" instead of a false SURVIVED. The backup/restore mechanism uses an associative array to support mutations across multiple source files.
+The script verifies each mutation was actually applied (via `diff -q`) before building/testing. An unapplied pattern or a failed build marks the mutant INVALID (counted separately, fails the run) instead of a false SURVIVED or a vacuous kill. Only a green build plus failing tests counts as killed. The backup/restore mechanism uses an associative array to support mutations across multiple source files.
 
 **Mutation-test hygiene:** if `mutation_test.sh` is interrupted or aborted mid-run, the target source file can be left mutated (e.g. `src/eval.ml`) and a `.bak` file left behind. After any run, verify with `git status` that no unexpected `.ml` files are modified and no stray `*.bak` files exist. Restore with `git checkout <file>` and `rm <file>.bak`.
 

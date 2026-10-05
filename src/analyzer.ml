@@ -129,10 +129,23 @@ let rec infer_type scope expr =
        | TFunction (_, ret) -> ret
        | _ -> TUnknown)
 
-  | Lambda { params; body; _ } ->
-      let args = List.map (fun name -> (name, TUnknown)) params in
-      let ret = infer_type scope body in
-      TFunction (args, ret)
+  | Lambda { params; param_types; return_type; generic_params; body; _ } ->
+      (* Respect annotated contracts: param types flow into the body
+         scope, annotated return wins over body inference. Unannotated
+         positions stay Unknown (silent). Declared generic names map
+         to Unknown explicitly (see Semantic_type.of_annotation). *)
+      let args = Semantic_type.zip_params params param_types generic_params in
+      let child = Symbol_table.copy_scope scope in
+      List.iter (fun (n, t) ->
+        Symbol_table.add child { name = n; kind = Variable; typ = Some t; doc = None }
+      ) args;
+      let body_t = infer_type child body in
+      List.iter (Symbol_table.add_observed_column scope)
+        (Symbol_table.get_observed_columns child);
+      (match return_type with
+       | Some at -> Semantic_type.of_annotation ~generics:generic_params at
+       | None -> body_t)
+      |> (fun ret -> TFunction (args, ret))
   | ListLit items ->
       let types = List.filter_map (fun (_, e) ->
         let t = infer_type scope e in
@@ -187,6 +200,33 @@ let rec infer_type scope expr =
       ignore (infer_type scope left);
       ignore (infer_type scope right);
       TBool
+  | BinOp { op = (Pipe | MaybePipe); left; right } ->
+      (* Pipe is special: x |> f(y) runs as f(x, y), x |> f runs as f(x).
+         Mirror eval_binop and collect_call_sites: infer through the
+         right-side function return. Left still infers for side effects
+         (column observation). A known error on the left stays Unknown:
+         `|>` short-circuits it and `?|>` forwards it, so the annotated
+         return never materializes (errors are bottom). Only literals
+         are recognized; a variable holding an error still infers
+         through the call, but that program already fails, so the
+         warning costs nothing actionable. Semantic types carry no
+         error case by design, so variables cannot match. Unknown on
+         doubt, never warn falsely. *)
+      ignore (infer_type scope left);
+      (match left.node with
+       | Value (VError _) -> TUnknown
+       | Call { fn = { node = Var "error"; _ }; _ } -> TUnknown
+       | _ ->
+      (match right.node with
+       | Call { fn; args; _ } ->
+           List.iter (fun (_, e) -> ignore (infer_type scope e)) args;
+           (match infer_type scope fn with
+            | TFunction (_, ret) -> ret
+            | _ -> TUnknown)
+       | _ ->
+           (match infer_type scope right with
+            | TFunction (_, ret) -> ret
+            | _ -> TUnknown)))
   | BroadcastOp { left; right; _ } ->
       ignore (infer_type scope left);
       ignore (infer_type scope right);

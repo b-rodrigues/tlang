@@ -303,6 +303,8 @@ let () =
   (* t check / Diagnostics tests *)
   run "Test_check" Test_check.run_tests;
   flush stdout;
+  run "Test_dangling_reads" Test_dangling_reads.run_tests;
+  flush stdout;
   run "Test_fix" Test_fix.run_tests;
   flush stdout;
 

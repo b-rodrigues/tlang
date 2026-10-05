@@ -447,6 +447,51 @@ s2: String = nrow(df)|} `Annot 1 (Some "annotated as String, but expression infe
       {|str_squish(str_squish("  a  "))|} `Types 0 None;
     check_ret "arity failure skips argument types on real builtins"
       {|str_squish(nrow(df), "extra")|} `Types 0 None;
+    check_ret "pipe return warns on annotation"
+      {|s: String = df |> nrow|} `Annot 1 (Some "annotated as String, but expression infers to Int");
+    check_ret "pipe return match stays silent"
+      {|nn: Int = df |> nrow|} `Annot 0 None;
+    check_ret "maybe-pipe return warns on annotation"
+      {|s: String = df ?|> nrow|} `Annot 1 (Some "annotated as String, but expression infers to Int");
+    check_ret "pipe chain sees through calls"
+      {|str_squish(df |> nrow)|} `Types 1 (Some "expects argument `s` to be String, but it infers to Int");
+    check_ret "pipe chain infers through"
+      {|f = \(x: Int -> Int) x
+g = \(x: Int -> Int) x
+s: String = 1 |> f |> g|} `Annot 1 (Some "annotated as String, but expression infers to Int");
+    check_ret "pipe into call with args infers through"
+      {|f = \(x: Int, y: Int -> Int) x + y
+s: String = 1 |> f(2)|} `Annot 1 (Some "annotated as String, but expression infers to Int");
+    check_ret "error left of pipe stays silent (short-circuit)"
+      {|s: String = error("x") |> nrow|} `Annot 0 None;
+    check_ret "error left of maybe-pipe stays silent (forwarded)"
+      {|s: String = error("x") ?|> nrow|} `Annot 0 None;
+    check_ret "generic container return stays silent (static generics out of scope)"
+      {|f = \(T)(x: List[T] -> List[T]) x
+l: List[String] = f([1])|} `Annot 0 None;
+    check_ret "bare pipe target stays silent"
+      {|s3: String = df |> nosuchfn|} `Annot 0 None;
+    check_ret "annotated lambda return warns on annotation"
+      {|f = \(x: Int -> Int) x
+s: String = f(1)|} `Annot 1 (Some "annotated as String, but expression infers to Int");
+    check_ret "annotated param flows into body"
+      {|f = \(x: Int) x + 1
+s: String = f(1)|} `Annot 1 (Some "annotated as String, but expression infers to Int");
+    check_ret "annotated return wins over body"
+      {|f = \(x: Int -> String) x
+n: Int = f(1)|} `Annot 1 (Some "annotated as Int, but expression infers to String");
+    check_ret "unannotated lambda stays silent"
+      {|f = \(x) x
+s: String = f(1)|} `Annot 0 None;
+    check_ret "generic lambda stays silent"
+      {|f = \(T)(x: T -> T) x
+s: String = f(1)|} `Annot 0 None;
+    check_ret "user call sees through annotated return"
+      {|f = \(x: Int -> Int) x
+str_squish(f(1))|} `Types 1 (Some "expects argument `s` to be String, but it infers to Int");
+    check_ret "user call match stays silent"
+      {|f = \(x: Int -> String) "hi"
+str_squish(f(1))|} `Types 0 None;
     (* Import scoping guard: the analyzer scopes imports from the
        static per-package lists, while `package_info` merges documented
        names. Every documented-only name must need no scope entry
