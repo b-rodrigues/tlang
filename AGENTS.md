@@ -476,6 +476,9 @@ Current mutation targets:
 | `clean_collision` | `src/packages/dataframe/clean_colnames.ml` | Collision counter `count + 1` → `count - 1` | Duplicate column name tests |
 | `csv_type_fallback` | `src/packages/dataframe/t_read_csv.ml` | String fallback → `VInt 0` | CSV type inference tests |
 | `global_deps_guard` | `src/packages/pipeline/set_pipeline_global_options.ml` | `p_explicit_deps` rewritten unconditionally (flips `None` → `Some []`) when `dependencies` omitted | `set_pipeline_global_options` deps-omitted regression test |
+| `pipe_return_unknown` | `src/analyzer.ml` | Pipe inference returns `TUnknown` on both paths | Pipe return annotation tests |
+| `lambda_return_body` | `src/analyzer.ml` | Annotated lambda return ignored (body type wins) | Annotated-return-wins test |
+| `dangling_always_silent` | `src/check_utils.ml` | Node-read resolvability never resolves | Dangling-read warn tests |
 | `fix_node_def_prefix` | `src/fix.ml` | `is_node_definition` prefix check inverted (`= prefix` → `<> prefix`), so no line ever counts as a node definition | `apply_add_node_arg` / `test_dry_run_outcome` add_node_arg tests |
 | `fix_scan_always_found` | `src/fix.ml` | `scan_add_node_arg` always returns `Some true`, so the Add_node_arg dry-run never reports a missing node as skipped | `test_dry_run_outcome` add_node_arg (node absent) test |
 

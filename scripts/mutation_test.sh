@@ -174,6 +174,22 @@ apply_mutation() {
       perl -i -pe 's/\| None -> p\.p_explicit_deps/| None -> List.map (fun (name, deps) -> (name, Some (match deps with Some d -> d | None -> []))) p.p_explicit_deps/' "$REPO_ROOT/src/packages/pipeline/set_pipeline_global_options.ml"
       ;;
 
+    # ── analyzer.ml mutations ────────────────────────────────────────
+    pipe_return_unknown)
+      backup_file "$REPO_ROOT/src/analyzer.ml"
+      perl -i -pe 's/^            \| TFunction \(_, ret\) -> ret$/            | TFunction (_, ret) -> TUnknown/' "$REPO_ROOT/src/analyzer.ml"
+      ;;
+    lambda_return_body)
+      backup_file "$REPO_ROOT/src/analyzer.ml"
+      perl -i -0pe 's/\(match return_type with\n       \| Some at -> Semantic_type\.from_string \(Ast\.Utils\.typ_to_string at\)\n       \| None -> body_t\)/body_t/' "$REPO_ROOT/src/analyzer.ml"
+      ;;
+
+    # ── check_utils.ml mutations ─────────────────────────────────────
+    dangling_always_silent)
+      backup_file "$REPO_ROOT/src/check_utils.ml"
+      perl -i -pe 's/then Some info/then None/' "$REPO_ROOT/src/check_utils.ml"
+      ;;
+
     # ── fix.ml mutations ───────────────────────────────────────────────
     fix_node_def_prefix)
       backup_file "$REPO_ROOT/src/fix.ml"
@@ -258,6 +274,9 @@ declare -a MUTATION_NAMES=(
   "clean_collision"
   "csv_type_fallback"
   "global_deps_guard"
+  "pipe_return_unknown"
+  "lambda_return_body"
+  "dangling_always_silent"
   "fix_node_def_prefix"
   "fix_scan_always_found"
 )
