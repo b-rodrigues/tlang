@@ -129,10 +129,34 @@ let rec infer_type scope expr =
        | TFunction (_, ret) -> ret
        | _ -> TUnknown)
 
-  | Lambda { params; body; _ } ->
-      let args = List.map (fun name -> (name, TUnknown)) params in
-      let ret = infer_type scope body in
-      TFunction (args, ret)
+  | Lambda { params; param_types; return_type; body; _ } ->
+      (* Respect annotated contracts: param types flow into the body
+         scope, annotated return wins over body inference. Unannotated
+         positions stay Unknown (silent). Mirrors runtime checks, which
+         enforce the same annotations at call time. *)
+      let rec zip ps ts acc =
+        match ps, ts with
+        | [], _ -> List.rev acc
+        | p :: ps', t :: ts' ->
+            let st =
+              match t with
+              | Some at -> Semantic_type.from_string (Ast.Utils.typ_to_string at)
+              | None -> TUnknown in
+            zip ps' ts' ((p, st) :: acc)
+        | p :: ps', [] -> zip ps' [] ((p, TUnknown) :: acc)
+      in
+      let args = zip params param_types [] in
+      let child = Symbol_table.copy_scope scope in
+      List.iter (fun (n, t) ->
+        Symbol_table.add child { name = n; kind = Variable; typ = Some t; doc = None }
+      ) args;
+      let body_t = infer_type child body in
+      List.iter (Symbol_table.add_observed_column scope)
+        (Symbol_table.get_observed_columns child);
+      (match return_type with
+       | Some at -> Semantic_type.from_string (Ast.Utils.typ_to_string at)
+       | None -> body_t)
+      |> (fun ret -> TFunction (args, ret))
   | ListLit items ->
       let types = List.filter_map (fun (_, e) ->
         let t = infer_type scope e in
