@@ -922,8 +922,10 @@ let call_type_diagnostics ~sigs ~infer program filename =
 
 (** Declared node names for one pipeline: [pni_names] mirrors the
     existence checks in runtime reads (`p.field` dot access,
-    `pipeline_node`, two-argument `get` all consult `p_exprs`);
-    [pni_patterns] covers lazy `orig_branch_N` expansion. *)
+    `pipeline_node`, two-argument `get` consult `p_exprs` first, then
+    cached `p_nodes`; run_check unions both, covering branch expansion
+    and lens writes); [pni_patterns] covers lazy `orig_branch_N`
+    expansion. *)
 type pipeline_node_index = {
   pni_names : string list;
   pni_patterns : string list;
@@ -994,10 +996,11 @@ let dangling_node_read_diagnostics ~pipelines program filename =
     | _ -> ());
     List.iter scan_expr (children_of_stmt s)
   and scan_expr e =
-    (* The Block arm is exclusive: children_of_expr on a Block already
-       yields the statements' expressions, so the generic recursion
-       below would walk each nested block twice per level (2^depth).
-       scan_stmt covers names and recurses into child expressions. *)
+    (* The Block arm is exclusive: children_of_expr on a Block yields
+       exactly the statements' child expressions (ast.ml), so the
+       generic recursion below would walk each nested block twice per
+       level (2^depth). scan_stmt covers names and recurses into child
+       expressions. *)
     match e.node with
     | Block blk -> List.iter scan_stmt blk
     | Lambda l ->

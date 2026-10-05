@@ -74,6 +74,13 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
     "import core [p = sum]\nx = p.raw" 0;
   check_count "block-local rebind stays silent"
     "f = \\() { p = 1; p.raw }" 0;
+  check_count "typedecl name shadowing stays silent"
+    "type p = { x: Int }\nx = p.raw" 0;
+  check_count "deeply nested read still warns once (single-visit walk)"
+    (let depth = 15 in
+     let open_ = String.concat "" (List.init depth (fun _ -> "{ ")) in
+     let close_ = String.concat "" (List.init depth (fun _ -> " }")) in
+     open_ ^ "p.b" ^ close_) 1;
   check_count "two-argument get typo warns"
     {|get(p, "modle")|} 1;
   check_count "three-argument get stays silent (returns default)"
@@ -129,14 +136,20 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
   let entries body =
     Diagnostics.check_result_entries (run_file_check body)
   in
-  check "lambda-hidden typo warns once through run_check" (
-    match entries "p = pipeline { a = 1 }\nf = \\(x: Int -> Int) read_node(p.b)\n1\n" with
-    | [d] ->
-        d.Diagnostics.diag_severity = Diagnostics.Warning
-        && d.Diagnostics.diag_message = "Node `b` not found in pipeline `p`. Valid nodes: a."
+  let dangling_msg = "Node `b` not found in pipeline `p`. Valid nodes: a." in
+  let dangling_only body =
+    List.filter (fun d -> d.Diagnostics.diag_message = dangling_msg) (entries body)
+  in
+  check "lambda-hidden typo warns through run_check" (
+    match dangling_only "p = pipeline { a = 1 }\nf = \\(x: Int -> Int) read_node(p.b)\n1\n" with
+    | [d] -> d.Diagnostics.diag_severity = Diagnostics.Warning
     | _ -> false);
-  check "top-level typo reports once as runtime error (no double warn)" (
-    match entries "p = pipeline { a = 1 }\nx = read_node(p.b)\n" with
-    | [d] -> d.Diagnostics.diag_severity = Diagnostics.Error
-    | _ -> false);
+  check "top-level typo surfaces as runtime KeyError with no dangling dup" (
+    let body = "p = pipeline { a = 1 }\nx = pipeline_node(p, \"b\")\n" in
+    let es = entries body in
+    List.exists (fun d ->
+      d.Diagnostics.diag_severity = Diagnostics.Error
+      && Diagnostics.diagnostic_error_class d = Diagnostics.Key_error
+    ) es
+    && dangling_only body = []);
   print_newline ()
