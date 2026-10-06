@@ -13,15 +13,26 @@ shell.
 
 ## Usage
 
-By default, `read_node()` uses Julia's native `Serialization.deserialize`:
+By default, `read_node()` picks the reader from the build-log `serializer`
+field, so JSON, CSV, IPC, Parquet, and text nodes load without extra arguments:
 
 ```julia
 using tlang
 
-model = read_node("model")
+model = read_node("model")    # default serializer -> Serialization.deserialize
+table = read_node("features") # ^json -> JSON.parsefile, ^csv -> CSV.read
 ```
 
-Pass a custom deserializer when a node uses another artifact format (e.g., CSV):
+`JSON` ships with the package, so `^json` always parses to plain dicts and
+lists. When a node uses `^csv` without `CSV`/`DataFrames`, the error names the
+packages and the `tproject.toml` entries. The same holds for `^ipc` (`Arrow`,
+`DataFrames`) and `^parquet` (`Parquet2`, `DataFrames`). `^pmml`, `^onnx`, and
+`^bin` have no built-in reader: use `return_path = true` plus a custom
+deserializer.
+
+Cross-language notes: `^text` returns exact file bytes, matching Python and R.
+
+Pass a custom deserializer to override the automatic choice:
 
 ```julia
 using tlang, DataFrames, CSV
@@ -34,6 +45,53 @@ You can also target a specific historical build log:
 ```julia
 older_model = read_node("model", which_log = "20260221")
 ```
+
+## Read a node with its children
+
+Use `read_node_tree()` to load a node plus its transitive children (nodes
+that depend on it), parents, or both. Each node keeps its own automatic
+serializer unless you override it:
+
+```julia
+using tlang
+
+all_nodes = read_node_tree("clean_data")                  # clean_data + children
+all_nodes = read_node_tree("clean_data", include = "both") # parents + children
+all_nodes = read_node_tree("clean_data", on_unreadable = "path") # unreadable nodes come back as paths
+```
+
+## Inspect the pipeline
+
+Use `inspect_pipeline()` to list every node with its runtime, serializer,
+dependencies, build status, class, and artifact path. It reads the latest
+build log, or falls back to `dag.json` with `status = "unbuilt"` when
+nothing is built yet:
+
+```julia
+rows = inspect_pipeline()
+println(rows)
+```
+
+Frame helpers that mirror T's pipeline tools:
+
+```julia
+logs = list_logs()  # build logs, newest first
+rows = build_log_to_frame()  # one row per node: name, status, duration, path
+errs = collect_exceptions()  # error and warning rows
+```
+
+Explore one node and read failures (same names as T):
+
+```julia
+info = inspect_node("model")  # runtime, deps, children, status, error, warnings
+lin = lineage("model")  # transitive parents and children
+msg = error_msg("model")  # error text, like T
+msg = warning_msg("model")  # warnings, like T
+```
+
+A single unreadable node aborts the tree by default. Use
+`on_unreadable = "path"` or `"skip"` for pipelines with model artifacts
+downstream. Both fallbacks warn naming the node and the error.
 
 ## Diff Julia artifacts
 

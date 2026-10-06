@@ -3,7 +3,7 @@ module tlang
 using JSON
 using Serialization
 
-export read_node, pipeline_nodes, diff_artifacts, diff_nodes, diff_objects
+export read_node, read_node_tree, inspect_pipeline, inspect_node, lineage, error_msg, error_code, error_context, warning_msg, list_logs, build_log_to_frame, collect_exceptions, pipeline_nodes, diff_artifacts, diff_nodes, diff_objects
 
 const FIXTURE_LOGS = ["build_log_ocaml_mock.json", "build_log_legacy_version.json"]
 
@@ -229,40 +229,126 @@ function _resolve_artifact_path(path_val::String, pipeline_dir::String)
 end
 
 """
+    _normalize_serializer(serializer::String)
+
+Strip a leading `^`, trim whitespace, and lowercase so `"^JSON"` maps to
+`"json"`. Empty values map to `"default"`.
+"""
+function _normalize_serializer(serializer::String)
+    s = lowercase(strip(serializer))
+    while startswith(s, "^")
+        s = s[2:end]
+    end
+    return isempty(strip(s)) ? "default" : s
+end
+
+"""
     _auto_deserializer(serializer::String, artifact_path::String)
 
 Pick a deserializer based on the serializer name recorded in the build log.
 
-Supports `"csv"` (loads via CSV.jl + DataFrames.jl when available, falls back to
-reading the raw file as a string), `"json"` (parses with JSON.jl), and everything
-else falls back to `Serialization.deserialize`.
+Supported mappings (each names its Julia package when missing):
+- `default`/`tlang`/`tobj`/`serialize` → `Serialization.deserialize`
+- `json` → `JSON.parsefile` (`JSON` ships with the package)
+- `csv` → `CSV.read(path, DataFrame)` (requires `using CSV, DataFrames`)
+- `ipc`/`arrow` → `Arrow.Table(path) |> DataFrame` (requires `using Arrow, DataFrames`)
+- `parquet` → `DataFrame(Parquet2.readfile(path))` (requires `using Parquet2, DataFrames`)
+- `text`/`txt` → `read(path, String)` (stdlib, verbatim bytes as text)
+- `pmml`/`onnx`/`bin`/unknown → explicit error suggesting `return_path=true`
+  or a custom `deserializer`.
+
+`^json` returns plain dicts and lists. `^text` returns file contents verbatim
+(bytes decoded as UTF-8), matching Python and R.
 """
 function _auto_deserializer(serializer::String, artifact_path::String)
-    s = lowercase(strip(serializer))
-    if s == "csv"
+    s = _normalize_serializer(serializer)
+    if s in ("default", "tlang", "tobj", "serialize")
+        return Serialization.deserialize(artifact_path)
+    elseif s == "json"
+        return JSON.parsefile(artifact_path)
+    elseif s == "csv"
         # Try CSV.jl + DataFrames.jl; give a clear message if they are not loaded.
         if !isdefined(Main, :CSV) || !isdefined(Main, :DataFrames)
             error(
-                "Node artifact is a CSV file but `CSV` and `DataFrames` are not loaded. " *
-                "Run `using CSV, DataFrames` first, then call read_node() again."
+                "Node artifact uses serializer `^csv` but `CSV` and `DataFrames` are not loaded. " *
+                "Run `using CSV, DataFrames` first (declare `CSV`, `DataFrames` in `tproject.toml`, run `t update`, re-enter `nix develop`), then call read_node() again. " *
+                "Or pass `deserializer = p -> CSV.read(p, DataFrame)`."
             )
         end
         csv_mod = getfield(Main, :CSV)
         df_mod  = getfield(Main, :DataFrames)
         return Base.invokelatest(getfield(csv_mod, :read), artifact_path, getfield(df_mod, :DataFrame))
-    elseif s == "json"
-        return JSON.parsefile(artifact_path)
-    elseif s == "default" || s == "tobj"
-        # Julia-native binary formats — use Julia's own serializer.
-        return Serialization.deserialize(artifact_path)
+    elseif s in ("ipc", "arrow")
+        if !isdefined(Main, :Arrow) || !isdefined(Main, :DataFrames)
+            error(
+                "Node artifact uses serializer `^ipc` but `Arrow` and `DataFrames` are not loaded. " *
+                "Run `using Arrow, DataFrames` first (declare `Arrow`, `DataFrames` in `tproject.toml`, run `t update`, re-enter `nix develop`), then call read_node() again."
+            )
+        end
+        arrow_mod = getfield(Main, :Arrow)
+        df_mod = getfield(Main, :DataFrames)
+        tbl = Base.invokelatest(getfield(arrow_mod, :Table), artifact_path)
+        return Base.invokelatest(getfield(df_mod, :DataFrame), tbl)
+    elseif s == "parquet"
+        if !isdefined(Main, :Parquet2) || !isdefined(Main, :DataFrames)
+            error(
+                "Node artifact uses serializer `^parquet` but `Parquet2` and `DataFrames` are not loaded. " *
+                "Run `using Parquet2, DataFrames` first (declare `Parquet2`, `DataFrames` in `tproject.toml`, run `t update`, re-enter `nix develop`), then call read_node() again."
+            )
+        end
+        pq_mod = getfield(Main, :Parquet2)
+        df_mod = getfield(Main, :DataFrames)
+        return Base.invokelatest(getfield(df_mod, :DataFrame), Base.invokelatest(getfield(pq_mod, :readfile), artifact_path))
+    elseif s in ("text", "txt")
+        return read(artifact_path, String)
+    elseif s == "pmml"
+        error(
+            "Node artifact uses serializer `^pmml`, which has no built-in Julia reader here. " *
+            "Use `return_path=true` plus a custom `deserializer` to inspect the file."
+        )
+    elseif s == "onnx"
+        error(
+            "Node artifact uses serializer `^onnx`, which has no built-in Julia reader here. " *
+            "Use `return_path=true` plus a custom `deserializer` to inspect the file."
+        )
+    elseif s == "bin"
+        error(
+            "Node artifact uses serializer `^bin` (opaque bytes). Use `return_path=true` to get the artifact path or pass a custom `deserializer`."
+        )
     else
-        # Unknown serializer (e.g. pmml, parquet, rds): raise a clear error
+        # Unknown serializer (e.g. custom formats): raise a clear error
         # consistent with how R and Python read_node behave on formats they
         # cannot deserialize. Use return_path=true or pass a custom deserializer.
         error(
-            "read_node: no built-in deserializer for serializer \"$serializer\". " *
+            "read_node: no built-in deserializer for serializer \"$serializer\" (normalized to `$s`). " *
             "Pass a custom `deserializer` function or use `return_path=true` to get the artifact path."
         )
+    end
+end
+
+"""
+    _read_node_entry(node_entry, name, pipeline_dir, deserializer, return_path)
+
+Deserialize one already-located build-log entry. Shared by `read_node()` and
+`read_node_tree()` so a tree read uses the single already-selected build log
+instead of re-resolving `which_log` per node.
+"""
+function _read_node_entry(node_entry, name::String, pipeline_dir::String, deserializer, return_path::Bool)
+    artifact_path = _resolve_artifact_path(node_entry["path"], pipeline_dir)
+    if return_path
+        return artifact_path
+    end
+    actual_deserializer =
+        if !isnothing(deserializer)
+            (path) -> deserializer(path)
+        else
+            serializer_name = get(node_entry, "serializer", "default")
+            (path) -> _auto_deserializer(serializer_name isa String ? serializer_name : "default", path)
+        end
+    try
+        return actual_deserializer(artifact_path)
+    catch e
+        error("Failed to deserialize node `$name` from `$artifact_path`: $e")
     end
 end
 
@@ -278,9 +364,14 @@ therefore resolves to the most recent build.
 
 If no `deserializer` is provided, the serializer recorded in the build log is used
 to pick the right one automatically:
+- `default`/`tlang` → `Serialization.deserialize(path)`
 - `csv`  → `CSV.read(path, DataFrame)` (requires `using CSV, DataFrames`)
 - `json` → `JSON.parsefile(path)`
-- anything else → `Serialization.deserialize(path)`
+- `ipc` → `Arrow.Table(path) |> DataFrame` (requires `using Arrow, DataFrames`)
+- `parquet` → `DataFrame(Parquet2.readfile(path))` (requires `using Parquet2, DataFrames`)
+- `text` → `read(path, String)` (exact bytes as text)
+- `pmml`/`onnx`/`bin`/unknown → explicit error suggesting `return_path=true`
+  or a custom `deserializer`.
 
 # Arguments
 - `name::String`: The name of the node to retrieve.
@@ -323,25 +414,832 @@ function read_node(
     end
     
     node_entry = _find_node_entry(build_log["nodes"], name, log_file)
-    artifact_path = _resolve_artifact_path(node_entry["path"], pipeline_dir)
-    
-    if return_path
-        return artifact_path
-    end
-    
-    actual_deserializer =
-        if !isnothing(deserializer)
-            (path) -> deserializer(path)
-        else
-            serializer_name = get(node_entry, "serializer", "default")
-            (path) -> _auto_deserializer(serializer_name isa String ? serializer_name : "default", path)
-        end
+    return _read_node_entry(node_entry, name, pipeline_dir, deserializer, return_path)
+end
 
-    try
-        return actual_deserializer(artifact_path)
-    catch e
-        error("Failed to deserialize node `$name` from `$artifact_path`: $e")
+"""
+    _build_log_deps_map(nodes::Vector)
+
+Build a node -> dependencies map from a build-log nodes array.
+"""
+function _build_log_deps_map(nodes::Vector)
+    deps = Dict{String, Vector{String}}()
+    for entry in nodes
+        if !(entry isa AbstractDict)
+            continue
+        end
+        nm = get(entry, "node", nothing)
+        if !(nm isa String) || isempty(strip(nm))
+            continue
+        end
+        raw = get(entry, "dependencies", String[])
+        if isnothing(raw)
+            raw = String[]
+        end
+        clean = String[]
+        if raw isa Vector
+            for d in raw
+                if d isa String && !isempty(strip(d))
+                    push!(clean, d)
+                end
+            end
+        end
+        deps[nm] = unique(sort(clean))
     end
+    return deps
+end
+
+"""
+    _closure_nodes(deps::Dict{String, Vector{String}}, name::String, include::String)
+
+Compute the transitive closure over parents, children, or both. Returns the
+root first, then the rest in visit order.
+"""
+function _closure_nodes(deps::Dict{String, Vector{String}}, name::String, include::String)
+    if !(include in ("children", "parents", "both"))
+        error("`include` must be one of \"children\", \"parents\", \"both\".")
+    end
+    if !haskey(deps, name)
+        error("Node `$name` not found in build log.")
+    end
+    children_map = Dict{String, Vector{String}}()
+    for (node, ds) in deps
+        for dep in ds
+            push!(get!(children_map, dep, String[]), node)
+        end
+    end
+    seen = String[name]
+    seen_set = Set(seen)
+    queue = String[name]
+    while !isempty(queue)
+        current = popfirst!(queue)
+        neighbors = String[]
+        if include in ("children", "both")
+            append!(neighbors, get(children_map, current, String[]))
+        end
+        if include in ("parents", "both")
+            append!(neighbors, get(deps, current, String[]))
+        end
+        for nb in neighbors
+            if !(nb in seen_set)
+                push!(seen_set, nb)
+                push!(seen, nb)
+                push!(queue, nb)
+            end
+        end
+    end
+    missing_deps = sort(collect(setdiff(Set(seen), Set(keys(deps)))))
+    if !isempty(missing_deps)
+        error("Build log references unknown dependencies: $(join(missing_deps, ", ")).")
+    end
+    return seen
+end
+
+"""
+    read_node_tree(name::String; which_log=nothing, pipeline_dir="_pipeline", deserializer=nothing, return_path=false, include="children", on_unreadable="error")
+
+Read a node and all of its related nodes.
+
+Reads the requested node plus its transitive `children` (nodes that depend
+on it), `parents` (nodes it depends on), or `both`. Each node uses the
+serializer recorded in the build log unless `deserializer` is a function,
+in which case that function reads every node. All nodes come from the single
+build log selected up front.
+
+A single unreadable node aborts the whole tree by default. Pass
+`on_unreadable="path"` to fall back to the artifact path for nodes that fail
+to deserialize (for example `^pmml` model artifacts downstream), or
+`on_unreadable="skip"` to omit them. Both fallbacks warn naming the node and
+the error. `return_path=true` returns every path and never triggers the fallback.
+
+# Arguments
+- `name::String`: The root node name.
+
+# Keywords
+- `which_log::Union{String, Nothing}`: Regex to select a build log. Defaults to latest.
+- `pipeline_dir::String`: Pipeline directory. Defaults to `"_pipeline"`.
+- `deserializer::Union{Function, Nothing}`: Override reader for every node. Defaults to per-node auto.
+- `return_path::Bool`: Return artifact paths instead of values. Defaults to `false`.
+- `include::String`: One of `"children"` (default), `"parents"`, `"both"`.
+- `on_unreadable::String`: One of `"error"` (default), `"path"`, `"skip"`.
+
+# Returns
+- `Dict{String, Any}`: Mapping of node name to value (or path).
+"""
+function read_node_tree(
+    name::String;
+    which_log::Union{String, Nothing} = nothing,
+    pipeline_dir::String = "_pipeline",
+    deserializer::Union{Function, Nothing} = nothing,
+    return_path::Bool = false,
+    include::String = "children",
+    on_unreadable::String = "error"
+)
+    if !(include in ("children", "parents", "both"))
+        error("`include` must be one of \"children\", \"parents\", \"both\".")
+    end
+    if !(on_unreadable in ("error", "path", "skip"))
+        error("`on_unreadable` must be one of \"error\", \"path\", \"skip\".")
+    end
+    if !isdir(pipeline_dir)
+        error("Pipeline directory `$pipeline_dir` does not exist.")
+    end
+    logs = _list_build_logs(pipeline_dir)
+    log_file = _select_build_log(logs, which_log, pipeline_dir)
+    log_path = joinpath(pipeline_dir, log_file)
+    build_log = JSON.parsefile(log_path)
+    if !haskey(build_log, "nodes") || !(build_log["nodes"] isa Vector)
+        error("Build log `$log_file` does not contain a `nodes` array.")
+    end
+    deps = _build_log_deps_map(build_log["nodes"])
+    wanted = _closure_nodes(deps, name, include)
+    entries = Dict{String, Any}()
+    for entry in build_log["nodes"]
+        if entry isa AbstractDict && haskey(entry, "node") && entry["node"] isa String
+            entries[entry["node"]] = entry
+        end
+    end
+    result = Dict{String, Any}()
+    for node_name in wanted
+        if return_path
+            result[node_name] = _read_node_entry(
+                entries[node_name], node_name, pipeline_dir, deserializer, true
+            )
+            continue
+        end
+        try
+            result[node_name] = _read_node_entry(
+                entries[node_name], node_name, pipeline_dir, deserializer, false
+            )
+        catch e
+            e isa InterruptException && rethrow()
+            if on_unreadable == "error"
+                rethrow(e)
+            end
+            msg = sprint(showerror, e)
+            @warn "Node `$node_name` could not be deserialized ($msg); $(on_unreadable == "path" ? "returning the artifact path." : "skipping it.")"
+            if on_unreadable == "path"
+                result[node_name] = _resolve_artifact_path(
+                    entries[node_name]["path"], pipeline_dir
+                )
+            end
+            # "skip": omit the node.
+        end
+    end
+    return result
+end
+
+"""
+    _inspect_text_or_nothing(value)
+
+Return trimmed text or `nothing` for missing values.
+"""
+function _inspect_text_or_nothing(value)
+    if value isa String && !isempty(strip(value))
+        return strip(value)
+    end
+    return nothing
+end
+
+"""
+    _inspect_status_of(entry)
+
+Derive a display status from a build-log node entry. Prefers the `status`
+string when present, else maps `success` (bool or "true"/"false" string) to
+`Completed`/`SoftFailed`.
+"""
+function _inspect_status_of(entry)
+    status = get(entry, "status", nothing)
+    if status isa String && !isempty(strip(status))
+        return strip(status)
+    end
+    success = get(entry, "success", nothing)
+    if success isa Bool
+        return success ? "Completed" : "SoftFailed"
+    end
+    if success isa String && !isempty(strip(success))
+        return lowercase(strip(success)) == "true" ? "Completed" : "SoftFailed"
+    end
+    return nothing
+end
+
+"""
+    inspect_pipeline(; pipeline_dir="_pipeline", which_log=nothing, dag_file="dag.json")
+
+Inspect pipeline nodes and their latest build status.
+
+Reads the selected build log and returns one `Dict` per node with `node`,
+`runtime`, `serializer`, `dependencies`, `status`, `class`, and `path`. When
+no build logs exist, falls back to the static DAG file with `status` set to
+`"unbuilt"`.
+
+# Keywords
+- `pipeline_dir::String`: Pipeline directory. Defaults to `"_pipeline"`.
+- `which_log::Union{String, Nothing}`: Regex to select a build log. Defaults to latest.
+- `dag_file::String`: DAG filename used only when no build logs exist. Defaults to `"dag.json"`.
+
+# Returns
+- `Vector{Dict{String, Any}}`: One dict per node.
+"""
+function inspect_pipeline(;
+    pipeline_dir::String = "_pipeline",
+    which_log::Union{String, Nothing} = nothing,
+    dag_file::String = "dag.json"
+)
+    if !isdir(pipeline_dir)
+        error("Pipeline directory `$pipeline_dir` does not exist.")
+    end
+    logs = _list_build_logs(pipeline_dir)
+    if isempty(logs)
+        dag_path = joinpath(pipeline_dir, dag_file)
+        if !isfile(dag_path)
+            error("DAG file `$dag_path` does not exist.")
+        end
+        dag = try
+            JSON.parsefile(dag_path)
+        catch e
+            error("Failed to read DAG file `$dag_path`: $e")
+        end
+        if !(dag isa Vector)
+            error("DAG file `$dag_path` must decode to an array.")
+        end
+        rows = Dict{String, Any}[]
+        for (idx, entry) in enumerate(dag)
+            node_name, deps = _validate_node_entry(entry, idx, dag_path)
+            push!(rows, Dict{String, Any}(
+                "node" => node_name,
+                "runtime" => nothing,
+                "serializer" => nothing,
+                "dependencies" => deps,
+                "status" => "unbuilt",
+                "class" => nothing,
+                "path" => nothing,
+            ))
+        end
+        return rows
+    end
+    log_file = _select_build_log(logs, which_log, pipeline_dir)
+    log_path = joinpath(pipeline_dir, log_file)
+    build_log = JSON.parsefile(log_path)
+    if !haskey(build_log, "nodes") || !(build_log["nodes"] isa Vector)
+        error("Build log `$log_file` does not contain a `nodes` array.")
+    end
+    rows = Dict{String, Any}[]
+    for entry in build_log["nodes"]
+        if !(entry isa AbstractDict)
+            continue
+        end
+        nm = get(entry, "node", nothing)
+        if !(nm isa String) || isempty(strip(nm))
+            continue
+        end
+        raw = get(entry, "dependencies", String[])
+        clean = String[]
+        if raw isa Vector
+            for d in raw
+                if d isa String && !isempty(strip(d))
+                    push!(clean, d)
+                end
+            end
+        end
+        artifact = try
+            _resolve_artifact_path(entry["path"], pipeline_dir)
+        catch
+            nothing
+        end
+        push!(rows, Dict{String, Any}(
+            "node" => nm,
+            "runtime" => _inspect_text_or_nothing(get(entry, "runtime", nothing)),
+            "serializer" => _inspect_text_or_nothing(get(entry, "serializer", nothing)),
+            "dependencies" => unique(sort(clean)),
+            "status" => _inspect_status_of(entry),
+            "class" => _inspect_text_or_nothing(get(entry, "class", nothing)),
+            "path" => artifact,
+        ))
+    end
+    return rows
+end
+
+"""
+    _frames_clean_message(message)
+
+Keep the last non-empty message line, truncated like T (max 100 chars).
+"""
+function _frames_clean_message(message)
+    if !(message isa String)
+        return ""
+    end
+    lines = filter(l -> !isempty(strip(l)), map(strip, split(message, '\n')))
+    last_line = isempty(lines) ? "" : lines[end]
+    return length(last_line) > 100 ? last_line[1:97] * "..." : last_line
+end
+
+"""
+    _frames_status_of(entry)
+
+Derive a display status from a build-log node entry. Prefers the `status`
+string when present, else maps `success` (bool or "true"/"false" string) to
+`Completed`/`SoftFailed`.
+"""
+function _frames_status_of(entry)
+    status = get(entry, "status", nothing)
+    if status isa String && !isempty(strip(status))
+        return strip(status)
+    end
+    success = get(entry, "success", nothing)
+    if success isa Bool
+        return success ? "Completed" : "SoftFailed"
+    end
+    if success isa String && !isempty(strip(success))
+        return lowercase(strip(success)) == "true" ? "Completed" : "SoftFailed"
+    end
+    return nothing
+end
+
+"""
+    _frames_duration_of(entry)
+
+Parse a duration value to float, or `nothing` when absent.
+"""
+function _frames_duration_of(entry)
+    duration = get(entry, "duration", nothing)
+    if duration isa Bool || isnothing(duration)
+        return nothing
+    end
+    if duration isa Number
+        return Float64(duration)
+    end
+    if duration isa String && !isempty(strip(duration))
+        parsed = tryparse(Float64, strip(duration))
+        return isnothing(parsed) ? nothing : parsed
+    end
+    return nothing
+end
+
+"""
+    _frames_warning_rows(name, entry)
+
+Read warning rows from the per-artifact `warnings` sidecar (a JSON array of
+strings or `{kind, message}` dicts next to the artifact).
+"""
+function _frames_warning_rows(name::String, entry)
+    flag = get(entry, "warnings", false)
+    has_warnings = if flag isa Bool
+        flag
+    elseif flag isa String
+        lowercase(strip(flag)) == "true"
+    else
+        false
+    end
+    if !has_warnings
+        return Dict{String, Any}[]
+    end
+    path_val = get(entry, "path", nothing)
+    if !(path_val isa String) || isempty(strip(path_val))
+        return Dict{String, Any}[]
+    end
+    sidecar = joinpath(dirname(path_val), "warnings")
+    items = try
+        JSON.parsefile(sidecar)
+    catch
+        return Dict{String, Any}[]
+    end
+    if !(items isa Vector)
+        return Dict{String, Any}[]
+    end
+    rows = Dict{String, Any}[]
+    for item in items
+        if item isa String
+            push!(rows, Dict{String, Any}(
+                "node" => name, "status" => "Warning",
+                "code" => "Generic", "message" => item))
+        elseif item isa AbstractDict
+            kind = get(item, "kind", nothing)
+            msg = get(item, "message", nothing)
+            push!(rows, Dict{String, Any}(
+                "node" => name, "status" => "Warning",
+                "code" => (kind isa String && !isempty(strip(kind)) ? kind : "Generic"),
+                "message" => (msg isa String ? msg : "")))
+        end
+    end
+    return rows
+end
+
+"""
+    _format_mtime(mtime)
+
+Format a Unix timestamp as local `%Y-%m-%d %H:%M:%S` via libc, matching the
+`list_logs()` layout without extra dependencies.
+"""
+function _format_mtime(mtime::Float64)
+    secs = Ref{Int}(Int(floor(mtime)))
+    tm = Ref(Base.Libc.TmStruct(0, 0, 0, 0, 0, 0, 0, 0, 0))
+    ccall(:localtime_r, Ptr{Cvoid}, (Ref{Int}, Ptr{Cvoid}), secs, tm)
+    return Base.Libc.strftime("%Y-%m-%d %H:%M:%S", tm[])
+end
+
+"""
+    list_logs(; pipeline_dir="_pipeline")
+
+List build logs in the pipeline directory, newest first. Each row has
+`filename`, `modification_time` (`%Y-%m-%d %H:%M:%S`), `size_kb`, and
+`pipeline`. Mirrors T's `list_logs()`.
+"""
+function list_logs(; pipeline_dir::String = "_pipeline")
+    if !isdir(pipeline_dir)
+        error("Pipeline directory `$pipeline_dir` does not exist.")
+    end
+    rows = Dict{String, Any}[]
+    for name in _list_build_logs(pipeline_dir)
+        full = joinpath(pipeline_dir, name)
+        st = try
+            stat(full)
+        catch
+            continue
+        end
+        logged = try
+            JSON.parsefile(full)
+        catch
+            nothing
+        end
+        pipeline = if logged isa AbstractDict && get(logged, "pipeline", nothing) isa String
+            logged["pipeline"]
+        else
+            nothing
+        end
+        mtime = _format_mtime(Float64(st.mtime))
+        push!(rows, Dict{String, Any}(
+            "filename" => name,
+            "modification_time" => mtime,
+            "size_kb" => round(st.size / 1024, digits=2),
+            "pipeline" => pipeline,
+        ))
+    end
+    return rows
+end
+
+"""
+    build_log_to_frame(; which_log=nothing, pipeline_dir="_pipeline")
+
+Tabulate one build log as per-node rows with `name`, `status`, `duration`,
+and `path`. Mirrors T's `build_log_to_frame()`.
+"""
+function build_log_to_frame(;
+    which_log::Union{String, Nothing} = nothing,
+    pipeline_dir::String = "_pipeline"
+)
+    if !isdir(pipeline_dir)
+        error("Pipeline directory `$pipeline_dir` does not exist.")
+    end
+    logs = _list_build_logs(pipeline_dir)
+    log_file = _select_build_log(logs, which_log, pipeline_dir)
+    build_log = JSON.parsefile(joinpath(pipeline_dir, log_file))
+    if !haskey(build_log, "nodes") || !(build_log["nodes"] isa Vector)
+        error("Build log `$log_file` does not contain a `nodes` array.")
+    end
+    rows = Dict{String, Any}[]
+    for entry in build_log["nodes"]
+        if !(entry isa AbstractDict)
+            continue
+        end
+        nm = get(entry, "node", nothing)
+        if !(nm isa String) || isempty(strip(nm))
+            continue
+        end
+        path_val = get(entry, "path", nothing)
+        push!(rows, Dict{String, Any}(
+            "name" => nm,
+            "status" => _frames_status_of(entry),
+            "duration" => _frames_duration_of(entry),
+            "path" => (path_val isa String ? path_val : nothing),
+        ))
+    end
+    return rows
+end
+
+"""
+    collect_exceptions(; which_log=nothing, pipeline_dir="_pipeline")
+
+Gather error and warning rows from one build log. Each row has `node`,
+`status` (`Error`/`Warning`), `code`, and `message`. Mirrors T's
+`collect_exceptions()`.
+"""
+function collect_exceptions(;
+    which_log::Union{String, Nothing} = nothing,
+    pipeline_dir::String = "_pipeline"
+)
+    if !isdir(pipeline_dir)
+        error("Pipeline directory `$pipeline_dir` does not exist.")
+    end
+    logs = _list_build_logs(pipeline_dir)
+    log_file = _select_build_log(logs, which_log, pipeline_dir)
+    build_log = JSON.parsefile(joinpath(pipeline_dir, log_file))
+    if !haskey(build_log, "nodes") || !(build_log["nodes"] isa Vector)
+        error("Build log `$log_file` does not contain a `nodes` array.")
+    end
+    rows = Dict{String, Any}[]
+    for entry in build_log["nodes"]
+        if !(entry isa AbstractDict)
+            continue
+        end
+        nm = get(entry, "node", nothing)
+        if !(nm isa String) || isempty(strip(nm))
+            continue
+        end
+        status = _frames_status_of(entry)
+        class_val = get(entry, "class", "")
+        class_val = class_val isa String ? class_val : ""
+        if status == "Errored"
+            code = get(entry, "error_code", nothing)
+            msg = _frames_clean_message(get(entry, "error_message", ""))
+            push!(rows, Dict{String, Any}(
+                "node" => nm, "status" => "Error",
+                "code" => (code isa String && !isempty(strip(code)) ? code : "NixError"),
+                "message" => (isempty(msg) ? "Nix build failed." : msg)))
+        elseif status == "SoftFailed" || class_val in ("VError", "Error")
+            code = get(entry, "error_code", nothing)
+            msg = _frames_clean_message(get(entry, "error_message", ""))
+            push!(rows, Dict{String, Any}(
+                "node" => nm, "status" => "Error",
+                "code" => (code isa String && !isempty(strip(code)) ? code : (isempty(class_val) ? "Error" : class_val)),
+                "message" => (isempty(msg) ? "Node failed with a soft error." : msg)))
+        end
+        append!(rows, _frames_warning_rows(nm, entry))
+    end
+    return rows
+end
+
+"""
+    _load_inspect_entry(name, which_log, pipeline_dir)
+
+Select the build log once and return `(entry, log_file, deps)`, so callers
+never mix two snapshots.
+"""
+function _load_inspect_entry(name::String, which_log, pipeline_dir::String)
+    logs = _list_build_logs(pipeline_dir)
+    log_file = _select_build_log(logs, which_log, pipeline_dir)
+    build_log = JSON.parsefile(joinpath(pipeline_dir, log_file))
+    if !haskey(build_log, "nodes") || !(build_log["nodes"] isa Vector)
+        error("Build log `$log_file` does not contain a `nodes` array.")
+    end
+    entry = _find_node_entry(build_log["nodes"], name, log_file)
+    return entry, log_file, _build_log_deps_map(build_log["nodes"])
+end
+
+"""
+    _verror_from_file(artifact_path)
+
+Parse a VError JSON artifact, or `nothing` when it is not one.
+Foreign-runtime failures are stored as VError JSON, so an R error message
+reads the same from any language.
+"""
+function _verror_from_file(artifact_path::String)
+    payload = try
+        JSON.parsefile(artifact_path)
+    catch
+        return nothing
+    end
+    if !(payload isa AbstractDict) || get(payload, "type", nothing) != "VError"
+        return nothing
+    end
+    code = get(payload, "code", nothing)
+    message = get(payload, "message", nothing)
+    context = get(payload, "context", nothing)
+    location = get(payload, "location", nothing)
+    return Dict{String, Any}(
+        "code" => (code isa String && !isempty(strip(code)) ? code : "RuntimeError"),
+        "message" => (message isa String ? message : "Unknown error"),
+        "context" => (context isa AbstractDict ? context : nothing),
+        "location" => (location isa AbstractDict ? location : nothing),
+    )
+end
+
+"""
+    _error_of_entry(entry, pipeline_dir)
+
+Build a node error from an already-loaded entry (no log re-read).
+"""
+function _error_of_entry(entry, pipeline_dir::String)
+    artifact = try
+        _resolve_artifact_path(entry["path"], pipeline_dir)
+    catch
+        nothing
+    end
+    if !isnothing(artifact)
+        verror = _verror_from_file(artifact)
+        if !isnothing(verror)
+            return verror
+        end
+    end
+    code = get(entry, "error_code", nothing)
+    message = get(entry, "error_message", nothing)
+    code_ok = code isa String && !isempty(strip(code))
+    msg_ok = message isa String && !isempty(strip(message))
+    if code_ok || msg_ok
+        return Dict{String, Any}(
+            "code" => (code_ok ? code : "Error"),
+            "message" => (msg_ok ? message : ""),
+            "context" => nothing,
+            "location" => nothing,
+        )
+    end
+    return nothing
+end
+
+"""
+    _require_node_error(entry, name, pipeline_dir, func)
+
+Return the node's error dict, or throw when the node is healthy (mirrors T,
+where `error_msg()` on a healthy node is a `TypeError`).
+"""
+function _require_node_error(entry, name::String, pipeline_dir::String, func::String)
+    verror = _error_of_entry(entry, pipeline_dir)
+    if isnothing(verror)
+        error("Function `$func` expects a failed node, but node `$name` has no error.")
+    end
+    return verror
+end
+
+"""
+    error_msg(name::String; which_log=nothing, pipeline_dir="_pipeline")
+
+Return a failed node's human-readable error message. Mirrors T's
+`error_msg()`.
+"""
+function error_msg(
+    name::String;
+    which_log::Union{String, Nothing} = nothing,
+    pipeline_dir::String = "_pipeline"
+)
+    if !isdir(pipeline_dir)
+        error("Pipeline directory `$pipeline_dir` does not exist.")
+    end
+    entry, _, _ = _load_inspect_entry(name, which_log, pipeline_dir)
+    return _require_node_error(entry, name, pipeline_dir, "error_msg")["message"]
+end
+
+"""
+    error_code(name::String; which_log=nothing, pipeline_dir="_pipeline")
+
+Return a failed node's error code. Mirrors T's `error_code()`.
+"""
+function error_code(
+    name::String;
+    which_log::Union{String, Nothing} = nothing,
+    pipeline_dir::String = "_pipeline"
+)
+    if !isdir(pipeline_dir)
+        error("Pipeline directory `$pipeline_dir` does not exist.")
+    end
+    entry, _, _ = _load_inspect_entry(name, which_log, pipeline_dir)
+    return _require_node_error(entry, name, pipeline_dir, "error_code")["code"]
+end
+
+"""
+    error_context(name::String; which_log=nothing, pipeline_dir="_pipeline")
+
+Return a failed node's error context dict (possibly empty). Mirrors T's
+`error_context()`.
+"""
+function error_context(
+    name::String;
+    which_log::Union{String, Nothing} = nothing,
+    pipeline_dir::String = "_pipeline"
+)
+    if !isdir(pipeline_dir)
+        error("Pipeline directory `$pipeline_dir` does not exist.")
+    end
+    entry, _, _ = _load_inspect_entry(name, which_log, pipeline_dir)
+    context = _require_node_error(entry, name, pipeline_dir, "error_context")["context"]
+    return context isa AbstractDict ? context : Dict{String, Any}()
+end
+
+"""
+    warning_msg(name::String; which_log=nothing, pipeline_dir="_pipeline")
+
+Return a node's formatted warnings, or `""` when none. Upstream warnings are
+prefixed with the source node name, and multiple warnings join with
+`". Furthermore, "`. Mirrors T's `warning_msg()`.
+"""
+function warning_msg(
+    name::String;
+    which_log::Union{String, Nothing} = nothing,
+    pipeline_dir::String = "_pipeline"
+)
+    if !isdir(pipeline_dir)
+        error("Pipeline directory `$pipeline_dir` does not exist.")
+    end
+    logs = _list_build_logs(pipeline_dir)
+    log_file = _select_build_log(logs, which_log, pipeline_dir)
+    build_log = JSON.parsefile(joinpath(pipeline_dir, log_file))
+    if !haskey(build_log, "nodes") || !(build_log["nodes"] isa Vector)
+        error("Build log `$log_file` does not contain a `nodes` array.")
+    end
+    _find_node_entry(build_log["nodes"], name, log_file)
+    deps = _build_log_deps_map(build_log["nodes"])
+    entries = Dict{String, Any}()
+    for entry in build_log["nodes"]
+        if entry isa AbstractDict && haskey(entry, "node") && entry["node"] isa String
+            entries[entry["node"]] = entry
+        end
+    end
+    messages = String[]
+    for row in _frames_warning_rows(name, entries[name])
+        push!(messages, row["message"])
+    end
+    for parent in _closure_nodes(deps, name, "parents")[2:end]
+        for row in _frames_warning_rows(parent, entries[parent])
+            push!(messages, "Ancestor node '$parent' reported following warning: $(row["message"])")
+        end
+    end
+    return join(messages, ". Furthermore, ")
+end
+
+"""
+    inspect_node(name::String; which_log=nothing, pipeline_dir="_pipeline")
+
+Inspect one node's metadata, lineage, error, and warnings. Returns a `Dict`
+with `name`, `runtime`, `serializer`, `dependencies`, `children` (direct
+dependents), `status`, `class`, `path`, `error`, and `warnings`.
+"""
+function inspect_node(
+    name::String;
+    which_log::Union{String, Nothing} = nothing,
+    pipeline_dir::String = "_pipeline"
+)
+    if !isdir(pipeline_dir)
+        error("Pipeline directory `$pipeline_dir` does not exist.")
+    end
+    entry, _, deps = _load_inspect_entry(name, which_log, pipeline_dir)
+    raw_deps = get(entry, "dependencies", String[])
+    clean = String[]
+    if raw_deps isa Vector
+        for d in raw_deps
+            if d isa String && !isempty(strip(d))
+                push!(clean, d)
+            end
+        end
+    end
+    children = sort([n for (n, ds) in deps if name in ds])
+    warn_rows = _frames_warning_rows(name, entry)
+    warnings = [Dict{String, Any}("code" => w["code"], "message" => w["message"]) for w in warn_rows]
+    artifact = try
+        _resolve_artifact_path(entry["path"], pipeline_dir)
+    catch
+        nothing
+    end
+    status = let s = get(entry, "status", nothing)
+        if s isa String && !isempty(strip(s))
+            strip(s)
+        else
+            _frames_status_of(entry)
+        end
+    end
+    return Dict{String, Any}(
+        "name" => name,
+        "runtime" => _inspect_text_or_nothing(get(entry, "runtime", nothing)),
+        "serializer" => _inspect_text_or_nothing(get(entry, "serializer", nothing)),
+        "dependencies" => unique(sort(clean)),
+        "children" => children,
+        "status" => status,
+        "class" => _inspect_text_or_nothing(get(entry, "class", nothing)),
+        "path" => artifact,
+        "error" => _error_of_entry(entry, pipeline_dir),
+        "warnings" => warnings,
+    )
+end
+
+"""
+    lineage(name::String; which_log=nothing, pipeline_dir="_pipeline", direction="both")
+
+List a node's transitive parents and children (names only, nearest first).
+Returns a `Dict` with `parents` and `children`; only the requested
+directions are filled.
+"""
+function lineage(
+    name::String;
+    which_log::Union{String, Nothing} = nothing,
+    pipeline_dir::String = "_pipeline",
+    direction::String = "both"
+)
+    if !(direction in ("parents", "children", "both"))
+        error("`direction` must be one of \"parents\", \"children\", \"both\".")
+    end
+    if !isdir(pipeline_dir)
+        error("Pipeline directory `$pipeline_dir` does not exist.")
+    end
+    _, _, deps = _load_inspect_entry(name, which_log, pipeline_dir)
+    parents = String[]
+    children = String[]
+    if direction in ("parents", "both")
+        full = _closure_nodes(deps, name, "parents")
+        parents = full[2:end]
+    end
+    if direction in ("children", "both")
+        full = _closure_nodes(deps, name, "children")
+        children = full[2:end]
+    end
+    return Dict{String, Any}("parents" => parents, "children" => children)
 end
 
 """

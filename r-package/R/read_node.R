@@ -184,68 +184,240 @@ resolve_artifact_path <- function(path, pipeline_dir) {
   )
 }
 
-#' Read a node artifact from a built T pipeline
+#' Normalize a serializer name recorded in a build log
 #'
-#' Reads the latest build log (or a matching historical one) from the
-#' `_pipeline/` directory, locates the requested node, and deserializes the
-#' node artifact. When `which_log` is `NULL`, the helper picks the first
-#' reverse-alphabetically sorted `build_log_*.json` file, which matches T's
-#' timestamped log naming and therefore resolves to the most recent build.
+#' Strips a leading `^`, trims whitespace, and lowercases the value so
+#' `"^JSON"`, `"json"`, and `"Json"` all map to `"json"`. Missing or empty
+#' values fall back to `"default"`.
 #'
-#' @param name Name of the node to read.
-#' @param which_log Optional regular expression used to select a specific build
-#'   log filename. Defaults to the latest available build log.
-#' @param pipeline_dir Path to the pipeline build directory. Defaults to
-#'   `"_pipeline"`.
-#' @param deserializer Function used to deserialize the artifact file. Defaults
-#'   to `readRDS()`.
-#' @param return_path Logical. If `TRUE`, returns the path to the artifact
-#'   instead of deserializing it. Defaults to `FALSE`.
+#' @param s The raw serializer value from the build log.
 #'
-#' @return The deserialized node artifact, or the path to it if `return_path` is `TRUE`.
+#' @return Character. The normalized serializer name.
 #'
-#' @details
-#' The function locates the pipeline folder and reads the selected build log. If
-#' `return_path` is set to `TRUE`, it returns the absolute system path to the
-#' serialized artifact instead of deserializing the object. Otherwise, it utilizes
-#' the `deserializer` function to deserialize the R object.
-#'
-#' @examples
-#' \dontrun{
-#'   # Assuming node "clean_data" was built successfully
-#'   df <- read_node("clean_data")
-#' }
-#'
-#' @export
-read_node <- function(
-    name,
-    which_log = NULL,
-    pipeline_dir = "_pipeline",
-    deserializer = readRDS,
-    return_path = FALSE) {
-  validate_scalar_string(name, "name")
-  validate_scalar_string(pipeline_dir, "pipeline_dir")
+#' @keywords internal
+normalize_serializer <- function(s) {
+  if (is.null(s) || length(s) != 1L) {
+    return("default")
+  }
+  if (!is.character(s) || is.na(s)) {
+    return("default")
+  }
+  s <- trimws(tolower(s))
+  s <- sub("^\\^+", "", s)
+  if (!nzchar(s)) {
+    return("default")
+  }
+  s
+}
 
-  if (!dir.exists(pipeline_dir)) {
+#' Deserialize an artifact using the serializer recorded in the build log
+#'
+#' Picks the right R reader from the `serializer` field so callers do not
+#' need to pass a custom `deserializer` by hand. When the required package
+#' is missing, the error names the package and the function to use.
+#'
+#' @param serializer Character. Raw serializer name from the build log.
+#' @param name Character. Node name (used in error messages).
+#' @param artifact_path Character. Absolute path to the artifact file.
+#'
+#' @return The deserialized R object.
+#'
+#' @keywords internal
+auto_deserialize <- function(serializer, name, artifact_path) {
+  raw <- if (is.character(serializer) && length(serializer) == 1L && !is.na(serializer)) serializer else "default"
+  s <- normalize_serializer(raw)
+
+  if (s %in% c("default", "tlang", "tobj", "serialize", "rds", "readrds")) {
+    return(tryCatch(
+      readRDS(artifact_path),
+      error = function(err) {
+        stop(
+          sprintf(
+            "Failed to deserialize node `%s` (serializer `^%s`) from `%s`: %s",
+            name, s, artifact_path, conditionMessage(err)
+          ),
+          call. = FALSE
+        )
+      }
+    ))
+  }
+
+  if (s == "json") {
+    if (!requireNamespace("jsonlite", quietly = TRUE)) {
+      stop(
+        sprintf(
+          "Node `%s` uses serializer `^json`. Package `jsonlite` is not installed; declare it in `tproject.toml`, run `t update`, and re-enter `nix develop`. Or pass `deserializer = jsonlite::read_json`.",
+          name
+        ),
+        call. = FALSE
+      )
+    }
+    return(tryCatch(
+      jsonlite::read_json(artifact_path, simplifyVector = TRUE),
+      error = function(err) {
+        stop(
+          sprintf(
+            "Failed to deserialize node `%s` (serializer `^json`, expected `jsonlite::read_json`) from `%s`: %s",
+            name, artifact_path, conditionMessage(err)
+          ),
+          call. = FALSE
+        )
+      }
+    ))
+  }
+
+  if (s == "csv") {
+    return(tryCatch(
+      read.csv(artifact_path, stringsAsFactors = FALSE),
+      error = function(err) {
+        stop(
+          sprintf(
+            "Failed to deserialize node `%s` (serializer `^csv`, expected `read.csv`) from `%s`: %s",
+            name, artifact_path, conditionMessage(err)
+          ),
+          call. = FALSE
+        )
+      }
+    ))
+  }
+
+  if (s %in% c("text", "txt")) {
+    return(tryCatch(
+      {
+        info <- file.info(artifact_path)
+        size <- if (!is.na(info$size)) info$size else 0
+        out <- if (is.na(size) || size == 0) {
+          ""
+        } else {
+          readChar(artifact_path, size, useBytes = TRUE)
+        }
+        # Exact bytes decoded as UTF-8, matching Python and Julia.
+        Encoding(out) <- "UTF-8"
+        out
+      },
+      error = function(err) {
+        stop(
+          sprintf(
+            "Failed to deserialize node `%s` (serializer `^text`) from `%s`: %s",
+            name, artifact_path, conditionMessage(err)
+          ),
+          call. = FALSE
+        )
+      }
+    ))
+  }
+
+  if (s %in% c("ipc", "arrow")) {
+    if (!requireNamespace("arrow", quietly = TRUE)) {
+      stop(
+        sprintf(
+          "Node `%s` uses serializer `^ipc`. Package `arrow` is not installed; declare it in `tproject.toml`, run `t update`, and re-enter `nix develop`. Or pass `deserializer = arrow::read_ipc_file`.",
+          name
+        ),
+        call. = FALSE
+      )
+    }
+    return(tryCatch(
+      arrow::read_ipc_file(artifact_path),
+      error = function(err) {
+        stop(
+          sprintf(
+            "Failed to deserialize node `%s` (serializer `^ipc`, expected `arrow::read_ipc_file`) from `%s`: %s",
+            name, artifact_path, conditionMessage(err)
+          ),
+          call. = FALSE
+        )
+      }
+    ))
+  }
+
+  if (s == "parquet") {
+    if (!requireNamespace("arrow", quietly = TRUE)) {
+      stop(
+        sprintf(
+          "Node `%s` uses serializer `^parquet`. Package `arrow` is not installed; declare it in `tproject.toml`, run `t update`, and re-enter `nix develop`. Or pass `deserializer = arrow::read_parquet`.",
+          name
+        ),
+        call. = FALSE
+      )
+    }
+    return(tryCatch(
+      arrow::read_parquet(artifact_path),
+      error = function(err) {
+        stop(
+          sprintf(
+            "Failed to deserialize node `%s` (serializer `^parquet`, expected `arrow::read_parquet`) from `%s`: %s",
+            name, artifact_path, conditionMessage(err)
+          ),
+          call. = FALSE
+        )
+      }
+    ))
+  }
+
+  if (s == "pmml") {
     stop(
-      sprintf("Pipeline directory `%s` does not exist.", pipeline_dir),
+      sprintf(
+        "Node `%s` uses serializer `^pmml`, which has no built-in R reader here. Use `return_path = TRUE` plus a custom deserializer to inspect the file.",
+        name
+      ),
       call. = FALSE
     )
   }
 
-  if (!is.function(deserializer)) {
-    stop("`deserializer` must be a function.", call. = FALSE)
+  if (s == "onnx") {
+    stop(
+      sprintf(
+        "Node `%s` uses serializer `^onnx`, which has no built-in R reader here. Use `return_path = TRUE` plus a custom deserializer to inspect the file.",
+        name
+      ),
+      call. = FALSE
+    )
   }
 
-  logs <- list_build_logs(pipeline_dir)
-  log_file <- select_build_log(logs, which_log, pipeline_dir)
-  log_path <- file.path(pipeline_dir, log_file)
-  build_log <- read_build_log(log_path)
-  node_entry <- find_node_entry(build_log$nodes, name, log_file)
+  if (s == "bin") {
+    stop(
+      sprintf(
+        "Node `%s` uses serializer `^bin` (opaque bytes). Use `return_path = TRUE` to get the artifact path or pass a custom `deserializer`.",
+        name
+      ),
+      call. = FALSE
+    )
+  }
+
+  stop(
+    sprintf(
+      "Node `%s` uses unknown serializer `%s`. Pass a custom `deserializer` function or use `return_path = TRUE` to get the artifact path.",
+      name, raw
+    ),
+    call. = FALSE
+  )
+}
+#' Deserialize one already-located build-log node entry
+#'
+#' Shared by `read_node()` and `read_node_tree()` so a tree read deserializes
+#' every node from the same already-selected build log instead of re-resolving
+#' `which_log` per node.
+#'
+#' @param node_entry List. One entry from the build log `nodes` array.
+#' @param name Character. Node name (used in error messages).
+#' @param pipeline_dir Character. Pipeline directory for path resolution.
+#' @param deserializer Function or NULL. Override reader, or NULL for auto.
+#' @param return_path Logical. Return the artifact path instead of reading it.
+#'
+#' @return The deserialized value, or the artifact path.
+#'
+#' @keywords internal
+read_node_entry <- function(node_entry, name, pipeline_dir, deserializer, return_path) {
   artifact_path <- resolve_artifact_path(node_entry$path, pipeline_dir)
 
   if (isTRUE(return_path)) {
     return(artifact_path)
+  }
+
+  if (is.null(deserializer)) {
+    serializer <- if (is.list(node_entry) && !is.null(node_entry$serializer)) node_entry$serializer else "default"
+    return(auto_deserialize(serializer, name, artifact_path))
   }
 
   tryCatch(
@@ -262,4 +434,72 @@ read_node <- function(
       )
     }
   )
+}
+
+#' Read a node artifact from a built T pipeline
+#'
+#' Reads the latest build log (or a matching historical one) from the
+#' `_pipeline/` directory, locates the requested node, and deserializes the
+#' node artifact. When `which_log` is `NULL`, the helper picks the first
+#' reverse-alphabetically sorted `build_log_*.json` file, which matches T's
+#' timestamped log naming and therefore resolves to the most recent build.
+#'
+#' @param name Name of the node to read.
+#' @param which_log Optional regular expression used to select a specific build
+#'   log filename. Defaults to the latest available build log.
+#' @param pipeline_dir Path to the pipeline build directory. Defaults to
+#'   `"_pipeline"`.
+#' @param deserializer Function used to deserialize the artifact file. When
+#'   `NULL` (the default), the `serializer` field from the build log picks
+#'   the reader automatically (`readRDS` for `default`, `jsonlite::read_json`
+#'   for `^json`, `read.csv` for `^csv`, `arrow::read_ipc_file` for `^ipc`,
+#'   `arrow::read_parquet` for `^parquet`). Pass a function to override.
+#' @param return_path Logical. If `TRUE`, returns the path to the artifact
+#'   instead of deserializing it. Defaults to `FALSE`.
+#'
+#' @return The deserialized node artifact, or the path to it if `return_path` is `TRUE`.
+#'
+#' @details
+#' The function locates the pipeline folder and reads the selected build log. If
+#' `return_path` is set to `TRUE`, it returns the absolute system path to the
+#' serialized artifact instead of deserializing the object. Otherwise, when
+#' `deserializer` is `NULL`, it utilizes the build-log serializer to pick the
+#' R reader; when a function is passed, that function deserializes the object.
+#'
+#' @examples
+#' \dontrun{
+#'   # Assuming node "clean_data" was built successfully
+#'   df <- read_node("clean_data")
+#'   # Explicit override still works:
+#'   df <- read_node("clean_data", deserializer = readRDS)
+#' }
+#'
+#' @export
+read_node <- function(
+    name,
+    which_log = NULL,
+    pipeline_dir = "_pipeline",
+    deserializer = NULL,
+    return_path = FALSE) {
+  validate_scalar_string(name, "name")
+  validate_scalar_string(pipeline_dir, "pipeline_dir")
+
+  if (!dir.exists(pipeline_dir)) {
+    stop(
+      sprintf("Pipeline directory `%s` does not exist.", pipeline_dir),
+      call. = FALSE
+    )
+  }
+
+  if (!is.null(deserializer) && !is.function(deserializer)) {
+    stop("`deserializer` must be a function or NULL.", call. = FALSE)
+  }
+
+  logs <- list_build_logs(pipeline_dir)
+  log_file <- select_build_log(logs, which_log, pipeline_dir)
+  log_path <- file.path(pipeline_dir, log_file)
+  build_log <- read_build_log(log_path)
+  node_entry <- find_node_entry(build_log$nodes, name, log_file)
+
+  read_node_entry(node_entry, name, pipeline_dir, deserializer, return_path)
 }

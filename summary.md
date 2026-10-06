@@ -395,9 +395,9 @@ p = pipeline {
 
 - **Project** = analysis workspace, data, scripts, pipelines, pinned environment.
 - **Package** = reusable library, exports functions, ships tests and docs.
-- **`r-package/`** = companion R package (`tlang`) that mirrors built-pipeline `read_node()` and defaults to `readRDS()` with an overrideable deserializer.
-- **`py-package/`** = companion Python package (`tlang`) that mirrors built-pipeline `read_node()` and defaults to pickle-based deserialization.
-- **`jl-package/`** = companion Julia package (`tlang`) that mirrors built-pipeline `read_node()`, defaults to `Serialization.deserialize`, and now exposes DeepDiffs-based Julia artifact diff helpers.
+- **`r-package/`** = companion R package (`tlang`) that mirrors built-pipeline `read_node()` with build-log serializer auto-pick (`readRDS` for `default`, `jsonlite` for `^json`, `arrow` for `^ipc`/`^parquet`) plus `read_node_tree()` for node plus transitive children/parents, `inspect_pipeline()` for per-node build status, and frame helpers (`list_logs`, `build_log_to_frame`, `collect_exceptions`).
+- **`py-package/`** = companion Python package (`tlang`) that mirrors built-pipeline `read_node()` with build-log serializer auto-pick (pickle for `default`, stdlib for `^json`, `pandas`/`pyarrow` for `^csv`/`^ipc`/`^parquet`) plus `read_node_tree()` for node plus transitive children/parents, `inspect_pipeline()` for per-node build status, and frame helpers (`list_logs`, `build_log_to_frame`, `collect_exceptions`).
+- **`jl-package/`** = companion Julia package (`tlang`) that mirrors built-pipeline `read_node()` with build-log serializer auto-pick (`Serialization` for `default`, `JSON`/`CSV`/`Arrow`/`Parquet2` per format) plus `read_node_tree()`, `inspect_pipeline()`, and frame helpers (`list_logs`, `build_log_to_frame`, `collect_exceptions`), and now exposes DeepDiffs-based Julia artifact diff helpers.
 
 Typical project files:
 - `tproject.toml`

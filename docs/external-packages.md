@@ -11,6 +11,15 @@ For project development shells, `t update` also wires the matching companion pac
 ## Key Features
 
 - **`read_node(name)`**: Automatically locates the latest build log in the `_pipeline/` directory, finds the requested node, and deserializes its artifact.
+- **`read_node_tree(name)`**: Reads a node plus its transitive children, parents, or both from the single selected build log.
+- **`inspect_pipeline()`**: Returns every node with its runtime, serializer, dependencies, build status, class, and artifact path (falls back to `dag.json` with `status = "unbuilt"` when nothing is built yet).
+- **`list_logs()`**: Lists build logs newest-first with filename, modification time, size, and pipeline name.
+- **`build_log_to_frame()`**: Tabulates one build log as per-node rows (`name`, `status`, `duration`, `path`).
+- **`collect_exceptions()`**: Gathers error and warning rows (`node`, `status`, `code`, `message`) from one build log.
+- **`inspect_node(name)`**: Inspects one node: runtime, serializer, dependencies, children, status, error, and warnings.
+- **`lineage(name)`**: Lists transitive parents and children (names only, nearest first).
+- **`error_msg(name)`, `error_code(name)`, `error_context(name)`**: Same names as T. Return a failed node's message, code, or context dict. Foreign-runtime failures are VError JSON, so an R error reads the same from Python or Julia. Stop when the node is healthy, like T.
+- **`warning_msg(name)`**: Same name as T. Returns formatted warnings (`""` when none), with upstream warnings prefixed by source.
 - **`pipeline_nodes()`**: Returns the pipeline DAG (nodes and their dependencies) as an idiomatic data structure (data frame in R, dictionary in Python/Julia).
 - **Support for historical logs**: Use the `which_log` argument to select a specific build log using a regular expression.
 - **Custom Deserializers**: Pass a custom function to handle specific artifact formats.
@@ -36,6 +45,9 @@ path <- read_node("my_model", return_path = TRUE)
 
 # Inspect the pipeline DAG (returns a data.frame)
 nodes <- pipeline_nodes()
+
+# Inspect nodes with their latest build status
+tbl <- inspect_pipeline()
 ```
 
 ---
@@ -58,6 +70,9 @@ path = tlang.read_node("my_model", return_path=True)
 
 # Inspect the pipeline DAG (returns a dict)
 nodes = tlang.pipeline_nodes()
+
+# Inspect nodes with their latest build status
+rows = tlang.inspect_pipeline()
 ```
 
 ---
@@ -83,6 +98,9 @@ diff = diff_nodes("my_model", "my_model", which_log_a="20260501", which_log_b="l
 
 # Inspect the pipeline DAG (returns a Dict)
 nodes = pipeline_nodes()
+
+# Inspect nodes with their latest build status
+rows = inspect_pipeline()
 ```
 
 ---

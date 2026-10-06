@@ -7,9 +7,11 @@ Description: Read node artifacts from built T pipelines by consulting the
     timestamped build logs stored in the '_pipeline/' directory.
 License: EUPL-1.2
 Encoding: UTF-8
+Depends:
+    R (>= 4.1.0)
 Imports:
     diffobj,
     jsonlite
-Depends:
-    R (>= 4.1.0)
+Suggests:
+    arrow
 NeedsCompilation: no
