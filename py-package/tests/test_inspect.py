@@ -13,6 +13,7 @@ from tlang import (
     inspect_node,
     lineage,
     read_node,
+    show_code,
     warning_msg,
 )
 
@@ -343,6 +344,32 @@ class InspectTests(unittest.TestCase):
                 lineage("root", pipeline_dir=pipe, direction="children")["children"],
                 ["B", "_x", "a", "a1"],
             )
+
+    def test_show_code(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            pipe = tmp_path / "_pipeline"
+            art = tmp_path / "a.txt"
+            art.write_text("a")
+            base = _entry("a", str(art))
+            embedded = dict(base, source="df <- read.csv(\"a.csv\")\nprint(df)")
+            scripted = dict(base, script="train.R")
+            legacy = dict(base)
+            _write_log(
+                pipe,
+                [
+                    dict(embedded, node="emb"),
+                    dict(scripted, node="scr"),
+                    dict(legacy, node="old"),
+                ],
+            )
+            self.assertEqual(
+                show_code("emb", pipeline_dir=pipe), 'df <- read.csv("a.csv")\nprint(df)'
+            )
+            self.assertEqual(show_code("scr", pipeline_dir=pipe), "train.R")
+            with self.assertRaises(ValueError) as ctx:
+                show_code("old", pipeline_dir=pipe)
+            self.assertIn("Rebuild", str(ctx.exception))
 
 
 if __name__ == "__main__":

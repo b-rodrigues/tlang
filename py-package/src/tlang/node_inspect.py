@@ -71,6 +71,32 @@ def _check_dir(pipeline_dir: str | Path) -> Path:
     return pipeline_path
 
 
+def show_code(
+    name: str,
+    which_log: str | None = None,
+    pipeline_dir: str | Path = "_pipeline",
+) -> str:
+    """Return a node's source code for copy-paste tweaking.
+
+    Foreign code comes back verbatim; T expressions come back as normalized
+    T source. Nodes built from an exterior ``script =`` file return the
+    script path instead (no copy is stored). Older build logs without
+    recorded source raise an error telling you to rebuild.
+    """
+    _validate_non_empty_string(name, "name")
+    pipeline_path = _check_dir(pipeline_dir)
+    entry, _log_file, _deps = _load_entry(name, which_log, pipeline_path)
+    script = entry.get("script")
+    if isinstance(script, str) and script.strip():
+        return script.strip()
+    source = entry.get("source")
+    if isinstance(source, str) and source.strip():
+        return source
+    raise ValueError(
+        f"No source recorded for node `{name}`. Rebuild the pipeline to record it."
+    )
+
+
 def error_msg(
     name: str,
     which_log: str | None = None,

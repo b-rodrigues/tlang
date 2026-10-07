@@ -3,7 +3,7 @@ module tlang
 using JSON
 using Serialization
 
-export read_node, read_node_tree, inspect_pipeline, inspect_node, lineage, error_msg, error_code, error_context, warning_msg, list_logs, build_log_to_frame, collect_exceptions, pipeline_nodes, diff_artifacts, diff_nodes, diff_objects
+export read_node, read_node_tree, inspect_pipeline, inspect_node, lineage, show_code, error_msg, error_code, error_context, warning_msg, list_logs, build_log_to_frame, collect_exceptions, pipeline_nodes, diff_artifacts, diff_nodes, diff_objects
 
 const FIXTURE_LOGS = ["build_log_ocaml_mock.json", "build_log_legacy_version.json"]
 
@@ -1285,6 +1285,38 @@ function lineage(
         children = full[2:end]
     end
     return Dict{String, Any}("parents" => parents, "children" => children)
+end
+
+"""
+    show_code(name::String; which_log=nothing, pipeline_dir="_pipeline")
+
+Return a node's source code for copy-paste tweaking. Foreign code comes
+back verbatim; T expressions come back as normalized T source. Nodes built
+from an exterior `script =` file return the script path instead (no copy is
+stored). Older build logs without recorded source raise an error telling
+you to rebuild.
+"""
+function show_code(
+    name::String;
+    which_log::Union{String, Nothing} = nothing,
+    pipeline_dir::String = "_pipeline"
+)
+    if isempty(strip(name))
+        error("`name` must be a non-empty string.")
+    end
+    if !isdir(pipeline_dir)
+        error("Pipeline directory `$pipeline_dir` does not exist.")
+    end
+    entry, _, _ = _load_inspect_entry(name, which_log, pipeline_dir)
+    script = get(entry, "script", nothing)
+    if script isa String && !isempty(strip(script))
+        return String(strip(script))
+    end
+    source = get(entry, "source", nothing)
+    if source isa String && !isempty(strip(source))
+        return source
+    end
+    error("No source recorded for node `$name`. Rebuild the pipeline to record it.")
 end
 
 """

@@ -20,6 +20,7 @@ For project development shells, `t update` also wires the matching companion pac
 - **`lineage(name)`**: Lists transitive parents and children (names only, nearest first).
 - **`error_msg(name)`, `error_code(name)`, `error_context(name)`**: Same names as T. Return a failed node's message, code, or context dict. Foreign-runtime failures are VError JSON, so an R error reads the same from Python or Julia. Stop when the node is healthy, like T.
 - **`warning_msg(name)`**: Same name as T. Returns formatted warnings (`""` when none), with upstream warnings prefixed by source.
+- **`show_code(name)`**: Returns a node's source for copy-paste tweaking. Foreign code comes back verbatim; T expressions come back as normalized T source. Exterior `script =` nodes return the script path. Note: only the path is stored for scripts, so the file may differ from what was built; embedded secrets land in the build log under `_pipeline/`, which is easier to share by accident than a store path.
 - **`pipeline_nodes()`**: Returns the pipeline DAG (nodes and their dependencies) as an idiomatic data structure (data frame in R, dictionary in Python/Julia).
 - **Support for historical logs**: Use the `which_log` argument to select a specific build log using a regular expression.
 - **Custom Deserializers**: Pass a custom function to handle specific artifact formats.

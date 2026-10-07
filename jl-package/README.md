@@ -87,6 +87,7 @@ info = inspect_node("model")  # runtime, deps, children, status, error, warnings
 lin = lineage("model")  # transitive parents and children
 msg = error_msg("model")  # error text, like T
 msg = warning_msg("model")  # warnings, like T
+println(show_code("model"))  # node source for copy-paste tweaking
 ```
 
 A single unreadable node aborts the tree by default. Use

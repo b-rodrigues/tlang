@@ -89,6 +89,44 @@ let get_failed_node_error_info drv_path =
   | Error msg ->
       (Diagnostics.Nix_error, "Failed to run nix log: " ^ msg)
 
+(* Per-node source fields for build logs, backing `show_code` in companion
+   packages. Script nodes record only their script path (no copy, no stale
+   text); inline nodes record the command text (raw foreign code verbatim,
+   other expressions unparsed). *)
+let node_source_fields_of p_scripts p_exprs name =
+  match List.assoc_opt name p_scripts with
+  | Some (Some path) ->
+      [("script", "\"" ^ Serialization.json_escape path ^ "\"")]
+  | _ ->
+      (match List.assoc_opt name p_exprs with
+       | Some expr ->
+           let src = match expr.Ast.node with
+             | Ast.RawCode { raw_text; _ } -> raw_text
+             | _ -> Nix_unparse.unparse_expr expr
+           in
+           [("source", "\"" ^ Serialization.json_escape src ^ "\"")]
+       | None -> [])
+
+(* Render one build-log node entry as JSON. All per-node display values come
+   in as arguments; `source_fields` is required (no default) so dropping it
+   at the call site fails to type-check instead of silently dropping keys. *)
+let node_log_entry_json ~name ~artifact_path ~node_hash ~runtime ~serializer
+    ~class_val ~deps ~status ~success ~has_warns ~node_dur ~error_fields
+    ~source_fields =
+  Serialization.json_dict ([
+    ("node", "\"" ^ Serialization.json_escape name ^ "\"");
+    ("path", "\"" ^ Serialization.json_escape artifact_path ^ "\"");
+    ("hash", "\"" ^ Serialization.json_escape node_hash ^ "\"");
+    ("runtime", "\"" ^ Serialization.json_escape runtime ^ "\"");
+    ("serializer", "\"" ^ Serialization.json_escape serializer ^ "\"");
+    ("class", "\"" ^ Serialization.json_escape class_val ^ "\"");
+    ("dependencies", Serialization.json_list deps);
+    ("status", "\"" ^ Serialization.json_escape status ^ "\"");
+    ("success", success);
+    ("warnings", has_warns);
+    ("duration", Printf.sprintf "%.4f" node_dur)
+  ] @ error_fields @ source_fields)
+
 let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts option) ?(json=false) (p : Ast.pipeline_result) =
   let verbose =
     match verbose with
@@ -588,6 +626,11 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
                | [] -> "no_hash")
           | None -> "no_hash"
         in
+        (* Persist per-node source for `show_code` in companion packages.
+           See `node_source_fields_of` above. *)
+        let node_source_fields name =
+          node_source_fields_of p.p_scripts p.p_exprs name
+        in
         let log_entries =
           List.map (fun (name, _) ->
             let node_path =
@@ -656,19 +699,10 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
               else []
             in
             
-            Serialization.json_dict ([
-              ("node", "\"" ^ Serialization.json_escape name ^ "\"");
-              ("path", "\"" ^ Serialization.json_escape artifact_path ^ "\"");
-              ("hash", "\"" ^ Serialization.json_escape (node_hash name) ^ "\"");
-              ("runtime", "\"" ^ Serialization.json_escape runtime ^ "\"");
-              ("serializer", "\"" ^ Serialization.json_escape serializer ^ "\"");
-              ("class", "\"" ^ Serialization.json_escape class_val ^ "\"");
-              ("dependencies", Serialization.json_list deps);
-              ("status", "\"" ^ Serialization.json_escape status ^ "\"");
-              ("success", success);
-              ("warnings", has_warns);
-              ("duration", Printf.sprintf "%.4f" node_dur)
-            ] @ error_fields)
+            node_log_entry_json ~name ~artifact_path
+              ~node_hash:(node_hash name) ~runtime ~serializer
+              ~class_val ~deps ~status ~success ~has_warns ~node_dur
+              ~error_fields ~source_fields:(node_source_fields name)
           ) p.p_exprs
         in
         let base_pairs = [

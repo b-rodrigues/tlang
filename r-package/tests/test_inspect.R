@@ -239,4 +239,26 @@ lin <- lineage("root", pipeline_dir = pipe, which_log = "byte", direction = "chi
 stopifnot(identical(lin$children, c("B", "_x", "a", "a1")))
 cat("byte order ok\n")
 
+# show_code returns embedded code verbatim, script paths as-is.
+jsonlite::write_json(
+  list(nodes = list(
+    mk_entry("emb", a_txt, source = "df <- read.csv(\"a.csv\")\nprint(df)"),
+    mk_entry("scr", a_txt, script = "train.R"),
+    mk_entry("old", a_txt)
+  )),
+  file.path(pipe, "build_log_20260110_000000_src.json"),
+  auto_unbox = TRUE
+)
+stopifnot(identical(
+  show_code("emb", pipeline_dir = pipe, which_log = "src"),
+  "df <- read.csv(\"a.csv\")\nprint(df)"
+))
+stopifnot(identical(show_code("scr", pipeline_dir = pipe, which_log = "src"), "train.R"))
+err <- tryCatch(
+  show_code("old", pipeline_dir = pipe, which_log = "src"),
+  error = function(e) conditionMessage(e)
+)
+stopifnot(grepl("Rebuild", err))
+cat("show_code ok\n")
+
 cat("ALL INSPECT TESTS PASSED\n")

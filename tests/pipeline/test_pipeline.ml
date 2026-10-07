@@ -518,6 +518,97 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   end else begin
     incr fail_count; Printf.printf "  FAILURE nix verbosity args are derived correctly\n"
   end;
+  let source_fields_ok =
+    let raw_expr = Ast.mk_expr (Ast.RawCode { raw_text = "df <- read.csv(\"a.csv\")\nprint(df)"; raw_identifiers = [] }) in
+    let var_expr = Ast.mk_expr (Ast.Var "x") in
+    let p_scripts = [("s", Some "train.R")] in
+    let p_exprs = [("m", raw_expr); ("v", var_expr)] in
+    let fields_of n = Builder_internal.node_source_fields_of p_scripts p_exprs n in
+    let roundtrip fields =
+      match Yojson.Safe.from_string (Serialization.json_dict fields) with
+      | `Assoc pairs -> pairs
+      | _ -> []
+    in
+    fields_of "s" = [("script", "\"train.R\"")]
+    && fields_of "ghost" = []
+    && (match fields_of "m" with
+        | [("source", _)] ->
+            (match roundtrip (fields_of "m") with
+             | [("source", `String s)] -> s = "df <- read.csv(\"a.csv\")\nprint(df)"
+             | _ -> false)
+        | _ -> false)
+    && (match fields_of "v" with
+        | [("source", _)] ->
+            (match roundtrip (fields_of "v") with
+             (* T expressions store T source text, pasteable back. *)
+             | [("source", `String "x")] -> true
+             | _ -> false)
+        | _ -> false)
+  in
+  if source_fields_ok then begin
+    incr pass_count; Printf.printf "  SUCCESS build log source fields record raw code verbatim and script paths\n"
+  end else begin
+    incr fail_count; Printf.printf "  FAILURE build log source fields record raw code verbatim and script paths\n"
+  end;
+  (* Integration: fields drawn from a real evaluated pipeline, as
+     save_build_log sees them. Pure-T nodes only: foreign nodes would
+     trigger a Nix build during evaluation. *)
+  let source_fields_live_ok =
+    let env_live = Packages.init_env () in
+    let (_, env_live) = eval_string_env
+      "p_live = pipeline {\n  a = 10\n  b = a + 1\n  d = [1, 2]\n  e = [k: 1]\n}" env_live in
+    let (v_live, _) = eval_string_env "p_live" env_live in
+    match v_live with
+    | VPipeline pe ->
+        let fields_of n = Builder_internal.node_source_fields_of pe.p_scripts pe.p_exprs n in
+        (* List and dict forms differ between T and Nix syntax (`[1, 2]`
+           vs `[ 1 2 ]`, `[k: 1]` vs `{ k = 1; }`), so exact output here
+           proves T source (not Nix) is stored. *)
+        fields_of "a" = [("source", "\"10\"")]
+        && fields_of "b" = [("source", "\"(a + 1)\"")]
+        && fields_of "d" = [("source", "\"[1, 2]\"")]
+        && fields_of "e" = [("source", "\"[k: 1]\"")]
+    | other ->
+        Printf.printf "    live pipeline eval failed: %s\n" (Ast.Utils.value_to_string other);
+        false
+  in
+  if source_fields_live_ok then begin
+    incr pass_count; Printf.printf "  SUCCESS build log source fields work on evaluated pipelines\n"
+  end else begin
+    incr fail_count; Printf.printf "  FAILURE build log source fields work on evaluated pipelines\n"
+  end;
+  (* The written entry JSON carries the source fields: dropping them from
+     the entry renderer is the most likely regression. *)
+  let log_entry_ok =
+    let render fields =
+      match Yojson.Safe.from_string
+        (Builder_internal.node_log_entry_json ~name:"m" ~artifact_path:"/tmp/a"
+           ~node_hash:"h" ~runtime:"R" ~serializer:"json" ~class_val:"DataFrame"
+           ~deps:[] ~status:"Completed" ~success:"true" ~has_warns:"false"
+           ~node_dur:1.5 ~error_fields:[] ~source_fields:fields) with
+      | `Assoc pairs -> pairs
+      | _ -> []
+    in
+    let has_source = List.assoc_opt "source" (render [("source", "\"x <- 1\"")]) in
+    let has_script = List.assoc_opt "script" (render [("script", "\"train.R\"")]) in
+    let plain = render [] in
+    (* Pin the untouched fields too: this test also covers the refactor. *)
+    let full = render [("source", "\"x <- 1\"")] in
+    has_source = Some (`String "x <- 1")
+    && has_script = Some (`String "train.R")
+    && List.assoc_opt "source" plain = None
+    && List.assoc_opt "script" plain = None
+    && List.assoc_opt "node" plain = Some (`String "m")
+    && List.assoc_opt "runtime" full = Some (`String "R")
+    && List.assoc_opt "serializer" full = Some (`String "json")
+    && List.assoc_opt "hash" full = Some (`String "h")
+    && List.assoc_opt "duration" full = Some (`Float 1.5)
+  in
+  if log_entry_ok then begin
+    incr pass_count; Printf.printf "  SUCCESS build log entries carry source and script fields\n"
+  end else begin
+    incr fail_count; Printf.printf "  FAILURE build log entries carry source and script fields\n"
+  end;
   (* Clean up any stale logs from previous runs to avoid picking up mock logs *)
   let _ = try
     if Sys.file_exists "_pipeline" then

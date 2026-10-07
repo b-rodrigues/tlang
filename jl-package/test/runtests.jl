@@ -342,6 +342,23 @@ end
         @test tlang._loaded_module(:__tlang_fake_mod__) === nothing
         @eval Main __tlang_fake_mod__ = nothing
         @test tlang._loaded_module(:JSON) isa Module
+
+        # show_code returns embedded code verbatim and script paths as-is.
+        _write_log(pipe, [
+            Dict("node" => "emb", "path" => art, "runtime" => "R",
+                "serializer" => "default", "dependencies" => String[],
+                "status" => "Completed", "class" => "String",
+                "source" => "df <- read.csv(\"a.csv\")\nprint(df)"),
+            Dict("node" => "scr", "path" => art, "runtime" => "R",
+                "serializer" => "default", "dependencies" => String[],
+                "status" => "Completed", "class" => "String",
+                "script" => "train.R"),
+            _jl_node("old", art, "text", String[]),
+        ], "build_log_20260114_000000_src.json")
+        @test show_code("emb", pipeline_dir=pipe, which_log="20260114") ==
+            "df <- read.csv(\"a.csv\")\nprint(df)"
+        @test show_code("scr", pipeline_dir=pipe, which_log="20260114") == "train.R"
+        @test_throws ErrorException show_code("old", pipeline_dir=pipe, which_log="20260114")
     end
 end
 

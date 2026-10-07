@@ -225,6 +225,48 @@ error_code <- function(name, which_log = NULL, pipeline_dir = "_pipeline") {
   lookup_node_error(name, which_log, pipeline_dir, "error_code")$code
 }
 
+#' Get a node's source code for copy-paste tweaking
+#'
+#' Foreign code comes back verbatim; T expressions come back as normalized T
+#' source. Nodes built from an exterior `script =` file return the script
+#' path instead (no copy is stored). Older build logs without recorded
+#' source raise an error telling you to rebuild.
+#'
+#' @param name Name of the node to inspect.
+#' @param which_log Optional regular expression used to select a specific build
+#'   log filename. Defaults to the latest available build log.
+#' @param pipeline_dir Path to the pipeline build directory. Defaults to
+#'   `"_pipeline"`.
+#'
+#' @return Character. The node source code, or the script path.
+#'
+#' @examples
+#' \dontrun{
+#'   cat(show_code("model"))
+#' }
+#'
+#' @export
+show_code <- function(name, which_log = NULL, pipeline_dir = "_pipeline") {
+  validate_scalar_string(name, "name")
+  validate_scalar_string(pipeline_dir, "pipeline_dir")
+
+  if (!dir.exists(pipeline_dir)) {
+    stop(sprintf("Pipeline directory `%s` does not exist.", pipeline_dir), call. = FALSE)
+  }
+
+  loaded <- load_inspect_entry(name, which_log, pipeline_dir)
+  entry <- loaded$entry
+  script <- entry[["script"]]
+  if (is.character(script) && length(script) == 1L && !is.na(script) && nzchar(trimws(script))) {
+    return(trimws(script))
+  }
+  source <- entry[["source"]]
+  if (is.character(source) && length(source) == 1L && !is.na(source) && nzchar(trimws(source))) {
+    return(source)
+  }
+  stop(sprintf("No source recorded for node `%s`. Rebuild the pipeline to record it.", name), call. = FALSE)
+}
+
 #' Get a failed node's error context
 #'
 #' Mirrors T's `error_context()`.
