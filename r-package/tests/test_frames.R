@@ -88,4 +88,43 @@ warns <- errs[errs$status == "Warning", ]
 stopifnot(nrow(warns) == 2L && identical(warns$code[[2L]], "NA"))
 cat("collect_exceptions ok\n")
 
+# A soft failure whose message lives only in the VError artifact.
+verror <- file.path(td, "err.json")
+jsonlite::write_json(
+  list(type = "VError", code = "RunError", message = "Error in lm.fit(x, y)",
+    na_count = 0),
+  verror,
+  auto_unbox = TRUE
+)
+jsonlite::write_json(
+  list(nodes = list(
+    list(node = "soft", path = verror, runtime = "R", class = "VError",
+      status = "SoftFailed", dependencies = list())
+  )),
+  file.path(pipe, "build_log_20260104_000000_art.json"),
+  auto_unbox = TRUE
+)
+errs <- collect_exceptions(pipe, "20260104")
+stopifnot(nrow(errs) == 1L && identical(errs$code, "RunError") &&
+  identical(errs$message, "Error in lm.fit(x, y)"))
+cat("artifact message ok\n")
+
+# Warnings sidecar found through a relative log path.
+data_dir <- file.path(td, "data")
+dir.create(data_dir)
+writeBin(charToRaw("x"), file.path(data_dir, "artifact"))
+jsonlite::write_json(list("late column"), file.path(data_dir, "warnings"), auto_unbox = TRUE)
+jsonlite::write_json(
+  list(nodes = list(
+    list(node = "a", path = "data/artifact", runtime = "T", class = "String",
+      status = "Completed", dependencies = list(), warnings = TRUE)
+  )),
+  file.path(pipe, "build_log_20260105_000000_rel.json"),
+  auto_unbox = TRUE
+)
+errs <- collect_exceptions(pipe, "20260105")
+stopifnot(nrow(errs) == 1L && identical(errs$message, "late column"))
+stopifnot(identical(warning_msg("a", "20260105", pipe), "late column"))
+cat("relative warnings ok\n")
+
 cat("ALL FRAME TESTS PASSED\n")

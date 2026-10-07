@@ -1,28 +1,3 @@
-#' Derive a display status from a build-log node entry
-#'
-#' Prefers the `status` string when present, else maps `success`
-#' (logical or `"true"`/`"false"` string) to `"Completed"`/`"SoftFailed"`.
-#'
-#' @param entry List. One node entry from the build log.
-#'
-#' @return Character scalar or NA.
-#'
-#' @keywords internal
-inspect_status_of <- function(entry) {
-  status <- entry$status
-  if (is.character(status) && length(status) == 1L && !is.na(status) && nzchar(trimws(status))) {
-    return(trimws(status))
-  }
-  success <- entry$success
-  if (is.logical(success) && length(success) == 1L && !is.na(success)) {
-    return(if (isTRUE(success)) "Completed" else "SoftFailed")
-  }
-  if (is.character(success) && length(success) == 1L && !is.na(success) && nzchar(trimws(success))) {
-    return(if (tolower(trimws(success)) == "true") "Completed" else "SoftFailed")
-  }
-  NA_character_
-}
-
 #' Return trimmed text or NA for missing values
 #'
 #' @param x Any value from the build log.
@@ -53,7 +28,7 @@ inspect_text_or_na <- function(x) {
 #'   exist. Defaults to `"dag.json"`.
 #'
 #' @return A data frame with columns `node`, `runtime`, `serializer`,
-#'   `depends` (list of character vectors), `status`, `class`, and `path`.
+#'   `dependencies` (list of character vectors), `status`, `class`, and `path`.
 #'
 #' @examples
 #' \dontrun{
@@ -93,7 +68,7 @@ inspect_pipeline <- function(
       node = vapply(normalized, `[[`, character(1), "node_name"),
       runtime = NA_character_,
       serializer = NA_character_,
-      depends = I(lapply(normalized, `[[`, "depends")),
+      dependencies = I(lapply(normalized, `[[`, "depends")),
       status = "unbuilt",
       class = NA_character_,
       path = NA_character_,
@@ -125,7 +100,7 @@ inspect_pipeline <- function(
       deps <- unlist(deps)
     }
     deps <- as.character(deps)
-    deps <- sort(unique(deps[!is.na(deps) & nzchar(deps)]))
+    deps <- sort(unique(deps[!is.na(deps) & nzchar(deps)]), method = "radix")
     artifact <- tryCatch(
       resolve_artifact_path(entry$path, pipeline_dir),
       error = function(err) NA_character_
@@ -134,8 +109,8 @@ inspect_pipeline <- function(
       node = nm,
       runtime = inspect_text_or_na(entry$runtime),
       serializer = inspect_text_or_na(entry$serializer),
-      depends = deps,
-      status = inspect_status_of(entry),
+      dependencies = deps,
+      status = frames_status_of(entry),
       class = inspect_text_or_na(entry$class),
       path = if (length(artifact) == 1L && !is.na(artifact)) artifact else NA_character_
     )
@@ -145,7 +120,7 @@ inspect_pipeline <- function(
     node = vapply(rows, `[[`, character(1), "node"),
     runtime = vapply(rows, `[[`, character(1), "runtime"),
     serializer = vapply(rows, `[[`, character(1), "serializer"),
-    depends = I(lapply(rows, `[[`, "depends")),
+    dependencies = I(lapply(rows, `[[`, "dependencies")),
     status = vapply(rows, `[[`, character(1), "status"),
     class = vapply(rows, `[[`, character(1), "class"),
     path = vapply(rows, `[[`, character(1), "path"),

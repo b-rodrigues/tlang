@@ -83,7 +83,7 @@ Explore one node and read failures (same names as T):
 ```python
 info = tlang.inspect_node("model")  # runtime, deps, children, status, error, warnings
 lin = tlang.lineage("model")  # transitive parents and children
-msg = tlang.error_msg("model")  # error text, like T
+msg = tlang.error_msg("model")  # error text, like T (raises TypeError when healthy)
 msg = tlang.warning_msg("model")  # warnings, like T
 ```
 

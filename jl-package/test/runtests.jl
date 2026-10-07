@@ -213,7 +213,9 @@ end
                 "context" => Dict("runtime" => "R")))
         end
         _write_log(pipe, [
-            _jl_node("bad", verror, "default", String[]),
+            Dict("node" => "bad", "path" => verror, "runtime" => "R",
+                "serializer" => "default", "dependencies" => String[],
+                "status" => "SoftFailed", "class" => "VError"),
             _jl_node("good", art, "text", String[]),
         ], "build_log_20260103_000000_ghi.json")
         err_msg = error_msg("bad", pipeline_dir=pipe, which_log="20260103")
@@ -245,6 +247,101 @@ end
         @test warning_msg("child", pipeline_dir=pipe, which_log="20260104") ==
             "late column. Furthermore, Ancestor node 'parent' reported following warning: stale column"
         @test warning_msg("parent", pipeline_dir=pipe, which_log="20260104") == "stale column"
+
+        # Runtime mismatch hint: foreign bytes fail Serialization.
+        pkl = joinpath(tmp_dir, "m.pkl")
+        open(pkl, "w") do io
+            write(io, UInt8[0x37])
+        end
+        _write_log(pipe, [
+            Dict("node" => "m", "path" => pkl, "runtime" => "Python",
+                "serializer" => "default", "dependencies" => String[],
+                "status" => "Completed", "class" => "Vector"),
+        ], "build_log_20260105_000000_rt.json")
+        err = try
+            read_node("m", pipeline_dir=pipe, which_log="000000_rt")
+            nothing
+        catch e
+            sprint(showerror, e)
+        end
+        @test occursin("built by runtime `Python`", err)
+
+        # Completed status with a VError class still counts as failed.
+        verror2 = joinpath(tmp_dir, "err2.json")
+        open(verror2, "w") do io
+            JSON.print(io, Dict("type" => "VError", "code" => "RunError", "message" => "boom"))
+        end
+        _write_log(pipe, [
+            Dict("node" => "cv", "path" => verror2, "runtime" => "R",
+                "serializer" => "default", "dependencies" => String[],
+                "status" => "Completed", "class" => "VError"),
+        ], "build_log_20260111_000000_cmp.json")
+        @test error_code("cv", pipeline_dir=pipe, which_log="20260111") == "RunError"
+        errs = collect_exceptions(pipeline_dir=pipe, which_log="20260111")
+        @test length(errs) == 1 && errs[1]["code"] == "RunError"
+
+        # SoftFailed with a plain class still reads a VError artifact.
+        _write_log(pipe, [
+            Dict("node" => "sf", "path" => verror2, "runtime" => "R",
+                "serializer" => "default", "dependencies" => String[],
+                "status" => "SoftFailed", "class" => "DataFrame"),
+        ], "build_log_20260111_000000_sf.json")
+        @test error_code("sf", pipeline_dir=pipe, which_log="000000_sf") == "RunError"
+
+        # A healthy node never opens its artifact, even when the file holds
+        # valid VError JSON.
+        _write_log(pipe, [
+            _jl_node("ok", verror2, "default", String[]),
+        ], "build_log_20260111_000000_ok.json")
+        @test_throws ErrorException error_msg("ok", pipeline_dir=pipe, which_log="000000_ok")
+        @test inspect_node("ok", pipeline_dir=pipe, which_log="000000_ok")["error"] === nothing
+
+        # Message without a code keeps the class as the code.
+        plain = joinpath(tmp_dir, "plain.txt"); write(plain, "x")
+        _write_log(pipe, [
+            Dict("node" => "mo", "path" => plain, "runtime" => "T",
+                "serializer" => "text", "dependencies" => String[],
+                "status" => "SoftFailed", "class" => "VDict",
+                "error_message" => "just a message"),
+        ], "build_log_20260111_000000_mo.json")
+        errs = collect_exceptions(pipeline_dir=pipe, which_log="000000_mo")
+        @test length(errs) == 1 && errs[1]["code"] == "VDict"
+
+        # Neighbor order is sorted within each level in every language.
+        _write_log(pipe, [
+            _jl_node("a", art, "text", String[]),
+            _jl_node("z", art, "text", ["a"]),
+            _jl_node("m", art, "text", ["a"]),
+            _jl_node("leaf", art, "text", ["z", "m"]),
+        ], "build_log_20260112_000000_dia.json")
+        lin = lineage("leaf", pipeline_dir=pipe, which_log="20260112", direction="parents")
+        @test lin["parents"] == ["m", "z", "a"]
+        lin = lineage("a", pipeline_dir=pipe, which_log="20260112", direction="children")
+        @test lin["children"] == ["m", "z", "leaf"]
+
+        # Byte order (not locale order) in every language: B < _ < a < a1.
+        _write_log(pipe, [
+            _jl_node("root", art, "text", String[]),
+            _jl_node("a1", art, "text", ["root"]),
+            _jl_node("a", art, "text", ["root"]),
+            _jl_node("_x", art, "text", ["root"]),
+            _jl_node("B", art, "text", ["root"]),
+        ], "build_log_20260112_000000_byte.json")
+        lin = lineage("root", pipeline_dir=pipe, which_log="byte", direction="children")
+        @test lin["children"] == ["B", "_x", "a", "a1"]
+
+        # A healthy node with a dangling artifact path never opens the file.
+        _write_log(pipe, [
+            _jl_node("dang", "/tmp/definitely-missing-artifact", "text", String[]),
+        ], "build_log_20260113_000000_dng.json")
+        @test_throws ErrorException error_msg("dang", pipeline_dir=pipe, which_log="20260113")
+        @test inspect_node("dang", pipeline_dir=pipe, which_log="20260113")["error"] === nothing
+
+        # _loaded_module ignores non-module bindings in Main.
+        @eval Main __tlang_fake_mod__ = 42
+        @test tlang._loaded_module(:__tlang_fake_mod__) === nothing
+        @eval Main __tlang_fake_mod__ = nothing
+        @test tlang._loaded_module(:JSON) isa Module
     end
 end
 
@@ -333,11 +430,41 @@ end
         bad = only([r for r in errs if r["node"] == "bad"])
         @test (bad["status"], bad["code"], bad["message"]) == ("Error", "NixError", "boom")
 
-        open(joinpath(pipe, "build_log_20260104_000000_lll.json"), "w") do io
+        # A soft failure whose message lives only in the VError artifact.
+        verror = joinpath(tmp_dir, "err.json")
+        open(verror, "w") do io
+            JSON.print(io, Dict("type" => "VError", "code" => "RunError",
+                "message" => "Error in lm.fit(x, y)"))
+        end
+        _write_log(pipe, [
+            Dict("node" => "soft", "path" => verror, "runtime" => "R",
+                "serializer" => "default", "dependencies" => String[],
+                "status" => "SoftFailed", "class" => "VError"),
+        ], "build_log_20260105_000000_art.json")
+        errs = collect_exceptions(pipeline_dir=pipe, which_log="20260105")
+        @test length(errs) == 1
+        @test (errs[1]["node"], errs[1]["code"], errs[1]["message"]) ==
+            ("soft", "RunError", "Error in lm.fit(x, y)")
+
+        # Warnings sidecar found through a relative log path.
+        mkpath(joinpath(tmp_dir, "data"))
+        write(joinpath(tmp_dir, "data", "artifact"), "x")
+        open(joinpath(tmp_dir, "data", "warnings"), "w") do io
+            JSON.print(io, ["late column"])
+        end
+        _write_log(pipe, [
+            Dict("node" => "a", "path" => "data/artifact", "runtime" => "T",
+                "serializer" => "text", "dependencies" => String[],
+                "status" => "Completed", "class" => "String", "warnings" => true),
+        ], "build_log_20260106_000000_rel.json")
+        errs = collect_exceptions(pipeline_dir=pipe, which_log="20260106")
+        @test length(errs) == 1 && errs[1]["message"] == "late column"
+
+        open(joinpath(pipe, "build_log_20260107_000000_lll.json"), "w") do io
             JSON.print(io, Dict("pipeline" => "demo", "nodes" => []))
         end
         logs = list_logs(pipeline_dir=pipe)
-        @test logs[1]["filename"] == "build_log_20260104_000000_lll.json"
+        @test logs[1]["filename"] == "build_log_20260107_000000_lll.json"
         @test logs[1]["pipeline"] == "demo"
     end
 end

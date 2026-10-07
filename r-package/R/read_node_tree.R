@@ -23,7 +23,7 @@ build_log_deps_map <- function(nodes) {
     }
     deps <- as.character(deps)
     deps <- deps[!is.na(deps) & nzchar(deps)]
-    deps_map[[nm]] <- unique(sort(deps))
+    deps_map[[nm]] <- unique(sort(deps, method = "radix"))
   }
   deps_map
 }
@@ -66,7 +66,9 @@ closure_nodes <- function(deps_map, name, include) {
     if (include %in% c("parents", "both")) {
       neighbors <- c(neighbors, deps_map[[current]])
     }
-    for (nb in neighbors) {
+    # Sorted within each level: byte order matches Python and Julia,
+    # while nearest-first level order is kept.
+    for (nb in sort(neighbors, method = "radix")) {
       if (!(nb %in% seen)) {
         seen <- c(seen, nb)
         queue <- c(queue, nb)
@@ -79,7 +81,7 @@ closure_nodes <- function(deps_map, name, include) {
     stop(
       sprintf(
         "Build log references unknown dependencies: %s.",
-        paste(sort(missing), collapse = ", ")
+        paste(sort(missing, method = "radix"), collapse = ", ")
       ),
       call. = FALSE
     )

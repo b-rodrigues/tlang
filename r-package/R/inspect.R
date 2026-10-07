@@ -55,32 +55,75 @@ verror_from_file <- function(artifact_path) {
   )
 }
 
+#' Whether the log entry shows failure (or shows nothing at all)
+#'
+#' Positively successful nodes skip the artifact read, so large artifacts are
+#' never loaded just to check for errors.
+#'
+#' @param entry List. One node entry from the build log.
+#'
+#' @return Logical scalar.
+#'
+#' @keywords internal
+looks_failed <- function(entry) {
+  # A VError/Error class always counts as failed, even when status says
+  # otherwise: T soft errors are values, so a stored error can sit beside
+  # any status string. Any other class falls through to status below.
+  class_val <- entry$class
+  if (is.character(class_val) && length(class_val) == 1L && !is.na(class_val) &&
+      nzchar(trimws(class_val)) && trimws(class_val) %in% c("VError", "Error")) {
+    return(TRUE)
+  }
+  status <- entry$status
+  if (is.character(status) && length(status) == 1L && !is.na(status) && nzchar(trimws(status))) {
+    return(trimws(status) %in% c("Errored", "SoftFailed"))
+  }
+  success <- entry$success
+  if (is.logical(success) && length(success) == 1L && !is.na(success)) {
+    return(!isTRUE(success))
+  }
+  if (is.character(success) && length(success) == 1L && !is.na(success) && nzchar(trimws(success))) {
+    return(tolower(trimws(success)) != "true")
+  }
+  TRUE
+}
+
 #' Build a node error from an already-loaded entry (no log re-read)
 #'
 #' @param entry List. One node entry from the build log.
 #' @param pipeline_dir Character. Pipeline directory.
+#' @param default_code Character or NULL. Fallback code when the entry
+#'   carries a message but no code.
 #'
 #' @return Named list or NULL when the node has no error.
 #'
 #' @keywords internal
-error_of_entry <- function(entry, pipeline_dir) {
-  artifact_path <- tryCatch(
-    resolve_artifact_path(entry$path, pipeline_dir),
-    error = function(err) NULL
-  )
-  if (!is.null(artifact_path)) {
-    verror <- verror_from_file(artifact_path)
-    if (!is.null(verror)) {
-      return(verror)
-    }
-  }
+error_of_entry <- function(entry, pipeline_dir, default_code = NULL) {
   code <- entry$error_code
   message <- entry$error_message
   code_ok <- is.character(code) && length(code) == 1L && !is.na(code) && nzchar(code)
   msg_ok <- is.character(message) && length(message) == 1L && !is.na(message) && nzchar(message)
+  if (!looks_failed(entry)) {
+    if (!code_ok && !msg_ok) {
+      return(NULL)
+    }
+  } else {
+    artifact_path <- tryCatch(
+      resolve_artifact_path(entry$path, pipeline_dir),
+      error = function(err) NULL
+    )
+    if (!is.null(artifact_path)) {
+      verror <- verror_from_file(artifact_path)
+      if (!is.null(verror)) {
+        return(verror)
+      }
+    }
+  }
   if (code_ok || msg_ok) {
+    fallback <- if (is.character(default_code) && length(default_code) == 1L &&
+      !is.na(default_code) && nzchar(default_code)) default_code else "Error"
     return(list(
-      code = if (code_ok) code else "Error",
+      code = if (code_ok) code else fallback,
       message = if (msg_ok) message else "",
       context = NULL,
       location = NULL
@@ -253,7 +296,7 @@ warning_msg <- function(name, which_log = NULL, pipeline_dir = "_pipeline") {
   }
 
   collect <- function(node_name, prefix) {
-    rows <- frames_warning_rows(node_name, entries[[node_name]])
+    rows <- frames_warning_rows(node_name, entries[[node_name]], pipeline_dir)
     vapply(rows, function(row) {
       if (nzchar(prefix)) sprintf("%s: %s", prefix, row$message) else row$message
     }, character(1))
@@ -305,14 +348,14 @@ inspect_node <- function(name, which_log = NULL, pipeline_dir = "_pipeline") {
   } else if (is.list(deps)) {
     deps <- unlist(deps)
   }
-  deps <- sort(unique(as.character(deps)))
+  deps <- sort(unique(as.character(deps)), method = "radix")
   deps <- deps[!is.na(deps) & nzchar(deps)]
 
   children <- sort(names(deps_map)[vapply(
     deps_map, function(ds) name %in% ds, logical(1)
-  )])
+  )], method = "radix")
 
-  warn_rows <- frames_warning_rows(name, entry)
+  warn_rows <- frames_warning_rows(name, entry, pipeline_dir)
   warnings <- lapply(warn_rows, function(row) list(code = row$code, message = row$message))
 
   list(

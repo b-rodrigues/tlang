@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
+from ._build_log import _text_or_none
+from .frames import _status_of
+from .pipeline_nodes import _validate_entry
 from .read_node import (
     _list_build_logs,
     _pipeline_path,
@@ -13,35 +17,11 @@ from .read_node import (
 )
 
 
-def _text_or_none(value: Any) -> str | None:
-    """Return stripped text or None for missing values."""
-    if isinstance(value, str) and value.strip():
-        return value.strip()
-    return None
-
-
-def _status_of(entry: dict[str, Any]) -> str | None:
-    """Derive a display status from a build-log node entry.
-
-    Prefers the ``status`` string when present, else maps ``success``
-    (bool or "true"/"false" string) to ``Completed``/``SoftFailed``.
-    """
-    status = entry.get("status")
-    if isinstance(status, str) and status.strip():
-        return status.strip()
-    success = entry.get("success")
-    if isinstance(success, bool):
-        return "Completed" if success else "SoftFailed"
-    if isinstance(success, str) and success.strip():
-        return "Completed" if success.strip().lower() == "true" else "SoftFailed"
-    return None
-
-
 def _row_from_entry(entry: dict[str, Any], pipeline_path: Path) -> dict[str, Any]:
     """Build one inspect row from a build-log node entry."""
     name = entry.get("node")
     deps = entry.get("dependencies", [])
-    if deps is None:
+    if not isinstance(deps, list):
         deps = []
     clean_deps = sorted({d for d in deps if isinstance(d, str) and d.strip()})
     try:
@@ -61,13 +41,9 @@ def _row_from_entry(entry: dict[str, Any], pipeline_path: Path) -> dict[str, Any
 
 def _rows_from_dag(pipeline_path: Path, dag_file: str) -> list[dict[str, Any]]:
     """Build unbuilt rows from the static DAG file."""
-    from .pipeline_nodes import _validate_entry
-
     dag_path = pipeline_path / dag_file
     if not dag_path.is_file():
         raise FileNotFoundError(f"DAG file `{dag_path}` does not exist.")
-    import json
-
     try:
         with dag_path.open("r", encoding="utf-8") as handle:
             data = json.load(handle)

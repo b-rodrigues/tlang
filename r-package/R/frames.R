@@ -73,23 +73,31 @@ frames_duration_of <- function(entry) {
 
 #' Read warning rows from a per-artifact `warnings` sidecar
 #'
+#' The logged path is resolved against `pipeline_dir` first, so relative log
+#' paths still find their sidecar.
+#'
 #' @param name Character. Node name.
 #' @param entry List. One node entry from the build log.
+#' @param pipeline_dir Character. Pipeline directory for path resolution.
 #'
 #' @return List of warning row lists.
 #'
 #' @keywords internal
-frames_warning_rows <- function(name, entry) {
+frames_warning_rows <- function(name, entry, pipeline_dir) {
   flag <- entry$warnings
   has_warnings <- isTRUE(flag) ||
     (is.character(flag) && length(flag) == 1L && !is.na(flag) && tolower(trimws(flag)) == "true")
   if (!has_warnings) {
     return(list())
   }
-  if (!is.character(entry$path) || length(entry$path) != 1L || is.na(entry$path) || !nzchar(entry$path)) {
+  artifact_path <- tryCatch(
+    resolve_artifact_path(entry$path, pipeline_dir),
+    error = function(err) NULL
+  )
+  if (is.null(artifact_path)) {
     return(list())
   }
-  sidecar <- file.path(dirname(entry$path), "warnings")
+  sidecar <- file.path(dirname(artifact_path), "warnings")
   if (!file.exists(sidecar)) {
     return(list())
   }
@@ -180,10 +188,10 @@ list_logs <- function(pipeline_dir = "_pipeline") {
 #' Each row has `name`, `status`, `duration`, and `path`. Mirrors T's
 #' `build_log_to_frame()`.
 #'
-#' @param which_log Optional regular expression used to select a specific build
-#'   log filename. Defaults to the latest available build log.
 #' @param pipeline_dir Path to the pipeline build directory. Defaults to
 #'   `"_pipeline"`.
+#' @param which_log Optional regular expression used to select a specific build
+#'   log filename. Defaults to the latest available build log.
 #'
 #' @return A data frame with columns `name`, `status`, `duration`, and `path`.
 #'
@@ -194,7 +202,7 @@ list_logs <- function(pipeline_dir = "_pipeline") {
 #' }
 #'
 #' @export
-build_log_to_frame <- function(which_log = NULL, pipeline_dir = "_pipeline") {
+build_log_to_frame <- function(pipeline_dir = "_pipeline", which_log = NULL) {
   validate_scalar_string(pipeline_dir, "pipeline_dir")
 
   if (!dir.exists(pipeline_dir)) {
@@ -240,14 +248,15 @@ build_log_to_frame <- function(which_log = NULL, pipeline_dir = "_pipeline") {
 #' Gather error and warning rows from one build log
 #'
 #' Each row has `node`, `status` (`Error`/`Warning`), `code`, and `message`.
-#' Error rows come from `Errored` nodes (`error_code`/`error_message` fields)
-#' and soft-failed nodes. Warning rows come from the per-artifact `warnings`
-#' sidecar. Mirrors T's `collect_exceptions()`.
+#' Soft-failed nodes read the VError artifact first, so a message that lives
+#' only in the artifact (not the log) is still reported. Warning rows come
+#' from the per-artifact `warnings` sidecar. Mirrors T's
+#' `collect_exceptions()`.
 #'
-#' @param which_log Optional regular expression used to select a specific build
-#'   log filename. Defaults to the latest available build log.
 #' @param pipeline_dir Path to the pipeline build directory. Defaults to
 #'   `"_pipeline"`.
+#' @param which_log Optional regular expression used to select a specific build
+#'   log filename. Defaults to the latest available build log.
 #'
 #' @return A data frame with columns `node`, `status`, `code`, and `message`.
 #'
@@ -258,7 +267,7 @@ build_log_to_frame <- function(which_log = NULL, pipeline_dir = "_pipeline") {
 #' }
 #'
 #' @export
-collect_exceptions <- function(which_log = NULL, pipeline_dir = "_pipeline") {
+collect_exceptions <- function(pipeline_dir = "_pipeline", which_log = NULL) {
   validate_scalar_string(pipeline_dir, "pipeline_dir")
 
   if (!dir.exists(pipeline_dir)) {
@@ -294,16 +303,24 @@ collect_exceptions <- function(which_log = NULL, pipeline_dir = "_pipeline") {
         message = if (nzchar(msg)) msg else "Nix build failed."
       )
     } else if (identical(status, "SoftFailed") || class_val %in% c("VError", "Error")) {
-      code <- entry$error_code
-      msg <- frames_clean_message(entry$error_message)
+      err <- error_of_entry(entry, pipeline_dir,
+        default_code = if (nzchar(class_val)) class_val else NULL)
+      if (is.null(err)) {
+        code <- class_val
+        msg <- ""
+      } else {
+        code <- err$code
+        msg <- err$message
+      }
+      clean <- frames_clean_message(msg)
       rows[[length(rows) + 1L]] <- list(
         node = nm,
         status = "Error",
-        code = if (is.character(code) && length(code) == 1L && !is.na(code) && nzchar(code)) code else if (nzchar(class_val)) class_val else "Error",
-        message = if (nzchar(msg)) msg else "Node failed with a soft error."
+        code = if (nzchar(code)) code else if (nzchar(class_val)) class_val else "Error",
+        message = if (nzchar(clean)) clean else "Node failed with a soft error."
       )
     }
-    rows <- c(rows, frames_warning_rows(nm, entry))
+    rows <- c(rows, frames_warning_rows(nm, entry, pipeline_dir))
   }
 
   data.frame(

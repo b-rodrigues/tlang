@@ -316,7 +316,9 @@ def _normalize_serializer(value: Any) -> str:
     return text or "default"
 
 
-def _auto_deserialize(serializer: Any, name: str, artifact_path: Path) -> Any:
+def _auto_deserialize(
+    serializer: Any, name: str, artifact_path: Path, runtime: Any = None
+) -> Any:
     """Deserialize using the serializer recorded in the build log.
 
     Picks the Python reader from the ``serializer`` field so callers do not
@@ -330,9 +332,15 @@ def _auto_deserialize(serializer: Any, name: str, artifact_path: Path) -> Any:
         try:
             return deserialize(artifact_path)
         except Exception as err:  # noqa: BLE001
+            hint = ""
+            if isinstance(runtime, str) and runtime.strip() and runtime.strip() != "Python":
+                hint = (
+                    f" Node `{name}` was built by runtime `{runtime.strip()}`; "
+                    f"pass a custom `deserializer` or use `return_path=True`."
+                )
             raise RuntimeError(
                 f"Failed to deserialize node `{name}` (serializer `^{fmt}`) "
-                f"from `{artifact_path}`: {err}"
+                f"from `{artifact_path}`: {err}{hint}"
             ) from err
 
     if fmt == "json":
@@ -460,7 +468,12 @@ def _read_node_entry(
         return str(artifact_path)
 
     if deserializer is None:
-        return _auto_deserialize(node_entry.get("serializer", "default"), name, artifact_path)
+        return _auto_deserialize(
+            node_entry.get("serializer", "default"),
+            name,
+            artifact_path,
+            node_entry.get("runtime"),
+        )
 
     try:
         return deserializer(artifact_path)

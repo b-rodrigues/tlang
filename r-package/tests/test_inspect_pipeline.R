@@ -45,7 +45,7 @@ jsonlite::write_json(
 tbl <- inspect_pipeline(pipeline_dir = pipe)
 stopifnot(identical(tbl$node, c("a", "b", "c", "d")))
 stopifnot(identical(tbl$status, c("Completed", "Completed", "SoftFailed", NA_character_)))
-stopifnot(identical(tbl$depends[[2L]], "a"))
+stopifnot(identical(tbl$dependencies[[2L]], "a"))
 stopifnot(identical(tbl$runtime[[1L]], "T"))
 stopifnot(grepl("a.txt$", tbl$path[[1L]]))
 cat("build status ok\n")
@@ -77,7 +77,7 @@ jsonlite::write_json(
 fallback <- inspect_pipeline(pipeline_dir = pipe2)
 stopifnot(identical(fallback$node, c("a", "b")))
 stopifnot(all(fallback$status == "unbuilt"))
-stopifnot(identical(fallback$depends[[2L]], "a"))
+stopifnot(identical(fallback$dependencies[[2L]], "a"))
 cat("dag fallback ok\n")
 
-cat("ALL INSPECT TESTS PASSED\n")
+cat("ALL INSPECT PIPELINE TESTS PASSED\n")

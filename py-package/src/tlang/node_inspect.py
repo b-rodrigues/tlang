@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
-from .frames import _warning_rows
+from ._build_log import _error_of_entry, _text_or_none, _warning_rows
+from .frames import _status_of
 from .read_node import (
     _find_node_entry,
     _list_build_logs,
@@ -49,56 +49,6 @@ def _entries_map(nodes: list[Any]) -> dict[str, dict[str, Any]]:
     return entries
 
 
-def _text_or_none(value: Any) -> str | None:
-    """Return stripped text or None for missing values."""
-    if isinstance(value, str) and value.strip():
-        return value.strip()
-    return None
-
-
-def _verror_from_file(artifact: Path) -> dict[str, Any] | None:
-    """Parse a VError JSON artifact, or None when it is not one."""
-    try:
-        with artifact.open("r", encoding="utf-8") as handle:
-            payload = json.load(handle)
-    except (OSError, ValueError, UnicodeDecodeError):
-        return None
-    if not isinstance(payload, dict) or payload.get("type") != "VError":
-        return None
-    code = payload.get("code")
-    message = payload.get("message")
-    context = payload.get("context")
-    location = payload.get("location")
-    return {
-        "code": code if isinstance(code, str) and code.strip() else "RuntimeError",
-        "message": message if isinstance(message, str) else "Unknown error",
-        "context": context if isinstance(context, dict) else None,
-        "location": location if isinstance(location, dict) else None,
-    }
-
-
-def _error_of_entry(entry: dict[str, Any], pipeline_path: Path) -> dict[str, Any] | None:
-    """Build a node error from an already-loaded entry (no log re-read)."""
-    try:
-        artifact = _resolve_artifact_path(entry.get("path"), pipeline_path)
-    except ValueError:
-        artifact = None
-    if artifact is not None:
-        verror = _verror_from_file(artifact)
-        if verror is not None:
-            return verror
-    code = _text_or_none(entry.get("error_code"))
-    message = _text_or_none(entry.get("error_message"))
-    if code is not None or message is not None:
-        return {
-            "code": code or "Error",
-            "message": message or "",
-            "context": None,
-            "location": None,
-        }
-    return None
-
-
 def _require_error(
     name: str,
     which_log: str | None,
@@ -130,7 +80,9 @@ def error_msg(
 
     Foreign-runtime failures (R, Python, Julia, shell) are stored as VError
     JSON, so an R error message reads the same from Python and vice versa.
-    Mirrors T's ``error_msg()``.
+    Mirrors T's ``error_msg()``, including raising ``TypeError`` when the
+    node is healthy (Python callers should check ``inspect_node()`` first
+    when a healthy node is possible).
     """
     _validate_non_empty_string(name, "name")
     pipeline_path = _check_dir(pipeline_dir)
@@ -182,10 +134,10 @@ def warning_msg(
     _find_node_entry(nodes, name, _log_file)  # validates the name
     entries = _entries_map(nodes)
     messages: list[str] = []
-    for row in _warning_rows(name, entries[name]):
+    for row in _warning_rows(name, entries[name], pipeline_path):
         messages.append(row["message"])
     for parent in _closure(deps_map, name, "parents")[1:]:
-        for row in _warning_rows(parent, entries[parent]):
+        for row in _warning_rows(parent, entries[parent], pipeline_path):
             messages.append(f"Ancestor node '{parent}' reported following warning: {row['message']}")
     return ". Furthermore, ".join(messages)
 
@@ -226,17 +178,9 @@ def inspect_node(
         path = str(_resolve_artifact_path(entry.get("path"), pipeline_path))
     except ValueError:
         path = None
-    status = entry.get("status")
-    status = status.strip() if isinstance(status, str) and status.strip() else None
-    if status is None:
-        success = entry.get("success")
-        if isinstance(success, bool):
-            status = "Completed" if success else "SoftFailed"
-        elif isinstance(success, str) and success.strip():
-            status = "Completed" if success.strip().lower() == "true" else "SoftFailed"
     warnings = [
         {"code": row["code"], "message": row["message"]}
-        for row in _warning_rows(name, entry)
+        for row in _warning_rows(name, entry, pipeline_path)
     ]
     return {
         "name": name,
@@ -248,7 +192,7 @@ def inspect_node(
         if isinstance(entry.get("dependencies"), list)
         else [],
         "children": _direct_children(deps_map, name),
-        "status": status,
+        "status": _status_of(entry),
         "class": _text_or_none(entry.get("class")),
         "path": path,
         "error": _error_of_entry(entry, pipeline_path),

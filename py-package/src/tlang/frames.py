@@ -5,12 +5,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from ._build_log import _error_of_entry, _warning_rows
 from .read_node import (
     _list_build_logs,
     _pipeline_path,
     _read_build_log,
     _select_build_log,
-    _validate_non_empty_string,
 )
 
 
@@ -54,42 +54,6 @@ def _duration_of(entry: dict[str, Any]) -> float | None:
     return None
 
 
-def _warning_rows(name: str, entry: dict[str, Any]) -> list[dict[str, Any]]:
-    """Read per-node warning rows from the artifact's `warnings` sidecar."""
-    warnings_flag = entry.get("warnings")
-    if isinstance(warnings_flag, str):
-        has_warnings = warnings_flag.strip().lower() == "true"
-    else:
-        has_warnings = bool(warnings_flag) if isinstance(warnings_flag, bool) else False
-    if not has_warnings:
-        return []
-    path = entry.get("path")
-    if not isinstance(path, str) or not path.strip():
-        return []
-    sidecar = Path(path).parent / "warnings"
-    try:
-        items = json.loads(sidecar.read_text(encoding="utf-8"))
-    except (OSError, ValueError, UnicodeDecodeError):
-        return []
-    if not isinstance(items, list):
-        return []
-    rows: list[dict[str, Any]] = []
-    for item in items:
-        if isinstance(item, str):
-            rows.append({"node": name, "status": "Warning", "code": "Generic", "message": item})
-        elif isinstance(item, dict):
-            kind = item.get("kind")
-            rows.append(
-                {
-                    "node": name,
-                    "status": "Warning",
-                    "code": kind if isinstance(kind, str) and kind.strip() else "Generic",
-                    "message": item.get("message") if isinstance(item.get("message"), str) else "",
-                }
-            )
-    return rows
-
-
 def list_logs(pipeline_dir: str | Path = "_pipeline") -> list[dict[str, Any]]:
     """List build logs in the pipeline directory, newest first.
 
@@ -128,8 +92,8 @@ def list_logs(pipeline_dir: str | Path = "_pipeline") -> list[dict[str, Any]]:
 
 
 def build_log_to_frame(
-    which_log: str | None = None,
     pipeline_dir: str | Path = "_pipeline",
+    which_log: str | None = None,
 ) -> list[dict[str, Any]]:
     """Tabulate one build log as per-node rows.
 
@@ -165,15 +129,15 @@ def build_log_to_frame(
 
 
 def collect_exceptions(
-    which_log: str | None = None,
     pipeline_dir: str | Path = "_pipeline",
+    which_log: str | None = None,
 ) -> list[dict[str, Any]]:
     """Gather error and warning rows from one build log.
 
     Each row has ``node``, ``status`` (``Error``/``Warning``), ``code``, and
-    ``message``. Error rows come from ``Errored`` nodes (``error_code``/
-    ``error_message`` fields) and soft-failed nodes. Warning rows come from
-    the per-artifact ``warnings`` sidecar. Mirrors T's
+    ``message``. Soft-failed nodes read the VError artifact first, so a
+    message that lives only in the artifact (not the log) is still reported.
+    Warning rows come from the per-artifact ``warnings`` sidecar. Mirrors T's
     ``collect_exceptions()``.
     """
     pipeline_path = _pipeline_path(pipeline_dir)
@@ -207,20 +171,21 @@ def collect_exceptions(
                 }
             )
         elif status == "SoftFailed" or class_val in {"VError", "Error"}:
-            code = entry.get("error_code")
-            message = entry.get("error_message")
+            err = _error_of_entry(
+                entry, pipeline_path, default_code=class_val or None
+            )
+            if err is None:
+                code, message = class_val or "Error", "Node failed with a soft error."
+            else:
+                code, message = err["code"], err["message"]
             rows.append(
                 {
                     "node": name,
                     "status": "Error",
-                    "code": (
-                        code
-                        if isinstance(code, str) and code.strip()
-                        else (class_val or "Error")
-                    ),
+                    "code": code,
                     "message": _clean_message(message)
                     or "Node failed with a soft error.",
                 }
             )
-        rows.extend(_warning_rows(name, entry))
+        rows.extend(_warning_rows(name, entry, pipeline_path))
     return rows

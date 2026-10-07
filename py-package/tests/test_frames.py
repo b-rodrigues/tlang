@@ -117,6 +117,47 @@ class FramesTests(unittest.TestCase):
             self.assertEqual(len(warns), 2)
             self.assertEqual(warns[1]["code"], "NA")
 
+    def test_collect_message_from_artifact(self) -> None:
+        # A soft failure whose message lives only in the VError artifact
+        # (no error_message in the log) still reports the real message.
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            pipe = tmp_path / "_pipeline"
+            verror = tmp_path / "err.json"
+            verror.write_text(
+                json.dumps(
+                    {
+                        "type": "VError",
+                        "code": "RunError",
+                        "message": "Error in lm.fit(x, y)",
+                        "na_count": 0,
+                    }
+                )
+            )
+            _write_log(
+                pipe,
+                {
+                    "nodes": [
+                        {
+                            "node": "soft",
+                            "path": str(verror),
+                            "runtime": "R",
+                            "serializer": "default",
+                            "dependencies": [],
+                            "status": "SoftFailed",
+                            "class": "VError",
+                        }
+                    ]
+                },
+                "build_log_20260101_000000_abc.json",
+            )
+            rows = collect_exceptions(pipeline_dir=pipe)
+            self.assertEqual(len(rows), 1)
+            self.assertEqual(
+                (rows[0]["node"], rows[0]["code"], rows[0]["message"]),
+                ("soft", "RunError", "Error in lm.fit(x, y)"),
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

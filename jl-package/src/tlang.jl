@@ -260,44 +260,67 @@ Supported mappings (each names its Julia package when missing):
 `^json` returns plain dicts and lists. `^text` returns file contents verbatim
 (bytes decoded as UTF-8), matching Python and R.
 """
-function _auto_deserializer(serializer::String, artifact_path::String)
+function _loaded_module(sym::Symbol)
+    if isdefined(Main, sym)
+        v = getfield(Main, sym)
+        v isa Module && return v
+    end
+    for mod in values(Base.loaded_modules)
+        if mod isa Module && nameof(mod) === sym
+            return mod
+        end
+    end
+    return nothing
+end
+
+function _auto_deserializer(serializer::String, artifact_path::String, runtime::String = "")
     s = _normalize_serializer(serializer)
     if s in ("default", "tlang", "tobj", "serialize")
-        return Serialization.deserialize(artifact_path)
+        try
+            return Serialization.deserialize(artifact_path)
+        catch e
+            e isa InterruptException && rethrow()
+            hint = if !isempty(strip(runtime)) && strip(runtime) != "Julia"
+                " Node was built by runtime `$(strip(runtime))`; pass a custom `deserializer` or use `return_path=true`."
+            else
+                ""
+            end
+            error("Deserializer for serializer `^$s` failed: $(sprint(showerror, e))$hint")
+        end
     elseif s == "json"
         return JSON.parsefile(artifact_path)
     elseif s == "csv"
         # Try CSV.jl + DataFrames.jl; give a clear message if they are not loaded.
-        if !isdefined(Main, :CSV) || !isdefined(Main, :DataFrames)
+        csv_mod = _loaded_module(:CSV)
+        df_mod = _loaded_module(:DataFrames)
+        if isnothing(csv_mod) || isnothing(df_mod)
             error(
                 "Node artifact uses serializer `^csv` but `CSV` and `DataFrames` are not loaded. " *
                 "Run `using CSV, DataFrames` first (declare `CSV`, `DataFrames` in `tproject.toml`, run `t update`, re-enter `nix develop`), then call read_node() again. " *
                 "Or pass `deserializer = p -> CSV.read(p, DataFrame)`."
             )
         end
-        csv_mod = getfield(Main, :CSV)
-        df_mod  = getfield(Main, :DataFrames)
         return Base.invokelatest(getfield(csv_mod, :read), artifact_path, getfield(df_mod, :DataFrame))
     elseif s in ("ipc", "arrow")
-        if !isdefined(Main, :Arrow) || !isdefined(Main, :DataFrames)
+        arrow_mod = _loaded_module(:Arrow)
+        df_mod = _loaded_module(:DataFrames)
+        if isnothing(arrow_mod) || isnothing(df_mod)
             error(
                 "Node artifact uses serializer `^ipc` but `Arrow` and `DataFrames` are not loaded. " *
                 "Run `using Arrow, DataFrames` first (declare `Arrow`, `DataFrames` in `tproject.toml`, run `t update`, re-enter `nix develop`), then call read_node() again."
             )
         end
-        arrow_mod = getfield(Main, :Arrow)
-        df_mod = getfield(Main, :DataFrames)
         tbl = Base.invokelatest(getfield(arrow_mod, :Table), artifact_path)
         return Base.invokelatest(getfield(df_mod, :DataFrame), tbl)
     elseif s == "parquet"
-        if !isdefined(Main, :Parquet2) || !isdefined(Main, :DataFrames)
+        pq_mod = _loaded_module(:Parquet2)
+        df_mod = _loaded_module(:DataFrames)
+        if isnothing(pq_mod) || isnothing(df_mod)
             error(
                 "Node artifact uses serializer `^parquet` but `Parquet2` and `DataFrames` are not loaded. " *
                 "Run `using Parquet2, DataFrames` first (declare `Parquet2`, `DataFrames` in `tproject.toml`, run `t update`, re-enter `nix develop`), then call read_node() again."
             )
         end
-        pq_mod = getfield(Main, :Parquet2)
-        df_mod = getfield(Main, :DataFrames)
         return Base.invokelatest(getfield(df_mod, :DataFrame), Base.invokelatest(getfield(pq_mod, :readfile), artifact_path))
     elseif s in ("text", "txt")
         return read(artifact_path, String)
@@ -343,12 +366,16 @@ function _read_node_entry(node_entry, name::String, pipeline_dir::String, deseri
             (path) -> deserializer(path)
         else
             serializer_name = get(node_entry, "serializer", "default")
-            (path) -> _auto_deserializer(serializer_name isa String ? serializer_name : "default", path)
+            runtime_name = get(node_entry, "runtime", "")
+            (path) -> _auto_deserializer(
+                serializer_name isa String ? serializer_name : "default", path,
+                runtime_name isa String ? runtime_name : "")
         end
     try
         return actual_deserializer(artifact_path)
     catch e
-        error("Failed to deserialize node `$name` from `$artifact_path`: $e")
+        e isa InterruptException && rethrow()
+        error("Failed to deserialize node `$name` from `$artifact_path`: $(sprint(showerror, e))")
     end
 end
 
@@ -480,6 +507,9 @@ function _closure_nodes(deps::Dict{String, Vector{String}}, name::String, includ
         if include in ("parents", "both")
             append!(neighbors, get(deps, current, String[]))
         end
+        # Sort within each level so child order is deterministic instead of
+        # following Dict iteration order.
+        sort!(neighbors)
         for nb in neighbors
             if !(nb in seen_set)
                 push!(seen_set, nb)
@@ -602,28 +632,6 @@ function _inspect_text_or_nothing(value)
 end
 
 """
-    _inspect_status_of(entry)
-
-Derive a display status from a build-log node entry. Prefers the `status`
-string when present, else maps `success` (bool or "true"/"false" string) to
-`Completed`/`SoftFailed`.
-"""
-function _inspect_status_of(entry)
-    status = get(entry, "status", nothing)
-    if status isa String && !isempty(strip(status))
-        return strip(status)
-    end
-    success = get(entry, "success", nothing)
-    if success isa Bool
-        return success ? "Completed" : "SoftFailed"
-    end
-    if success isa String && !isempty(strip(success))
-        return lowercase(strip(success)) == "true" ? "Completed" : "SoftFailed"
-    end
-    return nothing
-end
-
-"""
     inspect_pipeline(; pipeline_dir="_pipeline", which_log=nothing, dag_file="dag.json")
 
 Inspect pipeline nodes and their latest build status.
@@ -712,7 +720,7 @@ function inspect_pipeline(;
             "runtime" => _inspect_text_or_nothing(get(entry, "runtime", nothing)),
             "serializer" => _inspect_text_or_nothing(get(entry, "serializer", nothing)),
             "dependencies" => unique(sort(clean)),
-            "status" => _inspect_status_of(entry),
+            "status" => _frames_status_of(entry),
             "class" => _inspect_text_or_nothing(get(entry, "class", nothing)),
             "path" => artifact,
         ))
@@ -777,12 +785,14 @@ function _frames_duration_of(entry)
 end
 
 """
-    _frames_warning_rows(name, entry)
+    _frames_warning_rows(name, entry, pipeline_dir)
 
 Read warning rows from the per-artifact `warnings` sidecar (a JSON array of
-strings or `{kind, message}` dicts next to the artifact).
+strings or `{kind, message}` dicts next to the artifact). The logged path is
+resolved against `pipeline_dir` first, so relative log paths still find
+their sidecar.
 """
-function _frames_warning_rows(name::String, entry)
+function _frames_warning_rows(name::String, entry, pipeline_dir::String)
     flag = get(entry, "warnings", false)
     has_warnings = if flag isa Bool
         flag
@@ -794,11 +804,12 @@ function _frames_warning_rows(name::String, entry)
     if !has_warnings
         return Dict{String, Any}[]
     end
-    path_val = get(entry, "path", nothing)
-    if !(path_val isa String) || isempty(strip(path_val))
+    artifact = try
+        _resolve_artifact_path(get(entry, "path", nothing), pipeline_dir)
+    catch
         return Dict{String, Any}[]
     end
-    sidecar = joinpath(dirname(path_val), "warnings")
+    sidecar = joinpath(dirname(artifact), "warnings")
     items = try
         JSON.parsefile(sidecar)
     catch
@@ -828,14 +839,11 @@ end
 """
     _format_mtime(mtime)
 
-Format a Unix timestamp as local `%Y-%m-%d %H:%M:%S` via libc, matching the
+Format a Unix timestamp as local `%Y-%m-%d %H:%M:%S`, matching the
 `list_logs()` layout without extra dependencies.
 """
 function _format_mtime(mtime::Float64)
-    secs = Ref{Int}(Int(floor(mtime)))
-    tm = Ref(Base.Libc.TmStruct(0, 0, 0, 0, 0, 0, 0, 0, 0))
-    ccall(:localtime_r, Ptr{Cvoid}, (Ref{Int}, Ptr{Cvoid}), secs, tm)
-    return Base.Libc.strftime("%Y-%m-%d %H:%M:%S", tm[])
+    return Base.Libc.strftime("%Y-%m-%d %H:%M:%S", mtime)
 end
 
 """
@@ -879,14 +887,14 @@ function list_logs(; pipeline_dir::String = "_pipeline")
 end
 
 """
-    build_log_to_frame(; which_log=nothing, pipeline_dir="_pipeline")
+    build_log_to_frame(; pipeline_dir="_pipeline", which_log=nothing)
 
 Tabulate one build log as per-node rows with `name`, `status`, `duration`,
 and `path`. Mirrors T's `build_log_to_frame()`.
 """
 function build_log_to_frame(;
-    which_log::Union{String, Nothing} = nothing,
-    pipeline_dir::String = "_pipeline"
+    pipeline_dir::String = "_pipeline",
+    which_log::Union{String, Nothing} = nothing
 )
     if !isdir(pipeline_dir)
         error("Pipeline directory `$pipeline_dir` does not exist.")
@@ -918,15 +926,15 @@ function build_log_to_frame(;
 end
 
 """
-    collect_exceptions(; which_log=nothing, pipeline_dir="_pipeline")
+    collect_exceptions(; pipeline_dir="_pipeline", which_log=nothing)
 
 Gather error and warning rows from one build log. Each row has `node`,
 `status` (`Error`/`Warning`), `code`, and `message`. Mirrors T's
 `collect_exceptions()`.
 """
 function collect_exceptions(;
-    which_log::Union{String, Nothing} = nothing,
-    pipeline_dir::String = "_pipeline"
+    pipeline_dir::String = "_pipeline",
+    which_log::Union{String, Nothing} = nothing
 )
     if !isdir(pipeline_dir)
         error("Pipeline directory `$pipeline_dir` does not exist.")
@@ -957,14 +965,19 @@ function collect_exceptions(;
                 "code" => (code isa String && !isempty(strip(code)) ? code : "NixError"),
                 "message" => (isempty(msg) ? "Nix build failed." : msg)))
         elseif status == "SoftFailed" || class_val in ("VError", "Error")
-            code = get(entry, "error_code", nothing)
-            msg = _frames_clean_message(get(entry, "error_message", ""))
+            err = _error_of_entry(entry, pipeline_dir, class_val)
+            if isnothing(err)
+                code, msg = isempty(class_val) ? "Error" : class_val, "Node failed with a soft error."
+            else
+                code, msg = err["code"], err["message"]
+            end
+            clean = _frames_clean_message(msg)
             push!(rows, Dict{String, Any}(
                 "node" => nm, "status" => "Error",
-                "code" => (code isa String && !isempty(strip(code)) ? code : (isempty(class_val) ? "Error" : class_val)),
-                "message" => (isempty(msg) ? "Node failed with a soft error." : msg)))
+                "code" => code,
+                "message" => (isempty(clean) ? "Node failed with a soft error." : clean)))
         end
-        append!(rows, _frames_warning_rows(nm, entry))
+        append!(rows, _frames_warning_rows(nm, entry, pipeline_dir))
     end
     return rows
 end
@@ -1015,29 +1028,67 @@ function _verror_from_file(artifact_path::String)
 end
 
 """
-    _error_of_entry(entry, pipeline_dir)
+    _looks_failed(entry)
+
+Whether the log entry shows failure (or shows nothing at all). A
+`VError`/`Error` class always counts as failed, even when `status` says
+otherwise: T soft errors are values, so a stored error can sit beside any
+status string. Positively successful nodes skip the artifact read, so large
+artifacts are never loaded just to check for errors.
+"""
+function _looks_failed(entry)
+    class_val = get(entry, "class", nothing)
+    if class_val isa String && !isempty(strip(class_val)) &&
+        strip(class_val) in ("VError", "Error")
+        return true
+    end
+    status = get(entry, "status", nothing)
+    if status isa String && !isempty(strip(status))
+        return strip(status) in ("Errored", "SoftFailed")
+    end
+    success = get(entry, "success", nothing)
+    if success isa Bool
+        return !success
+    end
+    if success isa String && !isempty(strip(success))
+        return lowercase(strip(success)) != "true"
+    end
+    return true
+end
+
+"""
+    _error_of_entry(entry, pipeline_dir, default_code="")
 
 Build a node error from an already-loaded entry (no log re-read).
+`default_code` names the fallback when the entry carries a message but no
+code.
 """
-function _error_of_entry(entry, pipeline_dir::String)
-    artifact = try
-        _resolve_artifact_path(entry["path"], pipeline_dir)
-    catch
-        nothing
-    end
-    if !isnothing(artifact)
-        verror = _verror_from_file(artifact)
-        if !isnothing(verror)
-            return verror
-        end
-    end
+function _error_of_entry(entry, pipeline_dir::String, default_code::String = "")
     code = get(entry, "error_code", nothing)
     message = get(entry, "error_message", nothing)
     code_ok = code isa String && !isempty(strip(code))
     msg_ok = message isa String && !isempty(strip(message))
+    if !_looks_failed(entry)
+        if !code_ok && !msg_ok
+            return nothing
+        end
+    else
+        artifact = try
+            _resolve_artifact_path(entry["path"], pipeline_dir)
+        catch
+            nothing
+        end
+        if !isnothing(artifact)
+            verror = _verror_from_file(artifact)
+            if !isnothing(verror)
+                return verror
+            end
+        end
+    end
     if code_ok || msg_ok
+        fallback = isempty(strip(default_code)) ? "Error" : default_code
         return Dict{String, Any}(
-            "code" => (code_ok ? code : "Error"),
+            "code" => (code_ok ? code : fallback),
             "message" => (msg_ok ? message : ""),
             "context" => nothing,
             "location" => nothing,
@@ -1144,11 +1195,11 @@ function warning_msg(
         end
     end
     messages = String[]
-    for row in _frames_warning_rows(name, entries[name])
+    for row in _frames_warning_rows(name, entries[name], pipeline_dir)
         push!(messages, row["message"])
     end
     for parent in _closure_nodes(deps, name, "parents")[2:end]
-        for row in _frames_warning_rows(parent, entries[parent])
+        for row in _frames_warning_rows(parent, entries[parent], pipeline_dir)
             push!(messages, "Ancestor node '$parent' reported following warning: $(row["message"])")
         end
     end
@@ -1181,20 +1232,14 @@ function inspect_node(
         end
     end
     children = sort([n for (n, ds) in deps if name in ds])
-    warn_rows = _frames_warning_rows(name, entry)
+    warn_rows = _frames_warning_rows(name, entry, pipeline_dir)
     warnings = [Dict{String, Any}("code" => w["code"], "message" => w["message"]) for w in warn_rows]
     artifact = try
         _resolve_artifact_path(entry["path"], pipeline_dir)
     catch
         nothing
     end
-    status = let s = get(entry, "status", nothing)
-        if s isa String && !isempty(strip(s))
-            strip(s)
-        else
-            _frames_status_of(entry)
-        end
-    end
+    status = _frames_status_of(entry)
     return Dict{String, Any}(
         "name" => name,
         "runtime" => _inspect_text_or_nothing(get(entry, "runtime", nothing)),

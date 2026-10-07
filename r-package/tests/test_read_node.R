@@ -69,6 +69,36 @@ stopifnot(identical(Encoding(got_utf8), "UTF-8"))
 stopifnot(identical(read_node("m", pipeline_dir = pipe)$w, 1))
 cat("auto dispatch ok\n")
 
+# IPC and Parquet round-trips (arrow is in Suggests).
+if (requireNamespace("arrow", quietly = TRUE)) {
+  ipc_path <- file.path(td, "t.ipc")
+  arrow::write_ipc_file(data.frame(x = c(1, 2)), ipc_path)
+  pq_path <- file.path(td, "t.parquet")
+  arrow::write_parquet(data.frame(x = c(1, 2)), pq_path)
+  make_log(pipe, list(
+    mk_node("i", ipc_path, "^ipc", c()),
+    mk_node("p", pq_path, "^parquet", c())
+  ), name = "build_log_20260101_000000_ipc.json")
+  stopifnot(identical(read_node("i", pipeline_dir = pipe, which_log = "ipc")$x, c(1, 2)))
+  stopifnot(identical(read_node("p", pipeline_dir = pipe, which_log = "ipc")$x, c(1, 2)))
+  cat("ipc/parquet ok\n")
+}
+
+# Runtime mismatch hint: a Python pickle is not an RDS file.
+pkl_path <- file.path(td, "m.pkl")
+writeBin(charToRaw("not an rds file"), pkl_path)
+make_log(pipe, list(
+  list(node = "m", path = pkl_path, serializer = "default",
+    dependencies = list(), runtime = "Python", class = "DataFrame",
+    status = "Completed")
+), name = "build_log_20260101_000000_rt.json")
+err <- tryCatch(
+  read_node("m", pipeline_dir = pipe, which_log = "000000_rt"),
+  error = function(e) conditionMessage(e)
+)
+stopifnot(grepl("built by runtime `Python`", err, fixed = TRUE))
+cat("runtime hint ok\n")
+
 # Unknown and pmml errors mention return_path.
 weird_path <- file.path(td, "w.bin")
 writeBin(charToRaw("x"), weird_path)

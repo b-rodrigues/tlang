@@ -21,10 +21,11 @@ model <- read_node("model")      # default serializer -> readRDS()
 table <- read_node("features")   # ^json -> jsonlite::read_json(), ^csv -> read.csv()
 ```
 
-When a node uses `^json` but `jsonlite` is not installed, the error tells you to
-declare it in `tproject.toml`. The same holds for `^ipc` and `^parquet` with
-`arrow`. `^pmml`, `^onnx`, and `^bin` have no built-in reader: use
-`return_path = TRUE` plus a custom deserializer.
+When a node uses `^ipc` or `^parquet` but `arrow` is not installed, the
+error tells you to declare it in `tproject.toml` (`arrow` is in `Suggests`).
+`jsonlite` ships in `Imports`, so `^json` always loads. `^pmml`, `^onnx`, and
+`^bin` have no built-in reader: use `return_path = TRUE` plus a custom
+deserializer.
 
 Cross-language notes: `^json` simplifies vectors (`simplifyVector = TRUE`), so
 arrays of records can come back as data frames, while Python and Julia return

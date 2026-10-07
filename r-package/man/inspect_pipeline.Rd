@@ -20,8 +20,8 @@ inspect_pipeline(
 }
 \value{
 A data frame with columns \code{node}, \code{runtime}, \code{serializer},
-\code{depends} (list of character vectors), \code{status}, \code{class}, and
-\code{path}. Falls back to the static DAG with \code{status} set to
+\code{dependencies} (list of character vectors), \code{status}, \code{class},
+and \code{path}. Falls back to the static DAG with \code{status} set to
 \code{"unbuilt"} when no build logs exist.
 }
 \description{

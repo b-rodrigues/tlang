@@ -61,7 +61,9 @@ def _closure(deps_map: dict[str, list[str]], name: str, include: str) -> list[st
             neighbors.extend(children_map.get(current, []))
         if include in {"parents", "both"}:
             neighbors.extend(deps_map.get(current, []))
-        for neighbor in neighbors:
+        # Sorted within each level: deterministic across runs and languages,
+        # while nearest-first level order is kept.
+        for neighbor in sorted(neighbors):
             if neighbor not in seen_set:
                 seen_set.add(neighbor)
                 seen.append(neighbor)

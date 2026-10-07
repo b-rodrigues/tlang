@@ -223,9 +223,18 @@ normalize_serializer <- function(s) {
 #' @return The deserialized R object.
 #'
 #' @keywords internal
-auto_deserialize <- function(serializer, name, artifact_path) {
+auto_deserialize <- function(serializer, name, artifact_path, runtime = NULL) {
   raw <- if (is.character(serializer) && length(serializer) == 1L && !is.na(serializer)) serializer else "default"
   s <- normalize_serializer(raw)
+  runtime_hint <- function() {
+    if (is.character(runtime) && length(runtime) == 1L && !is.na(runtime) &&
+        nzchar(trimws(runtime)) && trimws(runtime) != "R") {
+      sprintf(" Node `%s` was built by runtime `%s`; pass a custom `deserializer` or use `return_path = TRUE`.",
+        name, trimws(runtime))
+    } else {
+      ""
+    }
+  }
 
   if (s %in% c("default", "tlang", "tobj", "serialize", "rds", "readrds")) {
     return(tryCatch(
@@ -233,8 +242,8 @@ auto_deserialize <- function(serializer, name, artifact_path) {
       error = function(err) {
         stop(
           sprintf(
-            "Failed to deserialize node `%s` (serializer `^%s`) from `%s`: %s",
-            name, s, artifact_path, conditionMessage(err)
+            "Failed to deserialize node `%s` (serializer `^%s`) from `%s`: %s%s",
+            name, s, artifact_path, conditionMessage(err), runtime_hint()
           ),
           call. = FALSE
         )
@@ -243,15 +252,7 @@ auto_deserialize <- function(serializer, name, artifact_path) {
   }
 
   if (s == "json") {
-    if (!requireNamespace("jsonlite", quietly = TRUE)) {
-      stop(
-        sprintf(
-          "Node `%s` uses serializer `^json`. Package `jsonlite` is not installed; declare it in `tproject.toml`, run `t update`, and re-enter `nix develop`. Or pass `deserializer = jsonlite::read_json`.",
-          name
-        ),
-        call. = FALSE
-      )
-    }
+    # jsonlite is in Imports, so it is always present.
     return(tryCatch(
       jsonlite::read_json(artifact_path, simplifyVector = TRUE),
       error = function(err) {
@@ -268,7 +269,7 @@ auto_deserialize <- function(serializer, name, artifact_path) {
 
   if (s == "csv") {
     return(tryCatch(
-      read.csv(artifact_path, stringsAsFactors = FALSE),
+      utils::read.csv(artifact_path, stringsAsFactors = FALSE),
       error = function(err) {
         stop(
           sprintf(
@@ -417,7 +418,8 @@ read_node_entry <- function(node_entry, name, pipeline_dir, deserializer, return
 
   if (is.null(deserializer)) {
     serializer <- if (is.list(node_entry) && !is.null(node_entry$serializer)) node_entry$serializer else "default"
-    return(auto_deserialize(serializer, name, artifact_path))
+    runtime <- if (is.list(node_entry) && !is.null(node_entry$runtime)) node_entry$runtime else NULL
+    return(auto_deserialize(serializer, name, artifact_path, runtime))
   }
 
   tryCatch(
