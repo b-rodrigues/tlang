@@ -91,21 +91,51 @@ let get_failed_node_error_info drv_path =
 
 (* Per-node source fields for build logs, backing `show_code` in companion
    packages. Script nodes record only their script path (no copy, no stale
-   text); inline nodes record the command text (raw foreign code verbatim,
-   other expressions unparsed). *)
-let node_source_fields_of p_scripts p_exprs name =
+   text) plus a content hash for drift checks; inline nodes record the
+   command text (raw foreign code verbatim, other expressions unparsed).
+   With [~record_source:false] (from `[pipeline].record_source` in
+   tproject.toml) no `source` field is emitted, so embedded secrets stay out
+   of the log; script paths still are, since a path is not a secret.
+   `script_hashes` maps node names to precomputed content hashes (see
+   `snapshot_script_hashes`); a node without an entry simply omits the hash. *)
+let node_source_fields_of ~record_source ~script_hashes p_scripts p_exprs name =
   match List.assoc_opt name p_scripts with
   | Some (Some path) ->
-      [("script", "\"" ^ Serialization.json_escape path ^ "\"")]
+      ("script", "\"" ^ Serialization.json_escape path ^ "\"")
+      :: (match List.assoc_opt name script_hashes with
+          | Some hex -> [("script_hash", "\"" ^ hex ^ "\"")]
+          | None -> [])
   | _ ->
-      (match List.assoc_opt name p_exprs with
-       | Some expr ->
-           let src = match expr.Ast.node with
-             | Ast.RawCode { raw_text; _ } -> raw_text
-             | _ -> Nix_unparse.unparse_expr expr
-           in
-           [("source", "\"" ^ Serialization.json_escape src ^ "\"")]
-       | None -> [])
+      if not record_source then []
+      else
+        (match List.assoc_opt name p_exprs with
+         | Some expr ->
+             let src = match expr.Ast.node with
+               | Ast.RawCode { raw_text; _ } -> raw_text
+               | _ -> Nix_unparse.unparse_expr expr
+             in
+             [("source", "\"" ^ Serialization.json_escape src ^ "\"")]
+         | None -> [])
+
+(* Snapshot script content hashes once, before invoking Nix. Hashing at log
+   time instead would bless edits made mid-build: the log would record the
+   edited file's hash and drift checks would pass against code that was
+   never built. *)
+let snapshot_script_hashes ~project_root p_scripts =
+  List.filter_map (fun (name, script_opt) ->
+    match script_opt with
+    | Some path ->
+        let candidates =
+          (if Filename.is_relative path then [Filename.concat project_root path] else [])
+          @ [path]
+        in
+        (match List.find_opt Sys.file_exists candidates with
+         | Some found ->
+             (try Some (name, Digest.to_hex (Digest.file found))
+              with _ -> None)
+         | None -> None)
+    | None -> None
+  ) p_scripts
 
 (* Render one build-log node entry as JSON. All per-node display values come
    in as arguments; `source_fields` is required (no default) so dropping it
@@ -126,6 +156,48 @@ let node_log_entry_json ~name ~artifact_path ~node_hash ~runtime ~serializer
     ("warnings", has_warns);
     ("duration", Printf.sprintf "%.4f" node_dur)
   ] @ error_fields @ source_fields)
+
+(* Whether embedded node source may be recorded in build logs. Reads only
+   `[pipeline].record_source` (default true). A missing file or key records;
+   an unreadable or unparseable file, or a present key with the wrong type,
+   warns and skips recording instead of risking secrets on a broken config.
+   An empty file records plainly. *)
+let source_recording_enabled root =
+  let tproject_path = Filename.concat root "tproject.toml" in
+  if not (Sys.file_exists tproject_path) then true
+  else
+    let content =
+      try
+        let ch = open_in tproject_path in
+        Some (Fun.protect
+          ~finally:(fun () -> close_in_noerr ch)
+          (fun () -> really_input_string ch (in_channel_length ch)))
+      with _ -> None
+    in
+    match content with
+    | None ->
+        Printf.eprintf
+          "Warning: could not read `%s`; skipping source recording.\n%!"
+          tproject_path;
+        false
+    | Some "" -> true
+    | Some text ->
+        let toml =
+          try Some (Otoml.Parser.from_string text)
+          with _ -> None
+        in
+        (match toml with
+         | None ->
+             Printf.eprintf
+               "Warning: could not parse `%s`; skipping source recording.\n%!"
+               tproject_path;
+             false
+         | Some t ->
+             (match Toml_parser.record_source_of_toml t with
+              | Ok b -> b
+              | Error msg ->
+                  Printf.eprintf "Warning: %s; skipping source recording.\n%!" msg;
+                  false))
 
 let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts option) ?(json=false) (p : Ast.pipeline_result) =
   let verbose =
@@ -273,6 +345,15 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
       | _ -> []
     in
     let all_args = !nix_build_args @ (nix_verbosity_args verbose) @ force_args @ max_jobs_args @ max_cores_args @ cache_args @ builders_args @ keep_env_args @ sandbox_args in
+    (* Snapshot script hashes before Nix runs: hashing at log time would
+       bless mid-build edits, recording the edited file's hash for code that
+       was never built. *)
+    let script_hashes =
+      let project_root =
+        (try Builder_utils.get_project_root () with _ -> ".")
+      in
+      snapshot_script_hashes ~project_root p.p_scripts
+    in
     let node_store_paths = Hashtbl.create (List.length node_names) in
     let () =
       if Sys.file_exists pipeline_nix_path then (
@@ -628,8 +709,13 @@ let build_pipeline_internal ?verbose ?pipeline_name ?(nix_options : nix_opts opt
         in
         (* Persist per-node source for `show_code` in companion packages.
            See `node_source_fields_of` above. *)
+        let project_root =
+          (try Builder_utils.get_project_root () with _ -> ".")
+        in
+        let record_source = source_recording_enabled project_root in
         let node_source_fields name =
-          node_source_fields_of p.p_scripts p.p_exprs name
+          node_source_fields_of ~record_source ~script_hashes
+            p.p_scripts p.p_exprs name
         in
         let log_entries =
           List.map (fun (name, _) ->

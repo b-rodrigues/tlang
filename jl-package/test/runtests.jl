@@ -359,6 +359,51 @@ end
             "df <- read.csv(\"a.csv\")\nprint(df)"
         @test show_code("scr", pipeline_dir=pipe, which_log="20260114") == "train.R"
         @test_throws ErrorException show_code("old", pipeline_dir=pipe, which_log="20260114")
+        err = try
+            show_code("old", pipeline_dir=pipe, which_log="20260114")
+            nothing
+        catch e
+            sprint(showerror, e)
+        end
+        @test occursin("record_source", err)
+
+        # show_code verify checks the recorded script hash.
+        script_path = joinpath(tmp_dir, "train.R"); write(script_path, "x <- 1\n")
+        digest = try
+            strip(split(read(`md5sum $script_path`, String))[1])
+        catch
+            @warn "Skipping verify test: `md5sum` not found."
+            nothing
+        end
+        if !isnothing(digest)
+            _write_log(pipe, [
+                Dict("node" => "ok", "path" => art, "runtime" => "R",
+                    "serializer" => "default", "dependencies" => String[],
+                    "status" => "Completed", "class" => "String",
+                    "script" => "train.R", "script_hash" => digest),
+                Dict("node" => "drifted", "path" => art, "runtime" => "R",
+                    "serializer" => "default", "dependencies" => String[],
+                    "status" => "Completed", "class" => "String",
+                    "script" => "train.R", "script_hash" => repeat("0", 32)),
+                Dict("node" => "nohash", "path" => art, "runtime" => "R",
+                    "serializer" => "default", "dependencies" => String[],
+                    "status" => "Completed", "class" => "String",
+                    "script" => "train.R"),
+                Dict("node" => "gone", "path" => art, "runtime" => "R",
+                    "serializer" => "default", "dependencies" => String[],
+                    "status" => "Completed", "class" => "String",
+                    "script" => "missing.R", "script_hash" => digest),
+                Dict("node" => "emb2", "path" => art, "runtime" => "R",
+                    "serializer" => "default", "dependencies" => String[],
+                    "status" => "Completed", "class" => "String",
+                    "source" => "x <- 1\n"),
+            ], "build_log_20260115_000000_ver.json")
+            @test show_code("ok", pipeline_dir=pipe, which_log="20260115", verify=true) == "train.R"
+            @test_throws ErrorException show_code("drifted", pipeline_dir=pipe, which_log="20260115", verify=true)
+            @test_throws ErrorException show_code("nohash", pipeline_dir=pipe, which_log="20260115", verify=true)
+            @test_throws ErrorException show_code("gone", pipeline_dir=pipe, which_log="20260115", verify=true)
+            @test show_code("emb2", pipeline_dir=pipe, which_log="20260115", verify=true) == "x <- 1\n"
+        end
     end
 end
 

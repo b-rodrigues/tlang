@@ -75,6 +75,7 @@ def show_code(
     name: str,
     which_log: str | None = None,
     pipeline_dir: str | Path = "_pipeline",
+    verify: bool = False,
 ) -> str:
     """Return a node's source code for copy-paste tweaking.
 
@@ -82,19 +83,64 @@ def show_code(
     T source. Nodes built from an exterior ``script =`` file return the
     script path instead (no copy is stored). Older build logs without
     recorded source raise an error telling you to rebuild.
+
+    With ``verify=True``, script nodes additionally check the recorded
+    content hash against the local file and raise when it changed, is
+    missing, or was never recorded. Embedded nodes ignore ``verify``.
     """
     _validate_non_empty_string(name, "name")
     pipeline_path = _check_dir(pipeline_dir)
     entry, _log_file, _deps = _load_entry(name, which_log, pipeline_path)
     script = entry.get("script")
     if isinstance(script, str) and script.strip():
-        return script.strip()
+        script = script.strip()
+        if verify:
+            _verify_script(name, entry, script, pipeline_path)
+        return script
     source = entry.get("source")
     if isinstance(source, str) and source.strip():
         return source
     raise ValueError(
-        f"No source recorded for node `{name}`. Rebuild the pipeline to record it."
+        f"No source recorded for node `{name}`. Rebuild the pipeline to record it "
+        f"(unless `[pipeline].record_source = false` is set)."
     )
+
+
+def _resolve_script(script: str, pipeline_path: Path) -> Path | None:
+    """Resolve a logged script path against the project, or None if missing."""
+    candidates = [Path(script)]
+    if not candidates[0].is_absolute():
+        candidates.insert(0, pipeline_path.parent / script)
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def _verify_script(
+    name: str, entry: dict[str, Any], script: str, pipeline_path: Path
+) -> None:
+    """Check a script file against its recorded hash, raising on drift."""
+    import hashlib
+
+    recorded = entry.get("script_hash")
+    if not isinstance(recorded, str) or not recorded.strip():
+        raise ValueError(
+            f"No script hash recorded for node `{name}`. Rebuild the pipeline to record it."
+        )
+    found = _resolve_script(script, pipeline_path)
+    if found is None:
+        raise FileNotFoundError(
+            f"Script `{script}` for node `{name}` was not found; cannot verify it."
+        )
+    digest = hashlib.md5()
+    with found.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(65536), b""):
+            digest.update(chunk)
+    if digest.hexdigest() != recorded.strip().lower():
+        raise ValueError(
+            f"Script `{script}` for node `{name}` changed since the build."
+        )
 
 
 def error_msg(

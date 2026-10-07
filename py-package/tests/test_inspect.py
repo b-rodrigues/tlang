@@ -370,6 +370,42 @@ class InspectTests(unittest.TestCase):
             with self.assertRaises(ValueError) as ctx:
                 show_code("old", pipeline_dir=pipe)
             self.assertIn("Rebuild", str(ctx.exception))
+            self.assertIn("record_source", str(ctx.exception))
+
+    def test_show_code_verify(self) -> None:
+        import hashlib
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            pipe = tmp_path / "_pipeline"
+            art = tmp_path / "a.txt"
+            art.write_text("a")
+            script = tmp_path / "train.R"
+            script.write_text("x <- 1\n")
+            digest = hashlib.md5(script.read_bytes()).hexdigest()
+            base = _entry("a", str(art))
+            _write_log(
+                pipe,
+                [
+                    dict(base, node="ok", script="train.R", script_hash=digest),
+                    dict(base, node="drifted", script="train.R", script_hash="0" * 32),
+                    dict(base, node="nohash", script="train.R"),
+                    dict(base, node="gone", script="missing.R", script_hash=digest),
+                    dict(base, node="emb", source="x <- 1\n"),
+                ],
+            )
+            self.assertEqual(
+                show_code("ok", pipeline_dir=pipe, verify=True), "train.R"
+            )
+            with self.assertRaises(ValueError):
+                show_code("drifted", pipeline_dir=pipe, verify=True)
+            with self.assertRaises(ValueError):
+                show_code("nohash", pipeline_dir=pipe, verify=True)
+            with self.assertRaises(FileNotFoundError):
+                show_code("gone", pipeline_dir=pipe, verify=True)
+            self.assertEqual(
+                show_code("emb", pipeline_dir=pipe, verify=True), "x <- 1\n"
+            )
 
 
 if __name__ == "__main__":

@@ -523,7 +523,8 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     let var_expr = Ast.mk_expr (Ast.Var "x") in
     let p_scripts = [("s", Some "train.R")] in
     let p_exprs = [("m", raw_expr); ("v", var_expr)] in
-    let fields_of n = Builder_internal.node_source_fields_of p_scripts p_exprs n in
+    let fields_of n = Builder_internal.node_source_fields_of
+      ~record_source:true ~script_hashes:[] p_scripts p_exprs n in
     let roundtrip fields =
       match Yojson.Safe.from_string (Serialization.json_dict fields) with
       | `Assoc pairs -> pairs
@@ -550,24 +551,127 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   end else begin
     incr fail_count; Printf.printf "  FAILURE build log source fields record raw code verbatim and script paths\n"
   end;
+  (* Script hash covers drift checks; opt-out drops embedded source. *)
+  let rm_rf dir =
+    let rec rm path =
+      if Sys.is_directory path then begin
+        Array.iter (fun f -> rm (Filename.concat path f)) (Sys.readdir path);
+        Unix.rmdir path
+      end else Sys.remove path
+    in
+    try rm dir with _ -> ()
+  in
+  let source_hash_opt_out_ok =
+    let dir =
+      let base = Filename.temp_file "tlang_src" "" in
+      Sys.remove base;
+      Unix.mkdir base 0o755;
+      base
+    in
+    Fun.protect ~finally:(fun () -> rm_rf dir) (fun () ->
+    let script_path = Filename.concat dir "train.R" in
+    let oc = open_out script_path in
+    output_string oc "x <- 1\n";
+    close_out oc;
+    let raw_expr =
+      Ast.mk_expr (Ast.RawCode { raw_text = "x"; raw_identifiers = [] }) in
+    let hashes =
+      Builder_internal.snapshot_script_hashes ~project_root:dir
+        [("s", Some "train.R"); ("m", Some "gone.R")] in
+    let fields_of ~record_source scripts exprs n =
+      Builder_internal.node_source_fields_of
+        ~record_source ~script_hashes:hashes scripts exprs n in
+    let hash_ok =
+      match fields_of ~record_source:true [("s", Some "train.R")] [] "s" with
+      | [("script", _); ("script_hash", h)] ->
+          (match Yojson.Safe.from_string ("{\"h\": " ^ h ^ "}") with
+           | `Assoc [("h", `String hex)] -> hex = Digest.to_hex (Digest.file script_path)
+           | _ -> false)
+      | _ -> false
+    in
+    let missing_ok =
+      fields_of ~record_source:true [("m", Some "gone.R")] [] "m"
+      = [("script", "\"gone.R\"")]
+    in
+    let off_script_ok =
+      fields_of ~record_source:false [("s", Some "train.R")] [] "s"
+      = [("script", "\"train.R\"");
+         ("script_hash", "\"" ^ Digest.to_hex (Digest.file script_path) ^ "\"")]
+    in
+    let off_source_ok =
+      fields_of ~record_source:false [] [("m", raw_expr)] "m" = []
+    in
+    hash_ok && missing_ok && off_script_ok && off_source_ok)
+  in
+  if source_hash_opt_out_ok then begin
+    incr pass_count; Printf.printf "  SUCCESS build log script hash and source opt-out work\n"
+  end else begin
+    incr fail_count; Printf.printf "  FAILURE build log script hash and source opt-out work\n"
+  end;
+  (* Flag reader: missing file records, explicit false opts out, wrong
+     types fail closed with a warning instead of recording. *)
+  let recording_flag_ok =
+    let write_toml dir content =
+      let oc = open_out (Filename.concat dir "tproject.toml") in
+      output_string oc content;
+      close_out oc
+    in
+    let fresh_dir () =
+      let base = Filename.temp_file "tlang_cfg" "" in
+      Sys.remove base;
+      Unix.mkdir base 0o755;
+      base
+    in
+    let empty_dir = fresh_dir () in
+    let off_dir = fresh_dir () in
+    let bad_dir = fresh_dir () in
+    let unread_dir = fresh_dir () in
+    let garbage_dir = fresh_dir () in
+    let blank_dir = fresh_dir () in
+    Fun.protect ~finally:(fun () ->
+      rm_rf empty_dir; rm_rf off_dir; rm_rf bad_dir;
+      rm_rf unread_dir; rm_rf garbage_dir; rm_rf blank_dir) (fun () ->
+    write_toml off_dir "[project]\nname = \"t\"\n\n[pipeline]\nrecord_source = false\n";
+    write_toml bad_dir "[project]\nname = \"t\"\n\n[pipeline]\nrecord_source = \"false\"\n";
+    (* A directory where the file should be is unreadable as a file;
+       garbage does not parse; an empty file records plainly. *)
+    Unix.mkdir (Filename.concat unread_dir "tproject.toml") 0o755;
+    write_toml garbage_dir "[[[not toml\n";
+    write_toml blank_dir "";
+    Builder_internal.source_recording_enabled empty_dir
+    && not (Builder_internal.source_recording_enabled off_dir)
+    && not (Builder_internal.source_recording_enabled bad_dir)
+    && not (Builder_internal.source_recording_enabled unread_dir)
+    && not (Builder_internal.source_recording_enabled garbage_dir)
+    && Builder_internal.source_recording_enabled blank_dir)
+  in
+  if recording_flag_ok then begin
+    incr pass_count; Printf.printf "  SUCCESS source recording flag fails closed\n"
+  end else begin
+    incr fail_count; Printf.printf "  FAILURE source recording flag fails closed\n"
+  end;
   (* Integration: fields drawn from a real evaluated pipeline, as
      save_build_log sees them. Pure-T nodes only: foreign nodes would
      trigger a Nix build during evaluation. *)
   let source_fields_live_ok =
     let env_live = Packages.init_env () in
     let (_, env_live) = eval_string_env
-      "p_live = pipeline {\n  a = 10\n  b = a + 1\n  d = [1, 2]\n  e = [k: 1]\n}" env_live in
+      "p_live = pipeline {\n  a = 10\n  b = a + 1\n  d = [1, 2]\n  e = [k: 1]\n  f = \\(x) x + 1\n}" env_live in
     let (v_live, _) = eval_string_env "p_live" env_live in
     match v_live with
     | VPipeline pe ->
-        let fields_of n = Builder_internal.node_source_fields_of pe.p_scripts pe.p_exprs n in
+        let fields_of n = Builder_internal.node_source_fields_of
+          ~record_source:true ~script_hashes:[] pe.p_scripts pe.p_exprs n in
         (* List and dict forms differ between T and Nix syntax (`[1, 2]`
            vs `[ 1 2 ]`, `[k: 1]` vs `{ k = 1; }`), so exact output here
-           proves T source (not Nix) is stored. *)
+           proves T source (not Nix) is stored. The lambda pins JSON-level
+           escaping: the field value is a JSON fragment, so one T backslash
+           is two fragment bytes and decodes back to one. *)
         fields_of "a" = [("source", "\"10\"")]
         && fields_of "b" = [("source", "\"(a + 1)\"")]
         && fields_of "d" = [("source", "\"[1, 2]\"")]
         && fields_of "e" = [("source", "\"[k: 1]\"")]
+        && fields_of "f" = [("source", "\"\\\\(x) (x + 1)\"")]
     | other ->
         Printf.printf "    live pipeline eval failed: %s\n" (Ast.Utils.value_to_string other);
         false

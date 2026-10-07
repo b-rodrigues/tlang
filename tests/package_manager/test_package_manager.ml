@@ -322,6 +322,24 @@ packages = []
     | Ok cfg -> cfg.proj_r_git_dependencies = []
     | Error _ -> false);
 
+  test_pm "pipeline record_source defaults to true and round-trips" (fun () ->
+    let base = {|
+[project]
+name = "test"
+|} in
+    let off = base ^ "\n[pipeline]\nrecord_source = false\n" in
+    let bad = base ^ "\n[pipeline]\nrecord_source = \"false\"\n" in
+    match Toml_parser.parse_tproject_toml base, Toml_parser.parse_tproject_toml off with
+    | Ok default_cfg, Ok off_cfg ->
+        default_cfg.Package_types.proj_record_source
+        && not off_cfg.Package_types.proj_record_source
+        && Test_helpers.contains (Toml_parser.serialize_tproject_toml off_cfg) "record_source = false"
+        && not (Test_helpers.contains (Toml_parser.serialize_tproject_toml default_cfg) "record_source")
+        && (match Toml_parser.parse_tproject_toml bad with
+            | Error _ -> true
+            | Ok _ -> false)
+    | _ -> false);
+
   test_pm "nix_generator includes buildRPackage + fetchGit for git R deps" (fun () ->
     let pkg : Package_types.r_git_dependency =
       { rgd_name = "myPkg"; rgd_git_url = "https://github.com/user/myPkg"; rgd_rev = "abc1234def5678"; rgd_cran_inputs = []; rgd_git_inputs = []; rgd_subdir = None }

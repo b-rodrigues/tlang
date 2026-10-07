@@ -1288,18 +1288,23 @@ function lineage(
 end
 
 """
-    show_code(name::String; which_log=nothing, pipeline_dir="_pipeline")
+    show_code(name::String; which_log=nothing, pipeline_dir="_pipeline", verify=false)
 
 Return a node's source code for copy-paste tweaking. Foreign code comes
 back verbatim; T expressions come back as normalized T source. Nodes built
 from an exterior `script =` file return the script path instead (no copy is
 stored). Older build logs without recorded source raise an error telling
 you to rebuild.
+
+With `verify=true`, script nodes additionally check the recorded content
+hash against the local file and throw when it changed, is missing, or was
+never recorded. Embedded nodes ignore `verify`.
 """
 function show_code(
     name::String;
     which_log::Union{String, Nothing} = nothing,
-    pipeline_dir::String = "_pipeline"
+    pipeline_dir::String = "_pipeline",
+    verify::Bool = false
 )
     if isempty(strip(name))
         error("`name` must be a non-empty string.")
@@ -1310,13 +1315,74 @@ function show_code(
     entry, _, _ = _load_inspect_entry(name, which_log, pipeline_dir)
     script = get(entry, "script", nothing)
     if script isa String && !isempty(strip(script))
-        return String(strip(script))
+        script = String(strip(script))
+        if verify
+            _verify_script(name, entry, script, pipeline_dir)
+        end
+        return script
     end
     source = get(entry, "source", nothing)
     if source isa String && !isempty(strip(source))
         return source
     end
-    error("No source recorded for node `$name`. Rebuild the pipeline to record it.")
+    error("No source recorded for node `$name`. Rebuild the pipeline to record it (unless `[pipeline].record_source = false` is set).")
+end
+
+"""
+    _resolve_script(script, pipeline_dir)
+
+Resolve a logged script path against the project, or `nothing` if missing.
+"""
+function _resolve_script(script::String, pipeline_dir::String)
+    candidates = String[script]
+    if !isabspath(script)
+        pushfirst!(candidates, joinpath(dirname(abspath(pipeline_dir)), script))
+    end
+    for candidate in candidates
+        if isfile(candidate)
+            return candidate
+        end
+    end
+    return nothing
+end
+
+"""
+    _md5_file(path)
+
+Lowercase hex MD5 of a file, via the system tool (`md5sum` or macOS `md5`).
+Throws when neither exists.
+"""
+function _md5_file(path::String)
+    out = try
+        read(`md5sum $path`, String)
+    catch
+        try
+            read(`md5 -r $path`, String)
+        catch
+            error("Cannot verify script hashes on this platform: neither `md5sum` nor `md5 -r` was found. Compare the file contents manually.")
+        end
+    end
+    return lowercase(strip(split(out)[1]))
+end
+
+"""
+    _verify_script(name, entry, script, pipeline_dir)
+
+Check a script file against its recorded hash, throwing on drift.
+"""
+function _verify_script(name::String, entry, script::String, pipeline_dir::String)
+    recorded = get(entry, "script_hash", nothing)
+    if !(recorded isa String) || isempty(strip(recorded))
+        error("No script hash recorded for node `$name`. Rebuild the pipeline to record it.")
+    end
+    found = _resolve_script(script, pipeline_dir)
+    if isnothing(found)
+        error("Script `$script` for node `$name` was not found; cannot verify it.")
+    end
+    if _md5_file(found) != lowercase(strip(recorded))
+        error("Script `$script` for node `$name` changed since the build.")
+    end
+    return nothing
 end
 
 """

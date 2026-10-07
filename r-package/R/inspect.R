@@ -232,11 +232,17 @@ error_code <- function(name, which_log = NULL, pipeline_dir = "_pipeline") {
 #' path instead (no copy is stored). Older build logs without recorded
 #' source raise an error telling you to rebuild.
 #'
+#' With `verify = TRUE`, script nodes additionally check the recorded
+#' content hash against the local file and raise when it changed, is
+#' missing, or was never recorded. Embedded nodes ignore `verify`.
+#'
 #' @param name Name of the node to inspect.
 #' @param which_log Optional regular expression used to select a specific build
 #'   log filename. Defaults to the latest available build log.
 #' @param pipeline_dir Path to the pipeline build directory. Defaults to
 #'   `"_pipeline"`.
+#' @param verify Logical. Verify a script file against its recorded hash.
+#'   Defaults to `FALSE`.
 #'
 #' @return Character. The node source code, or the script path.
 #'
@@ -246,7 +252,7 @@ error_code <- function(name, which_log = NULL, pipeline_dir = "_pipeline") {
 #' }
 #'
 #' @export
-show_code <- function(name, which_log = NULL, pipeline_dir = "_pipeline") {
+show_code <- function(name, which_log = NULL, pipeline_dir = "_pipeline", verify = FALSE) {
   validate_scalar_string(name, "name")
   validate_scalar_string(pipeline_dir, "pipeline_dir")
 
@@ -258,13 +264,59 @@ show_code <- function(name, which_log = NULL, pipeline_dir = "_pipeline") {
   entry <- loaded$entry
   script <- entry[["script"]]
   if (is.character(script) && length(script) == 1L && !is.na(script) && nzchar(trimws(script))) {
-    return(trimws(script))
+    script <- trimws(script)
+    if (isTRUE(verify)) {
+      verify_script(name, entry, script, pipeline_dir)
+    }
+    return(script)
   }
   source <- entry[["source"]]
   if (is.character(source) && length(source) == 1L && !is.na(source) && nzchar(trimws(source))) {
     return(source)
   }
-  stop(sprintf("No source recorded for node `%s`. Rebuild the pipeline to record it.", name), call. = FALSE)
+  stop(sprintf("No source recorded for node `%s`. Rebuild the pipeline to record it (unless `[pipeline].record_source = false` is set).", name), call. = FALSE)
+}
+
+#' Resolve a logged script path against the project
+#'
+#' @param script Character. Logged script path.
+#' @param pipeline_dir Character. Pipeline directory.
+#'
+#' @return Character path or NULL when the file is missing.
+#'
+#' @keywords internal
+resolve_script <- function(script, pipeline_dir) {
+  candidates <- script
+  if (!grepl("^(/|[A-Za-z]:[/\\\\])", script)) {
+    candidates <- c(file.path(dirname(pipeline_dir), script), candidates)
+  }
+  found <- candidates[file.exists(candidates)]
+  if (!length(found)) NULL else found[[1L]]
+}
+
+#' Check a script file against its recorded hash, raising on drift
+#'
+#' @param name Character. Node name.
+#' @param entry List. One node entry from the build log.
+#' @param script Character. Resolved script path from the log.
+#' @param pipeline_dir Character. Pipeline directory.
+#'
+#' @return None. Raises on missing hash, missing file, or drift.
+#'
+#' @keywords internal
+verify_script <- function(name, entry, script, pipeline_dir) {
+  recorded <- entry[["script_hash"]]
+  if (!is.character(recorded) || length(recorded) != 1L || is.na(recorded) || !nzchar(trimws(recorded))) {
+    stop(sprintf("No script hash recorded for node `%s`. Rebuild the pipeline to record it.", name), call. = FALSE)
+  }
+  found <- resolve_script(script, pipeline_dir)
+  if (is.null(found)) {
+    stop(sprintf("Script `%s` for node `%s` was not found; cannot verify it.", script, name), call. = FALSE)
+  }
+  digest <- tolower(as.character(unname(tools::md5sum(found))))
+  if (!identical(digest, tolower(trimws(recorded)))) {
+    stop(sprintf("Script `%s` for node `%s` changed since the build.", script, name), call. = FALSE)
+  }
 }
 
 #' Get a failed node's error context

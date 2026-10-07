@@ -352,6 +352,20 @@ p = pipeline {
 
 The `tlang` companion package (for `debug_node`, `read_node` helpers, etc.) is automatically injected into every Julia node — no need to declare it.
 
+### 3.6 Pipeline Options
+
+```toml
+[pipeline]
+# Record embedded node source in build logs for show_code() (default: true).
+# Set to false when node code holds secrets. Script paths are still recorded.
+record_source = true
+```
+
+By default, build logs record each node's source code so companions can show
+it with `show_code()`. Exterior `script =` nodes record only their path plus
+a content hash. Set `[pipeline].record_source = false` to keep embedded code
+(and any secrets in it) out of `_pipeline/` build logs.
+
 ## 4. Importing Packages
 
 Once inside `nix develop`, you can use the `import` statement in your T scripts to load package functions.

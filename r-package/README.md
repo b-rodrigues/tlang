@@ -89,6 +89,7 @@ lin <- lineage("model")                # transitive parents and children
 msg <- error_msg("model")              # error text, like T
 msg <- warning_msg("model")            # warnings, like T
 cat(show_code("model"))                # node source for copy-paste tweaking
+cat(show_code("model", verify = TRUE)) # also check the script hash
 ```
 
 A single unreadable node aborts the tree by default. Use

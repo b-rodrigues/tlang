@@ -259,6 +259,42 @@ err <- tryCatch(
   error = function(e) conditionMessage(e)
 )
 stopifnot(grepl("Rebuild", err))
+stopifnot(grepl("record_source", err, fixed = TRUE))
 cat("show_code ok\n")
+
+# show_code verify checks the recorded script hash.
+script_path <- file.path(td, "train.R")
+writeBin(charToRaw("x <- 1\n"), script_path)
+digest <- unname(tools::md5sum(script_path))
+mk_logged <- function(node, ...) {
+  entry <- mk_entry(node, file.path(td, "a.txt"))
+  dots <- list(...)
+  for (nm in names(dots)) entry[[nm]] <- dots[[nm]]
+  entry
+}
+jsonlite::write_json(
+  list(nodes = list(
+    mk_logged("ok", script = "train.R", script_hash = digest),
+    mk_logged("drifted", script = "train.R", script_hash = paste0(rep("0", 32), collapse = "")),
+    mk_logged("nohash", script = "train.R"),
+    mk_logged("gone", script = "missing.R", script_hash = digest),
+    mk_logged("emb", source = "x <- 1\n")
+  )),
+  file.path(pipe, "build_log_20260111_000000_ver.json"),
+  auto_unbox = TRUE
+)
+sel <- "20260111"
+stopifnot(identical(show_code("ok", pipeline_dir = pipe, which_log = sel, verify = TRUE), "train.R"))
+err <- tryCatch(show_code("drifted", pipeline_dir = pipe, which_log = sel, verify = TRUE),
+  error = function(e) conditionMessage(e))
+stopifnot(grepl("changed", err))
+err <- tryCatch(show_code("nohash", pipeline_dir = pipe, which_log = sel, verify = TRUE),
+  error = function(e) conditionMessage(e))
+stopifnot(grepl("No script hash", err))
+err <- tryCatch(show_code("gone", pipeline_dir = pipe, which_log = sel, verify = TRUE),
+  error = function(e) conditionMessage(e))
+stopifnot(grepl("not found", err))
+stopifnot(identical(show_code("emb", pipeline_dir = pipe, which_log = sel, verify = TRUE), "x <- 1\n"))
+cat("show_code verify ok\n")
 
 cat("ALL INSPECT TESTS PASSED\n")

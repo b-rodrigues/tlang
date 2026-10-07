@@ -86,6 +86,7 @@ lin = tlang.lineage("model")  # transitive parents and children
 msg = tlang.error_msg("model")  # error text, like T (raises TypeError when healthy)
 msg = tlang.warning_msg("model")  # warnings, like T
 print(tlang.show_code("model"))  # node source for copy-paste tweaking
+print(tlang.show_code("model", verify=True))  # also check the script hash
 ```
 
 A single unreadable node aborts the tree by default. Use

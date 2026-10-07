@@ -2,7 +2,7 @@
 \alias{show_code}
 \title{Get a node's source code for copy-paste tweaking}
 \usage{
-show_code(name, which_log = NULL, pipeline_dir = "_pipeline")
+show_code(name, which_log = NULL, pipeline_dir = "_pipeline", verify = FALSE)
 }
 \arguments{
   \item{name}{Name of the node to inspect.}
@@ -12,6 +12,9 @@ show_code(name, which_log = NULL, pipeline_dir = "_pipeline")
 
   \item{pipeline_dir}{Path to the pipeline build directory. Defaults to
   \code{"_pipeline"}.}
+
+  \item{verify}{Logical. Verify a script file against its recorded hash.
+  Defaults to \code{FALSE}.}
 }
 \value{
 Character. The node source code, or the script path for exterior scripts.

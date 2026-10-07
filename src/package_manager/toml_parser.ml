@@ -13,6 +13,16 @@ let get_string_list_opt toml path ~default =
   try Otoml.find toml (Otoml.get_array Otoml.get_string) path
   with _ -> default
 
+(** Read [pipeline].record_source strictly: a missing key means default
+    true, but a present key with the wrong type is an error rather than a
+    silent default (this flag guards secrets, so it must fail closed). *)
+let record_source_of_toml toml =
+  match Otoml.find toml Otoml.get_boolean ["pipeline"; "record_source"] with
+  | b -> Ok b
+  | exception Otoml.Key_error _ -> Ok true
+  | exception Otoml.Type_error msg ->
+      Error (Printf.sprintf "[pipeline].record_source must be true or false: %s" msg)
+
 (** Read a pyproject.toml file and extract the requires-python field.
     Returns None if the file doesn't exist or can't be parsed. *)
 let read_requires_python_from_workspace ~(root_dir : string) ~(workspace : string) : string option =
@@ -255,6 +265,10 @@ let parse_tproject_toml ?(root_dir : string option) (content : string) : (projec
               proj_julia_dependencies = get_string_list_opt toml ["jl-dependencies"; "packages"] ~default:[];
               proj_julia_version = get_string_opt toml ["jl-dependencies"; "version"] ~default:"lts";
               proj_visualization_tool = get_string_opt toml ["visualization-tool"; "command"] ~default:"";
+              proj_record_source =
+                (match record_source_of_toml toml with
+                 | Ok b -> b
+                 | Error msg -> failwith msg);
               proj_min_t_version = get_string_opt toml ["t"; "min_version"] ~default:Version.version;
               proj_nixpkgs_date = get_string_opt toml ["nixpkgs"; "date"] ~default:"";
               proj_additional_tools = get_string_list_opt toml ["additional-tools"; "packages"] ~default:[];
@@ -344,6 +358,9 @@ let serialize_tproject_toml (cfg : project_config) : string =
   if cfg.proj_visualization_tool <> "" then begin
     Buffer.add_string buf "[visualization-tool]\n";
     Printf.bprintf buf "command = %S\n\n" cfg.proj_visualization_tool
+  end;
+  if not cfg.proj_record_source then begin
+    Buffer.add_string buf "[pipeline]\nrecord_source = false\n\n"
   end;
   Buffer.add_string buf "[additional-tools]\n";
   Printf.bprintf buf "packages = [%s]\n\n"
