@@ -34,8 +34,173 @@
 </nav>
 <div class="container">
 <h1 id="changelog">Changelog</h1>
-<h2 id="section">[0.55.5] - 2026-10-03</h2>
+<h2 id="unreleased">[0.56.0] - unreleased</h2>
 <h3 id="new-features">New features</h3>
+<ul>
+<li><strong>Companion <code>read_node()</code> picks the reader from the
+build log</strong>: the R, Python, and Julia <code>tlang</code> helpers
+now dispatch on the recorded <code>serializer</code> when no explicit
+deserializer is passed (<code>default</code> natively,
+<code>^json</code>/<code>^csv</code>/<code>^ipc</code>/<code>^parquet</code>/<code>^text</code>
+per runtime, explicit errors for
+<code>^pmml</code>/<code>^onnx</code>/<code>^bin</code>/unknown). New
+<code>read_node_tree()</code> loads a node plus its transitive children,
+parents, or both from the single selected build log, with
+<code>on_unreadable</code>
+(<code>error</code>/<code>path</code>/<code>skip</code>) for nodes that
+fail to deserialize. New <code>inspect_pipeline()</code> lists every
+node with its runtime, serializer, dependencies, build status, class,
+and artifact path, falling back to <code>dag.json</code> with
+<code>status = "unbuilt"</code> when nothing is built yet. New frame
+helpers mirror T’s pipeline tools: <code>list_logs()</code>,
+<code>build_log_to_frame()</code>, and <code>collect_exceptions()</code>
+(soft failures read the VError artifact, so artifact-only messages are
+reported). New explore helpers: <code>inspect_node()</code> for one
+node’s metadata plus error and warnings, <code>lineage()</code> for
+transitive parents and children, and T-named <code>error_msg()</code>,
+<code>error_code()</code>, <code>error_context()</code>, and
+<code>warning_msg()</code> (foreign-runtime failures are VError JSON, so
+an R error reads the same from Python or Julia; error reads skip large
+healthy artifacts, and native-deserialization failures name the building
+runtime). Build logs record per-node <code>source</code> (foreign code
+verbatim, T expressions as normalized T source) or <code>script</code>
+(exterior path only, plus a content hash), read back with
+<code>show_code()</code> for copy-paste tweaking (pass the
+<code>verify</code> flag to detect script drift). Note that embedded
+secrets land in the build log under <code>_pipeline/</code>, which is
+easier to share by accident than a store path; set
+<code>[pipeline].record_source = false</code> in
+<code>tproject.toml</code> to keep embedded code out of logs. Log-level
+helpers take <code>pipeline_dir</code> first. Note: R and Python
+previously used native deserialization for every format; unrecognized
+serializers now raise with a
+<code>return_path</code>/custom-deserializer hint.</li>
+<li><strong>More precise documented signatures for static
+types</strong>: string helpers, joins, verbs, factor helpers,
+converters, and pipeline set operations now carry exact parameter and
+return types, and the checker knows the <code>Function</code>,
+<code>Column</code>, <code>Selection</code>, <code>KeywordArgs</code>,
+and <code>Expressions</code> vocabulary as named contracts. Typing
+coverage moved from 382 to 444 of 533 fully precise builtins. The new
+precision is visible in reference pages and hover text, and
+<code>t check</code> now uses signatures for warnings (arity, argument
+types, and return types below) instead of documenting only. The full
+suite in strict mode shows no new diagnostics on existing programs.</li>
+<li><strong><code>t check</code> warns on builtin arity
+mismatches</strong>: a non-variadic builtin called with the wrong
+argument count warns naming expected and received counts. Calls right of
+<code>|&gt;</code>/<code>?|&gt;</code> count the piped value as one
+argument. Variadic builtins, unknown names, and locally shadowed names
+stay silent. This catches calls the evaluator never reaches, such as
+calls inside lambda bodies. Two <code>Any</code>-collapsed signatures
+(<code>to_factor</code>/<code>ordered</code> inputs) now read bare
+<code>Any</code>, and the duplicate <code>ifelse</code> documentation
+block is removed (the canonical <code>t_boolean.ml</code> signature
+accepts scalar or vector conditions and returns either), so the
+unknown-signature watch list is empty.</li>
+<li><strong><code>t check</code> warns on definite argument-type
+mismatches</strong>: each argument’s inferred type is compared against
+the documented parameter type. Positionals map in order (a piped value
+is first); named arguments map by name. A position stays silent on any
+doubt: missing/<code>Any</code>/<code>Unknown</code> types either side,
+argument-shape vocabulary (<code>Column</code>, <code>Selection</code>,
+<code>KeywordArgs</code>, <code>Expressions</code>,
+<code>Strategy</code>), <code>$col</code>-mentioning expressions (NSE
+verbs wrap them in row lambdas), undocumented extras, or unknown names.
+Sites already failing the arity rule are skipped.</li>
+<li><strong><code>t check</code> resolves documented return
+types</strong>: builtin calls infer to their documented return, so
+annotation checks and argument checks see through calls
+(<code>s: String = nrow(df)</code> warns that the expression infers to
+<code>Int</code>). Piped calls infer the same way
+(<code>s: String = df |&gt; nrow</code> warns;
+<code>df ?|&gt; nrow</code> matches), including bare
+<code>x |&gt; f</code> targets. Annotated lambdas infer through their
+contracts (param types flow into the body, annotated return wins;
+unannotated and generic positions stay silent). Undocumented calls stay
+<code>Unknown</code> and silent. Explicit <code>import</code> statements
+preserve precise builtin types instead of resetting them to
+unknown.</li>
+<li><strong>Transitive pipeline lineage in
+<code>explain()</code></strong>: each node in <code>explain(p)</code>
+now also carries <code>ancestors</code> (all transitive inputs) and
+<code>descendants</code> (all transitive dependents), nearest-first and
+de-duplicated. <code>t explain --node</code> prints a
+<code>Transitive lineage</code> line when indirect nodes exist, and
+<code>--json</code> always carries
+<code>ancestors</code>/<code>descendants</code> arrays alongside
+<code>parents</code>/<code>children</code>.</li>
+<li><strong><code>t check</code> warns on dangling node reads</strong>:
+<code>p.field</code>, <code>pipeline_node(p, name)</code>, and
+two-argument <code>get(p, name)</code> warn when the pipeline declares
+no such node (<code>Node \</code>x` not found in pipeline
+`p`<code>). Reads resolve against evaluated pipeline values, so derived pipelines check accurately. Near-miss names carry a manual-rename hint (</code>t
+fix<code>never auto-applies it). A position stays silent on any doubt: unknown or shadowed pipelines, non-literal names, three-argument</code>get<code>(returns its default),</code>orig_branch_N`
+names with a declared origin, and dotted-prefix reads. If the file fails
+to evaluate, these warnings stay silent (the runtime error already
+reports the failure).</li>
+</ul>
+<h3 id="improvements">Improvements</h3>
+<ul>
+<li><strong>Mistyped node names suggest the closest match</strong>:
+<code>p.r_survift</code> now fails with
+<code>Node `r_survift` not found in Pipeline. Did you mean `r_survfit`?</code>
+instead of a bare missing-node error.
+<code>pipeline_node(p, name)</code> suggests the same way, and
+<code>read_node(p.r_survift)</code> surfaces the hint as its underlying
+error, so the correct name is visible without listing nodes by
+hand.</li>
+</ul>
+<h3 id="fixes">Fixes</h3>
+<ul>
+<li><strong><code>explain()</code> on builtins is
+deterministic</strong>: argument names no longer depend on whether
+<code>help()</code> ran before. <code>explain</code> loads documentation
+itself, so <code>explain(explain)</code> always reports the documented
+names instead of sometimes falling back to <code>arg1</code>,
+<code>arg2</code>.</li>
+<li><strong>Richer <code>explain()</code> foreign metadata</strong>:
+pipeline nodes from R, Python, and Julia now report shape and model
+facts for more object families — R factors (levels), <code>ts</code>
+series (start/end/period), contingency tables,
+<code>nnet</code>/<code>pam</code>/<code>agnes</code>/<code>diana</code>
+clustering, <code>stl</code> decompositions, <code>survfit</code>
+curves, <code>rpart</code> trees (de-duplicated split variables, task
+from fit method), <code>density</code> estimates,
+<code>acf</code>/<code>smooth.spline</code>/<code>ecdf</code> objects,
+<code>coxph</code>/<code>PHReg</code> survival models, multinomial
+logits (predictor names, not outcome labels),
+<code>Logit</code>/<code>Probit</code> classification, ranking
+objectives with training-round counts (<code>current_iteration</code>
+with per-iteration fallback), frozen scipy distributions and test
+results, <code>VAR</code> lag order, Poisson/Gamma tasks, pyarrow
+tables, <code>DMatrix</code>/<code>Dataset</code> inputs, outlier
+detectors, calibrated and multioutput wrappers (inner-estimator facts),
+and transformer vs model distinction (sklearn &gt;= 1.6 tags).
+<code>HoltWinters</code>/<code>StructTS</code> report observation
+counts; <code>randomForest</code> <code>x</code>/<code>y</code> fits
+fall back to importance names; mixed-model group counts sum across
+factors. Forest models report tree counts and tasks —
+<code>randomForest</code> (<code>n_trees</code>,
+<code>r_squared</code>), sklearn forests (<code>n_trees</code>,
+<code>n_features</code>, class counts), <code>DecisionTree.jl</code>
+forests and single trees (<code>n_trees</code>, feature counts, task).
+Boosted trees report rounds — R and Python <code>xgboost</code>
+(<code>n_rounds</code>, features) and <code>LightGBM</code> (rounds,
+task). Also covered: PCA (<code>n_components</code>, first-component
+variance), ARIMA and SARIMA (<code>order</code>,
+<code>seasonal_order</code>, likelihood criteria), discriminant
+classifiers (<code>lda</code>, <code>qda</code>, <code>polr</code> class
+counts and features), Julia clustering, medoids, hypothesis tests, and
+time arrays, R <code>nls</code>, <code>loess</code>, and
+<code>fitdistr</code> model facts, and mixed-effects tasks with formulae
+and fit metrics. <code>t explain --node</code> prints direct parents and
+children lineage in text mode and as
+<code>parents</code>/<code>children</code> arrays with
+<code>--json</code>.</li>
+</ul>
+<h2 id="section">[0.55.5] - 2026-10-03</h2>
+<h3 id="new-features-1">New features</h3>
 <ul>
 <li><strong>Richer static types</strong>: collection types
 (<code>List[X]</code>, <code>Vector[X]</code>, <code>Dict[K, V]</code>),
@@ -114,7 +279,7 @@ user-defined record to a plain <code>Dict</code> (one entry per field,
 shallow) so record data can cross into foreign node code, where records
 themselves can never go.</li>
 </ul>
-<h3 id="fixes">Fixes</h3>
+<h3 id="fixes-1">Fixes</h3>
 <ul>
 <li><strong>Reassignment respects annotations in
 <code>t check</code></strong>: <code>x: Int = 1</code> followed by
@@ -287,7 +452,7 @@ transpose as well, and a quote after a reserved word that never ends an
 expression (<code>return 'x'</code>) opens a literal.</li>
 </ul>
 <h2 id="section-1">[0.55.4] - 2026-09-29</h2>
-<h3 id="new-features-1">New features</h3>
+<h3 id="new-features-2">New features</h3>
 <ul>
 <li><strong>Automatic editor setup in new projects</strong>:
 <code>t init</code> now writes an <code>.envrc</code>
@@ -298,7 +463,7 @@ interpreters — after one <code>direnv allow</code>. Direnv state
 (<code>.direnv/</code>) is git-ignored in new projects and
 packages.</li>
 </ul>
-<h3 id="fixes-1">Fixes</h3>
+<h3 id="fixes-2">Fixes</h3>
 <ul>
 <li><p><strong>Default serializers no longer hang node builds</strong>:
 <code>default</code>/<code>^default</code> serializer/deserializer in T
@@ -409,7 +574,7 @@ escaped, so special characters cannot break generated flake
 evaluation.</p></li>
 </ul>
 <h2 id="section-2">[0.55.3] - 2026-09-26</h2>
-<h3 id="new-features-2">New features</h3>
+<h3 id="new-features-3">New features</h3>
 <ul>
 <li><strong><code>renv+toml</code> R resolver (union mode)</strong>: Set
 <code>[r-dependencies] resolver = "renv+toml"</code> to use the union of
@@ -430,7 +595,7 @@ ends single-source truth. Impure install commands (such as
 <code>R -e 'renv::install(...)'</code>) are never suggested.</li>
 </ul>
 <h2 id="section-3">[0.55.2] - 2026-09-26</h2>
-<h3 id="fixes-2">Fixes</h3>
+<h3 id="fixes-3">Fixes</h3>
 <ul>
 <li><strong>Pipelines with R Git packages build again</strong>: R code
 that loads a package from Git — via <code>renv.lock</code> or via
@@ -449,7 +614,7 @@ dependency prompts now cover <code>requireNamespace()</code> and
 literals and <code>#</code> comments cause no prompt.</li>
 </ul>
 <h2 id="section-4">[0.55.1] - 2026-09-23</h2>
-<h3 id="new-features-3">New features</h3>
+<h3 id="new-features-4">New features</h3>
 <ul>
 <li><strong><code>tlang</code> Quarto extension highlights T
 code</strong>: <code>{t}</code> chunks now render with syntax
@@ -482,7 +647,7 @@ Vectorized.</li>
 matches CLI <code>t test</code> flags. <code>verbose = true</code>
 prints per-file error details.</li>
 </ul>
-<h3 id="fixes-3">Fixes</h3>
+<h3 id="fixes-4">Fixes</h3>
 <ul>
 <li><strong>Positron R interpreter discovery</strong>: Project R
 environments (<code>r-env</code> in generated <code>flake.nix</code>)

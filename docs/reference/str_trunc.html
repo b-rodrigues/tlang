@@ -38,6 +38,22 @@
 <p>Shortens strings to a maximum character width and appends an ellipsis
 when needed. Width is measured in characters (Unicode code points), so
 multi-byte UTF-8 strings are never split mid-character.</p>
+<h2 id="parameters">Parameters</h2>
+<ul>
+<li><p><strong>x</strong> (<code>String | List | Vector</code>): The
+input string(s).</p></li>
+<li><p><strong>width</strong> (<code>Int</code>): The maximum character
+width (non-negative).</p></li>
+<li><p><strong>side</strong> (<code>String</code>): [Optional] One of
+“left”, “right”, or “center”. Defaults to “right”.</p></li>
+<li><p><strong>ellipsis</strong> (<code>String</code>): [Optional] The
+ellipsis marker. Defaults to “…”.</p></li>
+</ul>
+<h2 id="returns">Returns</h2>
+<p>The truncated string.</p>
+<h2 id="examples">Examples</h2>
+<pre class="t"><code>str_trunc(&quot;abcdefgh&quot;, 5)
+-- Returns = &quot;ab...&quot;</code></pre>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

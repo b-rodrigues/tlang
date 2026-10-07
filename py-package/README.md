@@ -85,6 +85,7 @@ info = tlang.inspect_node("model")  # runtime, deps, children, status, error, wa
 lin = tlang.lineage("model")  # transitive parents and children
 msg = tlang.error_msg("model")  # error text, like T (raises TypeError when healthy)
 msg = tlang.warning_msg("model")  # warnings, like T
+code = tlang.error_code("model")  # error code; error_context("model") gives the context dict
 print(tlang.show_code("model"))  # node source for copy-paste tweaking
 print(tlang.show_code("model", verify=True))  # also check the script hash
 ```

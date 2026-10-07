@@ -118,21 +118,188 @@ declare dependencies in <code>[r-dependencies]</code>,
 <code>[py-dependencies]</code>, or <code>[jl-dependencies]</code>, so
 the helper is available from <code>nix develop</code> as well.</p>
 <h2 id="key-features">Key Features</h2>
+<h3 id="reading-values">Reading values</h3>
 <ul>
 <li><strong><code>read_node(name)</code></strong>: Automatically locates
 the latest build log in the <code>_pipeline/</code> directory, finds the
-requested node, and deserializes its artifact.</li>
+requested node, and deserializes its artifact. When
+<code>deserializer</code> is not passed, the <code>serializer</code>
+field from the build log picks the reader (see the table below). Pass a
+function to override. Failing native reads name the building runtime
+when it differs, so an RDS file read from Python points at
+<code>return_path</code> instead of a raw pickle traceback.</li>
+<li><strong><code>read_node_tree(name)</code></strong>: Reads a node
+plus its transitive children, parents, or both from the single selected
+build log, so a concurrent build cannot mix two snapshots. Each node
+keeps its own automatic serializer unless <code>deserializer</code>
+overrides it for all of them.</li>
+</ul>
+<h3 id="reading-code">Reading code</h3>
+<ul>
+<li><strong><code>show_code(name)</code></strong>: Returns a node’s
+source for copy-paste tweaking. Foreign code comes back verbatim; T
+expressions come back as normalized T source. Exterior
+<code>script =</code> nodes return the script path. Note: only the path
+is stored for scripts, so the file may differ from what was built; pass
+the <code>verify</code> flag to check the recorded content hash.
+Embedded secrets land in the build log under <code>_pipeline/</code>,
+which is easier to share by accident than a store path; set
+<code>[pipeline].record_source = false</code> in
+<code>tproject.toml</code> to keep embedded code out of logs.</li>
+</ul>
+<h3 id="inspecting-structure-and-status">Inspecting structure and
+status</h3>
+<ul>
+<li><strong><code>inspect_pipeline()</code></strong>: Returns every node
+with its runtime, serializer, dependencies, build status, class, and
+artifact path (falls back to <code>dag.json</code> with
+<code>status = "unbuilt"</code> when nothing is built yet).</li>
 <li><strong><code>pipeline_nodes()</code></strong>: Returns the pipeline
 DAG (nodes and their dependencies) as an idiomatic data structure (data
 frame in R, dictionary in Python/Julia).</li>
-<li><strong>Support for historical logs</strong>: Use the
-<code>which_log</code> argument to select a specific build log using a
-regular expression.</li>
-<li><strong>Custom Deserializers</strong>: Pass a custom function to
-handle specific artifact formats.</li>
-<li><strong><code>return_path</code> support</strong>: If you only need
-the absolute path to the artifact (e.g., to pass to a specialized
-loader), set <code>return_path = true</code>.</li>
+<li><strong><code>inspect_node(name)</code></strong>: Inspects one node
+without loading its value: runtime, serializer, dependencies, direct
+children, status, class, path, error record, and warnings.</li>
+<li><strong><code>lineage(name)</code></strong>: Lists transitive
+parents and children (names only, nearest first, sorted within each
+level).</li>
+</ul>
+<h3 id="failures-and-warnings">Failures and warnings</h3>
+<ul>
+<li><strong><code>error_msg(name)</code>, <code>error_code(name)</code>,
+<code>error_context(name)</code></strong>: Same names as T. Return a
+failed node’s message, code, or context dict. Foreign-runtime failures
+are VError JSON, so an R error reads the same from Python or Julia. Stop
+when the node is healthy, like T.</li>
+<li><strong><code>warning_msg(name)</code></strong>: Same name as T.
+Returns formatted warnings (<code>""</code> when none), with upstream
+warnings prefixed by source.</li>
+<li><strong><code>collect_exceptions()</code></strong>: Gathers error
+and warning rows (<code>node</code>, <code>status</code>,
+<code>code</code>, <code>message</code>) from one build log.</li>
+</ul>
+<h3 id="build-history">Build history</h3>
+<ul>
+<li><strong><code>list_logs()</code></strong>: Lists build logs
+newest-first with filename, modification time, size, and pipeline
+name.</li>
+<li><strong><code>build_log_to_frame()</code></strong>: Tabulates one
+build log as per-node rows (<code>name</code>, <code>status</code>,
+<code>duration</code>, <code>path</code>).</li>
+</ul>
+<h3 id="comparing-artifacts">Comparing artifacts</h3>
+<ul>
+<li><strong><code>diff_nodes()</code>, <code>diff_artifacts()</code>,
+<code>diff_objects()</code></strong>: Compare runtime-native artifacts
+that have no direct T equivalent (R models and lists via diffobj, Python
+objects via unified diff, Julia objects via DeepDiffs).</li>
+</ul>
+<h3 id="shared-arguments">Shared arguments</h3>
+<ul>
+<li><strong><code>which_log</code></strong>: Regular expression
+selecting a specific build log filename. Defaults to the latest
+build.</li>
+<li><strong><code>pipeline_dir</code></strong>: Pipeline directory.
+Defaults to <code>"_pipeline"</code>.</li>
+<li><strong><code>return_path</code></strong>: Return the artifact path
+instead of deserializing it.</li>
+<li><strong><code>include</code> / <code>direction</code></strong>: For
+tree and lineage reads, one of <code>"children"</code>,
+<code>"parents"</code>, or <code>"both"</code> (default
+<code>"children"</code> for trees, <code>"both"</code> for
+lineage).</li>
+<li><strong><code>on_unreadable</code></strong>: For tree reads, one of
+<code>"error"</code> (default), <code>"path"</code>, or
+<code>"skip"</code>. Both fallbacks warn naming the node and the
+error.</li>
+<li><strong><code>verify</code></strong>: For <code>show_code()</code>,
+check a script file against its recorded content hash. Raises on drift,
+on a missing file, and when no hash was recorded.</li>
+</ul>
+<h3 id="automatic-readers-by-serializer">Automatic readers by
+serializer</h3>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr>
+<th>Serializer</th>
+<th>R reader (package)</th>
+<th>Python reader (package)</th>
+<th>Julia reader (package)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>default</code></td>
+<td><code>readRDS()</code> (base)</td>
+<td><code>pickle</code>, then <code>dill</code>, then
+<code>cloudpickle</code> (stdlib)</td>
+<td><code>Serialization.deserialize</code> (stdlib)</td>
+</tr>
+<tr>
+<td><code>^json</code></td>
+<td><code>jsonlite::read_json()</code> (<code>jsonlite</code>)</td>
+<td><code>json.load()</code> (stdlib)</td>
+<td><code>JSON.parsefile()</code> (<code>JSON</code>)</td>
+</tr>
+<tr>
+<td><code>^csv</code></td>
+<td><code>read.csv()</code> (base)</td>
+<td><code>pandas.read_csv()</code> (<code>pandas</code>)</td>
+<td><code>CSV.read()</code> (<code>CSV</code>,
+<code>DataFrames</code>)</td>
+</tr>
+<tr>
+<td><code>^ipc</code></td>
+<td><code>arrow::read_ipc_file()</code> (<code>arrow</code>)</td>
+<td><code>pyarrow.ipc</code> (<code>pandas</code>,
+<code>pyarrow</code>)</td>
+<td><code>Arrow.Table</code> (<code>Arrow</code>,
+<code>DataFrames</code>)</td>
+</tr>
+<tr>
+<td><code>^parquet</code></td>
+<td><code>arrow::read_parquet()</code> (<code>arrow</code>)</td>
+<td><code>pyarrow.parquet</code> (<code>pandas</code>,
+<code>pyarrow</code>)</td>
+<td><code>Parquet2.readfile()</code> (<code>Parquet2</code>,
+<code>DataFrames</code>)</td>
+</tr>
+<tr>
+<td><code>^text</code></td>
+<td>exact file bytes (base)</td>
+<td>exact file bytes (stdlib)</td>
+<td>exact file bytes (stdlib)</td>
+</tr>
+<tr>
+<td><code>^pmml</code>, <code>^onnx</code>, <code>^bin</code></td>
+<td>no built-in reader</td>
+<td>no built-in reader</td>
+<td>no built-in reader</td>
+</tr>
+</tbody>
+</table>
+<p>Missing reader packages raise an error naming the package and the
+<code>tproject.toml</code> entries. <code>^pmml</code>,
+<code>^onnx</code>, and <code>^bin</code> always raise: use
+<code>return_path = TRUE</code> plus a custom deserializer.</p>
+<h3 id="cross-language-notes">Cross-language notes</h3>
+<ul>
+<li><code>^json</code> simplifies vectors in R
+(<code>simplifyVector = TRUE</code>), so arrays of records can come back
+as data frames, while Python and Julia return plain dicts and
+lists.</li>
+<li><code>^text</code> returns exact file bytes in all three
+languages.</li>
+<li>Lineage order is sorted within each level in every language, so
+trees compare equal across R, Python, and Julia.</li>
+<li><code>inspect_pipeline()</code> and the frame helpers return a data
+frame in R and a list of dicts in Python and Julia.</li>
 </ul>
 <hr />
 <h2 id="r-tlang">R: <code>tlang</code></h2>
@@ -148,43 +315,87 @@ loader), set <code>return_path = true</code>.</li>
 <span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>path <span class="ot">&lt;-</span> <span class="fu">read_node</span>(<span class="st">&quot;my_model&quot;</span>, <span class="at">return_path =</span> <span class="cn">TRUE</span>)</span>
 <span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Inspect the pipeline DAG (returns a data.frame)</span></span>
-<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>nodes <span class="ot">&lt;-</span> <span class="fu">pipeline_nodes</span>()</span></code></pre></div>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>nodes <span class="ot">&lt;-</span> <span class="fu">pipeline_nodes</span>()</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a><span class="co"># Inspect nodes with their latest build status</span></span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>tbl <span class="ot">&lt;-</span> <span class="fu">inspect_pipeline</span>()</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a><span class="co"># Read a node plus its downstream nodes</span></span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>tree <span class="ot">&lt;-</span> <span class="fu">read_node_tree</span>(<span class="st">&quot;clean_data&quot;</span>)</span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a><span class="co"># Read a failed node&#39;s error and warnings (same names as T)</span></span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a>msg <span class="ot">&lt;-</span> <span class="fu">error_msg</span>(<span class="st">&quot;model&quot;</span>)</span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a>msg <span class="ot">&lt;-</span> <span class="fu">warning_msg</span>(<span class="st">&quot;model&quot;</span>)</span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a><span class="co"># Show a node&#39;s source for copy-paste tweaking</span></span>
+<span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="fu">show_code</span>(<span class="st">&quot;model&quot;</span>))</span></code></pre></div>
+<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Compare R-native artifacts across historical builds</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>diff <span class="ot">&lt;-</span> <span class="fu">diff_nodes</span>(<span class="st">&quot;model&quot;</span>, <span class="st">&quot;model&quot;</span>, <span class="at">which_log_a =</span> <span class="st">&quot;20260501&quot;</span>, <span class="at">which_log_b =</span> <span class="st">&quot;latest&quot;</span>)</span></code></pre></div>
 <hr />
 <h2 id="python-tlang">Python: <code>tlang</code></h2>
 <p>The Python package is automatically imported in all Python nodes.</p>
 <h3 id="usage-1">Usage</h3>
-<div class="sourceCode" id="cb2"><pre
-class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># read_node is available by default</span></span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="co"># import tlang is called automatically</span></span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Read the latest &#39;my_data&#39; node</span></span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>df <span class="op">=</span> tlang.read_node(<span class="st">&quot;my_data&quot;</span>)</span>
-<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Get only the path to the artifact</span></span>
-<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>path <span class="op">=</span> tlang.read_node(<span class="st">&quot;my_model&quot;</span>, return_path<span class="op">=</span><span class="va">True</span>)</span>
-<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Inspect the pipeline DAG (returns a dict)</span></span>
-<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>nodes <span class="op">=</span> tlang.pipeline_nodes()</span></code></pre></div>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># read_node is available by default</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="co"># import tlang is called automatically</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Read the latest &#39;my_data&#39; node</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>df <span class="op">=</span> tlang.read_node(<span class="st">&quot;my_data&quot;</span>)</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Get only the path to the artifact</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>path <span class="op">=</span> tlang.read_node(<span class="st">&quot;my_model&quot;</span>, return_path<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Inspect the pipeline DAG (returns a dict)</span></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>nodes <span class="op">=</span> tlang.pipeline_nodes()</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a><span class="co"># Inspect nodes with their latest build status</span></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>rows <span class="op">=</span> tlang.inspect_pipeline()</span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a><span class="co"># Read a node plus its downstream nodes</span></span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>tree <span class="op">=</span> tlang.read_node_tree(<span class="st">&quot;clean_data&quot;</span>)</span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a><span class="co"># Read a failed node&#39;s error and warnings (same names as T)</span></span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>msg <span class="op">=</span> tlang.error_msg(<span class="st">&quot;model&quot;</span>)</span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>msg <span class="op">=</span> tlang.warning_msg(<span class="st">&quot;model&quot;</span>)</span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a><span class="co"># Show a node&#39;s source for copy-paste tweaking</span></span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(tlang.show_code(<span class="st">&quot;model&quot;</span>))</span></code></pre></div>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Compare Python-native artifacts across historical builds</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>diff <span class="op">=</span> tlang.diff_nodes(<span class="st">&quot;model&quot;</span>, <span class="st">&quot;model&quot;</span>, which_log_a<span class="op">=</span><span class="st">&quot;20260501&quot;</span>, which_log_b<span class="op">=</span><span class="st">&quot;latest&quot;</span>)</span></code></pre></div>
 <hr />
 <h2 id="julia-tlang">Julia: <code>tlang</code></h2>
 <p>The Julia package is automatically loaded with
 <code>using tlang</code> in all Julia nodes.</p>
 <h3 id="usage-2">Usage</h3>
-<div class="sourceCode" id="cb3"><pre
-class="sourceCode julia"><code class="sourceCode julia"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># read_node is available by default</span></span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="co"># using tlang is called automatically</span></span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Read the latest &#39;my_data&#39; node</span></span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>df <span class="op">=</span> <span class="fu">read_node</span>(<span class="st">&quot;my_data&quot;</span>)</span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Get only the path to the artifact</span></span>
-<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>path <span class="op">=</span> <span class="fu">read_node</span>(<span class="st">&quot;my_model&quot;</span>, return_path<span class="op">=</span><span class="cn">true</span>)</span>
-<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Compare Julia-native artifacts across historical builds</span></span>
-<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>diff <span class="op">=</span> <span class="fu">diff_nodes</span>(<span class="st">&quot;my_model&quot;</span>, <span class="st">&quot;my_model&quot;</span>, which_log_a<span class="op">=</span><span class="st">&quot;20260501&quot;</span>, which_log_b<span class="op">=</span><span class="st">&quot;latest&quot;</span>)</span>
-<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a><span class="co"># Inspect the pipeline DAG (returns a Dict)</span></span>
-<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>nodes <span class="op">=</span> <span class="fu">pipeline_nodes</span>()</span></code></pre></div>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode julia"><code class="sourceCode julia"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># read_node is available by default</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="co"># using tlang is called automatically</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Read the latest &#39;my_data&#39; node</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>df <span class="op">=</span> <span class="fu">read_node</span>(<span class="st">&quot;my_data&quot;</span>)</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Get only the path to the artifact</span></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>path <span class="op">=</span> <span class="fu">read_node</span>(<span class="st">&quot;my_model&quot;</span>, return_path<span class="op">=</span><span class="cn">true</span>)</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Compare Julia-native artifacts across historical builds</span></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>diff <span class="op">=</span> <span class="fu">diff_nodes</span>(<span class="st">&quot;my_model&quot;</span>, <span class="st">&quot;my_model&quot;</span>, which_log_a<span class="op">=</span><span class="st">&quot;20260501&quot;</span>, which_log_b<span class="op">=</span><span class="st">&quot;latest&quot;</span>)</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a><span class="co"># Inspect the pipeline DAG (returns a Dict)</span></span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>nodes <span class="op">=</span> <span class="fu">pipeline_nodes</span>()</span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a><span class="co"># Inspect nodes with their latest build status</span></span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>rows <span class="op">=</span> <span class="fu">inspect_pipeline</span>()</span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a><span class="co"># Read a node plus its downstream nodes</span></span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a>tree <span class="op">=</span> <span class="fu">read_node_tree</span>(<span class="st">&quot;clean_data&quot;</span>)</span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a><span class="co"># Read a failed node&#39;s error and warnings (same names as T)</span></span>
+<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a>msg <span class="op">=</span> <span class="fu">error_msg</span>(<span class="st">&quot;model&quot;</span>)</span>
+<span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a>msg <span class="op">=</span> <span class="fu">warning_msg</span>(<span class="st">&quot;model&quot;</span>)</span>
+<span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-26"><a href="#cb5-26" aria-hidden="true" tabindex="-1"></a><span class="co"># Show a node&#39;s source for copy-paste tweaking</span></span>
+<span id="cb5-27"><a href="#cb5-27" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="fu">show_code</span>(<span class="st">&quot;model&quot;</span>))</span></code></pre></div>
 <hr />
 <h2 id="how-it-works">How it Works</h2>
 <p>When you run <code>build_pipeline()</code>, T-Lang generates a
@@ -198,9 +409,9 @@ packages:</p>
 <li>Parse the JSON to find the entry for the requested node.</li>
 <li>Resolve the <code>path</code> (which might be relative to the
 project root or an absolute Nix store path).</li>
-<li>Call the appropriate deserializer (<code>readRDS</code> for R,
-<code>pickle.load</code> for Python,
-<code>Serialization.deserialize</code> for Julia).</li>
+<li>Pick the reader from the entry’s <code>serializer</code> field (see
+the table above), or call the custom <code>deserializer</code> when one
+is passed.</li>
 </ol>
 <p>When T’s <code>node_diff()</code> delegates to these helpers for
 runtime-native object comparisons, it preserves the original native

@@ -2990,7 +2990,10 @@ id="pipeline_nodepipeline-node_name"><code>pipeline_node(pipeline, node_name)</c
 <p>Get the value of a specific node. A leading <code>$</code> in
 <code>node_name</code> is stripped, so bare-word selectors like
 <code>pipeline_node(p, $x)</code> are accepted, matching the behaviour
-of <code>get(p, $x)</code>.</p>
+of <code>get(p, $x)</code>. A mistyped name suggests the closest
+existing node (fuzzy match); the same hint appears on
+<code>p.name</code> dot access and inside <code>read_node(p.name)</code>
+errors.</p>
 <p><strong>Parameters:</strong></p>
 <ul>
 <li><code>pipeline</code> — Pipeline object</li>
@@ -4276,7 +4279,64 @@ explain(df).example_rows  -- first 5 rows as list of dicts
 node_info = explain(read_node(&quot;model&quot;))
 node_info.node_name       -- node/container metadata
 node_info.diagnostics     -- node diagnostics
-node_info.contents        -- explained node payload</code></pre>
+node_info.contents        -- explained node payload
+
+-- Explaining a pipeline lists per-node lineage:
+pline = explain(p)
+pline.nodes               -- one dict per node: name, output_kind, diagnostics
+node  = get(pline.nodes, 0)
+node.dependencies         -- direct inputs (parents)
+node.children             -- direct dependents
+node.ancestors            -- all transitive inputs, nearest-first, de-duplicated
+node.descendants          -- all transitive dependents, nearest-first, de-duplicated
+
+-- Computed pipeline nodes (R, Python, Julia) carry build-time metadata:
+node = explain(p.fit)
+node.foreign_meta.kind        -- value kind: &quot;dataframe&quot;, &quot;matrix&quot;, &quot;vector&quot;, &quot;array&quot;, &quot;factor&quot;, &quot;series&quot;, &quot;table&quot;, &quot;model&quot;, &quot;test&quot;, &quot;data&quot;, &quot;transformer&quot;, &quot;distribution&quot;, &quot;other&quot;, or &quot;unknown&quot;
+node.foreign_meta.class        -- runtime type name, e.g. &quot;lm&quot;, &quot;DataFrame&quot;, &quot;ARIMA&quot;
+node.foreign_meta.task         -- model task when known: &quot;regression&quot;, &quot;classification&quot;, &quot;clustering&quot;, &quot;time_series&quot;, &quot;dim_reduction&quot;, &quot;density&quot;, &quot;anomaly_detection&quot;, &quot;ranking&quot;, or &quot;survival&quot;
+node.foreign_meta.dimensions  -- shape as int list, e.g. [32, 11] for frames, [4, 3] for matrices, [3] for vectors
+node.foreign_meta.n_obs       -- training row count (models)
+node.foreign_meta.n_groups    -- grouping units, e.g. 18 subjects (mixed models; summed across grouping factors)
+node.foreign_meta.groups      -- per-group counts, e.g. {Subject: 18} (mixed models)
+node.foreign_meta.n_features  -- input count (models)
+node.foreign_meta.n_trees     -- tree count (forests, when known)
+node.foreign_meta.n_rounds    -- boosting rounds (boosted trees, when known)
+node.foreign_meta.n_clusters  -- cluster count (clustering, when known)
+node.foreign_meta.n_nodes      -- tree node count (`rpart`, when known)
+node.foreign_meta.n_components -- component count (PCA, when known)
+node.foreign_meta.dtype        -- element type, e.g. &quot;float64&quot; (arrays, when known)
+node.foreign_meta.n_levels     -- level count with levels list (R factors)
+node.foreign_meta.start        -- series start, e.g. &quot;1949-1&quot; (R ts)
+node.foreign_meta.end          -- series end, e.g. &quot;1960-12&quot; (R ts)
+node.foreign_meta.method      -- algorithm variant: hclust linkage, or the test name for `htest` results
+node.foreign_meta.target      -- response name (models, when known)
+node.foreign_meta.formula     -- full model formula (R models, when known)
+node.foreign_meta.order       -- [p, d, q] (time-series models, when known)
+node.foreign_meta.seasonal_order -- [P, D, Q, m] (seasonal models, when known)
+node.foreign_meta.features    -- full feature/column list (first 500 entries; `n_features` stays exact)
+node.foreign_meta.metrics     -- free numeric metrics (r_squared, aic, bic, ...); numbers only, other values are dropped
+node.foreign_meta.artifact_size -- artifact file size in bytes
+
+Time-series decompositions (`stl`) report component names as features and the seasonal period. Autocorrelation objects (`acf`) report the correlation type and series name; smoothing splines (`smooth.spline`) report penalty and degrees of freedom; empirical distributions (`ecdf`) report observation counts. Survival models (`coxph`) report event counts and concordance; Kaplan-Meier fits (`survfit`) report per-stratum counts. Trees (`rpart`) report node counts and split variables, with the task read from the fit method. Density estimates report bandwidth. `Logit`/`Probit` results report a classification task from the model class. Multinomial logits report predictor names (not outcome labels) and `PHReg` reports survival tasks. Rankers report boosting rounds. Frozen scipy distributions report the distribution name and moments; scipy test results report statistic and p-value. Contingency tables, `nnet` classifiers/regressors, `pam`/`agnes`/`diana` clusterings, `VAR` lag order, and Poisson/Gamma tasks report per-family facts. R factors report levels; R `ts` objects report series start/end. Pyarrow tables read as dataframes; native `DMatrix`/`Dataset` objects read as data inputs. Pure transformers report `transformer` kind (detected via sklearn ≥ 1.6 tags; older versions report `model`); calibrated and multioutput wrappers report inner-estimator facts; Julia time arrays report `series` kind with timestamps counted as observations. Boosting rounds count training rounds (`current_iteration`, falling back to trees per iteration); R `rpart` variables are de-duplicated split variables with the task read from the fit method.
+
+Julia note: fit-metric verbs (`nobs`, `coefnames`, `r2`, `aic`,
+`deviance`, `loglikelihood`) resolve from whatever the node session
+loaded — normally the modeling package itself, so keys are present
+for supported families and silently absent otherwise.
+
+`features`/`n_features` meaning varies by family: input variable names
+for frames, forests, and discriminant means; fitted coefficient names
+for `lm`-family models (so factors expand to dummy columns, ARIMA
+reports `ar1`/`ma1`, and variance terms such as `sigma2` are included).
+`seasonal_order` is only emitted for genuinely seasonal fits.
+`n_rounds` counts boosting rounds, except the R xgboost tree-dump
+fallback which counts trees (rounds times classes for multiclass).
+Metrics are best effort per runtime and differ by family
+(e.g. `var_explained` for R kmeans, `inertia` for sklearn, `totalcost`
+for Julia); check presence before use.
+-- Tree display shows short previews (`features_preview`, `formula_preview`);
+-- dot access returns the full values. Absent when the node is unbuilt (NA).</code></pre>
 <hr />
 <h3 id="explain_jsonvalue"><code>explain_json(value)</code></h3>
 <p>Returns a JSON string representation of the <code>explain</code>

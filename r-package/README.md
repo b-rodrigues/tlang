@@ -88,6 +88,7 @@ info <- inspect_node("model")          # runtime, deps, children, status, error,
 lin <- lineage("model")                # transitive parents and children
 msg <- error_msg("model")              # error text, like T
 msg <- warning_msg("model")            # warnings, like T
+code <- error_code("model")            # error code; error_context("model") gives the context dict
 cat(show_code("model"))                # node source for copy-paste tweaking
 cat(show_code("model", verify = TRUE)) # also check the script hash
 ```
