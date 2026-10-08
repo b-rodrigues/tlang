@@ -204,7 +204,6 @@ and computed_node = {
     be embedded in a computed node without creating structural equality
     cycles.  Nodes restored from build logs carry None. *)
 and node_config = {
-  nc_runtime       : string;
   nc_functions     : (expr * option_source) list;
   nc_includes      : (expr * option_source) list;
   nc_env_vars      : (string * value * option_source) list;
@@ -2994,7 +2993,6 @@ module Utils = struct
       List.map (fun d -> (d, Source_node)) auto @ explicit
     in
     {
-      nc_runtime = runtime;
       nc_functions = functions;
       nc_includes = includes;
       nc_env_vars = env_vars;

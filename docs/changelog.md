@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.56.1] - unreleased
+
+### Fixes
+
+- **Internal cleanup with no behavior change**: `explain()` keeps the single top-level `runtime` from `0.56.0`, and the now-unused duplicate inside the node configuration record is removed from the codebase.
+
 ## [0.56.0] - 2026-10-08
 
 ### New features
