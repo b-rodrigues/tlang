@@ -526,6 +526,20 @@ function _closure_nodes(deps::Dict{String, Vector{String}}, name::String, includ
 end
 
 """
+    _fallback_serializer(entry)
+
+Return the build-log serializer for an unreadable node entry, or
+`"default"` when missing.
+"""
+function _fallback_serializer(entry)
+    raw = entry isa AbstractDict ? get(entry, "serializer", "default") : "default"
+    if raw isa String && !isempty(strip(raw))
+        return String(raw)
+    end
+    return "default"
+end
+
+"""
     read_node_tree(name::String; which_log=nothing, pipeline_dir="_pipeline", deserializer=nothing, return_path=false, include="children", on_unreadable="error")
 
 Read a node and all of its related nodes.
@@ -537,10 +551,11 @@ in which case that function reads every node. All nodes come from the single
 build log selected up front.
 
 A single unreadable node aborts the whole tree by default. Pass
-`on_unreadable="path"` to fall back to the artifact path for nodes that fail
-to deserialize (for example `^pmml` model artifacts downstream), or
-`on_unreadable="skip"` to omit them. Both fallbacks warn naming the node and
-the error. `return_path=true` returns every path and never triggers the fallback.
+`on_unreadable="path"` to fall back to a `Dict("path", "serializer")` record
+for nodes that fail to deserialize (for example `^pmml` model artifacts
+downstream), or `on_unreadable="skip"` to omit them. Both fallbacks warn
+naming the node, the serializer, the artifact path, and the error.
+`return_path=true` returns every path and never triggers the fallback.
 
 # Arguments
 - `name::String`: The root node name.
@@ -554,7 +569,10 @@ the error. `return_path=true` returns every path and never triggers the fallback
 - `on_unreadable::String`: One of `"error"` (default), `"path"`, `"skip"`.
 
 # Returns
-- `Dict{String, Any}`: Mapping of node name to value (or path).
+- `Dict{String, Any}`: Mapping of node name to value. With
+  `on_unreadable="path"`, an unreadable node maps to
+  `Dict("path", "serializer")` holding the artifact path and the build-log
+  serializer, so the caller can recover manually.
 """
 function read_node_tree(
     name::String;
@@ -607,10 +625,18 @@ function read_node_tree(
                 rethrow(e)
             end
             msg = sprint(showerror, e)
-            @warn "Node `$node_name` could not be deserialized ($msg); $(on_unreadable == "path" ? "returning the artifact path." : "skipping it.")"
+            entry = entries[node_name]
+            artifact = _resolve_artifact_path(entry["path"], pipeline_dir)
+            serializer = _fallback_serializer(entry)
             if on_unreadable == "path"
-                result[node_name] = _resolve_artifact_path(
-                    entries[node_name]["path"], pipeline_dir
+                @warn "Node `$node_name` (serializer `$serializer`, artifact `$artifact`) could not be deserialized ($msg); returning a `Dict(path, serializer)` record so you can recover manually."
+            else
+                @warn "Node `$node_name` (serializer `$serializer`, artifact `$artifact`) could not be deserialized ($msg); skipping it."
+            end
+            if on_unreadable == "path"
+                result[node_name] = Dict{String, Any}(
+                    "path" => artifact,
+                    "serializer" => serializer,
                 )
             end
             # "skip": omit the node.

@@ -30,10 +30,13 @@ read_node_tree(
   \code{"parents"} (nodes \code{name} depends on), or \code{"both"}.}
 
   \item{on_unreadable}{One of \code{"error"} (abort the tree), \code{"path"}
-  (fall back to the artifact path), or \code{"skip"} (omit the node).}
+  (fall back to a \code{list(path, serializer)} record), or \code{"skip"} (omit the node).}
 }
 \value{
-A named list mapping node name to deserialized value (or path).
+A named list mapping node name to deserialized value. With
+\code{on_unreadable = "path"}, an unreadable node maps to a
+\code{list(path, serializer)} record holding the artifact path and the
+build-log serializer, so the caller can recover manually.
 }
 \description{
 Reads the requested node plus its transitive children, parents, or both, using

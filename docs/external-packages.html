@@ -132,7 +132,9 @@ when it differs, so an RDS file read from Python points at
 plus its transitive children, parents, or both from the single selected
 build log, so a concurrent build cannot mix two snapshots. Each node
 keeps its own automatic serializer unless <code>deserializer</code>
-overrides it for all of them.</li>
+overrides it for all of them. With <code>on_unreadable = "path"</code>,
+an unreadable node maps to a path/serializer record, so the caller can
+recover manually.</li>
 </ul>
 <h3 id="reading-code">Reading code</h3>
 <ul>
@@ -210,8 +212,9 @@ tree and lineage reads, one of <code>"children"</code>,
 lineage).</li>
 <li><strong><code>on_unreadable</code></strong>: For tree reads, one of
 <code>"error"</code> (default), <code>"path"</code>, or
-<code>"skip"</code>. Both fallbacks warn naming the node and the
-error.</li>
+<code>"skip"</code>. With <code>"path"</code>, an unreadable node maps
+to a path/serializer record. Both fallbacks warn naming the node, the
+serializer, the artifact path, and the error.</li>
 <li><strong><code>verify</code></strong>: For <code>show_code()</code>,
 check a script file against its recorded content hash. Raises on drift,
 on a missing file, and when no hash was recorded.</li>

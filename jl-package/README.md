@@ -57,7 +57,7 @@ using tlang
 
 all_nodes = read_node_tree("clean_data")                  # clean_data + children
 all_nodes = read_node_tree("clean_data", include = "both") # parents + children
-all_nodes = read_node_tree("clean_data", on_unreadable = "path") # unreadable nodes come back as paths
+all_nodes = read_node_tree("clean_data", on_unreadable = "path") # unreadable nodes come back as path/serializer records
 ```
 
 ## Inspect the pipeline
@@ -94,7 +94,10 @@ println(show_code("model", verify = true))  # also check the script hash
 
 A single unreadable node aborts the tree by default. Use
 `on_unreadable = "path"` or `"skip"` for pipelines with model artifacts
-downstream. Both fallbacks warn naming the node and the error.
+downstream. With `"path"`, an unreadable node maps to a
+`Dict("path", "serializer")` record holding the artifact path and the
+build-log serializer, so you can recover manually. Both fallbacks warn naming
+the node, the serializer, the artifact path, and the error.
 
 ## Diff Julia artifacts
 

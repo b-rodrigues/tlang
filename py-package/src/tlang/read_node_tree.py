@@ -77,6 +77,15 @@ def _closure(deps_map: dict[str, list[str]], name: str, include: str) -> list[st
     return seen
 
 
+def _fallback_serializer(entry: Any) -> str:
+    """Return the build-log serializer for an unreadable node entry."""
+    if isinstance(entry, dict):
+        raw = entry.get("serializer", "default")
+        if isinstance(raw, str) and raw.strip():
+            return raw
+    return "default"
+
+
 def read_node_tree(
     name: str,
     which_log: str | None = None,
@@ -96,10 +105,11 @@ def read_node_tree(
     mix two snapshots mid-loop.
 
     A single unreadable node aborts the whole tree by default. Pass
-    ``on_unreadable="path"`` to fall back to the artifact path for nodes that
-    fail to deserialize (for example ``^pmml`` model artifacts downstream),
-    or ``on_unreadable="skip"`` to omit them. Both fallbacks warn naming the
-    node and the error. ``return_path=True`` returns
+    ``on_unreadable="path"`` to fall back to a ``{"path", "serializer"}``
+    record for nodes that fail to deserialize (for example ``^pmml`` model
+    artifacts downstream), or ``on_unreadable="skip"`` to omit them. Both
+    fallbacks warn naming the node, the serializer, the artifact path, and
+    the error. ``return_path=True`` returns
     every path and never triggers the fallback.
 
     Parameters
@@ -123,7 +133,10 @@ def read_node_tree(
     Returns
     -------
     dict[str, Any]
-        Mapping of node name to deserialized value (or path).
+        Mapping of node name to deserialized value. With
+        ``on_unreadable="path"``, an unreadable node maps to
+        ``{"path": str, "serializer": str}`` holding the artifact path and
+        the build-log serializer, so the caller can recover manually.
     """
     _validate_non_empty_string(name, "name")
     if include not in {"children", "parents", "both"}:
@@ -164,19 +177,31 @@ def read_node_tree(
         except Exception as err:
             if on_unreadable == "error":
                 raise
+            entry = entries[node_name]
+            fallback_path = str(
+                _resolve_artifact_path(
+                    entry.get("path") if isinstance(entry, dict) else None,
+                    pipeline_path,
+                )
+            )
+            fallback_serializer = _fallback_serializer(entry)
             warnings.warn(
-                f"Node `{node_name}` could not be deserialized ({err}); "
+                f"Node `{node_name}` (serializer `{fallback_serializer}`, "
+                f"artifact `{fallback_path}`) could not be deserialized ({err}); "
                 + (
-                    "returning the artifact path."
+                    "returning a `{'path', 'serializer'}` record "
+                    "so you can recover manually."
                     if on_unreadable == "path"
-                    else "skipping it."
+                    else f"skipping it. Artifact `{fallback_path}` uses "
+                    f"serializer `{fallback_serializer}`."
                 ),
                 UserWarning,
                 stacklevel=2,
             )
             if on_unreadable == "path":
-                result[node_name] = str(
-                    _resolve_artifact_path(entries[node_name].get("path"), pipeline_path)
-                )
+                result[node_name] = {
+                    "path": fallback_path,
+                    "serializer": fallback_serializer,
+                }
             # "skip": omit the node.
     return result

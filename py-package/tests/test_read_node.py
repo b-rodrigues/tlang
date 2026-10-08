@@ -338,12 +338,17 @@ class TreeTests(unittest.TestCase):
                     "good", pipeline_dir=pipe, include="children", on_unreadable="path"
                 )
             self.assertIn("bad", str(warned.warning))
+            self.assertIn("pmml", str(warned.warning))
+            self.assertIn("bad.pmml", str(warned.warning))
             self.assertEqual(as_path["good"], "ok")
-            self.assertTrue(str(as_path["bad"]).endswith("bad.pmml"))
-            with self.assertWarns(UserWarning):
+            self.assertTrue(str(as_path["bad"]["path"]).endswith("bad.pmml"))
+            self.assertEqual(as_path["bad"]["serializer"], "pmml")
+            with self.assertWarns(UserWarning) as warned_skip:
                 skipped = read_node_tree(
                     "good", pipeline_dir=pipe, include="children", on_unreadable="skip"
                 )
+            self.assertIn("bad", str(warned_skip.warning))
+            self.assertIn("pmml", str(warned_skip.warning))
             self.assertEqual(sorted(skipped), ["good"])
 
 

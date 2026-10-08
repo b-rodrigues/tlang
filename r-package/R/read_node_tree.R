@@ -90,6 +90,21 @@ closure_nodes <- function(deps_map, name, include) {
   seen
 }
 
+#' Extract the build-log serializer for an unreadable node entry
+#'
+#' @param entry List. One entry from the build log `nodes` array.
+#'
+#' @return Character. The raw serializer string, or `"default"` when missing.
+#'
+#' @keywords internal
+fallback_serializer <- function(entry) {
+  raw <- if (is.list(entry) && !is.null(entry$serializer)) entry$serializer else "default"
+  if (is.character(raw) && length(raw) == 1L && !is.na(raw) && nzchar(raw)) {
+    return(raw)
+  }
+  "default"
+}
+
 #' Read a node and all of its related nodes
 #'
 #' Reads the requested node plus its transitive `children` (nodes that
@@ -98,10 +113,11 @@ closure_nodes <- function(deps_map, name, include) {
 #' a function, in which case that function reads every node.
 #'
 #' A single unreadable node aborts the whole tree by default. Pass
-#' `on_unreadable = "path"` to fall back to the artifact path for nodes that
-#' fail to deserialize (for example `^pmml` model artifacts downstream), or
-#' `on_unreadable = "skip"` to omit them. Both fallbacks warn naming the node
-#' and the error. `return_path = TRUE` returns every path and never triggers
+#' `on_unreadable = "path"` to fall back to a `list(path, serializer)` record
+#' for nodes that fail to deserialize (for example `^pmml` model artifacts
+#' downstream), or `on_unreadable = "skip"` to omit them. Both fallbacks warn
+#' naming the node, the serializer, the artifact path, and the error.
+#' `return_path = TRUE` returns every path and never triggers
 #' the fallback.
 #'
 #' @param name Name of the root node to read.
@@ -118,7 +134,10 @@ closure_nodes <- function(deps_map, name, include) {
 #' @param on_unreadable Character. One of `"error"` (the default), `"path"`,
 #'   or `"skip"`.
 #'
-#' @return A named list mapping node name to deserialized value (or path).
+#' @return A named list mapping node name to deserialized value. With
+#'   `on_unreadable = "path"`, an unreadable node maps to a
+#'   `list(path, serializer)` record holding the artifact path and the
+#'   build-log serializer, so the caller can recover manually.
 #'
 #' @details
 #' `children` are direct and indirect dependents found by reverse lookup of
@@ -197,15 +216,24 @@ read_node_tree <- function(
       if (on_unreadable == "error") {
         stop(conditionMessage(value), call. = FALSE)
       }
-      warning(sprintf(
-        "Node `%s` could not be deserialized (%s); %s.",
-        node_name, conditionMessage(value),
-        if (on_unreadable == "path") "returning the artifact path" else "skipping it"
-      ), call. = FALSE)
+      entry <- entries[[node_name]]
+      artifact <- resolve_artifact_path(entry$path, pipeline_dir)
+      serializer <- fallback_serializer(entry)
       if (on_unreadable == "path") {
-        result[node_name] <- list(resolve_artifact_path(
-          entries[[node_name]]$path, pipeline_dir
-        ))
+        warning(sprintf(
+          "Node `%s` (serializer `%s`, artifact `%s`) could not be deserialized (%s); returning a `list(path, serializer)` record so you can recover manually.",
+          node_name, serializer, artifact, conditionMessage(value)
+        ), call. = FALSE)
+      } else {
+        warning(sprintf(
+          "Node `%s` (serializer `%s`, artifact `%s`) could not be deserialized (%s); skipping it.",
+          node_name, serializer, artifact, conditionMessage(value)
+        ), call. = FALSE)
+      }
+      if (on_unreadable == "path") {
+        fallback <- list(path = artifact, serializer = serializer)
+        class(fallback) <- c("tlang_unreadable", "list")
+        result[node_name] <- list(fallback)
       }
       # "skip": omit the node.
     } else {

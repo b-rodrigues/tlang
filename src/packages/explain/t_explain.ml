@@ -724,10 +724,8 @@ let register ?(ensure_docs=ignore) env =
         let config_value =
           match cn.cn_config with
           | Some cfg ->
-              let config_fields = [
-                ("runtime", VString cfg.nc_runtime);
-              ] @
-              (if cfg.nc_functions = [] then []
+              let config_fields =
+                (if cfg.nc_functions = [] then []
                else [("functions", grouped_entries (List.map (fun (e, s) -> (expr_str e, s)) cfg.nc_functions))]) @
               (if cfg.nc_includes = [] then []
                else [("includes", grouped_entries (List.map (fun (e, s) -> (expr_str e, s)) cfg.nc_includes))]) @

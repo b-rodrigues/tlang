@@ -173,7 +173,8 @@ end
         @test_throws ErrorException read_node_tree("good", pipeline_dir=pipe, which_log="20260110")
         as_path = read_node_tree("good", pipeline_dir=pipe, which_log="20260110", on_unreadable="path")
         @test as_path["good"] == "a"
-        @test endswith(as_path["bad"], "m.pmml")
+        @test endswith(as_path["bad"]["path"], "m.pmml")
+        @test as_path["bad"]["serializer"] == "pmml"
         skipped = read_node_tree("good", pipeline_dir=pipe, which_log="20260110", on_unreadable="skip")
         @test sort(collect(keys(skipped))) == ["good"]
     end

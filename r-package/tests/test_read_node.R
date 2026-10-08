@@ -241,7 +241,12 @@ as_path <- withCallingHandlers(
   }
 )
 stopifnot(any(grepl("bad", warned)))
-stopifnot(identical(as_path[["good"]], "a") && grepl("m.pmml$", as_path[["bad"]]))
+stopifnot(any(grepl("pmml", warned)))
+stopifnot(any(grepl("m.pmml", warned, fixed = TRUE)))
+stopifnot(identical(as_path[["good"]], "a"))
+stopifnot(grepl("m.pmml$", as_path[["bad"]]$path))
+stopifnot(identical(as_path[["bad"]]$serializer, "pmml"))
+stopifnot(inherits(as_path[["bad"]], "tlang_unreadable"))
 warned <- NULL
 skipped <- withCallingHandlers(
   read_node_tree("good",
@@ -252,6 +257,7 @@ skipped <- withCallingHandlers(
   }
 )
 stopifnot(any(grepl("bad", warned)))
+stopifnot(any(grepl("pmml", warned)))
 stopifnot(identical(names(skipped), "good"))
 cat("on_unreadable ok\n")
 

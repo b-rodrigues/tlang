@@ -9662,7 +9662,7 @@ Now that you can work with numerical arrays, explore statistical modeling and re
 
 # Changelog
 
-## [0.56.0] - unreleased
+## [0.56.0] - 2026-10-08
 
 ### New features
 
@@ -16146,7 +16146,7 @@ For project development shells, `t update` also wires the matching companion pac
 ### Reading values
 
 - **`read_node(name)`**: Automatically locates the latest build log in the `_pipeline/` directory, finds the requested node, and deserializes its artifact. When `deserializer` is not passed, the `serializer` field from the build log picks the reader (see the table below). Pass a function to override. Failing native reads name the building runtime when it differs, so an RDS file read from Python points at `return_path` instead of a raw pickle traceback.
-- **`read_node_tree(name)`**: Reads a node plus its transitive children, parents, or both from the single selected build log, so a concurrent build cannot mix two snapshots. Each node keeps its own automatic serializer unless `deserializer` overrides it for all of them.
+- **`read_node_tree(name)`**: Reads a node plus its transitive children, parents, or both from the single selected build log, so a concurrent build cannot mix two snapshots. Each node keeps its own automatic serializer unless `deserializer` overrides it for all of them. With `on_unreadable = "path"`, an unreadable node maps to a path/serializer record, so the caller can recover manually.
 
 ### Reading code
 
@@ -16180,7 +16180,7 @@ For project development shells, `t update` also wires the matching companion pac
 - **`pipeline_dir`**: Pipeline directory. Defaults to `"_pipeline"`.
 - **`return_path`**: Return the artifact path instead of deserializing it.
 - **`include` / `direction`**: For tree and lineage reads, one of `"children"`, `"parents"`, or `"both"` (default `"children"` for trees, `"both"` for lineage).
-- **`on_unreadable`**: For tree reads, one of `"error"` (default), `"path"`, or `"skip"`. Both fallbacks warn naming the node and the error.
+- **`on_unreadable`**: For tree reads, one of `"error"` (default), `"path"`, or `"skip"`. With `"path"`, an unreadable node maps to a path/serializer record. Both fallbacks warn naming the node, the serializer, the artifact path, and the error.
 - **`verify`**: For `show_code()`, check a script file against its recorded content hash. Raises on drift, on a missing file, and when no hash was recorded.
 
 ### Automatic readers by serializer
