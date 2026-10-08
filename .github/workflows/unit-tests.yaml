@@ -46,13 +46,13 @@ jobs:
           skipPush: true
   
       - name: Build T
-        run: nix develop --accept-flake-config --command dune build
+        run: nix develop --profile $RUNNER_TEMP/dev-profile --accept-flake-config --command dune build
 
       - name: Run test suite
-        run: nix develop --accept-flake-config --command dune test
+        run: nix develop --profile $RUNNER_TEMP/dev-profile --accept-flake-config --command dune test
 
       - name: Check docs determinism
-        run: nix develop --accept-flake-config --command bash scripts/check_docs_determinism.sh
+        run: nix develop --profile $RUNNER_TEMP/dev-profile --accept-flake-config --command bash scripts/check_docs_determinism.sh
 
       - name: Upload T executable as artifact
         uses: actions/upload-artifact@v4
