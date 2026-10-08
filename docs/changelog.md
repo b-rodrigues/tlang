@@ -5,6 +5,7 @@
 ### Fixes
 
 - **Internal cleanup with no behavior change**: `explain()` keeps the single top-level `runtime` from `0.56.0`, and the now-unused duplicate inside the node configuration record is removed from the codebase.
+- **Julia test path works in `nix develop` again**: the shell kept only the repo env plus wrapper env on `JULIA_LOAD_PATH`, so stdlib imports (`Pkg`, `Serialization`) failed. `@stdlib` is back on the path. The `DeepDiffs` test dependency joins the Nix Julia set, and `jl-package/Manifest.toml` pins match the depot again (`JSON 0.21.4`, `Parsers 2.8.6`), so the full Julia suite (82 tests) runs offline.
 
 ## [0.56.0] - 2026-10-08
 
