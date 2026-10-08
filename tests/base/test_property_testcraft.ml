@@ -3,7 +3,7 @@
    expect_fail on unequal values, expect_nrow/ncol/colnames, expect_length,
    expect_true/false, expect_between, expect_set_equal, expect_unique,
    expect_no_na, and expect_str_contains. *)
-let run_tests _pass_count _fail_count _failures _eval_string eval_string_env _test test_env =
+let run_tests _pass_count _fail_count _failures _eval_string eval_string_env  _test test_env _test_equal =
   Printf.printf "Propcraft dogfooding — testcraft:\n";
   let env = Packages.init_env () in
 

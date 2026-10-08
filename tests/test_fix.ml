@@ -7,10 +7,10 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
   let check name condition =
     if condition then begin
       incr pass_count;
-      Printf.printf "  ✓ %s\n" name
+      Printf.printf "  SUCCESS %s\n" name
     end else begin
       incr fail_count;
-      let msg = Printf.sprintf "  ✗ %s\n" name in
+      let msg = Printf.sprintf "  FAILURE %s\n" name in
       failures := msg :: !failures;
       Printf.printf "%s" msg
     end
@@ -343,6 +343,14 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
     check "apply_fix returns false for NoFix" (r = false)
   in
   test_apply_fix_noop ();
+
+  let test_apply_fix_suggest_identifier_noop () =
+    let fix = Diagnostics.make_suggest_identifier_fix
+      ~name:"modle" ~suggestion:"model" ~edit_distance:1 ~is_unique:true () in
+    let r = Fix.apply_fix ~file:"/dev/null" fix in
+    check "apply_fix returns false for Suggest_identifier (manual rename)" (r = false)
+  in
+  test_apply_fix_suggest_identifier_noop ();
 
   let test_apply_fix_node_arg () =
     let tmp = Filename.temp_file "test_fix_dispatch_arg" ".t" in

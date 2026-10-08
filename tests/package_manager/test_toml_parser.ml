@@ -5,10 +5,10 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
   let test_pm name check =
     if check () then begin
       incr pass_count;
-      Printf.printf "  ✓ %s\n" name
+      Printf.printf "  SUCCESS %s\n" name
     end else begin
       incr fail_count;
-      Printf.printf "  ✗ %s\n" name
+      Printf.printf "  FAILURE %s\n" name
     end
   in
 

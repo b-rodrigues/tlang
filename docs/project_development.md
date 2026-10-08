@@ -65,7 +65,7 @@ my_stats = { git = "https://github.com/user/my-stats", tag = "v0.1.0" }
 data_utils = { git = "https://github.com/user/data-utils", tag = "v0.2.0" }
 
 [t]
-min_version = "0.55.5"
+min_version = "0.56.0"
 ```
 
 > **Important**: `[dependencies]` entries **must** be `{ git, tag }` inline tables pointing to T packages. Version-constraint strings (e.g. `tlang = ">=0.52.0"`) and array values (e.g. `python = ["polars"]`) are **not valid** and will produce a hard error from `t update`. To declare runtime-language packages, use the dedicated sections:
@@ -351,6 +351,20 @@ p = pipeline {
 ```
 
 The `tlang` companion package (for `debug_node`, `read_node` helpers, etc.) is automatically injected into every Julia node — no need to declare it.
+
+### 3.6 Pipeline Options
+
+```toml
+[pipeline]
+# Record embedded node source in build logs for show_code() (default: true).
+# Set to false when node code holds secrets. Script paths are still recorded.
+record_source = true
+```
+
+By default, build logs record each node's source code so companions can show
+it with `show_code()`. Exterior `script =` nodes record only their path plus
+a content hash. Set `[pipeline].record_source = false` to keep embedded code
+(and any secrets in it) out of `_pipeline/` build logs.
 
 ## 4. Importing Packages
 

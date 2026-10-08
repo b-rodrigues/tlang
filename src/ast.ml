@@ -3097,6 +3097,45 @@ let type_conversion_hint left_type right_type =
 let make_error ?location ?(context=[]) ?(na_count=0) code message =
   VError { code; message; context; location; na_count }
 
+(** Internal pipeline node names are never offered as suggestions:
+    `__`-prefixed internals and auto-generated `_branch_N` branch nodes. *)
+let is_suggestible_node_name name =
+  let len = String.length name in
+  if len >= 2 && String.sub name 0 2 = "__" then false
+  else begin
+    let marker = "_branch_" in
+    let mlen = String.length marker in
+    let rec find i =
+      if i + mlen > len then false
+      else if String.sub name i mlen = marker then begin
+        let rest_len = len - i - mlen in
+        rest_len > 0 &&
+        (let ok = ref true in
+         for j = 0 to rest_len - 1 do
+           let c = name.[i + mlen + j] in
+           if c < '0' || c > '9' then ok := false
+         done;
+         !ok)
+      end else find (i + 1)
+    in
+    not (find 0)
+  end
+
+(** KeyError for a mistyped pipeline node name, with a fuzzy
+    "Did you mean ...?" hint when a close match exists. The queried name
+    itself is filtered out of the candidates, so a name present in only one
+    of the two node lists can never be suggested back to itself. *)
+let missing_node_error name candidates =
+  let candidates =
+    List.filter (fun c -> c <> name && is_suggestible_node_name c)
+      (List.sort_uniq String.compare candidates)
+  in
+  let hint = match suggest_name name candidates with
+    | Some suggestion -> Printf.sprintf " Did you mean `%s`?" suggestion
+    | None -> ""
+  in
+  make_error KeyError (Printf.sprintf "Node `%s` not found in Pipeline.%s" name hint)
+
 (** Create a builtin function value (wraps func to strip arg names) *)
 let make_builtin ?name ?(variadic=false) ?(unwrap=true) arity func =
   let arg_proj =
@@ -3153,6 +3192,14 @@ let rec is_compatible (v : value) (t : typ) : bool =
       List.for_all2 (fun (_, ev) et -> is_compatible ev et) items ts
   
   | VVector _, TList _ -> true (* Treat Vectors as compatible with List types for runtime checks *)
+  (* `Vector` annotations parse to `TCustom "Vector"` (the parser keeps the
+     spelling; see parser.mly `typ`). Vectors check as lists throughout
+     the static layer (`to_ast_typ` maps `TVector` onto `TList`), so the
+     runtime accepts both storage shapes here. Like the `TList` arm above
+     this is shape-only (element params do not survive parsing), and it
+     only ever turns a mismatch into a match. *)
+  | VVector _, TCustom "Vector" -> true
+  | VList _, TCustom "Vector" -> true
   | VNDArray _, TCustom "NDArray" -> true
   | VDataFrame _, TDataFrame _ -> true
   
@@ -3225,6 +3272,12 @@ let rec types_compatible a b =
   | TUnknown, _ -> true
   | TInt, TFloat -> true
   | TFloat, TInt -> false
+  (* A bare `Function` contract matches any function shape regardless of
+     arity: arity lives in `TArrow`, so comparing lengths here would reject
+     valid programs. This only ever turns a mismatch into a match, so it
+     cannot introduce new rejections. *)
+  | TCustom "Function", TArrow _ -> true
+  | TArrow _, TCustom "Function" -> true
   | TArrow (p1, r1), TArrow (p2, r2) ->
       List.length p1 = List.length p2 &&
       List.for_all2 types_compatible p1 p2 &&

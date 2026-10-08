@@ -36,6 +36,9 @@ let rename_impl (named_args : (string option * value) list) _env =
 --# Renames selected DataFrame columns using named arguments.
 --#
 --# @name rename
+--# @param df :: DataFrame The input DataFrame.
+--# @param ... :: Symbol New and old column pairs of the form new_name = $old_name.
+--# @return :: DataFrame The DataFrame with renamed columns.
 --# @family colcraft
 --# @export
 *)

@@ -2,7 +2,7 @@
 (* Phase 8: Golden tests for pipelines *)
 (* These tests verify complete pipeline outputs against expected baselines *)
 
-let run_tests pass_count fail_count _failures _eval_string eval_string_env test test_env =
+let run_tests pass_count fail_count _failures _eval_string eval_string_env test test_env _test_equal =
   Printf.printf "Phase 8 — Golden: Pipeline Baseline Outputs:\n";
 
   (* Golden test 1: Simple arithmetic pipeline *)
@@ -106,8 +106,8 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     {|Error(TypeError: "Function `pipeline_run` expects a Pipeline.")|};
 
   test "golden: pipeline_node missing key"
-    {|p = pipeline { a = 1 }; pipeline_node(p, "z")|}
-    {|Error(KeyError: "Node `z` not found in Pipeline.")|};
+    {|p = pipeline { a = 1 }; pipeline_node(p, "zzzzz")|}
+    {|Error(KeyError: "Node `zzzzz` not found in Pipeline.")|};
 
   (* Golden test: pipeline_to_ga YAML generation *)
   (try
@@ -128,16 +128,16 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
       if not (Test_helpers.contains result expected) then begin
         all_pass := false;
         incr fail_count;
-        Printf.printf "  ✗ golden: pipeline_to_ga — %s\n    Expected to contain: %s\n" desc expected
+        Printf.printf "  FAILURE golden: pipeline_to_ga — %s\n    Expected to contain: %s\n" desc expected
       end
     ) checks;
     if !all_pass then begin
       incr pass_count;
-      Printf.printf "  ✓ golden: pipeline_to_ga generates valid workflow YAML\n"
+      Printf.printf "  SUCCESS golden: pipeline_to_ga generates valid workflow YAML\n"
     end
   with e ->
     incr fail_count;
-    Printf.printf "  ✗ golden: pipeline_to_ga — Exception: %s\n" (Printexc.to_string e));
+    Printf.printf "  FAILURE golden: pipeline_to_ga — Exception: %s\n" (Printexc.to_string e));
 
   (* Golden test: pipeline_to_ga type error *)
   test "golden: pipeline_to_ga type error"

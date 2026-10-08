@@ -46,7 +46,7 @@ let eval_setup eval_string_env env label script =
   let (result, env) = eval_string_env script env in
   match result with
   | Ast.VError _ ->
-    Printf.printf "  ✗ [setup:%s] evaluation failed:\n    %s\n"
+    Printf.printf "  FAILURE [setup:%s] evaluation failed:\n    %s\n"
       label (Ast.Utils.value_to_string result);
     failwith (Printf.sprintf "eval_setup: %s produced a VError result" label)
   | _ -> env

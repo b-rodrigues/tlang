@@ -8,7 +8,7 @@ Explicitly reorders a factor by moving named levels ahead of the remaining level
 
 - **x** (`Vector[Factor]`): A factor vector.
 
-- **...**: Level names to move to the front.
+- **...** (`String`): Level names to move to the front.
 
 - **after** (`Int`): = 0 Position after which to place the moved levels (0 = front).
 

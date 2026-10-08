@@ -6,7 +6,7 @@ Converts values to factor-encoded vectors with derived or explicit levels.
 
 ## Parameters
 
-- **x** (`Vector | List | Any`): The values to convert to factors.
+- **x** (`Any`): The values to convert to factors. Accepts a vector, a list, or a scalar.
 
 - **levels** (`Vector[String] | List[String]`): (Optional) Explicit level order. Defaults to sorted unique values.
 

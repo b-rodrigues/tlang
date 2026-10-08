@@ -46,12 +46,12 @@ let cast_value target_type v =
 --# Supports missing value handling via the `missing` argument.
 --#
 --# @name ifelse
---# @param condition :: Vector[Bool] The logical condition to evaluate.
+--# @param condition :: Bool | Vector[Bool] The logical condition to evaluate. Accepts a scalar or a vector.
 --# @param true_val :: Any Expected return value when condition is true.
 --# @param false_val :: Any Expected return value when condition is false.
 --# @param missing :: Any (Optional) Value to return when condition is NA.
 --# @param out_type :: String (Optional) Explicit output type casting.
---# @return :: Vector A vector of the resulting values.
+--# @return :: Any A scalar when `condition` is scalar, otherwise a vector aligned to `condition`.
 --# @example
 --#   ifelse([true, false, NA], "Yes", "No", missing = "Unknown")
 --# @family core

@@ -82,12 +82,18 @@ let parse_and_eval ?filename ?(failfast=false) mode env input =
   | Sys.Break ->
       (interrupt_error (), env)
 
-let run_file ?failfast mode filename env =
+let run_file ?content ?failfast mode filename env =
   try
-    let ch = open_in filename in
-    let content = really_input_string ch (in_channel_length ch) in
-    close_in ch;
-    parse_and_eval ~filename ?failfast mode env content
+    let input =
+      match content with
+      | Some c -> c
+      | None ->
+          let ch = open_in filename in
+          let c = really_input_string ch (in_channel_length ch) in
+          close_in ch;
+          c
+    in
+    parse_and_eval ~filename ?failfast mode env input
   with
   | Sys_error msg ->
       (VError {
@@ -625,11 +631,556 @@ let generic_body_diagnostics program filename =
   ) sites;
   List.rev !diags
 
+(** Registry shape for builtin call checks: runtime arity plus the
+    documented parameter list (name and declared type string, when
+    present). Built by [builtin_sigs_of_env] below, so the CLI hook and
+    tests share one construction and cannot drift. This module stays a
+    leaf: callers pass the environment in (`Analyzer -> Packages ->
+    Check_utils` must not cycle). *)
+type builtin_sig = {
+  bs_arity : int;
+  bs_variadic : bool;
+  bs_params : (string * string option) list;
+}
+
+(** Derive call-check signatures for every builtin in an environment.
+    Runtime arity comes from the builtin value; parameter names and
+    declared types come from the documentation registry (empty when
+    undocumented, which stays silent downstream). *)
+let builtin_sigs_of_env env =
+  let acc = ref [] in
+  Ast.Env.iter (fun name v ->
+    match v with
+    | Ast.VBuiltin { Ast.b_name = Some n; Ast.b_arity; Ast.b_variadic; _ } when n = name ->
+        let params =
+          match Tdoc_registry.lookup n with
+          | Some e ->
+              List.map (fun (p : Tdoc_types.param_doc) ->
+                (p.Tdoc_types.name, p.Tdoc_types.type_info)
+              ) e.Tdoc_types.params
+          | None -> []
+        in
+        acc := (n, { bs_arity = b_arity;
+                     bs_variadic = b_variadic;
+                     bs_params = params }) :: !acc
+    | _ -> ()) env;
+  !acc
+
+(** Every name with a local binding program-wide: assignments,
+    reassignments, lambda parameters, match pattern binders, and import
+    aliases (`import m [nick = name]`, `import "f.t" [nick = name]`).
+    Calling such a name may hit the local, not the builtin, so call
+    checks stay silent for it. Shared by the arity and argument-type
+    checks below. A bare `import package` is deliberately excluded: it
+    re-exposes the same builtins, so builtin signatures still apply.
+    Selective package imports without an alias (`import m [name]`) are
+    likewise excluded — they bind the package member under its own
+    name, and for the standard packages that is the builtin itself.
+    Only an alias can introduce a genuinely new local binding there.
+    File imports always bind (user code may shadow anything). *)
+let locally_bound_names program =
+  let bound = Hashtbl.create 32 in
+  let bind name = Hashtbl.replace bound name true in
+  let bind_import_spec bind_plain (import_item : import_spec) =
+    match import_item.import_alias with
+    | Some nick -> bind nick
+    | None -> if bind_plain then bind import_item.import_name else ()
+  in
+  let rec bind_pattern = function
+    | PVar s -> bind s
+    | PList (ps, rest) ->
+        List.iter bind_pattern ps;
+        (match rest with Some s -> bind s | None -> ())
+    | PError (Some s) -> bind s
+    | PUnion { pu_args; _ } -> List.iter bind_pattern pu_args
+    | PWildcard | PNA | PError None -> ()
+  in
+  let rec collect_expr e =
+    (match e.node with
+     | Lambda l -> List.iter bind l.params
+     | Match { cases; _ } -> List.iter (fun (p, _) -> bind_pattern p) cases
+     | _ -> ());
+    List.iter collect_expr (children_of_expr e)
+  and collect_stmt s =
+    (match s.node with
+     | Assignment { name; _ } | Reassignment { name; _ } -> bind name
+     | ImportFrom { names; _ } ->
+         List.iter (bind_import_spec false) names
+     | ImportFileFrom { names; _ } ->
+         List.iter (bind_import_spec true) names
+     | _ -> ());
+    List.iter collect_expr (children_of_stmt s)
+  in
+  List.iter collect_stmt program;
+  bound
+
+(** Call sites with pipe context: a call directly right of `|>`/`?|>`
+    sees the piped value as an implicit first argument, so the site
+    keeps the left-hand expression. A bare `x |> f` is a site with no
+    written arguments. Shared by the arity and argument-type checks. *)
+let collect_call_sites program =
+  let sites = ref [] in
+  let rec walk_expr piped_left e =
+    match e.node with
+    | Call { fn = { node = Var name; _ }; args; _ } ->
+        List.iter (fun (_, a) -> walk_expr None a) args;
+        sites := (name, args, piped_left, e.loc) :: !sites
+    | Call { fn; args; _ } ->
+        walk_expr None fn;
+        List.iter (fun (_, a) -> walk_expr None a) args
+    | BinOp { op = (Pipe | MaybePipe); left; right; _ } ->
+        walk_expr None left;
+        (match right.node with
+         | Call _ -> walk_expr (Some left) right
+         | Var name ->
+             sites := (name, [], Some left, right.loc) :: !sites
+         | _ -> walk_expr None right)
+    | _ ->
+        List.iter (walk_expr None) (children_of_expr e)
+  in
+  List.iter (fun s -> List.iter (walk_expr None) (children_of_stmt s)) program;
+  List.rev !sites
+
+(** Shared constructor for call-check diagnostics (all Warning,
+    Schema phase). *)
+let mk_call_diag ~error_class ~message ~expected ~actual loc filename =
+  let line = match loc with
+    | Some (l : source_location) -> Some l.line
+    | None -> None
+  in
+  let col = match loc with
+    | Some (l : source_location) -> Some l.column
+    | None -> None
+  in
+  { Diagnostics.diag_id = Diagnostics.gen_id ();
+    Diagnostics.diag_error_class = error_class;
+    Diagnostics.diag_severity = Diagnostics.Warning;
+    Diagnostics.diag_phase = Diagnostics.Schema;
+    Diagnostics.diag_node_id = None;
+    Diagnostics.diag_node_lang = None;
+    Diagnostics.diag_file = Some filename;
+    Diagnostics.diag_line = line;
+    Diagnostics.diag_column = col;
+    Diagnostics.diag_end_line = None;
+    Diagnostics.diag_end_column = None;
+    Diagnostics.diag_message = message;
+    Diagnostics.diag_expected = Some expected;
+    Diagnostics.diag_actual = Some actual;
+    Diagnostics.diag_caused_by = [];
+    Diagnostics.diag_suggested_fix = Diagnostics.no_fix;
+  }
+
+(** Call arity diagnostics (warn-only).
+    Mirrors the runtime arity rule in `Eval.eval_call` exactly: a
+    non-variadic builtin takes exactly `b_arity` arguments, counting
+    positional and named args together (a piped value counts one).
+    Everything else stays silent: variadic builtins, unknown names,
+    and names bound anywhere in the program (a local binding shadows
+    the builtin). This catches mistakes the evaluator never reaches —
+    calls inside lambdas, node blocks, and match arms — at check time.
+    Severity is Warning. The builtin table is a parameter so this
+    module stays a leaf (`Analyzer -> Packages -> Check_utils` must
+    not cycle). *)
+let call_arity_diagnostics ~builtins program filename =
+  let bound = locally_bound_names program in
+  let diags = ref [] in
+  List.iter (fun (name, args, piped_left, loc) ->
+    let received = List.length args + (match piped_left with Some _ -> 1 | None -> 0) in
+    if Hashtbl.mem bound name then ()
+    else match List.assoc_opt name builtins with
+    | Some entry when not entry.bs_variadic && received <> entry.bs_arity ->
+        diags := mk_call_diag
+          ~error_class:Diagnostics.Arity_error
+          ~message:(Printf.sprintf
+            "Function `%s` expects %d argument(s) but received %d. The call fails at runtime."
+            name entry.bs_arity received)
+          ~expected:(string_of_int entry.bs_arity)
+          ~actual:(string_of_int received)
+          loc filename :: !diags
+    | _ -> ()
+  ) (collect_call_sites program);
+  List.rev !diags
+
+(** Call argument-type diagnostics (warn-only).
+    Compares each argument's inferred type against the documented
+    parameter type and warns on definite mismatches only. Positionals
+    map to documented parameters in order (a piped value is the first
+    positional); named arguments map by parameter name. A position
+    stays silent whenever doubt exists: no documented type, `Any` or
+    `Unknown` anywhere on either side, a parameter from the
+    argument-shape vocabulary with no value inhabitants (`Column`,
+    `Selection`, `KeywordArgs`, `Expressions`, `Strategy`), an
+    undocumented extra position, or an unknown named argument. Sites
+    whose count already fails the arity rule are skipped (the arity
+    warning covers them). Severity is Warning. Inference arrives as a
+    parameter so this module stays a leaf (see the arity check). *)
+let call_type_diagnostics ~sigs ~infer program filename =
+  let rec has_unknown = function
+    | Semantic_type.TUnknown -> true
+    | Semantic_type.TList u | Semantic_type.TVector u -> has_unknown u
+    | Semantic_type.TDict (k, v) -> has_unknown k || has_unknown v
+    | Semantic_type.TUnion ts -> List.exists has_unknown ts
+    | Semantic_type.TFunction (args, ret) ->
+        List.exists (fun (_, u) -> has_unknown u) args || has_unknown ret
+    | _ -> false
+  in
+  (* Argument-shape words name call positions, not values: no runtime
+     value ever infers to them, so any concrete comparison would warn
+     falsely. `Strategy` owns custom formats with pipeline context. *)
+  let shape_word = function
+    | "Column" | "Selection" | "KeywordArgs" | "Expressions" | "Strategy" -> true
+    | _ -> false
+  in
+  let bound = locally_bound_names program in
+  (* NSE verbs wrap `$col`-mentioning expressions in row lambdas before
+     evaluation, so an inferred per-row type (e.g. `Bool` for `$mpg > 20`
+     in `filter`) never meets the documented parameter type. Any
+     argument mentioning a column reference stays silent. *)
+  let rec uses_columnref e =
+    (match e.node with ColumnRef _ -> true | _ -> false)
+    || List.exists uses_columnref (children_of_expr e)
+  in
+  let diags = ref [] in
+  List.iter (fun (name, args, piped_left, loc) ->
+    if Hashtbl.mem bound name then ()
+    else match List.assoc_opt name sigs with
+    | None -> ()
+    | Some entry ->
+        let received = List.length args + (match piped_left with Some _ -> 1 | None -> 0) in
+        if not entry.bs_variadic && received <> entry.bs_arity then ()
+        else begin
+          let params = List.filter (fun (n, _) -> n <> "...") entry.bs_params in
+          let positionals =
+            (match piped_left with Some l -> [(None, l)] | None -> [])
+            @ List.filter (fun (n, _) -> n = None) args
+          in
+          let named = List.filter_map (fun (n, e) ->
+            match n with Some s -> Some (s, e) | None -> None) args in
+          (* Positionals fill the parameters not already claimed by
+             name, in order. Runtime arg matching differs per builtin
+             (plain builtins bind values in written order with names
+             stripped; named-aware ones like `ifelse` match positionals
+             in order and named arguments by name, erroring on
+             double-binds), so mapping a positional onto a name-claimed
+             parameter can only warn falsely — e.g. `f(a = 1, "x")`
+             binds `a = 1` either way. Claimed slots are therefore
+             removed before assigning positionals; named arguments
+             always check against their named parameter. Note this is
+             more lenient than runtime for plain builtins (where
+             `f(opt = "x", 1)` would misbind `"x"` to the first
+             parameter): that only ever misses warnings, never adds
+             false ones. *)
+          let claimed = List.map fst named in
+          let params_open =
+            List.filter (fun (n, _) -> not (List.mem n claimed)) params
+          in
+          let check_one pname ptype_opt arg =
+            match ptype_opt with
+            | None -> ()
+            | Some s ->
+                let param = Semantic_type.from_string s in
+                if param = Semantic_type.TAny || has_unknown param then ()
+                else
+                  let expected = Semantic_type.to_ast_typ param in
+                  let skip_expected = match expected with
+                    | TCustom w -> shape_word w
+                    | _ -> false
+                  in
+                  (* The expected text quotes the documented signature
+                     verbatim (`List[Float] | Vector[Float]`), since the
+                     AST rendering collapses `Vector` into `List`. *)
+                  if skip_expected || uses_columnref arg then ()
+                  else begin
+                    let actual =
+                      try Semantic_type.to_ast_typ (infer arg)
+                      with _ -> TUnknown
+                    in
+                    if not (types_compatible actual expected) then
+                      diags := mk_call_diag
+                        ~error_class:Diagnostics.Type_error
+                        ~message:(Printf.sprintf
+                          "Function `%s` expects argument `%s` to be %s, but it infers to %s."
+                          name pname s (Utils.typ_to_string actual))
+                        ~expected:s
+                        ~actual:(Utils.typ_to_string actual)
+                        loc filename :: !diags
+                  end
+          in
+          List.iteri (fun i (_, e) ->
+            match List.nth_opt params_open i with
+            | Some (pname, ptype) -> check_one pname ptype e
+            | None -> ()
+          ) positionals;
+          List.iter (fun (n, e) ->
+            match List.find_opt (fun (p, _) -> p = n) params with
+            | Some (_, ptype) -> check_one n ptype e
+            | None -> ()
+          ) named
+        end
+  ) (collect_call_sites program);
+  List.rev !diags
+
+(** Declared node names for one pipeline: [pni_names] mirrors the
+    existence checks in runtime reads (`p.field` dot access,
+    `pipeline_node`, two-argument `get` consult `p_exprs` first, then
+    cached `p_nodes`; run_check unions both, covering branch expansion
+    and lens writes); [pni_patterns] covers lazy `orig_branch_N`
+    expansion. *)
+type pipeline_node_index = {
+  pni_names : string list;
+  pni_patterns : string list;
+}
+
+(** Dangling pipeline-node read diagnostics (warn-only).
+    Warns when `p.field`, `pipeline_node(p, name)`, or two-argument
+    `get(p, name)` names a node that the pipeline does not declare.
+    This catches typos the evaluator never reaches — reads inside
+    lambdas, node blocks, and match arms — at check time. A pipeline
+    variable resolves only when it has exactly one top-level
+    assignment, no top-level reassignment, and no other binding: any
+    nested assignment or reassignment rebinds locally and shadows the
+    outer name, as does any shadowing binder anywhere (lambda
+    parameters, match binders, type names, import aliases/names);
+    anything else stays silent. Unknown pipelines (imports,
+    parameters, meta-pipelines), non-literal node names, three-argument
+    `get` (which returns its default), `orig_branch_N` names whose
+    origin is declared, and `prefix` reads of dotted node names all
+    stay silent, mirroring runtime resolution. Near-miss names carry a
+    `Suggest_identifier` fix, which `t fix` never auto-applies (manual
+    rename). Severity is Warning. *)
+let dangling_node_read_diagnostics ~pipelines program filename =
+  let assign_count = Hashtbl.create 8 in
+  let reassigned = Hashtbl.create 8 in
+  let shadowed = Hashtbl.create 8 in
+  let mark tbl name = Hashtbl.replace tbl name true in
+  let rec mark_pattern = function
+    | PVar s -> mark shadowed s
+    | PList (ps, rest) ->
+        List.iter mark_pattern ps;
+        (match rest with Some s -> mark shadowed s | None -> ())
+    | PError (Some s) -> mark shadowed s
+    | PUnion { pu_args; _ } -> List.iter mark_pattern pu_args
+    | PWildcard | PNA | PError None -> ()
+  in
+  (* Binding names at every level. A nested assignment rebinds
+     locally and shadows the outer name for that block (reads after
+     it never touch the pipeline), so nested bindings silence the
+     variable outright instead of counting toward the single
+     top-level assignment. Binder audit: Lambda params, match
+     patterns, assignments, reassignments, type names, and import
+     aliases/names cover every T binder (no loops or comprehensions
+     exist; type names cannot shadow per the eval guard, but are
+     marked anyway). Erring silent is the safe direction throughout. *)
+  let rec scan_stmt ~toplevel (s : stmt) =
+    (match s.node with
+    | Assignment { name; _ } ->
+        if toplevel then
+          let n = 1 + Option.value ~default:0 (Hashtbl.find_opt assign_count name) in
+          Hashtbl.replace assign_count name n
+        else mark shadowed name
+    | Reassignment { name; _ } ->
+        if toplevel then mark reassigned name
+        else mark shadowed name
+    | TypeDecl { tname; _ } -> mark shadowed tname
+    | ImportFrom { names; _ } ->
+        (* Only aliases shadow: a bare `import pkg [name]` re-exposes
+           the package member under its own name, which for standard
+           packages is the builtin itself. *)
+        List.iter (fun (im : import_spec) ->
+          match im.import_alias with
+          | Some nick -> mark shadowed nick
+          | None -> ()
+        ) names
+    | ImportFileFrom { names; _ } ->
+        (* File imports bind user code, which may shadow anything, so
+           both plain names and aliases count (unlike package imports
+           above, where only aliases can introduce new bindings). *)
+        List.iter (fun (im : import_spec) ->
+          mark shadowed im.import_name;
+          (match im.import_alias with Some nick -> mark shadowed nick | None -> ())
+        ) names
+    | _ -> ());
+    List.iter scan_expr (children_of_stmt s)
+  and scan_expr e =
+    (* The Block arm is exclusive: children_of_expr on a Block yields
+       exactly the statements' child expressions (ast.ml), so the
+       generic recursion below would walk each nested block twice per
+       level (2^depth). scan_stmt covers names and recurses into child
+       expressions. *)
+    match e.node with
+    | Block blk -> List.iter (scan_stmt ~toplevel:false) blk
+    | Lambda l ->
+        List.iter (mark shadowed) l.params;
+        List.iter scan_expr (children_of_expr e)
+    | Match { cases; _ } ->
+        List.iter (fun (p, _) -> mark_pattern p) cases;
+        List.iter scan_expr (children_of_expr e)
+    | _ -> List.iter scan_expr (children_of_expr e)
+  in
+  let rec all_exprs e =
+    e :: List.concat_map all_exprs (children_of_expr e)
+  in
+  let exprs =
+    List.concat_map (fun s -> List.concat_map all_exprs (children_of_stmt s)) program
+  in
+  List.iter (scan_stmt ~toplevel:true) program;
+  let shadowed_fn name =
+    Hashtbl.mem shadowed name
+    || Hashtbl.mem assign_count name
+    || Hashtbl.mem reassigned name
+  in
+  let resolvable pname =
+    match List.assoc_opt pname pipelines with
+    | None -> None
+    | Some info ->
+        if Hashtbl.find_opt assign_count pname = Some 1
+           && not (Hashtbl.mem reassigned pname)
+           && not (Hashtbl.mem shadowed pname)
+        then Some info
+        else None
+  in
+  (* A literal node selector: strings as written, symbols and `$name`
+     column references stripped to the bare node name. Anything else
+     (variables, calls) is dynamic and stays silent. *)
+  let literal_node_name e =
+    match e.node with
+    | Value (VString s) -> Some s
+    | Value (VSymbol s) -> Some (Utils.strip_dollar s)
+    | ColumnRef s -> Some s
+    | _ -> None
+  in
+  (* Mirror Eval.try_lazy_expand_branch name parsing: the last
+     `_branch_N` suffix (positive N) resolves when its origin is a
+     declared node or pattern. *)
+  let branch_resolves names pats field =
+    let marker = "_branch_" in
+    let mlen = String.length marker in
+    let flen = String.length field in
+    let rec find pos =
+      if pos < 0 then false
+      else if pos + mlen <= flen && String.sub field pos mlen = marker then
+        let orig = String.sub field 0 pos in
+        let suffix = String.sub field (pos + mlen) (flen - pos - mlen) in
+        (match int_of_string_opt suffix with
+         | Some n when n > 0 ->
+             List.mem orig names || List.mem orig pats
+         | _ -> find (pos - 1))
+      else find (pos - 1)
+    in
+    find (flen - mlen)
+  in
+  (* Mirror Eval.has_node_prefix: `p.prefix` reads on to dotted names. *)
+  let prefix_resolves names field =
+    let pfx = field ^ "." in
+    List.exists (fun n ->
+      String.length n > String.length pfx
+      && String.starts_with ~prefix:pfx n
+    ) names
+  in
+  let diags = ref [] in
+  let check_site pname info node loc =
+    if List.mem node info.pni_names
+       || branch_resolves info.pni_names info.pni_patterns node
+       || prefix_resolves info.pni_names node then ()
+    else begin
+      let names = info.pni_names in
+      let loc_line = match loc with Some (l : source_location) -> l.line | None -> 1 in
+      let fix =
+        match Ast.suggest_names_with_scores node names with
+        | [] -> Diagnostics.no_fix
+        | (best, dist) :: rest ->
+            let is_unique =
+              match rest with
+              | [] -> true
+              | (_, runner_dist) :: _ -> runner_dist > dist
+            in
+            Diagnostics.make_suggest_identifier_fix
+              ~name:node ~suggestion:best ~edit_distance:dist ~is_unique
+              ~file:filename ~line:loc_line ()
+      in
+      let valid =
+        if List.length names <= 10 && names <> [] then
+          " Valid nodes: " ^ String.concat ", " names ^ "."
+        else ""
+      in
+      diags := {
+        Diagnostics.diag_id = Diagnostics.gen_id ();
+        Diagnostics.diag_error_class = Diagnostics.Key_error;
+        Diagnostics.diag_severity = Diagnostics.Warning;
+        (* Wire, not Schema: this is name resolution on the DAG
+           (cf. NameError mapping), and tier-1 structural checks
+           ("no dangling node refs") live at this tier. *)
+        Diagnostics.diag_phase = Diagnostics.Wire;
+        Diagnostics.diag_node_id = None;
+        Diagnostics.diag_node_lang = None;
+        Diagnostics.diag_file = Some filename;
+        Diagnostics.diag_line = (match loc with Some (l : source_location) -> Some l.line | None -> None);
+        Diagnostics.diag_column = (match loc with Some (l : source_location) -> Some l.column | None -> None);
+        Diagnostics.diag_end_line = None;
+        Diagnostics.diag_end_column = None;
+        Diagnostics.diag_message = Printf.sprintf
+          "Node `%s` not found in pipeline `%s`.%s" node pname valid;
+        Diagnostics.diag_expected = None;
+        Diagnostics.diag_actual = None;
+        Diagnostics.diag_caused_by = [];
+        Diagnostics.diag_suggested_fix = fix;
+      } :: !diags
+    end
+  in
+  let check_call_args fn_name args loc =
+    if shadowed_fn fn_name then ()
+    else match args with
+    | [(_, { node = Var pname; _ }); (_, namex)] ->
+        (match resolvable pname with
+         | Some info ->
+             (match literal_node_name namex with
+              | Some n -> check_site pname info n loc
+              | None -> ())
+         | None -> ())
+    | _ -> ()
+  in
+  List.iter (fun e ->
+    match e.node with
+    | DotAccess { target = { node = Var pname; _ }; field } ->
+        (match resolvable pname with
+         | Some info -> check_site pname info field e.loc
+         | None -> ())
+    | Call { fn = { node = Var "pipeline_node"; _ }; args; _ } ->
+        check_call_args "pipeline_node" args e.loc
+    | Call { fn = { node = Var "get"; _ }; args; _ } ->
+        check_call_args "get" args e.loc
+    | _ -> ()
+  ) exprs;
+  List.rev !diags
+
+(** Parse program text for static checks. Returns None when the text
+    cannot be parsed; those failures are already reported through the
+    evaluation path, so the AST walk stays silent. The catch-all is
+    deliberate: the lexer/parser exception surface is open-ended
+    (including resource exhaustion on hostile input), and silence on
+    doubt fits this check's design. *)
+let parse_program_string content filename =
+  try
+    let lexbuf = Lexing.from_string content in
+    lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = filename };
+    Some (Parser.program Lexer.token lexbuf)
+  with
+  | Sys.Break -> raise Sys.Break
+  | _ -> None
+
 let run_check ?(schema=false) ?(env_check=false) ?(offline=false) mode filename env =
+  (* Read once: evaluation and the dangling-read walk share the text. *)
+  let content =
+    try
+      let ch = open_in filename in
+      Fun.protect ~finally:(fun () -> close_in_noerr ch)
+        (fun () -> Some (really_input_string ch (in_channel_length ch)))
+    with Sys_error _ -> None
+  in
   let run () =
     Ast.check_mode := true;
     Fun.protect ~finally:(fun () -> Ast.check_mode := false)
-      (fun () -> run_file ~failfast:true mode filename env)
+      (fun () -> run_file ?content ~failfast:true mode filename env)
   in
   let (result, new_env) = run () in
   let check_result =
@@ -670,7 +1221,41 @@ let run_check ?(schema=false) ?(env_check=false) ?(offline=false) mode filename 
         wire_diags @ schema_diags @ env_diags
       ) pipelines in
       let extra_diags = !extra_diagnostics_hook filename in
-      let unordered = extra_diags @ error_diags @ pipeline_diags in
+      (* Dangling node reads use evaluated pipeline values (accurate
+         for derived pipelines) but only when the file evaluates
+         cleanly: with failfast on, a top-level dangling read already
+         surfaces as the runtime error, so warning again would double
+         report. Clean files still gain warnings for reads hidden in
+         unexecuted code (lambdas, node blocks, match arms). *)
+      let dangling_diags =
+        match result with
+        | VError _ -> []
+        | _ ->
+            let node_maps =
+              List.filter_map (fun (name, v) ->
+                match v with
+                | VPipeline p ->
+                    (* Runtime reads consult cached results first, so
+                       materialized node names count alongside declared
+                       ones (covers branch expansion and lens writes). *)
+                    let expr_names = List.map fst p.p_exprs in
+                    let extra = List.filter (fun n -> not (List.mem n expr_names))
+                      (List.map fst p.p_nodes) in
+                    Some (name, { pni_names = expr_names @ extra;
+                                  pni_patterns = List.map fst p.p_patterns })
+                | _ -> None
+              ) (Env.bindings new_env)
+            in
+            if node_maps = [] then []
+            else match content with
+              | None -> []
+              | Some text ->
+                  (match parse_program_string text filename with
+                   | None -> []
+                   | Some program ->
+                       dangling_node_read_diagnostics ~pipelines:node_maps program filename)
+      in
+      let unordered = extra_diags @ error_diags @ pipeline_diags @ dangling_diags in
       (* Diagnostics read better in source order than grouped by category:
          stable sort by location, keeping category order within one spot.
          Location-less diagnostics sort last. Applies to text and JSON. *)

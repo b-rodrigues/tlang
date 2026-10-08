@@ -3047,6 +3047,9 @@ and eval_dot_access_val env_ref target_val field =
     List.exists (fun (n, _) -> String.starts_with ~prefix:pfx n) p.p_nodes ||
     List.exists (fun (n, _) -> String.starts_with ~prefix:pfx n) p.p_exprs
   in
+  let node_candidates p =
+    List.map fst p.p_nodes @ List.map fst p.p_exprs
+  in
   match target_val with
   | VRecord r ->
       (* Closed record: exactly the declared fields exist. Anything else
@@ -3087,7 +3090,7 @@ and eval_dot_access_val env_ref target_val field =
                        if has_node_prefix p compound
                        then VDict [("__partial_dot_pipeline__", pipe_val);
                                    ("__partial_dot_prefix__", VString compound)]
-                       else Error.make_error KeyError (Printf.sprintf "Node `%s` not found in Pipeline." compound))
+                       else Ast.missing_node_error compound (node_candidates p))
              | _ ->
                (match List.assoc_opt "__partial_dot_dict__" pairs with
                | Some (VDict orig_pairs) ->
@@ -3148,7 +3151,7 @@ and eval_dot_access_val env_ref target_val field =
                  if has_node_prefix p field
                  then VDict [("__partial_dot_pipeline__", VPipeline p);
                              ("__partial_dot_prefix__", VString field)]
-                 else Error.make_error KeyError (Printf.sprintf "Node `%s` not found in Pipeline." field)))
+                 else Ast.missing_node_error field (node_candidates p)))
   | VMetaPipeline mp ->
       (match Pipeline_composition.flatten_meta (VMetaPipeline mp) with
        | VPipeline flat_p -> eval_dot_access_val env_ref (VPipeline flat_p) field

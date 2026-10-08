@@ -8,7 +8,7 @@ Adds extra levels to a factor without changing existing assignments.
 
 - **x** (`Vector[Factor]`): A factor vector.
 
-- **...**: New level names to add.
+- **...** (`String`): New level names to add.
 
 
 ## Returns

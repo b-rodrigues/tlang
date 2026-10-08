@@ -1,4 +1,4 @@
-let run_tests _pass_count _fail_count _failures _eval_string eval_string_env test test_env =
+let run_tests _pass_count _fail_count _failures _eval_string eval_string_env test test_env _test_equal =
   Printf.printf "Phase 5 — Math: sqrt():\n";
   test "sqrt of integer" "sqrt(4)" "2.";
   test "sqrt of float" "sqrt(2.0)" "1.41421356237";

@@ -14,7 +14,7 @@ Simulations in Julia, ML in Python, statistics in R — or the exact opposite. I
 
 A language for the LLM era, T is designed to be piloted by both humans and AI models. It gives you one hermetic dependency graph where your tools communicate without glue and execute consistently through space and time: on your laptop today, on a cluster tomorrow, and five years from now without bitrot.
 
-**Status:** Version 0.55.5 "L'Ultime combat".
+**Status:** Version 0.56.0 "L'Ultime combat".
 
 ---
 
@@ -463,7 +463,7 @@ Now that you have your first project set up and understand the folder structure,
 
 # T Language Overview
 
-> **Version**: 0.55.5
+> **Version**: 0.56.0
 
 T is a functional programming language designed for declarative, tabular data manipulation. It combines the pipeline-driven style of R's tidyverse with OCaml's type discipline, producing a small, focused language for data wrangling and basic statistics.
 
@@ -5148,7 +5148,7 @@ pipeline_deps(p)  -- {`x`: [], `y`: [], `z`: ["x", "y"]}
 
 ### `pipeline_node(pipeline, node_name)`
 
-Get the value of a specific node. A leading `$` in `node_name` is stripped, so bare-word selectors like `pipeline_node(p, $x)` are accepted, matching the behaviour of `get(p, $x)`.
+Get the value of a specific node. A leading `$` in `node_name` is stripped, so bare-word selectors like `pipeline_node(p, $x)` are accepted, matching the behaviour of `get(p, $x)`. A mistyped name suggests the closest existing node (fuzzy match); the same hint appears on `p.name` dot access and inside `read_node(p.name)` errors.
 
 **Parameters:**
 
@@ -6077,6 +6077,63 @@ node_info = explain(read_node("model"))
 node_info.node_name       -- node/container metadata
 node_info.diagnostics     -- node diagnostics
 node_info.contents        -- explained node payload
+
+-- Explaining a pipeline lists per-node lineage:
+pline = explain(p)
+pline.nodes               -- one dict per node: name, output_kind, diagnostics
+node  = get(pline.nodes, 0)
+node.dependencies         -- direct inputs (parents)
+node.children             -- direct dependents
+node.ancestors            -- all transitive inputs, nearest-first, de-duplicated
+node.descendants          -- all transitive dependents, nearest-first, de-duplicated
+
+-- Computed pipeline nodes (R, Python, Julia) carry build-time metadata:
+node = explain(p.fit)
+node.foreign_meta.kind        -- value kind: "dataframe", "matrix", "vector", "array", "factor", "series", "table", "model", "test", "data", "transformer", "distribution", "other", or "unknown"
+node.foreign_meta.class        -- runtime type name, e.g. "lm", "DataFrame", "ARIMA"
+node.foreign_meta.task         -- model task when known: "regression", "classification", "clustering", "time_series", "dim_reduction", "density", "anomaly_detection", "ranking", or "survival"
+node.foreign_meta.dimensions  -- shape as int list, e.g. [32, 11] for frames, [4, 3] for matrices, [3] for vectors
+node.foreign_meta.n_obs       -- training row count (models)
+node.foreign_meta.n_groups    -- grouping units, e.g. 18 subjects (mixed models; summed across grouping factors)
+node.foreign_meta.groups      -- per-group counts, e.g. {Subject: 18} (mixed models)
+node.foreign_meta.n_features  -- input count (models)
+node.foreign_meta.n_trees     -- tree count (forests, when known)
+node.foreign_meta.n_rounds    -- boosting rounds (boosted trees, when known)
+node.foreign_meta.n_clusters  -- cluster count (clustering, when known)
+node.foreign_meta.n_nodes      -- tree node count (`rpart`, when known)
+node.foreign_meta.n_components -- component count (PCA, when known)
+node.foreign_meta.dtype        -- element type, e.g. "float64" (arrays, when known)
+node.foreign_meta.n_levels     -- level count with levels list (R factors)
+node.foreign_meta.start        -- series start, e.g. "1949-1" (R ts)
+node.foreign_meta.end          -- series end, e.g. "1960-12" (R ts)
+node.foreign_meta.method      -- algorithm variant: hclust linkage, or the test name for `htest` results
+node.foreign_meta.target      -- response name (models, when known)
+node.foreign_meta.formula     -- full model formula (R models, when known)
+node.foreign_meta.order       -- [p, d, q] (time-series models, when known)
+node.foreign_meta.seasonal_order -- [P, D, Q, m] (seasonal models, when known)
+node.foreign_meta.features    -- full feature/column list (first 500 entries; `n_features` stays exact)
+node.foreign_meta.metrics     -- free numeric metrics (r_squared, aic, bic, ...); numbers only, other values are dropped
+node.foreign_meta.artifact_size -- artifact file size in bytes
+
+Time-series decompositions (`stl`) report component names as features and the seasonal period. Autocorrelation objects (`acf`) report the correlation type and series name; smoothing splines (`smooth.spline`) report penalty and degrees of freedom; empirical distributions (`ecdf`) report observation counts. Survival models (`coxph`) report event counts and concordance; Kaplan-Meier fits (`survfit`) report per-stratum counts. Trees (`rpart`) report node counts and split variables, with the task read from the fit method. Density estimates report bandwidth. `Logit`/`Probit` results report a classification task from the model class. Multinomial logits report predictor names (not outcome labels) and `PHReg` reports survival tasks. Rankers report boosting rounds. Frozen scipy distributions report the distribution name and moments; scipy test results report statistic and p-value. Contingency tables, `nnet` classifiers/regressors, `pam`/`agnes`/`diana` clusterings, `VAR` lag order, and Poisson/Gamma tasks report per-family facts. R factors report levels; R `ts` objects report series start/end. Pyarrow tables read as dataframes; native `DMatrix`/`Dataset` objects read as data inputs. Pure transformers report `transformer` kind (detected via sklearn ≥ 1.6 tags; older versions report `model`); calibrated and multioutput wrappers report inner-estimator facts; Julia time arrays report `series` kind with timestamps counted as observations. Boosting rounds count training rounds (`current_iteration`, falling back to trees per iteration); R `rpart` variables are de-duplicated split variables with the task read from the fit method.
+
+Julia note: fit-metric verbs (`nobs`, `coefnames`, `r2`, `aic`,
+`deviance`, `loglikelihood`) resolve from whatever the node session
+loaded — normally the modeling package itself, so keys are present
+for supported families and silently absent otherwise.
+
+`features`/`n_features` meaning varies by family: input variable names
+for frames, forests, and discriminant means; fitted coefficient names
+for `lm`-family models (so factors expand to dummy columns, ARIMA
+reports `ar1`/`ma1`, and variance terms such as `sigma2` are included).
+`seasonal_order` is only emitted for genuinely seasonal fits.
+`n_rounds` counts boosting rounds, except the R xgboost tree-dump
+fallback which counts trees (rounds times classes for multiclass).
+Metrics are best effort per runtime and differ by family
+(e.g. `var_explained` for R kmeans, `inertia` for sklearn, `totalcost`
+for Julia); check presence before use.
+-- Tree display shows short previews (`features_preview`, `formula_preview`);
+-- dot access returns the full values. Absent when the node is unbuilt (NA).
 ```
 
 ---
@@ -9604,6 +9661,27 @@ Now that you can work with numerical arrays, explore statistical modeling and re
 # FILE: docs/changelog.md
 
 # Changelog
+
+## [0.56.0] - 2026-10-08
+
+### New features
+
+- **Companion `read_node()` picks the reader from the build log**: the R, Python, and Julia `tlang` helpers now dispatch on the recorded `serializer` when no explicit deserializer is passed (`default` natively, `^json`/`^csv`/`^ipc`/`^parquet`/`^text` per runtime, explicit errors for `^pmml`/`^onnx`/`^bin`/unknown). New `read_node_tree()` loads a node plus its transitive children, parents, or both from the single selected build log, with `on_unreadable` (`error`/`path`/`skip`) for nodes that fail to deserialize. New `inspect_pipeline()` lists every node with its runtime, serializer, dependencies, build status, class, and artifact path, falling back to `dag.json` with `status = "unbuilt"` when nothing is built yet. New frame helpers mirror T's pipeline tools: `list_logs()`, `build_log_to_frame()`, and `collect_exceptions()` (soft failures read the VError artifact, so artifact-only messages are reported). New explore helpers: `inspect_node()` for one node's metadata plus error and warnings, `lineage()` for transitive parents and children, and T-named `error_msg()`, `error_code()`, `error_context()`, and `warning_msg()` (foreign-runtime failures are VError JSON, so an R error reads the same from Python or Julia; error reads skip large healthy artifacts, and native-deserialization failures name the building runtime). Build logs record per-node `source` (foreign code verbatim, T expressions as normalized T source) or `script` (exterior path only, plus a content hash), read back with `show_code()` for copy-paste tweaking (pass the `verify` flag to detect script drift). Note that embedded secrets land in the build log under `_pipeline/`, which is easier to share by accident than a store path; set `[pipeline].record_source = false` in `tproject.toml` to keep embedded code out of logs. Log-level helpers take `pipeline_dir` first. Note: R and Python previously used native deserialization for every format; unrecognized serializers now raise with a `return_path`/custom-deserializer hint.
+- **More precise documented signatures for static types**: string helpers, joins, verbs, factor helpers, converters, and pipeline set operations now carry exact parameter and return types, and the checker knows the `Function`, `Column`, `Selection`, `KeywordArgs`, and `Expressions` vocabulary as named contracts. Typing coverage moved from 382 to 444 of 533 fully precise builtins. The new precision is visible in reference pages and hover text, and `t check` now uses signatures for warnings (arity, argument types, and return types below) instead of documenting only. The full suite in strict mode shows no new diagnostics on existing programs.
+- **`t check` warns on builtin arity mismatches**: a non-variadic builtin called with the wrong argument count warns naming expected and received counts. Calls right of `|>`/`?|>` count the piped value as one argument. Variadic builtins, unknown names, and locally shadowed names stay silent. This catches calls the evaluator never reaches, such as calls inside lambda bodies. Two `Any`-collapsed signatures (`to_factor`/`ordered` inputs) now read bare `Any`, and the duplicate `ifelse` documentation block is removed (the canonical `t_boolean.ml` signature accepts scalar or vector conditions and returns either), so the unknown-signature watch list is empty.
+- **`t check` warns on definite argument-type mismatches**: each argument's inferred type is compared against the documented parameter type. Positionals map in order (a piped value is first); named arguments map by name. A position stays silent on any doubt: missing/`Any`/`Unknown` types either side, argument-shape vocabulary (`Column`, `Selection`, `KeywordArgs`, `Expressions`, `Strategy`), `$col`-mentioning expressions (NSE verbs wrap them in row lambdas), undocumented extras, or unknown names. Sites already failing the arity rule are skipped.
+- **`t check` resolves documented return types**: builtin calls infer to their documented return, so annotation checks and argument checks see through calls (`s: String = nrow(df)` warns that the expression infers to `Int`). Piped calls infer the same way (`s: String = df |> nrow` warns; `df ?|> nrow` matches), including bare `x |> f` targets. Annotated lambdas infer through their contracts (param types flow into the body, annotated return wins; unannotated and generic positions stay silent). Undocumented calls stay `Unknown` and silent. Explicit `import` statements preserve precise builtin types instead of resetting them to unknown.
+- **Transitive pipeline lineage in `explain()`**: each node in `explain(p)` now also carries `ancestors` (all transitive inputs) and `descendants` (all transitive dependents), nearest-first and de-duplicated. `t explain --node` prints a `Transitive lineage` line when indirect nodes exist, and `--json` always carries `ancestors`/`descendants` arrays alongside `parents`/`children`.
+- **`t check` warns on dangling node reads**: `p.field`, `pipeline_node(p, name)`, and two-argument `get(p, name)` warn when the pipeline declares no such node (`Node \`x\` not found in pipeline \`p\``). Reads resolve against evaluated pipeline values, so derived pipelines check accurately. Near-miss names carry a manual-rename hint (`t fix` never auto-applies it). A position stays silent on any doubt: unknown or shadowed pipelines, non-literal names, three-argument `get` (returns its default), `orig_branch_N` names with a declared origin, and dotted-prefix reads. If the file fails to evaluate, these warnings stay silent (the runtime error already reports the failure).
+
+### Improvements
+
+- **Mistyped node names suggest the closest match**: `p.r_survift` now fails with ``Node `r_survift` not found in Pipeline. Did you mean `r_survfit`?`` instead of a bare missing-node error. `pipeline_node(p, name)` suggests the same way, and `read_node(p.r_survift)` surfaces the hint as its underlying error, so the correct name is visible without listing nodes by hand.
+
+### Fixes
+
+- **`explain()` on builtins is deterministic**: argument names no longer depend on whether `help()` ran before. `explain` loads documentation itself, so `explain(explain)` always reports the documented names instead of sometimes falling back to `arg1`, `arg2`.
+- **Richer `explain()` foreign metadata**: pipeline nodes from R, Python, and Julia now report shape and model facts for more object families — R factors (levels), `ts` series (start/end/period), contingency tables, `nnet`/`pam`/`agnes`/`diana` clustering, `stl` decompositions, `survfit` curves, `rpart` trees (de-duplicated split variables, task from fit method), `density` estimates, `acf`/`smooth.spline`/`ecdf` objects, `coxph`/`PHReg` survival models, multinomial logits (predictor names, not outcome labels), `Logit`/`Probit` classification, ranking objectives with training-round counts (`current_iteration` with per-iteration fallback), frozen scipy distributions and test results, `VAR` lag order, Poisson/Gamma tasks, pyarrow tables, `DMatrix`/`Dataset` inputs, outlier detectors, calibrated and multioutput wrappers (inner-estimator facts), and transformer vs model distinction (sklearn >= 1.6 tags). `HoltWinters`/`StructTS` report observation counts; `randomForest` `x`/`y` fits fall back to importance names; mixed-model group counts sum across factors. Forest models report tree counts and tasks — `randomForest` (`n_trees`, `r_squared`), sklearn forests (`n_trees`, `n_features`, class counts), `DecisionTree.jl` forests and single trees (`n_trees`, feature counts, task). Boosted trees report rounds — R and Python `xgboost` (`n_rounds`, features) and `LightGBM` (rounds, task). Also covered: PCA (`n_components`, first-component variance), ARIMA and SARIMA (`order`, `seasonal_order`, likelihood criteria), discriminant classifiers (`lda`, `qda`, `polr` class counts and features), Julia clustering, medoids, hypothesis tests, and time arrays, R `nls`, `loess`, and `fitdistr` model facts, and mixed-effects tasks with formulae and fit metrics. `t explain --node` prints direct parents and children lineage in text mode and as `parents`/`children` arrays with `--json`.
 
 ## [0.55.5] - 2026-10-03
 
@@ -16065,11 +16143,66 @@ For project development shells, `t update` also wires the matching companion pac
 
 ## Key Features
 
-- **`read_node(name)`**: Automatically locates the latest build log in the `_pipeline/` directory, finds the requested node, and deserializes its artifact.
+### Reading values
+
+- **`read_node(name)`**: Automatically locates the latest build log in the `_pipeline/` directory, finds the requested node, and deserializes its artifact. When `deserializer` is not passed, the `serializer` field from the build log picks the reader (see the table below). Pass a function to override. Failing native reads name the building runtime when it differs, so an RDS file read from Python points at `return_path` instead of a raw pickle traceback.
+- **`read_node_tree(name)`**: Reads a node plus its transitive children, parents, or both from the single selected build log, so a concurrent build cannot mix two snapshots. Each node keeps its own automatic serializer unless `deserializer` overrides it for all of them. With `on_unreadable = "path"`, an unreadable node maps to a path/serializer record, so the caller can recover manually.
+
+### Reading code
+
+- **`show_code(name)`**: Returns a node's source for copy-paste tweaking. Foreign code comes back verbatim; T expressions come back as normalized T source. Exterior `script =` nodes return the script path. Note: only the path is stored for scripts, so the file may differ from what was built; pass the `verify` flag to check the recorded content hash. Embedded secrets land in the build log under `_pipeline/`, which is easier to share by accident than a store path; set `[pipeline].record_source = false` in `tproject.toml` to keep embedded code out of logs.
+
+### Inspecting structure and status
+
+- **`inspect_pipeline()`**: Returns every node with its runtime, serializer, dependencies, build status, class, and artifact path (falls back to `dag.json` with `status = "unbuilt"` when nothing is built yet).
 - **`pipeline_nodes()`**: Returns the pipeline DAG (nodes and their dependencies) as an idiomatic data structure (data frame in R, dictionary in Python/Julia).
-- **Support for historical logs**: Use the `which_log` argument to select a specific build log using a regular expression.
-- **Custom Deserializers**: Pass a custom function to handle specific artifact formats.
-- **`return_path` support**: If you only need the absolute path to the artifact (e.g., to pass to a specialized loader), set `return_path = true`.
+- **`inspect_node(name)`**: Inspects one node without loading its value: runtime, serializer, dependencies, direct children, status, class, path, error record, and warnings.
+- **`lineage(name)`**: Lists transitive parents and children (names only, nearest first, sorted within each level).
+
+### Failures and warnings
+
+- **`error_msg(name)`, `error_code(name)`, `error_context(name)`**: Same names as T. Return a failed node's message, code, or context dict. Foreign-runtime failures are VError JSON, so an R error reads the same from Python or Julia. Stop when the node is healthy, like T.
+- **`warning_msg(name)`**: Same name as T. Returns formatted warnings (`""` when none), with upstream warnings prefixed by source.
+- **`collect_exceptions()`**: Gathers error and warning rows (`node`, `status`, `code`, `message`) from one build log.
+
+### Build history
+
+- **`list_logs()`**: Lists build logs newest-first with filename, modification time, size, and pipeline name.
+- **`build_log_to_frame()`**: Tabulates one build log as per-node rows (`name`, `status`, `duration`, `path`).
+
+### Comparing artifacts
+
+- **`diff_nodes()`, `diff_artifacts()`, `diff_objects()`**: Compare runtime-native artifacts that have no direct T equivalent (R models and lists via diffobj, Python objects via unified diff, Julia objects via DeepDiffs).
+
+### Shared arguments
+
+- **`which_log`**: Regular expression selecting a specific build log filename. Defaults to the latest build.
+- **`pipeline_dir`**: Pipeline directory. Defaults to `"_pipeline"`.
+- **`return_path`**: Return the artifact path instead of deserializing it.
+- **`include` / `direction`**: For tree and lineage reads, one of `"children"`, `"parents"`, or `"both"` (default `"children"` for trees, `"both"` for lineage).
+- **`on_unreadable`**: For tree reads, one of `"error"` (default), `"path"`, or `"skip"`. With `"path"`, an unreadable node maps to a path/serializer record. Both fallbacks warn naming the node, the serializer, the artifact path, and the error.
+- **`verify`**: For `show_code()`, check a script file against its recorded content hash. Raises on drift, on a missing file, and when no hash was recorded.
+
+### Automatic readers by serializer
+
+| Serializer | R reader (package) | Python reader (package) | Julia reader (package) |
+|---|---|---|---|
+| `default` | `readRDS()` (base) | `pickle`, then `dill`, then `cloudpickle` (stdlib) | `Serialization.deserialize` (stdlib) |
+| `^json` | `jsonlite::read_json()` (`jsonlite`) | `json.load()` (stdlib) | `JSON.parsefile()` (`JSON`) |
+| `^csv` | `read.csv()` (base) | `pandas.read_csv()` (`pandas`) | `CSV.read()` (`CSV`, `DataFrames`) |
+| `^ipc` | `arrow::read_ipc_file()` (`arrow`) | `pyarrow.ipc` (`pandas`, `pyarrow`) | `Arrow.Table` (`Arrow`, `DataFrames`) |
+| `^parquet` | `arrow::read_parquet()` (`arrow`) | `pyarrow.parquet` (`pandas`, `pyarrow`) | `Parquet2.readfile()` (`Parquet2`, `DataFrames`) |
+| `^text` | exact file bytes (base) | exact file bytes (stdlib) | exact file bytes (stdlib) |
+| `^pmml`, `^onnx`, `^bin` | no built-in reader | no built-in reader | no built-in reader |
+
+Missing reader packages raise an error naming the package and the `tproject.toml` entries. `^pmml`, `^onnx`, and `^bin` always raise: use `return_path = TRUE` plus a custom deserializer.
+
+### Cross-language notes
+
+- `^json` simplifies vectors in R (`simplifyVector = TRUE`), so arrays of records can come back as data frames, while Python and Julia return plain dicts and lists.
+- `^text` returns exact file bytes in all three languages.
+- Lineage order is sorted within each level in every language, so trees compare equal across R, Python, and Julia.
+- `inspect_pipeline()` and the frame helpers return a data frame in R and a list of dicts in Python and Julia.
 
 ---
 
@@ -16091,6 +16224,24 @@ path <- read_node("my_model", return_path = TRUE)
 
 # Inspect the pipeline DAG (returns a data.frame)
 nodes <- pipeline_nodes()
+
+# Inspect nodes with their latest build status
+tbl <- inspect_pipeline()
+
+# Read a node plus its downstream nodes
+tree <- read_node_tree("clean_data")
+
+# Read a failed node's error and warnings (same names as T)
+msg <- error_msg("model")
+msg <- warning_msg("model")
+
+# Show a node's source for copy-paste tweaking
+cat(show_code("model"))
+```
+
+```r
+# Compare R-native artifacts across historical builds
+diff <- diff_nodes("model", "model", which_log_a = "20260501", which_log_b = "latest")
 ```
 
 ---
@@ -16113,6 +16264,24 @@ path = tlang.read_node("my_model", return_path=True)
 
 # Inspect the pipeline DAG (returns a dict)
 nodes = tlang.pipeline_nodes()
+
+# Inspect nodes with their latest build status
+rows = tlang.inspect_pipeline()
+
+# Read a node plus its downstream nodes
+tree = tlang.read_node_tree("clean_data")
+
+# Read a failed node's error and warnings (same names as T)
+msg = tlang.error_msg("model")
+msg = tlang.warning_msg("model")
+
+# Show a node's source for copy-paste tweaking
+print(tlang.show_code("model"))
+```
+
+```python
+# Compare Python-native artifacts across historical builds
+diff = tlang.diff_nodes("model", "model", which_log_a="20260501", which_log_b="latest")
 ```
 
 ---
@@ -16138,6 +16307,19 @@ diff = diff_nodes("my_model", "my_model", which_log_a="20260501", which_log_b="l
 
 # Inspect the pipeline DAG (returns a Dict)
 nodes = pipeline_nodes()
+
+# Inspect nodes with their latest build status
+rows = inspect_pipeline()
+
+# Read a node plus its downstream nodes
+tree = read_node_tree("clean_data")
+
+# Read a failed node's error and warnings (same names as T)
+msg = error_msg("model")
+msg = warning_msg("model")
+
+# Show a node's source for copy-paste tweaking
+println(show_code("model"))
 ```
 
 ---
@@ -16150,7 +16332,7 @@ When you run `build_pipeline()`, T-Lang generates a timestamped build log (e.g.,
 2.  Sort them reverse-alphabetically to find the most recent one.
 3.  Parse the JSON to find the entry for the requested node.
 4.  Resolve the `path` (which might be relative to the project root or an absolute Nix store path).
-5.  Call the appropriate deserializer (`readRDS` for R, `pickle.load` for Python, `Serialization.deserialize` for Julia).
+5.  Pick the reader from the entry's `serializer` field (see the table above), or call the custom `deserializer` when one is passed.
 
 When T's `node_diff()` delegates to these helpers for runtime-native object
 comparisons, it preserves the original native artifact only for nodes using the
@@ -22291,7 +22473,7 @@ my_stats = { git = "https://github.com/user/my-stats", tag = "v0.1.0" }
 data_utils = { git = "https://github.com/user/data-utils", tag = "v0.2.0" }
 
 [t]
-min_version = "0.55.5"
+min_version = "0.56.0"
 ```
 
 > **Important**: `[dependencies]` entries **must** be `{ git, tag }` inline tables pointing to T packages. Version-constraint strings (e.g. `tlang = ">=0.52.0"`) and array values (e.g. `python = ["polars"]`) are **not valid** and will produce a hard error from `t update`. To declare runtime-language packages, use the dedicated sections:
@@ -22577,6 +22759,20 @@ p = pipeline {
 ```
 
 The `tlang` companion package (for `debug_node`, `read_node` helpers, etc.) is automatically injected into every Julia node — no need to declare it.
+
+### 3.6 Pipeline Options
+
+```toml
+[pipeline]
+# Record embedded node source in build logs for show_code() (default: true).
+# Set to false when node code holds secrets. Script paths are still recorded.
+record_source = true
+```
+
+By default, build logs record each node's source code so companions can show
+it with `show_code()`. Exterior `script =` nodes record only their path plus
+a content hash. Set `[pipeline].record_source = false` to keep embedded code
+(and any secrets in it) out of `_pipeline/` build logs.
 
 ## 4. Importing Packages
 
@@ -23815,6 +24011,15 @@ Select an explicit set of columns
 
 Selection helper that returns the supplied column names and errors if names are malformed.
 
+## Parameters
+
+- **x** (`String | List | Vector`): Column names to keep.
+
+
+## Returns
+
+The supplied column names.
+
 
 
 # FILE: docs/reference/am.md
@@ -23871,6 +24076,19 @@ Filter rows lacking matches
 
 Keeps rows from the left DataFrame that do not have a matching key in the right DataFrame.
 
+## Parameters
+
+- **x** (`DataFrame`): Left DataFrame.
+
+- **y** (`DataFrame`): Right DataFrame.
+
+- **by** (`String | Symbol | List | Vector`): [Optional] Key columns. Defaults to shared columns.
+
+
+## Returns
+
+Filtered left DataFrame.
+
 
 
 # FILE: docs/reference/any_of.md
@@ -23880,6 +24098,15 @@ Keeps rows from the left DataFrame that do not have a matching key in the right 
 Select columns that exist
 
 Selection helper that keeps the supplied column names when they are present.
+
+## Parameters
+
+- **x** (`String | List | Vector`): Column names to keep when present.
+
+
+## Returns
+
+A matcher selecting the supplied columns that exist.
 
 
 
@@ -24279,6 +24506,15 @@ Combine DataFrames by columns
 
 Combines columns from multiple DataFrames side by side.
 
+## Parameters
+
+- **...** (`DataFrame`): DataFrames to combine by columns.
+
+
+## Returns
+
+The combined DataFrame.
+
 
 
 # FILE: docs/reference/bind_rows.md
@@ -24288,6 +24524,15 @@ Combines columns from multiple DataFrames side by side.
 Stack DataFrames by rows
 
 Appends rows from multiple DataFrames into a single DataFrame.
+
+## Parameters
+
+- **...** (`DataFrame`): DataFrames to stack by rows.
+
+
+## Returns
+
+The stacked DataFrame.
 
 
 
@@ -24799,7 +25044,7 @@ Align multiple model coefficient tables into a single wide DataFrame for compari
 
 ## Parameters
 
-- **...** (`Variadic`): Models or a List of models to compare.
+- **...** (`Model | List`): Models or a List of models to compare.
 
 
 ## Returns
@@ -25677,6 +25922,17 @@ Subtract one pipeline from another
 
 Returns the nodes that appear in the first pipeline but not the second.
 
+## Parameters
+
+- **p1** (`Pipeline`): First pipeline.
+
+- **p2** (`Pipeline`): Second pipeline.
+
+
+## Returns
+
+Pipeline with shared nodes removed.
+
 
 
 # FILE: docs/reference/diff_summary.md
@@ -25760,6 +26016,19 @@ d = dispersion(model)
 Keep unique rows
 
 Returns the distinct rows of a DataFrame, optionally using selected columns as uniqueness keys.
+
+## Parameters
+
+- **df** (`DataFrame`): The input DataFrame.
+
+- **...** (`Symbol`): Optional uniqueness key columns.
+
+- **.keep_all** (`Bool`): [Optional] Keep all columns. Defaults to false.
+
+
+## Returns
+
+The DataFrame with unique rows.
 
 
 
@@ -26155,6 +26424,10 @@ Evaluates an Expression in the current environment, or a Quosure in its captured
 Select every column
 
 Selection helper that returns every column name from a DataFrame.
+
+## Returns
+
+A matcher selecting every column.
 
 
 
@@ -27574,7 +27847,7 @@ The JSON description.
 
 Explain Value
 
-Returns a dictionary describing the structure and content of a value. Node results from `read_node(...)` are wrapped with node metadata and expose the explained payload under `contents`.
+Returns a dictionary describing the structure and content of a value. Node results from `read_node(...)` are wrapped with node metadata and expose the explained payload under `contents`. Computed pipeline nodes (e.g. `p.node`) also expose `foreign_meta` with shape facts from the build-time `meta` sidecar (dimensions for frames and arrays, n_obs/n_features/formula/order/metrics for models), or NA when absent. Explaining a pipeline lists per-node `dependencies` (direct inputs) and `children` (direct dependents) plus the transitive `ancestors` and `descendants` closures (nearest-first, de-duplicated).
 
 ## Parameters
 
@@ -27661,7 +27934,7 @@ Combines multiple factor vectors while reconciling their levels.
 
 ## Parameters
 
-- **...**: Vector[Factor] Factor vectors to concatenate.
+- **...** (`Vector | List`): Factor vectors to concatenate.
 
 
 ## Returns
@@ -27688,7 +27961,7 @@ Merges several existing factor levels into new grouped levels.
 
 - **x** (`Vector[Factor]`): A factor vector.
 
-- **...**: Named lists mapping new level names to vectors of old level names.
+- **...** (`String | List | Vector`): Named lists mapping new level names to vectors of old level names.
 
 
 ## Returns
@@ -27740,7 +28013,7 @@ Adds extra levels to a factor without changing existing assignments.
 
 - **x** (`Vector[Factor]`): A factor vector.
 
-- **...**: New level names to add.
+- **...** (`String`): New level names to add.
 
 
 ## Returns
@@ -27912,7 +28185,7 @@ Recodes existing factor levels using named replacements.
 
 - **x** (`Vector[Factor]`): A factor vector.
 
-- **...**: Named replacements in the form `new_name = old_name`.
+- **...** (`String`): Named replacements in the form `new_name = old_name`.
 
 
 ## Returns
@@ -27939,7 +28212,7 @@ Explicitly reorders a factor by moving named levels ahead of the remaining level
 
 - **x** (`Vector[Factor]`): A factor vector.
 
-- **...**: Level names to move to the front.
+- **...** (`String`): Level names to move to the front.
 
 - **after** (`Int`): = 0 Position after which to place the moved levels (0 = front).
 
@@ -28383,6 +28656,19 @@ Join all rows from both tables
 
 Joins two DataFrames and keeps rows appearing in either input.
 
+## Parameters
+
+- **x** (`DataFrame`): Left DataFrame.
+
+- **y** (`DataFrame`): Right DataFrame.
+
+- **by** (`String | Symbol | List | Vector`): [Optional] Key columns. Defaults to shared columns.
+
+
+## Returns
+
+Joined DataFrame.
+
 
 
 # FILE: docs/reference/get.md
@@ -28707,7 +28993,7 @@ Evaluates a condition and returns values from `true_val` or `false_val` dependin
 
 ## Parameters
 
-- **condition** (`Vector[Bool]`): The logical condition to evaluate.
+- **condition** (`Bool | Vector[Bool]`): The logical condition to evaluate. Accepts a scalar or a vector.
 
 - **true_val** (`Any`): Expected return value when condition is true.
 
@@ -28720,7 +29006,7 @@ Evaluates a condition and returns values from `true_val` or `false_val` dependin
 
 ## Returns
 
-A vector of the resulting values.
+A scalar when `condition` is scalar, otherwise a vector aligned to `condition`.
 
 ## Examples
 
@@ -29337,6 +29623,19 @@ Join matching rows
 
 Joins two DataFrames and keeps only rows whose keys match in both inputs.
 
+## Parameters
+
+- **x** (`DataFrame`): Left DataFrame.
+
+- **y** (`DataFrame`): Right DataFrame.
+
+- **by** (`String | Symbol | List | Vector`): [Optional] Key columns. Defaults to shared columns.
+
+
+## Returns
+
+Joined DataFrame.
+
 
 
 # FILE: docs/reference/inspect_artifacts.md
@@ -29474,6 +29773,17 @@ The field value.
 Keep shared pipeline nodes
 
 Returns the nodes from the first pipeline whose names also appear in the second.
+
+## Parameters
+
+- **p1** (`Pipeline`): First pipeline.
+
+- **p2** (`Pipeline`): Second pipeline.
+
+
+## Returns
+
+Pipeline with shared nodes only.
 
 
 
@@ -30087,6 +30397,19 @@ Join rows from the left table
 
 Joins two DataFrames and keeps every row from the left-hand side.
 
+## Parameters
+
+- **x** (`DataFrame`): Left DataFrame.
+
+- **y** (`DataFrame`): Right DataFrame.
+
+- **by** (`String | Symbol | List | Vector`): [Optional] Key columns. Defaults to shared columns.
+
+
+## Returns
+
+Joined DataFrame.
+
 
 
 # FILE: docs/reference/length.md
@@ -30407,6 +30730,15 @@ A `TypeError` explaining that patterns are only valid inside `node()`.
 Match columns by regex
 
 Selection helper that returns columns whose names match a regular expression. Patterns are compiled with PCRE2 in UTF-8 mode, so `.` matches a code point and classes like `\\p{L}` are supported.
+
+## Parameters
+
+- **pattern** (`String`): Regular expression for column names.
+
+
+## Returns
+
+A matcher selecting columns whose names match.
 
 
 
@@ -31508,7 +31840,7 @@ Creates factor vectors marked as ordered for ordinal comparisons.
 
 ## Parameters
 
-- **x** (`Vector | List | Any`): The values to convert to an ordered factor.
+- **x** (`Any`): The values to convert to an ordered factor. Accepts a vector, a list, or a scalar.
 
 - **levels** (`Vector[String] | List[String]`): (Optional) Explicit level order.
 
@@ -31703,6 +32035,17 @@ A list of parsed documentation entries.
 Overlay one pipeline onto another
 
 Replaces matching nodes in one pipeline with definitions from another pipeline.
+
+## Parameters
+
+- **p1** (`Pipeline`): Base pipeline.
+
+- **p2** (`Pipeline`): Overlay pipeline.
+
+
+## Returns
+
+Patched pipeline.
 
 
 
@@ -34613,6 +34956,21 @@ Move columns to a new position
 
 Reorders DataFrame columns by moving selected columns before or after another column.
 
+## Parameters
+
+- **df** (`DataFrame`): The input DataFrame.
+
+- **...** (`Symbol`): Columns to move.
+
+- **.before** (`Symbol`): [Optional] Move before this column.
+
+- **.after** (`Symbol`): [Optional] Move after this column.
+
+
+## Returns
+
+The DataFrame with reordered columns.
+
 
 
 # FILE: docs/reference/rename.md
@@ -34622,6 +34980,17 @@ Reorders DataFrame columns by moving selected columns before or after another co
 Rename DataFrame columns
 
 Renames selected DataFrame columns using named arguments.
+
+## Parameters
+
+- **df** (`DataFrame`): The input DataFrame.
+
+- **...** (`Symbol`): New and old column pairs of the form new_name = $old_name.
+
+
+## Returns
+
+The DataFrame with renamed columns.
 
 
 
@@ -34809,6 +35178,19 @@ p |> rewire("model_py", replace = [data: "data_v2"])
 Join rows from the right table
 
 Joins two DataFrames and keeps every row from the right-hand side.
+
+## Parameters
+
+- **x** (`DataFrame`): Left DataFrame.
+
+- **y** (`DataFrame`): Right DataFrame.
+
+- **by** (`String | Symbol | List | Vector`): [Optional] Key columns. Defaults to shared columns.
+
+
+## Returns
+
+Joined DataFrame.
 
 
 
@@ -35311,6 +35693,19 @@ The semester(s).
 Filter rows using matches in another table
 
 Keeps rows from the left DataFrame that have a matching key in the right DataFrame.
+
+## Parameters
+
+- **x** (`DataFrame`): Left DataFrame.
+
+- **y** (`DataFrame`): Right DataFrame.
+
+- **by** (`String | Symbol | List | Vector`): [Optional] Key columns. Defaults to shared columns.
+
+
+## Returns
+
+Filtered left DataFrame.
 
 
 
@@ -36039,6 +36434,24 @@ Count regex matches
 
 Counts how many times a regular expression matches within each string.
 
+## Parameters
+
+- **s** (`String | List | Vector`): The input string(s).
+
+- **pattern** (`String`): The regular expression to count.
+
+
+## Returns
+
+The number of matches.
+
+## Examples
+
+```t
+str_count("banana", "a")
+-- Returns = 3
+```
+
 
 
 # FILE: docs/reference/str_detect.md
@@ -36048,6 +36461,24 @@ Counts how many times a regular expression matches within each string.
 Test whether a regex matches
 
 Returns true when a regular expression matches a string.
+
+## Parameters
+
+- **s** (`String | List | Vector`): The input string(s).
+
+- **pattern** (`String`): The regular expression to test.
+
+
+## Returns
+
+True when the pattern matches.
+
+## Examples
+
+```t
+str_detect("abc", "^[a-z]+$")
+-- Returns = true
+```
 
 
 
@@ -36059,6 +36490,24 @@ Extract all regex matches
 
 Returns every regular-expression match found in each string.
 
+## Parameters
+
+- **s** (`String | List | Vector`): The input string(s).
+
+- **pattern** (`String`): The regular expression to match.
+
+
+## Returns
+
+Every match, or an empty list when there is no match.
+
+## Examples
+
+```t
+str_extract_all("a1b22", "[0-9]+")
+-- Returns = ["1", "22"]
+```
+
 
 
 # FILE: docs/reference/str_extract.md
@@ -36067,7 +36516,25 @@ Returns every regular-expression match found in each string.
 
 Extract the first regex match
 
-Returns the first regular-expression match found in each string.
+Returns the first regular-expression match found in each string. Returns NA when the pattern does not match.
+
+## Parameters
+
+- **s** (`String | List | Vector`): The input string(s).
+
+- **pattern** (`String`): The regular expression to match.
+
+
+## Returns
+
+The first match, or NA when there is no match.
+
+## Examples
+
+```t
+str_extract("abc123def", "[0-9]+")
+-- Returns = "123"
+```
 
 
 
@@ -36078,6 +36545,24 @@ Returns the first regular-expression match found in each string.
 Flatten a collection of strings
 
 Concatenates string collections into a single string with an optional separator.
+
+## Parameters
+
+- **items** (`List | Vector`): The items to flatten.
+
+- **collapse** (`String`): [Optional] The separator. Defaults to "".
+
+
+## Returns
+
+The flattened string.
+
+## Examples
+
+```t
+str_flatten(["a", "b", "c"], collapse = "-")
+-- Returns = "a-b-c"
+```
 
 
 
@@ -36189,6 +36674,28 @@ The number of characters.
 Pad strings to a target width
 
 Pads strings on the left, right, or both sides until they reach a requested width. Width is measured in characters (Unicode code points), so multi-byte UTF-8 strings are padded correctly and never split.
+
+## Parameters
+
+- **x** (`String | List | Vector`): The input string(s).
+
+- **width** (`Int`): The target character width (non-negative).
+
+- **side** (`String`): [Optional] One of "left", "right", or "both". Defaults to "left".
+
+- **pad** (`String`): [Optional] The padding text. Defaults to " ".
+
+
+## Returns
+
+The padded string.
+
+## Examples
+
+```t
+str_pad("7", 3, side = "left", pad = "0")
+-- Returns = "007"
+```
 
 
 
@@ -36396,6 +36903,28 @@ Truncate strings for display
 
 Shortens strings to a maximum character width and appends an ellipsis when needed. Width is measured in characters (Unicode code points), so multi-byte UTF-8 strings are never split mid-character.
 
+## Parameters
+
+- **x** (`String | List | Vector`): The input string(s).
+
+- **width** (`Int`): The maximum character width (non-negative).
+
+- **side** (`String`): [Optional] One of "left", "right", or "center". Defaults to "right".
+
+- **ellipsis** (`String`): [Optional] The ellipsis marker. Defaults to "...".
+
+
+## Returns
+
+The truncated string.
+
+## Examples
+
+```t
+str_trunc("abcdefgh", 5)
+-- Returns = "ab..."
+```
+
 
 
 # FILE: docs/reference/str_words.md
@@ -36578,7 +37107,7 @@ Replaces a node's implementation with a new node value. The dependency edges of 
 
 - **name** (`String`): The name of the node to replace.
 
-- **new_node** (`Any`): The new node implementation.
+- **new_node** (`NodeDef`): The new node implementation.
 
 
 ## Returns
@@ -36895,7 +37424,7 @@ Coerces a value to a boolean. Recognizes 'TRUE'/'FALSE', 'T'/'F', non-zero numbe
 
 ## Parameters
 
-- **x** (`Any`): The value to convert.
+- **x** (`Bool | Int | Float | String | List | Vector`): The value to convert.
 
 
 ## Returns
@@ -36953,7 +37482,7 @@ Converts strings, datetimes, and related temporal values to Date values.
 
 ## Parameters
 
-- **x** (`Any`): The value to convert.
+- **x** (`String | Date | Datetime | Int | Float | List | Vector`): The value to convert.
 
 - **origin** (`String`): (Optional) Origin date for numeric conversion (default "1970-01-01").
 
@@ -36974,7 +37503,7 @@ Converts strings, dates, and related temporal values to Datetime values.
 
 ## Parameters
 
-- **x** (`Any`): The value to convert.
+- **x** (`String | Date | Datetime | Int | Float | List | Vector`): The value to convert.
 
 - **origin** (`String`): (Optional) Origin date for numeric conversion (default "1970-01-01").
 
@@ -37083,7 +37612,7 @@ Converts values to factor-encoded vectors with derived or explicit levels.
 
 ## Parameters
 
-- **x** (`Vector | List | Any`): The values to convert to factors.
+- **x** (`Any`): The values to convert to factors. Accepts a vector, a list, or a scalar.
 
 - **levels** (`Vector[String] | List[String]`): (Optional) Explicit level order. Defaults to sorted unique values.
 
@@ -37113,7 +37642,7 @@ Coerces a value to a float robustly. Handles strings with spaces, percentages, c
 
 ## Parameters
 
-- **x** (`Any`): The value to convert.
+- **x** (`Bool | Int | Float | String | List | Vector`): The value to convert.
 
 
 ## Returns
@@ -37140,7 +37669,7 @@ Coerces a value to an integer robustly. Handles strings with spaces, percentages
 
 ## Parameters
 
-- **x** (`Any`): The value to convert.
+- **x** (`Bool | Int | Float | String | List | Vector`): The value to convert.
 
 
 ## Returns
@@ -37707,6 +38236,17 @@ Combine two pipelines
 
 Returns a pipeline containing nodes from both inputs and errors on name collisions.
 
+## Parameters
+
+- **p1** (`Pipeline`): First pipeline.
+
+- **p2** (`Pipeline`): Second pipeline.
+
+
+## Returns
+
+Combined pipeline.
+
 
 
 # FILE: docs/reference/unite.md
@@ -37981,6 +38521,15 @@ weeks(1)
 Select columns by predicate
 
 Selection helper that keeps columns for which a predicate function returns true.
+
+## Parameters
+
+- **predicate** (`Function`): Predicate over column values.
+
+
+## Returns
+
+A matcher keeping columns where the predicate holds.
 
 
 
@@ -38498,7 +39047,7 @@ Every T project is a **Nix flake**:
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
-    tlang.url = "github:b-rodrigues/tlang/v0.55.5";
+    tlang.url = "github:b-rodrigues/tlang/v0.56.0";
   };
 
   outputs = { self, nixpkgs, tlang }: {
@@ -38623,7 +39172,7 @@ intent {
   ],
   
   environment: {
-    t_version: "0.55.5",
+    t_version: "0.56.0",
     nix_revision: "abc123",
     run_date: "2024-01-15"
   }
@@ -38667,7 +39216,7 @@ my-analysis/
   
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
-    tlang.url = "github:b-rodrigues/tlang/v0.55.5";
+    tlang.url = "github:b-rodrigues/tlang/v0.56.0";
   };
   
   outputs = { self, nixpkgs, tlang }: {

@@ -78,7 +78,7 @@ let register env =
 --# @name swap
 --# @param p :: Pipeline The pipeline.
 --# @param name :: String The name of the node to replace.
---# @param new_node :: Any The new node implementation.
+--# @param new_node :: NodeDef The new node implementation.
 --# @return :: Pipeline A new pipeline with the node replaced.
 --# @example
 --#   p |> swap("model_r", node(command = <{ lm(y ~ x, data) }>, runtime = R))

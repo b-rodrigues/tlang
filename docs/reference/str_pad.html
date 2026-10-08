@@ -38,6 +38,22 @@
 <p>Pads strings on the left, right, or both sides until they reach a
 requested width. Width is measured in characters (Unicode code points),
 so multi-byte UTF-8 strings are padded correctly and never split.</p>
+<h2 id="parameters">Parameters</h2>
+<ul>
+<li><p><strong>x</strong> (<code>String | List | Vector</code>): The
+input string(s).</p></li>
+<li><p><strong>width</strong> (<code>Int</code>): The target character
+width (non-negative).</p></li>
+<li><p><strong>side</strong> (<code>String</code>): [Optional] One of
+“left”, “right”, or “both”. Defaults to “left”.</p></li>
+<li><p><strong>pad</strong> (<code>String</code>): [Optional] The
+padding text. Defaults to ” “.</p></li>
+</ul>
+<h2 id="returns">Returns</h2>
+<p>The padded string.</p>
+<h2 id="examples">Examples</h2>
+<pre class="t"><code>str_pad(&quot;7&quot;, 3, side = &quot;left&quot;, pad = &quot;0&quot;)
+-- Returns = &quot;007&quot;</code></pre>
 </div>
 <footer>
     <p>Best viewed with a sense of curiosity.</p>

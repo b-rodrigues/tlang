@@ -8,7 +8,7 @@ open Ast
 --# Align multiple model coefficient tables into a single wide DataFrame for comparison.
 --#
 --# @name compare
---# @param ... :: Variadic Models or a List of models to compare.
+--# @param ... :: Model | List Models or a List of models to compare.
 --# @return :: DataFrame A wide DataFrame with aligned terms and suffixed columns.
 --# @example
 --#   m1 = lm(mpg ~ wt, data = mtcars)

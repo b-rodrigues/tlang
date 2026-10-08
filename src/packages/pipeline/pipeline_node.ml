@@ -21,7 +21,7 @@ let register env =
       | [VPipeline p; (VString name | VSymbol name)] ->
           let name = Utils.strip_dollar name in
           if not (List.mem_assoc name p.p_exprs) then
-            Error.make_error KeyError (Printf.sprintf "Node `%s` not found in Pipeline." name)
+            Ast.missing_node_error name (List.map fst p.p_nodes @ List.map fst p.p_exprs)
           else
             Eval.pipeline_get_node_value (ref _env) p name
       | [VPipeline _; other] ->

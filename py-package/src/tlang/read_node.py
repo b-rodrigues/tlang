@@ -301,11 +301,193 @@ def deserialize(path: str | Path) -> Any:
     )
 
 
+def _normalize_serializer(value: Any) -> str:
+    """Normalize a build-log serializer name for dispatch.
+
+    Strips a leading ``^``, trims whitespace, and lowercases, so ``"^JSON"``
+    and ``"json"`` map to ``"json"``. Missing or empty values map to
+    ``"default"``.
+    """
+    if not isinstance(value, str) or not value.strip():
+        return "default"
+    text = value.strip().lower()
+    while text.startswith("^"):
+        text = text[1:]
+    return text or "default"
+
+
+def _auto_deserialize(
+    serializer: Any, name: str, artifact_path: Path, runtime: Any = None
+) -> Any:
+    """Deserialize using the serializer recorded in the build log.
+
+    Picks the Python reader from the ``serializer`` field so callers do not
+    need to pass ``deserializer`` by hand. Missing packages raise an error
+    that names the package and the function to use.
+    """
+    raw = serializer if isinstance(serializer, str) and serializer.strip() else "default"
+    fmt = _normalize_serializer(raw)
+
+    if fmt in {"default", "tlang", "tobj", "serialize", "pickle", "dill", "cloudpickle"}:
+        try:
+            return deserialize(artifact_path)
+        except Exception as err:  # noqa: BLE001
+            hint = ""
+            if isinstance(runtime, str) and runtime.strip() and runtime.strip() != "Python":
+                hint = (
+                    f" Node `{name}` was built by runtime `{runtime.strip()}`; "
+                    f"pass a custom `deserializer` or use `return_path=True`."
+                )
+            raise RuntimeError(
+                f"Failed to deserialize node `{name}` (serializer `^{fmt}`) "
+                f"from `{artifact_path}`: {err}{hint}"
+            ) from err
+
+    if fmt == "json":
+        try:
+            with artifact_path.open("r", encoding="utf-8") as handle:
+                return json.load(handle)
+        except Exception as err:  # noqa: BLE001
+            raise RuntimeError(
+                f"Failed to deserialize node `{name}` (serializer `^json`, "
+                f"expected stdlib `json.load`) from `{artifact_path}`: {err}"
+            ) from err
+
+    if fmt == "csv":
+        try:
+            import pandas as pd  # type: ignore
+        except ImportError as err:
+            raise RuntimeError(
+                f"Node `{name}` uses serializer `^csv`. Install/load `pandas` "
+                f"first, declare it in `tproject.toml`, run `t update`, and "
+                f"re-enter `nix develop`. Or pass "
+                f"`deserializer=lambda p: pandas.read_csv(p)`."
+            ) from err
+        try:
+            return pd.read_csv(str(artifact_path))
+        except Exception as err:  # noqa: BLE001
+            raise RuntimeError(
+                f"Failed to deserialize node `{name}` (serializer `^csv`, "
+                f"expected `pandas.read_csv`) from `{artifact_path}`: {err}"
+            ) from err
+
+    if fmt in {"text", "txt"}:
+        try:
+            # Exact bytes decoded as UTF-8 (no universal-newline translation),
+            # matching Julia `read(path, String)` and R.
+            return artifact_path.read_bytes().decode("utf-8")
+        except Exception as err:  # noqa: BLE001
+            raise RuntimeError(
+                f"Failed to deserialize node `{name}` (serializer `^text`) "
+                f"from `{artifact_path}`: {err}"
+            ) from err
+
+    if fmt in {"ipc", "arrow"}:
+        try:
+            import pandas as pd  # type: ignore
+            import pyarrow.ipc as ipc  # type: ignore
+        except ImportError as err:
+            raise RuntimeError(
+                f"Node `{name}` uses serializer `^ipc`. Install `pandas` and "
+                f"`pyarrow` first, declare them in `tproject.toml`, run "
+                f"`t update`, and re-enter `nix develop`. Or pass a custom "
+                f"`deserializer` using `pyarrow.ipc`."
+            ) from err
+        try:
+            with open(artifact_path, "rb") as handle:
+                return ipc.open_file(handle).read_pandas()
+        except Exception as err:  # noqa: BLE001
+            raise RuntimeError(
+                f"Failed to deserialize node `{name}` (serializer `^ipc`, "
+                f"expected `pyarrow.ipc`) from `{artifact_path}`: {err}"
+            ) from err
+
+    if fmt == "parquet":
+        try:
+            import pandas as pd  # type: ignore
+            import pyarrow.parquet as pq  # type: ignore
+        except ImportError as err:
+            raise RuntimeError(
+                f"Node `{name}` uses serializer `^parquet`. Install `pandas` "
+                f"and `pyarrow` first, declare them in `tproject.toml`, run "
+                f"`t update`, and re-enter `nix develop`. Or pass a custom "
+                f"`deserializer` using `pyarrow.parquet`."
+            ) from err
+        try:
+            return pq.read_table(str(artifact_path)).to_pandas()
+        except Exception as err:  # noqa: BLE001
+            raise RuntimeError(
+                f"Failed to deserialize node `{name}` (serializer `^parquet`, "
+                f"expected `pyarrow.parquet`) from `{artifact_path}`: {err}"
+            ) from err
+
+    if fmt == "pmml":
+        raise RuntimeError(
+            f"Node `{name}` uses serializer `^pmml`, which has no built-in "
+            f"Python reader here. Use `return_path=True` plus a custom "
+            f"`deserializer` to inspect the file."
+        )
+
+    if fmt == "onnx":
+        raise RuntimeError(
+            f"Node `{name}` uses serializer `^onnx`, which has no built-in "
+            f"Python reader here. Use `return_path=True` plus a custom "
+            f"`deserializer` to inspect the file."
+        )
+
+    if fmt == "bin":
+        raise RuntimeError(
+            f"Node `{name}` uses serializer `^bin` (opaque bytes). Use "
+            f"`return_path=True` to get the artifact path or pass a custom "
+            f"`deserializer`."
+        )
+
+    raise RuntimeError(
+        f"Node `{name}` uses unknown serializer `{raw}`. Pass a custom "
+        f"`deserializer` function or use `return_path=True` to get the "
+        f"artifact path."
+    )
+
+
+def _read_node_entry(
+    node_entry: dict[str, Any],
+    name: str,
+    pipeline_dir: Path,
+    deserializer: Callable[[str | Path], Any] | None,
+    return_path: bool,
+) -> Any:
+    """Deserialize one already-located build-log node entry.
+
+    Shared by ``read_node()`` and ``read_node_tree()`` so a tree read uses
+    the single already-selected build log instead of re-resolving
+    ``which_log`` per node.
+    """
+    artifact_path = _resolve_artifact_path(node_entry.get("path"), pipeline_dir)
+
+    if return_path:
+        return str(artifact_path)
+
+    if deserializer is None:
+        return _auto_deserialize(
+            node_entry.get("serializer", "default"),
+            name,
+            artifact_path,
+            node_entry.get("runtime"),
+        )
+
+    try:
+        return deserializer(artifact_path)
+    except Exception as err:  # noqa: BLE001
+        raise RuntimeError(
+            f"Failed to deserialize node `{name}` from `{artifact_path}`: {err}"
+        ) from err
+
+
 def read_node(
     name: str,
     which_log: str | None = None,
     pipeline_dir: str | Path = "_pipeline",
-    deserializer: Callable[[str | Path], Any] = deserialize,
+    deserializer: Callable[[str | Path], Any] | None = None,
     return_path: bool = False,
 ) -> Any:
     """Read a node artifact from a built T pipeline.
@@ -313,6 +495,11 @@ def read_node(
     When ``which_log`` is ``None``, the helper picks the first
     reverse-alphabetically sorted ``build_log_*.json`` file, which matches T's
     timestamped log naming and therefore resolves to the most recent build.
+
+    When ``deserializer`` is ``None`` (the default), the ``serializer`` field
+    from the build log picks the reader automatically (pickle for ``default``,
+    stdlib ``json`` for ``^json``, ``pandas.read_csv`` for ``^csv``,
+    ``pyarrow`` for ``^ipc``/``^parquet``). Pass a callable to override.
 
     Parameters
     ----------
@@ -323,9 +510,9 @@ def read_node(
         If None, the most recent build log is used.
     pipeline_dir : str or Path, optional
         The path to the pipeline directory. Defaults to "_pipeline".
-    deserializer : Callable[[str | Path], Any], optional
+    deserializer : Callable[[str | Path], Any] or None, optional
         A callable function to deserialize the node artifact from disk.
-        Defaults to `deserialize`.
+        When None, the build-log serializer picks the reader automatically.
     return_path : bool, optional
         If True, return the absolute path to the artifact file instead of deserializing it.
         Defaults to False.
@@ -341,7 +528,7 @@ def read_node(
     ValueError
         If the node `name` or `which_log` regex is invalid, or if the build log structure is invalid.
     TypeError
-        If `deserializer` is not a callable function.
+        If `deserializer` is neither None nor callable.
     FileNotFoundError
         If the pipeline directory, the build log, or matching log cannot be found.
     RuntimeError
@@ -353,21 +540,12 @@ def read_node(
     if not pipeline_path.is_dir():
         raise FileNotFoundError(f"Pipeline directory `{pipeline_path}` does not exist.")
 
-    if not callable(deserializer):
-        raise TypeError("`deserializer` must be callable.")
+    if deserializer is not None and not callable(deserializer):
+        raise TypeError("`deserializer` must be callable or None.")
 
     logs = _list_build_logs(pipeline_path)
     log_file = _select_build_log(logs, which_log, pipeline_path)
     build_log = _read_build_log(pipeline_path / log_file)
     node_entry = _find_node_entry(build_log.get("nodes"), name, log_file)
-    artifact_path = _resolve_artifact_path(node_entry.get("path"), pipeline_path)
 
-    if return_path:
-        return str(artifact_path)
-
-    try:
-        return deserializer(artifact_path)
-    except Exception as err:  # noqa: BLE001
-        raise RuntimeError(
-            f"Failed to deserialize node `{name}` from `{artifact_path}`: {err}"
-        ) from err
+    return _read_node_entry(node_entry, name, pipeline_path, deserializer, return_path)

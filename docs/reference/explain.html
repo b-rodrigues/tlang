@@ -37,8 +37,15 @@
 <p>Explain Value</p>
 <p>Returns a dictionary describing the structure and content of a value.
 Node results from <code>read_node(...)</code> are wrapped with node
-metadata and expose the explained payload under
-<code>contents</code>.</p>
+metadata and expose the explained payload under <code>contents</code>.
+Computed pipeline nodes (e.g. <code>p.node</code>) also expose
+<code>foreign_meta</code> with shape facts from the build-time
+<code>meta</code> sidecar (dimensions for frames and arrays,
+n_obs/n_features/formula/order/metrics for models), or NA when absent.
+Explaining a pipeline lists per-node <code>dependencies</code> (direct
+inputs) and <code>children</code> (direct dependents) plus the
+transitive <code>ancestors</code> and <code>descendants</code> closures
+(nearest-first, de-duplicated).</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
 <li><strong>x</strong> (<code>Any</code>): The value to explain.</li>

@@ -6,7 +6,8 @@ read_node(
   name,
   which_log = NULL,
   pipeline_dir = "_pipeline",
-  deserializer = readRDS
+  deserializer = NULL,
+  return_path = FALSE
 )
 }
 \arguments{
@@ -18,11 +19,18 @@ read_node(
   \item{pipeline_dir}{Path to the pipeline build directory. Defaults to
   \code{"_pipeline"}.}
 
-  \item{deserializer}{Function used to deserialize the artifact file. Defaults
-  to \code{readRDS}.}
+  \item{deserializer}{Function or \code{NULL}. When \code{NULL} (the default),
+  the \code{serializer} field from the build log picks the reader
+  automatically (\code{readRDS} for \code{default}, \code{jsonlite::read_json}
+  for \code{^json}, \code{read.csv} for \code{^csv},
+  \code{arrow::read_ipc_file} for \code{^ipc}, \code{arrow::read_parquet} for
+  \code{^parquet}). Pass a function to override.}
+
+  \item{return_path}{Logical. If \code{TRUE}, return the artifact path instead
+  of deserializing it.}
 }
 \value{
-The deserialized node artifact.
+The deserialized node artifact, or the path when \code{return_path} is \code{TRUE}.
 }
 \description{
 Reads the latest build log, or a matching historical one, from the
@@ -34,6 +42,7 @@ timestamped log naming and therefore resolves to the most recent build.
 \examples{
 \dontrun{
 read_node("model")
+read_node("features")
 read_node("features", deserializer = arrow::read_ipc_file)
 read_node("model", which_log = "20260221")
 }

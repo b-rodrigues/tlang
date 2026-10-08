@@ -24,10 +24,10 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
     in
     if match_found then begin
       incr pass_count;
-      Printf.printf "  ✓ %s\n" name
+      Printf.printf "  SUCCESS %s\n" name
     end else begin
       incr fail_count;
-      let msg = Printf.sprintf "  ✗ %s\n    Expected (regex): %s\n    Got:               %s\n" name expected result_str in
+      let msg = Printf.sprintf "  FAILURE %s\n    Expected (regex): %s\n    Got:               %s\n" name expected result_str in
       failures := msg :: !failures;
       Printf.printf "%s" msg
     end

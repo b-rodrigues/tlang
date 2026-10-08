@@ -13,7 +13,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   (* Test 1: Arrow FFI availability flag *)
   let arrow_avail = Arrow_ffi.arrow_available in
   if arrow_avail then begin
-    incr pass_count; Printf.printf "  ✓ Arrow FFI marked as available\n"
+    incr pass_count; Printf.printf "  SUCCESS Arrow FFI marked as available\n"
   end else begin
     Test_arrow_helpers.record_native_requirement_result pass_count fail_count
       "Arrow FFI availability (Native library requested but not linked)"
@@ -26,9 +26,9 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   ] in
   let tbl = Arrow_table.create cols 2 in
   if Arrow_table.num_rows tbl = 2 && Arrow_table.num_columns tbl = 2 then begin
-    incr pass_count; Printf.printf "  ✓ Pure OCaml table creation works\n"
+    incr pass_count; Printf.printf "  SUCCESS Pure OCaml table creation works\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ Pure OCaml table creation failed\n"
+    incr fail_count; Printf.printf "  FAILURE Pure OCaml table creation failed\n"
   end;
 
   (* Test 3: Schema extraction *)
@@ -36,17 +36,17 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   if List.length schema = 2
      && List.assoc "name" schema = Arrow_table.ArrowString
      && List.assoc "age" schema = Arrow_table.ArrowInt64 then begin
-    incr pass_count; Printf.printf "  ✓ Schema extraction works\n"
+    incr pass_count; Printf.printf "  SUCCESS Schema extraction works\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ Schema extraction failed\n"
+    incr fail_count; Printf.printf "  FAILURE Schema extraction failed\n"
   end;
 
   (* Test 4: Column names *)
   let names = Arrow_table.column_names tbl in
   if names = ["name"; "age"] then begin
-    incr pass_count; Printf.printf "  ✓ Column names correct\n"
+    incr pass_count; Printf.printf "  SUCCESS Column names correct\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ Column names incorrect: [%s]\n"
+    incr fail_count; Printf.printf "  FAILURE Column names incorrect: [%s]\n"
       (String.concat ", " names)
   end;
 
@@ -54,25 +54,25 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   (match Arrow_table.get_column tbl "age" with
    | Some (Arrow_table.IntColumn data) ->
        if Array.length data = 2 && data.(0) = Some 30 && data.(1) = Some 25 then begin
-         incr pass_count; Printf.printf "  ✓ Column access returns correct data\n"
+         incr pass_count; Printf.printf "  SUCCESS Column access returns correct data\n"
        end else begin
-         incr fail_count; Printf.printf "  ✗ Column access data mismatch\n"
+         incr fail_count; Printf.printf "  FAILURE Column access data mismatch\n"
        end
    | _ ->
-       incr fail_count; Printf.printf "  ✗ Column access failed or wrong type\n");
+       incr fail_count; Printf.printf "  FAILURE Column access failed or wrong type\n");
 
   (* Test 6: has_column *)
   if Arrow_table.has_column tbl "name" && not (Arrow_table.has_column tbl "missing") then begin
-    incr pass_count; Printf.printf "  ✓ has_column works\n"
+    incr pass_count; Printf.printf "  SUCCESS has_column works\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ has_column failed\n"
+    incr fail_count; Printf.printf "  FAILURE has_column failed\n"
   end;
 
   (* Test 7: native_handle is None for pure OCaml tables *)
   if tbl.native_handle = None then begin
-    incr pass_count; Printf.printf "  ✓ Pure OCaml table has no native_handle\n"
+    incr pass_count; Printf.printf "  SUCCESS Pure OCaml table has no native_handle\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ Pure OCaml table should not have native_handle\n"
+    incr fail_count; Printf.printf "  FAILURE Pure OCaml table should not have native_handle\n"
   end;
 
   (* Test 8: arrow_type_of_tag *)
@@ -82,9 +82,9 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
      && Arrow_table.arrow_type_of_tag 3 = Arrow_table.ArrowString
      && Arrow_table.arrow_type_of_tag 8 = Arrow_table.ArrowTimestamp None
      && Arrow_table.arrow_type_of_tag 99 = Arrow_table.ArrowNA then begin
-    incr pass_count; Printf.printf "  ✓ arrow_type_of_tag works\n"
+    incr pass_count; Printf.printf "  SUCCESS arrow_type_of_tag works\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ arrow_type_of_tag failed\n"
+    incr fail_count; Printf.printf "  FAILURE arrow_type_of_tag failed\n"
   end;
   print_newline ();
 
@@ -94,18 +94,18 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   let projected = Arrow_table.project tbl ["name"] in
   if Arrow_table.num_columns projected = 1
      && Arrow_table.column_names projected = ["name"] then begin
-    incr pass_count; Printf.printf "  ✓ Project (select) works\n"
+    incr pass_count; Printf.printf "  SUCCESS Project (select) works\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ Project (select) failed\n"
+    incr fail_count; Printf.printf "  FAILURE Project (select) failed\n"
   end;
 
   (* Test 10: Filter *)
   let mask = [| true; false |] in
   let filtered = Arrow_table.filter_rows tbl mask in
   if Arrow_table.num_rows filtered = 1 then begin
-    incr pass_count; Printf.printf "  ✓ Filter rows works\n"
+    incr pass_count; Printf.printf "  SUCCESS Filter rows works\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ Filter rows failed (got %d rows)\n"
+    incr fail_count; Printf.printf "  FAILURE Filter rows failed (got %d rows)\n"
       (Arrow_table.num_rows filtered)
   end;
 
@@ -114,9 +114,9 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   let with_col = Arrow_table.add_column tbl "score" new_col in
   if Arrow_table.num_columns with_col = 3
      && Arrow_table.has_column with_col "score" then begin
-    incr pass_count; Printf.printf "  ✓ Add column works\n"
+    incr pass_count; Printf.printf "  SUCCESS Add column works\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ Add column failed\n"
+    incr fail_count; Printf.printf "  FAILURE Add column failed\n"
   end;
 
   (* Test 12: Take rows *)
@@ -125,14 +125,14 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     (match Arrow_table.get_column taken "age" with
      | Some (Arrow_table.IntColumn data) ->
          if data.(0) = Some 25 && data.(1) = Some 30 then begin
-           incr pass_count; Printf.printf "  ✓ Take rows with reorder works\n"
+           incr pass_count; Printf.printf "  SUCCESS Take rows with reorder works\n"
          end else begin
-           incr fail_count; Printf.printf "  ✗ Take rows data order incorrect\n"
+           incr fail_count; Printf.printf "  FAILURE Take rows data order incorrect\n"
          end
      | _ ->
-         incr fail_count; Printf.printf "  ✗ Take rows column access failed\n")
+         incr fail_count; Printf.printf "  FAILURE Take rows column access failed\n")
   end else begin
-    incr fail_count; Printf.printf "  ✗ Take rows failed\n"
+    incr fail_count; Printf.printf "  FAILURE Take rows failed\n"
   end;
 
   (* Test 13: Sort by indices *)
@@ -140,12 +140,12 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   (match Arrow_table.get_column sorted "name" with
    | Some (Arrow_table.StringColumn data) ->
        if data.(0) = Some "Bob" && data.(1) = Some "Alice" then begin
-         incr pass_count; Printf.printf "  ✓ Sort by indices works\n"
+         incr pass_count; Printf.printf "  SUCCESS Sort by indices works\n"
        end else begin
-         incr fail_count; Printf.printf "  ✗ Sort by indices data order incorrect\n"
+         incr fail_count; Printf.printf "  FAILURE Sort by indices data order incorrect\n"
        end
    | _ ->
-       incr fail_count; Printf.printf "  ✗ Sort by indices column access failed\n");
+       incr fail_count; Printf.printf "  FAILURE Sort by indices column access failed\n");
   print_newline ();
 
   Printf.printf "Arrow Integration — Bridge (column_to_values):\n";
@@ -155,9 +155,9 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   let values = Arrow_bridge.column_to_values int_col in
   let v_str = Array.to_list values |> List.map Ast.Utils.value_to_string |> String.concat ", " in
   if v_str = "1, NA(Int), 3" then begin
-    incr pass_count; Printf.printf "  ✓ IntColumn to values with NA\n"
+    incr pass_count; Printf.printf "  SUCCESS IntColumn to values with NA\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ IntColumn to values: got [%s]\n" v_str
+    incr fail_count; Printf.printf "  FAILURE IntColumn to values: got [%s]\n" v_str
   end;
 
   (* Test 15: Values to column conversion *)
@@ -165,12 +165,12 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   (match Arrow_bridge.values_to_column vals with
    | Ok (Arrow_table.IntColumn data) ->
        if data.(0) = Some 10 && data.(1) = Some 20 && data.(2) = None then begin
-         incr pass_count; Printf.printf "  ✓ Values to IntColumn with NA\n"
+         incr pass_count; Printf.printf "  SUCCESS Values to IntColumn with NA\n"
        end else begin
-         incr fail_count; Printf.printf "  ✗ Values to IntColumn data mismatch\n"
+         incr fail_count; Printf.printf "  FAILURE Values to IntColumn data mismatch\n"
        end
    | _ ->
-       incr fail_count; Printf.printf "  ✗ Values to column produced wrong type\n");
+       incr fail_count; Printf.printf "  FAILURE Values to column produced wrong type\n");
 
   (* Test 16: Row to dict *)
   let dict = Arrow_bridge.row_to_dict tbl 0 in
@@ -178,9 +178,9 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   let age_val = List.assoc "age" dict in
   if Ast.Utils.value_to_string name_val = {|"Alice"|}
      && Ast.Utils.value_to_string age_val = "30" then begin
-    incr pass_count; Printf.printf "  ✓ Row to dict works\n"
+    incr pass_count; Printf.printf "  SUCCESS Row to dict works\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ Row to dict failed\n"
+    incr fail_count; Printf.printf "  FAILURE Row to dict failed\n"
   end;
   print_newline ();
 
@@ -199,14 +199,14 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     match Ast.Env.find_opt "df" env with
     | Some (Ast.VDataFrame { arrow_table; _ }) ->
         if Arrow_table.is_native_backed arrow_table then begin
-          incr pass_count; Printf.printf "  ✓ public read_csv default path preserves native Arrow handle\n"
+          incr pass_count; Printf.printf "  SUCCESS public read_csv default path preserves native Arrow handle\n"
         end else begin
-          incr fail_count; Printf.printf "  ✗ public read_csv default path lost native Arrow handle\n"
+          incr fail_count; Printf.printf "  FAILURE public read_csv default path lost native Arrow handle\n"
         end
     | Some _ ->
-        incr fail_count; Printf.printf "  ✗ public read_csv did not bind a DataFrame value\n"
+        incr fail_count; Printf.printf "  FAILURE public read_csv did not bind a DataFrame value\n"
     | None ->
-        incr fail_count; Printf.printf "  ✗ public read_csv did not bind `df` in the environment\n"
+        incr fail_count; Printf.printf "  FAILURE public read_csv did not bind `df` in the environment\n"
   end else
     Test_arrow_helpers.record_native_requirement_result pass_count fail_count
       "public read_csv default path preserves native Arrow handle";
@@ -214,42 +214,42 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   let (v, _) = eval_string_env "nrow(df)" env in
   let result = Ast.Utils.value_to_string v in
   if result = "3" then begin
-    incr pass_count; Printf.printf "  ✓ Arrow-backed CSV nrow = 3\n"
+    incr pass_count; Printf.printf "  SUCCESS Arrow-backed CSV nrow = 3\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ Arrow-backed CSV nrow expected 3, got %s\n" result
+    incr fail_count; Printf.printf "  FAILURE Arrow-backed CSV nrow expected 3, got %s\n" result
   end;
 
   let (v, _) = eval_string_env "ncol(df)" env in
   let result = Ast.Utils.value_to_string v in
   if result = "3" then begin
-    incr pass_count; Printf.printf "  ✓ Arrow-backed CSV ncol = 3\n"
+    incr pass_count; Printf.printf "  SUCCESS Arrow-backed CSV ncol = 3\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ Arrow-backed CSV ncol expected 3, got %s\n" result
+    incr fail_count; Printf.printf "  FAILURE Arrow-backed CSV ncol expected 3, got %s\n" result
   end;
 
   let (v, _) = eval_string_env "colnames(df)" env in
   let result = Ast.Utils.value_to_string v in
   if result = {|["name", "age", "score"]|} then begin
-    incr pass_count; Printf.printf "  ✓ Arrow-backed CSV colnames correct\n"
+    incr pass_count; Printf.printf "  SUCCESS Arrow-backed CSV colnames correct\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ Arrow-backed CSV colnames: %s\n" result
+    incr fail_count; Printf.printf "  FAILURE Arrow-backed CSV colnames: %s\n" result
   end;
 
   (* Test 18: Column access on Arrow-backed DataFrame *)
   let (v, _) = eval_string_env "df.name" env in
   let result = Ast.Utils.value_to_string v in
   if result = {|Vector["Alice", "Bob", "Charlie"]|} then begin
-    incr pass_count; Printf.printf "  ✓ Arrow-backed CSV column access (name)\n"
+    incr pass_count; Printf.printf "  SUCCESS Arrow-backed CSV column access (name)\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ Arrow-backed CSV column access (name): %s\n" result
+    incr fail_count; Printf.printf "  FAILURE Arrow-backed CSV column access (name): %s\n" result
   end;
 
   let (v, _) = eval_string_env "df.age" env in
   let result = Ast.Utils.value_to_string v in
   if result = "Vector[30, 25, 35]" then begin
-    incr pass_count; Printf.printf "  ✓ Arrow-backed CSV column access (age)\n"
+    incr pass_count; Printf.printf "  SUCCESS Arrow-backed CSV column access (age)\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ Arrow-backed CSV column access (age): %s\n" result
+    incr fail_count; Printf.printf "  FAILURE Arrow-backed CSV column access (age): %s\n" result
   end;
 
   (* Test 19: Colcraft operations on Arrow-backed DataFrame *)
@@ -275,7 +275,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     env in
   let result = Ast.Utils.value_to_string v in
   if result = "true" then begin
-    incr pass_count; Printf.printf "  ✓ Arrow filter !is_na keeps native path active\n"
+    incr pass_count; Printf.printf "  SUCCESS Arrow filter !is_na keeps native path active\n"
   end else begin
     Test_arrow_helpers.record_native_requirement_result pass_count fail_count
       "Arrow filter !is_na keeps native path active"
@@ -308,7 +308,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     env in
   let result = Ast.Utils.value_to_string v in
   if result = "true" then begin
-    incr pass_count; Printf.printf "  ✓ Arrow mutate keeps native path active\n"
+    incr pass_count; Printf.printf "  SUCCESS Arrow mutate keeps native path active\n"
   end else begin
     Test_arrow_helpers.record_native_requirement_result pass_count fail_count
       "Arrow mutate keeps native path active"
@@ -321,7 +321,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     env in
   let result = Ast.Utils.value_to_string v in
   if result = "true" then begin
-    incr pass_count; Printf.printf "  ✓ Arrow mutate nested arithmetic keeps native path active\n"
+    incr pass_count; Printf.printf "  SUCCESS Arrow mutate nested arithmetic keeps native path active\n"
   end else begin
     Test_arrow_helpers.record_native_requirement_result pass_count fail_count
       "Arrow mutate nested arithmetic keeps native path active"
@@ -334,7 +334,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     env in
   let result = Ast.Utils.value_to_string v in
   if result = "true" then begin
-    incr pass_count; Printf.printf "  ✓ Arrow filter + mutate nested arithmetic keeps native path active\n"
+    incr pass_count; Printf.printf "  SUCCESS Arrow filter + mutate nested arithmetic keeps native path active\n"
   end else begin
     Test_arrow_helpers.record_native_requirement_result pass_count fail_count
       "Arrow filter + mutate nested arithmetic keeps native path active"
@@ -348,7 +348,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   (match v with
    | VDataFrame df ->
         if Arrow_table.is_native_backed df.arrow_table then begin
-          incr pass_count; Printf.printf "  ✓ Arrow mutate chained arithmetic stays native-backed\n"
+          incr pass_count; Printf.printf "  SUCCESS Arrow mutate chained arithmetic stays native-backed\n"
         end else begin
           Test_arrow_helpers.record_native_requirement_result pass_count fail_count
             "Arrow mutate chained arithmetic stays native-backed"
@@ -381,17 +381,17 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   let (v, _) = eval_string_env "nrow(df_skip)" env_skip in
   let skip_nrow = Ast.Utils.value_to_string v in
   if skip_nrow = "2" then begin
-    incr pass_count; Printf.printf "  ✓ read_csv(skip_lines=1) honors public builtin CSV options\n"
+    incr pass_count; Printf.printf "  SUCCESS read_csv(skip_lines=1) honors public builtin CSV options\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ read_csv(skip_lines=1) expected nrow=2, got %s\n" skip_nrow
+    incr fail_count; Printf.printf "  FAILURE read_csv(skip_lines=1) expected nrow=2, got %s\n" skip_nrow
   end;
   (match Arrow_io.read_csv csv_skip_path with
    | Ok tbl when Arrow_table.num_rows tbl = 3 ->
-       incr pass_count; Printf.printf "  ✓ Arrow_io.read_csv differs from read_csv(skip_lines) on same file\n"
+       incr pass_count; Printf.printf "  SUCCESS Arrow_io.read_csv differs from read_csv(skip_lines) on same file\n"
    | Ok tbl ->
-       incr fail_count; Printf.printf "  ✗ Arrow_io.read_csv expected nrow=3 on same file, got %d\n" (Arrow_table.num_rows tbl)
+       incr fail_count; Printf.printf "  FAILURE Arrow_io.read_csv expected nrow=3 on same file, got %d\n" (Arrow_table.num_rows tbl)
    | Error msg ->
-       incr fail_count; Printf.printf "  ✗ Arrow_io.read_csv failed on CSV path distinction test: %s\n" msg);
+       incr fail_count; Printf.printf "  FAILURE Arrow_io.read_csv failed on CSV path distinction test: %s\n" msg);
   print_newline ();
 
   Printf.printf "Arrow Integration — Compute Module:\n";
@@ -404,46 +404,46 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   ] 2 in
   let proj = Arrow_compute.project tbl3 ["a"; "c"] in
   if Arrow_table.num_columns proj = 2 && Arrow_table.column_names proj = ["a"; "c"] then begin
-    incr pass_count; Printf.printf "  ✓ Arrow_compute.project works\n"
+    incr pass_count; Printf.printf "  SUCCESS Arrow_compute.project works\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ Arrow_compute.project failed\n"
+    incr fail_count; Printf.printf "  FAILURE Arrow_compute.project failed\n"
   end;
 
   (* Test 21: Arrow_compute.filter *)
   let filt = Arrow_compute.filter tbl3 [| true; false |] in
   if Arrow_table.num_rows filt = 1 then begin
-    incr pass_count; Printf.printf "  ✓ Arrow_compute.filter works\n"
+    incr pass_count; Printf.printf "  SUCCESS Arrow_compute.filter works\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ Arrow_compute.filter failed\n"
+    incr fail_count; Printf.printf "  FAILURE Arrow_compute.filter failed\n"
   end;
 
   (* Test 22: Arrow_compute.add_column *)
   let new_c = Arrow_table.BoolColumn [| Some true; Some false |] in
   let added = Arrow_compute.add_column tbl3 "d" new_c in
   if Arrow_table.num_columns added = 4 then begin
-    incr pass_count; Printf.printf "  ✓ Arrow_compute.add_column works\n"
+    incr pass_count; Printf.printf "  SUCCESS Arrow_compute.add_column works\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ Arrow_compute.add_column failed\n"
+    incr fail_count; Printf.printf "  FAILURE Arrow_compute.add_column failed\n"
   end;
 
   (* Test 23: Arrow_compute.sort_by_column on pure OCaml table (returns None) *)
   (match Arrow_compute.sort_by_column tbl3 "a" true with
    | None ->
-       incr pass_count; Printf.printf "  ✓ sort_by_column returns None for pure OCaml table\n"
+       incr pass_count; Printf.printf "  SUCCESS sort_by_column returns None for pure OCaml table\n"
    | Some _ ->
-       incr pass_count; Printf.printf "  ✓ sort_by_column returned result (native available)\n");
+       incr pass_count; Printf.printf "  SUCCESS sort_by_column returned result (native available)\n");
 
   (* Test 24: Arrow_compute.sort_by_indices *)
   let sorted_tbl = Arrow_compute.sort_by_indices tbl3 [| 1; 0 |] in
   (match Arrow_table.get_column sorted_tbl "a" with
    | Some (Arrow_table.IntColumn data) ->
        if data.(0) = Some 2 && data.(1) = Some 1 then begin
-         incr pass_count; Printf.printf "  ✓ Arrow_compute.sort_by_indices works\n"
+         incr pass_count; Printf.printf "  SUCCESS Arrow_compute.sort_by_indices works\n"
        end else begin
-         incr fail_count; Printf.printf "  ✗ Arrow_compute.sort_by_indices data order incorrect\n"
+         incr fail_count; Printf.printf "  FAILURE Arrow_compute.sort_by_indices data order incorrect\n"
        end
    | _ ->
-       incr fail_count; Printf.printf "  ✗ Arrow_compute.sort_by_indices failed\n");
+       incr fail_count; Printf.printf "  FAILURE Arrow_compute.sort_by_indices failed\n");
 
   (* Test 25: Arrow_compute.add_scalar on pure OCaml table *)
   (match Arrow_compute.add_scalar tbl3 "c" 10.0 with
@@ -453,11 +453,11 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
           when Array.length data = 2
             && data.(0) = Some 11.0
             && data.(1) = Some 12.0 ->
-            incr pass_count; Printf.printf "  ✓ add_scalar falls back on pure OCaml table\n"
+            incr pass_count; Printf.printf "  SUCCESS add_scalar falls back on pure OCaml table\n"
         | _ ->
-            incr fail_count; Printf.printf "  ✗ add_scalar returned unexpected result on pure OCaml table\n")
+            incr fail_count; Printf.printf "  FAILURE add_scalar returned unexpected result on pure OCaml table\n")
    | None ->
-       incr fail_count; Printf.printf "  ✗ add_scalar should fall back on pure OCaml table\n");
+       incr fail_count; Printf.printf "  FAILURE add_scalar should fall back on pure OCaml table\n");
 
   (* Test 26: Arrow_compute.multiply_scalar on pure OCaml table *)
   (match Arrow_compute.multiply_scalar tbl3 "c" 2.0 with
@@ -467,11 +467,11 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
           when Array.length data = 2
             && data.(0) = Some 2.0
             && data.(1) = Some 4.0 ->
-            incr pass_count; Printf.printf "  ✓ multiply_scalar falls back on pure OCaml table\n"
+            incr pass_count; Printf.printf "  SUCCESS multiply_scalar falls back on pure OCaml table\n"
         | _ ->
-            incr fail_count; Printf.printf "  ✗ multiply_scalar returned unexpected result on pure OCaml table\n")
+            incr fail_count; Printf.printf "  FAILURE multiply_scalar returned unexpected result on pure OCaml table\n")
    | None ->
-       incr fail_count; Printf.printf "  ✗ multiply_scalar should fall back on pure OCaml table\n");
+       incr fail_count; Printf.printf "  FAILURE multiply_scalar should fall back on pure OCaml table\n");
 
   (* Test 27: Arrow_compute.subtract_scalar on pure OCaml table *)
   (match Arrow_compute.subtract_scalar tbl3 "c" 0.5 with
@@ -481,11 +481,11 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
           when Array.length data = 2
             && data.(0) = Some 0.5
             && data.(1) = Some 1.5 ->
-            incr pass_count; Printf.printf "  ✓ subtract_scalar falls back on pure OCaml table\n"
+            incr pass_count; Printf.printf "  SUCCESS subtract_scalar falls back on pure OCaml table\n"
         | _ ->
-            incr fail_count; Printf.printf "  ✗ subtract_scalar returned unexpected result on pure OCaml table\n")
+            incr fail_count; Printf.printf "  FAILURE subtract_scalar returned unexpected result on pure OCaml table\n")
    | None ->
-       incr fail_count; Printf.printf "  ✗ subtract_scalar should fall back on pure OCaml table\n");
+       incr fail_count; Printf.printf "  FAILURE subtract_scalar should fall back on pure OCaml table\n");
 
   (* Test 28: Arrow_compute.divide_scalar on pure OCaml table *)
   (match Arrow_compute.divide_scalar tbl3 "c" 2.0 with
@@ -495,11 +495,11 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
           when Array.length data = 2
             && data.(0) = Some 0.5
             && data.(1) = Some 1.0 ->
-            incr pass_count; Printf.printf "  ✓ divide_scalar falls back on pure OCaml table\n"
+            incr pass_count; Printf.printf "  SUCCESS divide_scalar falls back on pure OCaml table\n"
         | _ ->
-            incr fail_count; Printf.printf "  ✗ divide_scalar returned unexpected result on pure OCaml table\n")
+            incr fail_count; Printf.printf "  FAILURE divide_scalar returned unexpected result on pure OCaml table\n")
    | None ->
-       incr fail_count; Printf.printf "  ✗ divide_scalar should fall back on pure OCaml table\n");
+       incr fail_count; Printf.printf "  FAILURE divide_scalar should fall back on pure OCaml table\n");
   print_newline ();
 
   Printf.printf "Arrow Integration — Compute with Native Backend:\n";
@@ -547,17 +547,17 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
        ignore (Arrow_table.project tbl ["name"; "score"]);
        let events = Arrow_table.take_zero_copy_events () in
        if events = [] then
-         (incr pass_count; Printf.printf "  ✓ zero-copy project stayed on native path\n")
+         (incr pass_count; Printf.printf "  SUCCESS zero-copy project stayed on native path\n")
        else
-         (incr fail_count; Printf.printf "  ✗ zero-copy project fell back to OCaml\n");
+         (incr fail_count; Printf.printf "  FAILURE zero-copy project fell back to OCaml\n");
        ignore (Arrow_table.take_zero_copy_events ());
        let mask = Array.init (Arrow_table.num_rows tbl) (fun i -> i mod 2 = 0) in
        ignore (Arrow_table.filter_rows tbl mask);
        let events = Arrow_table.take_zero_copy_events () in
        if events = [] then
-         (incr pass_count; Printf.printf "  ✓ zero-copy filter stayed on native path\n")
+         (incr pass_count; Printf.printf "  SUCCESS zero-copy filter stayed on native path\n")
        else
-         (incr fail_count; Printf.printf "  ✗ zero-copy filter fell back to OCaml\n")
+         (incr fail_count; Printf.printf "  FAILURE zero-copy filter fell back to OCaml\n")
    | Ok _ ->
        Test_arrow_helpers.record_native_requirement_result pass_count fail_count
          "zero-copy project telemetry (native) skipped";
@@ -591,26 +591,26 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   let grouped = Arrow_compute.group_by group_tbl ["name"] in
   let n_groups = List.length (Arrow_compute.get_groups grouped) in
   if n_groups = 2 then begin
-    incr pass_count; Printf.printf "  ✓ group_by produces 2 groups for ['name']\n"
+    incr pass_count; Printf.printf "  SUCCESS group_by produces 2 groups for ['name']\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ group_by expected 2 groups, got %d\n" n_groups
+    incr fail_count; Printf.printf "  FAILURE group_by expected 2 groups, got %d\n" n_groups
   end;
 
   (* Test 34: group_by preserves group order (insertion order) *)
   let first_key = fst (List.hd (Arrow_compute.get_groups grouped)) in
   if first_key = {|"Alice"|} then begin
-    incr pass_count; Printf.printf "  ✓ group_by preserves insertion order\n"
+    incr pass_count; Printf.printf "  SUCCESS group_by preserves insertion order\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ group_by first group expected \"Alice\", got %s\n" first_key
+    incr fail_count; Printf.printf "  FAILURE group_by first group expected \"Alice\", got %s\n" first_key
   end;
 
   (* Test 35: group_by with multiple keys *)
   let grouped2 = Arrow_compute.group_by group_tbl ["name"; "dept"] in
   let n_groups2 = List.length (Arrow_compute.get_groups grouped2) in
   if n_groups2 = 4 then begin
-    incr pass_count; Printf.printf "  ✓ group_by with 2 keys produces 4 groups\n"
+    incr pass_count; Printf.printf "  SUCCESS group_by with 2 keys produces 4 groups\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ group_by with 2 keys expected 4 groups, got %d\n" n_groups2
+    incr fail_count; Printf.printf "  FAILURE group_by with 2 keys expected 4 groups, got %d\n" n_groups2
   end;
 
   (* Test 36: group_aggregate count_distinct *)
@@ -620,10 +620,10 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
      | Some (Arrow_table.IntColumn data) ->
          (* Alice scores: 90, 85, 95 (3 distinct), Bob scores: 80, 70 (2 distinct) *)
          if data.(0) = Some 3 && data.(1) = Some 2 then begin
-           incr pass_count; Printf.printf "  ✓ group_aggregate count_distinct is correct\n"
+           incr pass_count; Printf.printf "  SUCCESS group_aggregate count_distinct is correct\n"
          end else begin
            incr fail_count;
-           Printf.printf "  ✗ group_aggregate count_distinct values incorrect: [%s]\n"
+           Printf.printf "  FAILURE group_aggregate count_distinct values incorrect: [%s]\n"
              (Array.to_list data |> List.map (fun v ->
                match v with Some i -> string_of_int i | None -> "NA")
                |> String.concat ", ")
@@ -640,11 +640,11 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
            | Arrow_table.DictionaryColumn _ -> "DictionaryColumn"
            | Arrow_table.ListColumn _ -> "ListColumn"
          in
-         incr fail_count; Printf.printf "  ✗ group_aggregate count_distinct returned %s (expected IntColumn)\n" type_str
+         incr fail_count; Printf.printf "  FAILURE group_aggregate count_distinct returned %s (expected IntColumn)\n" type_str
      | None ->
-         incr fail_count; Printf.printf "  ✗ group_aggregate count_distinct column failed\n")
+         incr fail_count; Printf.printf "  FAILURE group_aggregate count_distinct column failed\n")
   end else begin
-    incr fail_count; Printf.printf "  ✗ group_aggregate count_distinct expected 2 rows, got %d\n"
+    incr fail_count; Printf.printf "  FAILURE group_aggregate count_distinct expected 2 rows, got %d\n"
       (Arrow_table.num_rows distinct_result)
   end;
 
@@ -655,18 +655,18 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
      | Some (Arrow_table.FloatColumn data) ->
          (* Alice: 90.0 + 85.0 + 95.0 = 270.0, Bob: 80.0 + 70.0 = 150.0 *)
          if data.(0) = Some 270.0 && data.(1) = Some 150.0 then begin
-           incr pass_count; Printf.printf "  ✓ group_aggregate sum is correct\n"
+           incr pass_count; Printf.printf "  SUCCESS group_aggregate sum is correct\n"
          end else begin
            incr fail_count;
-           Printf.printf "  ✗ group_aggregate sum values incorrect: [%s]\n"
+           Printf.printf "  FAILURE group_aggregate sum values incorrect: [%s]\n"
              (Array.to_list data |> List.map (fun v ->
                match v with Some f -> string_of_float f | None -> "NA")
              |> String.concat ", ")
          end
      | _ ->
-         incr fail_count; Printf.printf "  ✗ group_aggregate sum column type mismatch\n")
+         incr fail_count; Printf.printf "  FAILURE group_aggregate sum column type mismatch\n")
   end else begin
-    incr fail_count; Printf.printf "  ✗ group_aggregate sum expected 2 rows, got %d\n"
+    incr fail_count; Printf.printf "  FAILURE group_aggregate sum expected 2 rows, got %d\n"
       (Arrow_table.num_rows sum_result)
   end;
 
@@ -679,17 +679,17 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
          let close a b = Float.abs (a -. b) < 0.001 in
          (match data.(0), data.(1) with
           | Some a, Some b when close a 90.0 && close b 75.0 ->
-              incr pass_count; Printf.printf "  ✓ group_aggregate mean is correct\n"
+              incr pass_count; Printf.printf "  SUCCESS group_aggregate mean is correct\n"
           | _ ->
               incr fail_count;
-              Printf.printf "  ✗ group_aggregate mean values incorrect: [%s]\n"
+              Printf.printf "  FAILURE group_aggregate mean values incorrect: [%s]\n"
                 (Array.to_list data |> List.map (fun v ->
                   match v with Some f -> string_of_float f | None -> "NA")
                 |> String.concat ", "))
      | _ ->
-         incr fail_count; Printf.printf "  ✗ group_aggregate mean column type mismatch\n")
+         incr fail_count; Printf.printf "  FAILURE group_aggregate mean column type mismatch\n")
   end else begin
-    incr fail_count; Printf.printf "  ✗ group_aggregate mean expected 2 rows, got %d\n"
+    incr fail_count; Printf.printf "  FAILURE group_aggregate mean expected 2 rows, got %d\n"
       (Arrow_table.num_rows mean_result)
   end;
 
@@ -700,16 +700,16 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
      | Some (Arrow_table.IntColumn data) ->
          (* Alice: 3 rows, Bob: 2 rows *)
          if data.(0) = Some 3 && data.(1) = Some 2 then begin
-           incr pass_count; Printf.printf "  ✓ group_aggregate count is correct\n"
+           incr pass_count; Printf.printf "  SUCCESS group_aggregate count is correct\n"
          end else begin
-           incr fail_count; Printf.printf "  ✗ group_aggregate count values incorrect\n"
+           incr fail_count; Printf.printf "  FAILURE group_aggregate count values incorrect\n"
          end
      | Some _ ->
-         incr fail_count; Printf.printf "  ✗ group_aggregate count returned non-Int column\n"
+         incr fail_count; Printf.printf "  FAILURE group_aggregate count returned non-Int column\n"
      | None ->
-         incr fail_count; Printf.printf "  ✗ group_aggregate count column not found\n")
+         incr fail_count; Printf.printf "  FAILURE group_aggregate count column not found\n")
   end else begin
-    incr fail_count; Printf.printf "  ✗ group_aggregate count expected 2 rows, got %d\n"
+    incr fail_count; Printf.printf "  FAILURE group_aggregate count expected 2 rows, got %d\n"
       (Arrow_table.num_rows count_result)
   end;
 
@@ -719,14 +719,14 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     (match Arrow_table.get_column min_result "score" with
      | Some (Arrow_table.FloatColumn data) ->
          if data.(0) = Some 85.0 && data.(1) = Some 70.0 then begin
-           incr pass_count; Printf.printf "  ✓ group_aggregate min is correct\n"
+           incr pass_count; Printf.printf "  SUCCESS group_aggregate min is correct\n"
          end else begin
-           incr fail_count; Printf.printf "  ✗ group_aggregate min values incorrect\n"
+           incr fail_count; Printf.printf "  FAILURE group_aggregate min values incorrect\n"
          end
      | _ ->
-         incr fail_count; Printf.printf "  ✗ group_aggregate min column type mismatch\n")
+         incr fail_count; Printf.printf "  FAILURE group_aggregate min column type mismatch\n")
   end else begin
-    incr fail_count; Printf.printf "  ✗ group_aggregate min expected 2 rows, got %d\n"
+    incr fail_count; Printf.printf "  FAILURE group_aggregate min expected 2 rows, got %d\n"
       (Arrow_table.num_rows min_result)
   end;
 
@@ -736,14 +736,14 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     (match Arrow_table.get_column max_result "score" with
      | Some (Arrow_table.FloatColumn data) ->
          if data.(0) = Some 95.0 && data.(1) = Some 80.0 then begin
-           incr pass_count; Printf.printf "  ✓ group_aggregate max is correct\n"
+           incr pass_count; Printf.printf "  SUCCESS group_aggregate max is correct\n"
          end else begin
-           incr fail_count; Printf.printf "  ✗ group_aggregate max values incorrect\n"
+           incr fail_count; Printf.printf "  FAILURE group_aggregate max values incorrect\n"
          end
      | _ ->
-         incr fail_count; Printf.printf "  ✗ group_aggregate max column type mismatch\n")
+         incr fail_count; Printf.printf "  FAILURE group_aggregate max column type mismatch\n")
   end else begin
-    incr fail_count; Printf.printf "  ✗ group_aggregate max expected 2 rows, got %d\n"
+    incr fail_count; Printf.printf "  FAILURE group_aggregate max expected 2 rows, got %d\n"
       (Arrow_table.num_rows max_result)
   end;
 
@@ -760,14 +760,14 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
          (* Distinct counting matches the current T fallback semantics:
             repeated NA values count as one distinct value. *)
          if data.(0) = Some 1 && data.(1) = Some 3 then begin
-           incr pass_count; Printf.printf "  ✓ group_aggregate count_distinct is correct\n"
+           incr pass_count; Printf.printf "  SUCCESS group_aggregate count_distinct is correct\n"
          end else begin
-           incr fail_count; Printf.printf "  ✗ group_aggregate count_distinct values incorrect\n"
+           incr fail_count; Printf.printf "  FAILURE group_aggregate count_distinct values incorrect\n"
          end
      | _ ->
-         incr fail_count; Printf.printf "  ✗ group_aggregate count_distinct column type mismatch\n")
+         incr fail_count; Printf.printf "  FAILURE group_aggregate count_distinct column type mismatch\n")
   end else begin
-    incr fail_count; Printf.printf "  ✗ group_aggregate count_distinct expected 2 rows, got %d\n"
+    incr fail_count; Printf.printf "  FAILURE group_aggregate count_distinct expected 2 rows, got %d\n"
       (Arrow_table.num_rows distinct_result)
   end;
 
@@ -776,14 +776,14 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     (match Arrow_table.get_column sum_result "name" with
      | Some (Arrow_table.StringColumn data) ->
          if data.(0) = Some "Alice" && data.(1) = Some "Bob" then begin
-           incr pass_count; Printf.printf "  ✓ group_aggregate result has correct key column\n"
+           incr pass_count; Printf.printf "  SUCCESS group_aggregate result has correct key column\n"
          end else begin
-           incr fail_count; Printf.printf "  ✗ group_aggregate key column values incorrect\n"
+           incr fail_count; Printf.printf "  FAILURE group_aggregate key column values incorrect\n"
          end
      | _ ->
-         incr fail_count; Printf.printf "  ✗ group_aggregate key column type mismatch\n")
+         incr fail_count; Printf.printf "  FAILURE group_aggregate key column type mismatch\n")
   end else begin
-    incr fail_count; Printf.printf "  ✗ group_aggregate result missing key column 'name'\n"
+    incr fail_count; Printf.printf "  FAILURE group_aggregate result missing key column 'name'\n"
   end;
 
   let csv_groupby = "test_arrow_groupby.csv" in
@@ -825,9 +825,9 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
                     | _ -> false)
               in
               if mean_ok then begin
-                incr pass_count; Printf.printf "  ✓ native group_aggregate mean stays correct\n"
+                incr pass_count; Printf.printf "  SUCCESS native group_aggregate mean stays correct\n"
               end else begin
-                incr fail_count; Printf.printf "  ✗ native group_aggregate mean returned incorrect values\n"
+                incr fail_count; Printf.printf "  FAILURE native group_aggregate mean returned incorrect values\n"
               end;
 
               let native_sum_result = match Arrow_compute.group_aggregate native_grouped "sum" "score" with Some t -> t | None -> Arrow_table.empty in
@@ -839,9 +839,9 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
                     | _ -> false)
               in
               if sum_ok then begin
-                incr pass_count; Printf.printf "  ✓ native group_aggregate sum stays correct\n"
+                incr pass_count; Printf.printf "  SUCCESS native group_aggregate sum stays correct\n"
               end else begin
-                incr fail_count; Printf.printf "  ✗ native group_aggregate sum returned incorrect values\n"
+                incr fail_count; Printf.printf "  FAILURE native group_aggregate sum returned incorrect values\n"
               end;
 
               let native_min_result = match Arrow_compute.group_aggregate native_grouped "min" "score" with Some t -> t | None -> Arrow_table.empty in
@@ -853,9 +853,9 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
                     | _ -> false)
               in
               if min_ok then begin
-                incr pass_count; Printf.printf "  ✓ native group_aggregate min stays correct\n"
+                incr pass_count; Printf.printf "  SUCCESS native group_aggregate min stays correct\n"
               end else begin
-                incr fail_count; Printf.printf "  ✗ native group_aggregate min returned incorrect values\n"
+                incr fail_count; Printf.printf "  FAILURE native group_aggregate min returned incorrect values\n"
               end;
 
               let native_max_result = match Arrow_compute.group_aggregate native_grouped "max" "score" with Some t -> t | None -> Arrow_table.empty in
@@ -867,9 +867,9 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
                     | _ -> false)
               in
               if max_ok then begin
-                incr pass_count; Printf.printf "  ✓ native group_aggregate max stays correct\n"
+                incr pass_count; Printf.printf "  SUCCESS native group_aggregate max stays correct\n"
               end else begin
-                incr fail_count; Printf.printf "  ✗ native group_aggregate max returned incorrect values\n"
+                incr fail_count; Printf.printf "  FAILURE native group_aggregate max returned incorrect values\n"
               end;
 
               let native_count_result = (match Arrow_compute.group_aggregate native_grouped "count" "" with Some t -> t | None -> Arrow_table.empty) in
@@ -881,9 +881,9 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
                     | _ -> false)
               in
               if count_ok then begin
-                incr pass_count; Printf.printf "  ✓ native group_aggregate count stays correct\n"
+                incr pass_count; Printf.printf "  SUCCESS native group_aggregate count stays correct\n"
               end else begin
-                incr fail_count; Printf.printf "  ✗ native group_aggregate count returned incorrect values\n"
+                incr fail_count; Printf.printf "  FAILURE native group_aggregate count returned incorrect values\n"
               end;
 
               let native_distinct_result = (match Arrow_compute.group_aggregate native_grouped "count_distinct" "dept" with Some t -> t | None -> Arrow_table.empty) in
@@ -895,9 +895,9 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
                     | _ -> false)
               in
               if distinct_ok then begin
-                incr pass_count; Printf.printf "  ✓ native group_aggregate count_distinct stays correct\n"
+                incr pass_count; Printf.printf "  SUCCESS native group_aggregate count_distinct stays correct\n"
               end else begin
-                incr fail_count; Printf.printf "  ✗ native group_aggregate count_distinct returned incorrect values\n"
+                incr fail_count; Printf.printf "  FAILURE native group_aggregate count_distinct returned incorrect values\n"
               end;
 
               (* "native group_aggregate avoids forcing OCaml groups" is no longer testable:
@@ -906,9 +906,9 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
 
               let native_groups = Arrow_compute.get_groups native_grouped in
               if List.length native_groups = 2 then begin
-                incr pass_count; Printf.printf "  ✓ get_ocaml_groups materializes native groups on demand\n"
+                incr pass_count; Printf.printf "  SUCCESS get_ocaml_groups materializes native groups on demand\n"
               end else begin
-                incr fail_count; Printf.printf "  ✗ get_ocaml_groups expected 2 groups, got %d\n"
+                incr fail_count; Printf.printf "  FAILURE get_ocaml_groups expected 2 groups, got %d\n"
                   (List.length native_groups)
               end
            | None ->
@@ -1011,54 +1011,54 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
    | Some col_view ->
      (match Arrow_column.zero_copy_view col_view with
       | None ->
-        incr pass_count; Printf.printf "  ✓ zero_copy_view returns None for pure OCaml table\n"
+        incr pass_count; Printf.printf "  SUCCESS zero_copy_view returns None for pure OCaml table\n"
       | Some _ ->
-        incr fail_count; Printf.printf "  ✗ zero_copy_view should return None for pure OCaml table\n")
+        incr fail_count; Printf.printf "  FAILURE zero_copy_view should return None for pure OCaml table\n")
    | None ->
-     incr fail_count; Printf.printf "  ✗ get_column failed for pure OCaml table\n");
+     incr fail_count; Printf.printf "  FAILURE get_column failed for pure OCaml table\n");
 
   (* Test 42: zero_copy_view returns None for string column (even native) *)
   (match Arrow_column.get_column ocaml_tbl "s" with
    | Some col_view ->
      (match Arrow_column.zero_copy_view col_view with
       | None ->
-        incr pass_count; Printf.printf "  ✓ zero_copy_view returns None for string column\n"
+        incr pass_count; Printf.printf "  SUCCESS zero_copy_view returns None for string column\n"
       | Some _ ->
-        incr fail_count; Printf.printf "  ✗ zero_copy_view should return None for string column\n")
+        incr fail_count; Printf.printf "  FAILURE zero_copy_view should return None for string column\n")
    | None ->
-     incr fail_count; Printf.printf "  ✗ get_column failed for string column\n");
+     incr fail_count; Printf.printf "  FAILURE get_column failed for string column\n");
 
   (* Test 43: column_view preserves column type *)
   (match Arrow_column.get_column ocaml_tbl "x" with
    | Some col_view ->
      if Arrow_column.column_type col_view = Arrow_table.ArrowFloat64 then begin
-       incr pass_count; Printf.printf "  ✓ column_view preserves Float64 type\n"
+       incr pass_count; Printf.printf "  SUCCESS column_view preserves Float64 type\n"
      end else begin
-       incr fail_count; Printf.printf "  ✗ column_view type mismatch for Float64\n"
+       incr fail_count; Printf.printf "  FAILURE column_view type mismatch for Float64\n"
      end
    | None ->
-     incr fail_count; Printf.printf "  ✗ get_column failed\n");
+     incr fail_count; Printf.printf "  FAILURE get_column failed\n");
 
   (match Arrow_column.get_column ocaml_tbl "y" with
    | Some col_view ->
      if Arrow_column.column_type col_view = Arrow_table.ArrowInt64 then begin
-       incr pass_count; Printf.printf "  ✓ column_view preserves Int64 type\n"
+       incr pass_count; Printf.printf "  SUCCESS column_view preserves Int64 type\n"
      end else begin
-       incr fail_count; Printf.printf "  ✗ column_view type mismatch for Int64\n"
+       incr fail_count; Printf.printf "  FAILURE column_view type mismatch for Int64\n"
      end
    | None ->
-     incr fail_count; Printf.printf "  ✗ get_column failed\n");
+     incr fail_count; Printf.printf "  FAILURE get_column failed\n");
 
   (* Test 44: column_view length is correct *)
   (match Arrow_column.get_column ocaml_tbl "x" with
    | Some col_view ->
      if Arrow_column.column_length col_view = 3 then begin
-       incr pass_count; Printf.printf "  ✓ column_view length is correct\n"
+       incr pass_count; Printf.printf "  SUCCESS column_view length is correct\n"
      end else begin
-       incr fail_count; Printf.printf "  ✗ column_view length incorrect\n"
+       incr fail_count; Printf.printf "  FAILURE column_view length incorrect\n"
      end
    | None ->
-     incr fail_count; Printf.printf "  ✗ get_column failed\n");
+     incr fail_count; Printf.printf "  FAILURE get_column failed\n");
 
   (* Test 45: zero_copy_view with native-backed CSV table *)
   let csv_zerocopy = "test_arrow_zerocopy.csv" in
@@ -1078,17 +1078,17 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
               let len = Bigarray.Array1.dim ba in
               let close a b = Float.abs (a -. b) < 1e-10 in
               if len = 3 && close ba.{0} 1.5 && close ba.{1} 2.5 && close ba.{2} 3.5 then begin
-                incr pass_count; Printf.printf "  ✓ FloatView zero-copy view is correct\n"
+                incr pass_count; Printf.printf "  SUCCESS FloatView zero-copy view is correct\n"
               end else begin
-                incr fail_count; Printf.printf "  ✗ FloatView data mismatch (len=%d)\n" len
+                incr fail_count; Printf.printf "  FAILURE FloatView data mismatch (len=%d)\n" len
               end
             | Some (Arrow_column.IntView _) ->
-              incr fail_count; Printf.printf "  ✗ Expected FloatView, got IntView\n"
+              incr fail_count; Printf.printf "  FAILURE Expected FloatView, got IntView\n"
              | None ->
                Test_arrow_helpers.record_native_requirement_result pass_count fail_count
                  "zero_copy_view returned None for native float column")
           | None ->
-            incr fail_count; Printf.printf "  ✗ get_column failed for native float column\n");
+            incr fail_count; Printf.printf "  FAILURE get_column failed for native float column\n");
 
         (* Test int64 zero-copy view *)
         (match Arrow_column.get_column native_tbl "val_i" with
@@ -1097,28 +1097,28 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
             | Some (Arrow_column.IntView ba) ->
               let len = Bigarray.Array1.dim ba in
               if len = 3 && ba.{0} = 10L && ba.{1} = 20L && ba.{2} = 30L then begin
-                incr pass_count; Printf.printf "  ✓ IntView zero-copy view is correct\n"
+                incr pass_count; Printf.printf "  SUCCESS IntView zero-copy view is correct\n"
               end else begin
-                incr fail_count; Printf.printf "  ✗ IntView data mismatch (len=%d)\n" len
+                incr fail_count; Printf.printf "  FAILURE IntView data mismatch (len=%d)\n" len
               end
             | Some (Arrow_column.FloatView _) ->
-              incr fail_count; Printf.printf "  ✗ Expected IntView, got FloatView\n"
+              incr fail_count; Printf.printf "  FAILURE Expected IntView, got FloatView\n"
              | None ->
                Test_arrow_helpers.record_native_requirement_result pass_count fail_count
                  "zero_copy_view returned None for native int column")
           | None ->
-            incr fail_count; Printf.printf "  ✗ get_column failed for native int column\n");
+            incr fail_count; Printf.printf "  FAILURE get_column failed for native int column\n");
 
         (* Test string column returns None *)
         (match Arrow_column.get_column native_tbl "name" with
          | Some col_view ->
            (match Arrow_column.zero_copy_view col_view with
             | None ->
-              incr pass_count; Printf.printf "  ✓ zero_copy_view returns None for native string column\n"
+              incr pass_count; Printf.printf "  SUCCESS zero_copy_view returns None for native string column\n"
             | Some _ ->
-              incr fail_count; Printf.printf "  ✗ zero_copy_view should return None for string column\n")
+              incr fail_count; Printf.printf "  FAILURE zero_copy_view should return None for string column\n")
          | None ->
-           incr fail_count; Printf.printf "  ✗ get_column failed for native string column\n")
+           incr fail_count; Printf.printf "  FAILURE get_column failed for native string column\n")
 
        | None ->
          Test_arrow_helpers.record_native_requirement_result pass_count fail_count
@@ -1146,12 +1146,12 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   (match Arrow_io.build_column [| "2024-01-15"; "NA" |] Arrow_table.ArrowDate with
    | Arrow_table.DateColumn data ->
        if data.(0) = Some (Chrono.days_from_civil 2024 1 15) && data.(1) = None then begin
-         incr pass_count; Printf.printf "  ✓ build_column parses ArrowDate values\n"
+         incr pass_count; Printf.printf "  SUCCESS build_column parses ArrowDate values\n"
        end else begin
-         incr fail_count; Printf.printf "  ✗ build_column ArrowDate data mismatch\n"
+         incr fail_count; Printf.printf "  FAILURE build_column ArrowDate data mismatch\n"
        end
    | _ ->
-       incr fail_count; Printf.printf "  ✗ build_column ArrowDate returned wrong column type\n");
+       incr fail_count; Printf.printf "  FAILURE build_column ArrowDate returned wrong column type\n");
 
   (match Arrow_io.build_column
            [| "2024-01-15T09:30:00.123456"; "NA" |]
@@ -1160,12 +1160,12 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
        if data.(0) = Some (Chrono.datetime_of_components 2024 1 15 9 30 0 123456)
           && data.(1) = None
           && tz = Some "UTC" then begin
-         incr pass_count; Printf.printf "  ✓ build_column parses ArrowTimestamp values\n"
+         incr pass_count; Printf.printf "  SUCCESS build_column parses ArrowTimestamp values\n"
        end else begin
-         incr fail_count; Printf.printf "  ✗ build_column ArrowTimestamp data mismatch\n"
+         incr fail_count; Printf.printf "  FAILURE build_column ArrowTimestamp data mismatch\n"
        end
    | _ ->
-        incr fail_count; Printf.printf "  ✗ build_column ArrowTimestamp returned wrong column type\n");
+        incr fail_count; Printf.printf "  FAILURE build_column ArrowTimestamp returned wrong column type\n");
 
   let dt_col = Arrow_table.DatetimeColumn (
     [| Some (Chrono.datetime_of_components 2024 1 15 9 30 0 0);
@@ -1174,9 +1174,9 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     Some "UTC"
   ) in
   if Arrow_table.is_arrow_table_new_supported dt_col then begin
-    incr pass_count; Printf.printf "  ✓ DatetimeColumn is supported for native rebuild\n"
+    incr pass_count; Printf.printf "  SUCCESS DatetimeColumn is supported for native rebuild\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ DatetimeColumn should be supported for native rebuild\n"
+    incr fail_count; Printf.printf "  FAILURE DatetimeColumn should be supported for native rebuild\n"
   end;
   let dt_tbl = Arrow_table.create [("ts", dt_col)] 3 in
   let dt_mat = Arrow_table.materialize dt_tbl in
@@ -1187,12 +1187,12 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
             && data.(1) = None
             && data.(2) = Some (Chrono.datetime_of_components 2024 1 16 14 45 30 500000)
             && tz = Some "UTC" then begin
-           incr pass_count; Printf.printf "  ✓ DatetimeColumn native materialization preserves values\n"
+           incr pass_count; Printf.printf "  SUCCESS DatetimeColumn native materialization preserves values\n"
          end else begin
-           incr fail_count; Printf.printf "  ✗ DatetimeColumn native materialization data mismatch\n"
+           incr fail_count; Printf.printf "  FAILURE DatetimeColumn native materialization data mismatch\n"
          end
      | _ ->
-         incr fail_count; Printf.printf "  ✗ DatetimeColumn native materialization returned wrong type\n")
+         incr fail_count; Printf.printf "  FAILURE DatetimeColumn native materialization returned wrong type\n")
   end else begin
     Test_arrow_helpers.record_native_requirement_result pass_count fail_count
       "DatetimeColumn materialization did not retain a native Arrow handle"
@@ -1213,18 +1213,18 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     ("value", Arrow_table.IntColumn [| Some 10; Some 20; None; Some 40; Some 50 |]);
   ] 5 in
   if Arrow_table.num_rows dict_tbl = 5 && Arrow_table.num_columns dict_tbl = 2 then begin
-    incr pass_count; Printf.printf "  ✓ DictionaryColumn table creation works\n"
+    incr pass_count; Printf.printf "  SUCCESS DictionaryColumn table creation works\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ DictionaryColumn table creation failed\n"
+    incr fail_count; Printf.printf "  FAILURE DictionaryColumn table creation failed\n"
   end;
 
   (* Test: Schema reflects ArrowDictionary type *)
   let dict_schema = Arrow_table.get_schema dict_tbl in
   (match List.assoc_opt "color" dict_schema with
    | Some t when t = Arrow_table.ArrowDictionary ->
-     incr pass_count; Printf.printf "  ✓ DictionaryColumn schema type is ArrowDictionary\n"
+     incr pass_count; Printf.printf "  SUCCESS DictionaryColumn schema type is ArrowDictionary\n"
    | _ ->
-     incr fail_count; Printf.printf "  ✗ DictionaryColumn schema type mismatch\n");
+     incr fail_count; Printf.printf "  FAILURE DictionaryColumn schema type mismatch\n");
 
   (* Test: DictionaryColumn read-back *)
   (match Arrow_table.get_column dict_tbl "color" with
@@ -1232,30 +1232,30 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
        if indices.(0) = Some 0 && indices.(1) = Some 1 && indices.(2) = None
           && indices.(3) = Some 0 && indices.(4) = Some 2
           && levels = ["red"; "green"; "blue"] && not ordered then begin
-         incr pass_count; Printf.printf "  ✓ DictionaryColumn read-back correct\n"
+         incr pass_count; Printf.printf "  SUCCESS DictionaryColumn read-back correct\n"
        end else begin
-         incr fail_count; Printf.printf "  ✗ DictionaryColumn read-back data mismatch\n"
+         incr fail_count; Printf.printf "  FAILURE DictionaryColumn read-back data mismatch\n"
        end
    | _ ->
-       incr fail_count; Printf.printf "  ✗ DictionaryColumn read-back returned wrong type\n");
+       incr fail_count; Printf.printf "  FAILURE DictionaryColumn read-back returned wrong type\n");
 
   (* Test: is_arrow_table_new_supported returns true for DictionaryColumn *)
   if Arrow_table.is_arrow_table_new_supported dict_col then begin
-    incr pass_count; Printf.printf "  ✓ is_arrow_table_new_supported = true for DictionaryColumn\n"
+    incr pass_count; Printf.printf "  SUCCESS is_arrow_table_new_supported = true for DictionaryColumn\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ is_arrow_table_new_supported should be true for DictionaryColumn\n"
+    incr fail_count; Printf.printf "  FAILURE is_arrow_table_new_supported should be true for DictionaryColumn\n"
   end;
 
   (* Test: arrow_type_of_tag for new tags *)
   if Arrow_table.arrow_type_of_tag 4 = Arrow_table.ArrowDictionary then begin
-    incr pass_count; Printf.printf "  ✓ arrow_type_of_tag 4 = ArrowDictionary\n"
+    incr pass_count; Printf.printf "  SUCCESS arrow_type_of_tag 4 = ArrowDictionary\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ arrow_type_of_tag 4 mismatch\n"
+    incr fail_count; Printf.printf "  FAILURE arrow_type_of_tag 4 mismatch\n"
   end;
   if (match Arrow_table.arrow_type_of_tag 5 with Arrow_table.ArrowList _ -> true | _ -> false) then begin
-    incr pass_count; Printf.printf "  ✓ arrow_type_of_tag 5 = ArrowList\n"
+    incr pass_count; Printf.printf "  SUCCESS arrow_type_of_tag 5 = ArrowList\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ arrow_type_of_tag 5 mismatch\n"
+    incr fail_count; Printf.printf "  FAILURE arrow_type_of_tag 5 mismatch\n"
   end;
 
   (* Test: Bridge column_to_values for DictionaryColumn → VFactor *)
@@ -1264,9 +1264,9 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   let v1_str = Ast.Utils.value_to_string factor_vals.(1) in
   let v2_str = Ast.Utils.value_to_string factor_vals.(2) in
   if v0_str = {|Factor("red")|} && v1_str = {|Factor("green")|} && v2_str = "NA" then begin
-    incr pass_count; Printf.printf "  ✓ Bridge DictionaryColumn → VFactor conversion\n"
+    incr pass_count; Printf.printf "  SUCCESS Bridge DictionaryColumn → VFactor conversion\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ Bridge DictionaryColumn → VFactor: got [%s, %s, %s]\n" v0_str v1_str v2_str
+    incr fail_count; Printf.printf "  FAILURE Bridge DictionaryColumn → VFactor: got [%s, %s, %s]\n" v0_str v1_str v2_str
   end;
 
   (* Test: Bridge values_to_column for VFactor → DictionaryColumn *)
@@ -1277,18 +1277,18 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
    | Ok (Arrow_table.DictionaryColumn (idx, levels, ordered)) ->
        if idx.(0) = Some 0 && idx.(1) = None && idx.(2) = Some 2
           && levels = ["A"; "B"; "C"] && ordered then begin
-         incr pass_count; Printf.printf "  ✓ Bridge VFactor → DictionaryColumn round-trip\n"
+         incr pass_count; Printf.printf "  SUCCESS Bridge VFactor → DictionaryColumn round-trip\n"
        end else begin
-         incr fail_count; Printf.printf "  ✗ Bridge VFactor → DictionaryColumn data mismatch\n"
+         incr fail_count; Printf.printf "  FAILURE Bridge VFactor → DictionaryColumn data mismatch\n"
        end
    | _ ->
-       incr fail_count; Printf.printf "  ✗ Bridge VFactor → DictionaryColumn returned wrong type\n");
+       incr fail_count; Printf.printf "  FAILURE Bridge VFactor → DictionaryColumn returned wrong type\n");
 
   (* Test: Materialization of DataFrame with DictionaryColumn *)
   let mat_tbl = Arrow_table.materialize dict_tbl in
   let mat_is_native = Arrow_table.is_native_backed mat_tbl in
   if mat_is_native then begin
-    incr pass_count; Printf.printf "  ✓ DictionaryColumn table materializes to native Arrow\n";
+    incr pass_count; Printf.printf "  SUCCESS DictionaryColumn table materializes to native Arrow\n";
     (* Verify round-trip: read column back from native, including ordered flag *)
     (match Arrow_table.get_column mat_tbl "color" with
      | Some (Arrow_table.DictionaryColumn (indices, levels, ordered)) ->
@@ -1296,12 +1296,12 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
             && indices.(3) = Some 0 && indices.(4) = Some 2
             && levels = ["red"; "green"; "blue"]
             && not ordered then begin
-           incr pass_count; Printf.printf "  ✓ Native Dictionary column round-trip verified (ordered=%b)\n" ordered
+           incr pass_count; Printf.printf "  SUCCESS Native Dictionary column round-trip verified (ordered=%b)\n" ordered
          end else begin
-           incr fail_count; Printf.printf "  ✗ Native Dictionary column round-trip data mismatch (ordered=%b)\n" ordered
+           incr fail_count; Printf.printf "  FAILURE Native Dictionary column round-trip data mismatch (ordered=%b)\n" ordered
          end
      | _ ->
-         incr fail_count; Printf.printf "  ✗ Native Dictionary column read-back returned wrong type\n")
+         incr fail_count; Printf.printf "  FAILURE Native Dictionary column read-back returned wrong type\n")
   end else begin
     (* Native Arrow may not be available in all environments *)
     Test_arrow_helpers.record_native_requirement_result pass_count fail_count
@@ -1325,12 +1325,12 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
    | Ok (Arrow_table.DictionaryColumn (idx, levels, ordered)) ->
        if idx.(0) = Some 1 && idx.(1) = None && idx.(2) = Some 0
           && levels = ["low"; "med"; "high"] && ordered then begin
-         incr pass_count; Printf.printf "  ✓ Ordered to_factor bridge round-trip preserves ordered flag\n"
+         incr pass_count; Printf.printf "  SUCCESS Ordered to_factor bridge round-trip preserves ordered flag\n"
        end else begin
-         incr fail_count; Printf.printf "  ✗ Ordered to_factor bridge round-trip data mismatch\n"
+         incr fail_count; Printf.printf "  FAILURE Ordered to_factor bridge round-trip data mismatch\n"
        end
    | _ ->
-       incr fail_count; Printf.printf "  ✗ Ordered to_factor bridge round-trip returned wrong type\n");
+       incr fail_count; Printf.printf "  FAILURE Ordered to_factor bridge round-trip returned wrong type\n");
 
   (* Test: Ordered to_factor native materialization round-trip *)
   let ordered_col = Arrow_table.DictionaryColumn (
@@ -1344,12 +1344,12 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
      | Some (Arrow_table.DictionaryColumn (idx, levels, ordered)) ->
          if idx.(0) = Some 1 && idx.(1) = None && idx.(2) = Some 0
             && levels = ["low"; "med"; "high"] && ordered then begin
-           incr pass_count; Printf.printf "  ✓ Ordered to_factor native round-trip preserves ordered=true\n"
+           incr pass_count; Printf.printf "  SUCCESS Ordered to_factor native round-trip preserves ordered=true\n"
          end else begin
-           incr fail_count; Printf.printf "  ✗ Ordered to_factor native round-trip data mismatch (ordered=%b)\n" ordered
+           incr fail_count; Printf.printf "  FAILURE Ordered to_factor native round-trip data mismatch (ordered=%b)\n" ordered
          end
      | _ ->
-         incr fail_count; Printf.printf "  ✗ Ordered to_factor native round-trip returned wrong type\n")
+         incr fail_count; Printf.printf "  FAILURE Ordered to_factor native round-trip returned wrong type\n")
   end else begin
     Test_arrow_helpers.record_native_requirement_result pass_count fail_count
       "Ordered to_factor native round-trip preserves ordered=true"
@@ -1374,18 +1374,18 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     ("data", list_col);
   ] 2 in
   if Arrow_table.num_rows list_tbl = 2 && Arrow_table.num_columns list_tbl = 2 then begin
-    incr pass_count; Printf.printf "  ✓ ListColumn table creation works\n"
+    incr pass_count; Printf.printf "  SUCCESS ListColumn table creation works\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ ListColumn table creation failed\n"
+    incr fail_count; Printf.printf "  FAILURE ListColumn table creation failed\n"
   end;
 
   (* Test: Schema reflects ArrowList type *)
   let list_schema = Arrow_table.get_schema list_tbl in
   (match List.assoc_opt "data" list_schema with
    | Some (Arrow_table.ArrowList _) ->
-     incr pass_count; Printf.printf "  ✓ ListColumn schema type is ArrowList\n"
+     incr pass_count; Printf.printf "  SUCCESS ListColumn schema type is ArrowList\n"
    | _ ->
-     incr fail_count; Printf.printf "  ✗ ListColumn schema type mismatch\n");
+     incr fail_count; Printf.printf "  FAILURE ListColumn schema type mismatch\n");
 
   (* Test: ListColumn pure OCaml read-back *)
   (match Arrow_table.get_column list_tbl "data" with
@@ -1393,42 +1393,42 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
        if Array.length nested = 2 then begin
          (match nested.(0) with
           | Some t when t.Arrow_table.nrows = 2 ->
-            incr pass_count; Printf.printf "  ✓ ListColumn read-back correct (sub-table 0 has 2 rows)\n"
+            incr pass_count; Printf.printf "  SUCCESS ListColumn read-back correct (sub-table 0 has 2 rows)\n"
           | _ ->
-            incr fail_count; Printf.printf "  ✗ ListColumn read-back sub-table 0 mismatch\n");
+            incr fail_count; Printf.printf "  FAILURE ListColumn read-back sub-table 0 mismatch\n");
          (match nested.(1) with
           | Some t when t.Arrow_table.nrows = 1 ->
-            incr pass_count; Printf.printf "  ✓ ListColumn read-back correct (sub-table 1 has 1 row)\n"
+            incr pass_count; Printf.printf "  SUCCESS ListColumn read-back correct (sub-table 1 has 1 row)\n"
           | _ ->
-            incr fail_count; Printf.printf "  ✗ ListColumn read-back sub-table 1 mismatch\n")
+            incr fail_count; Printf.printf "  FAILURE ListColumn read-back sub-table 1 mismatch\n")
        end else begin
-         incr fail_count; Printf.printf "  ✗ ListColumn read-back has wrong length: %d\n" (Array.length nested)
+         incr fail_count; Printf.printf "  FAILURE ListColumn read-back has wrong length: %d\n" (Array.length nested)
        end
    | _ ->
-       incr fail_count; Printf.printf "  ✗ ListColumn read-back returned wrong type\n");
+       incr fail_count; Printf.printf "  FAILURE ListColumn read-back returned wrong type\n");
 
   (* Test: is_arrow_table_new_supported returns true for ListColumn with primitive fields *)
   if Arrow_table.is_arrow_table_new_supported list_col then begin
-    incr pass_count; Printf.printf "  ✓ is_arrow_table_new_supported = true for ListColumn\n"
+    incr pass_count; Printf.printf "  SUCCESS is_arrow_table_new_supported = true for ListColumn\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ is_arrow_table_new_supported should be true for ListColumn\n"
+    incr fail_count; Printf.printf "  FAILURE is_arrow_table_new_supported should be true for ListColumn\n"
   end;
 
   (* Test: Materialization of DataFrame with ListColumn *)
   let mat_list_tbl = Arrow_table.materialize list_tbl in
   let mat_list_native = Arrow_table.is_native_backed mat_list_tbl in
   if mat_list_native then begin
-    incr pass_count; Printf.printf "  ✓ ListColumn table materializes to native Arrow\n";
+    incr pass_count; Printf.printf "  SUCCESS ListColumn table materializes to native Arrow\n";
     (* Verify round-trip: read key column from native *)
     (match Arrow_table.get_column mat_list_tbl "key" with
      | Some (Arrow_table.StringColumn a) ->
          if a.(0) = Some "grp1" && a.(1) = Some "grp2" then begin
-           incr pass_count; Printf.printf "  ✓ Key column round-trip verified from native ListColumn table\n"
+           incr pass_count; Printf.printf "  SUCCESS Key column round-trip verified from native ListColumn table\n"
          end else begin
-           incr fail_count; Printf.printf "  ✗ Key column data mismatch in native ListColumn table\n"
+           incr fail_count; Printf.printf "  FAILURE Key column data mismatch in native ListColumn table\n"
          end
      | _ ->
-         incr fail_count; Printf.printf "  ✗ Key column read-back returned wrong type\n");
+         incr fail_count; Printf.printf "  FAILURE Key column read-back returned wrong type\n");
     (* Verify round-trip: read list column back from native *)
     (match Arrow_table.get_column mat_list_tbl "data" with
      | Some (Arrow_table.ListColumn nested) ->
@@ -1439,48 +1439,48 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
                   (match Arrow_table.get_column t "x" with
                    | Some (Arrow_table.IntColumn a) ->
                        if a.(0) = Some 1 && a.(1) = Some 2 then begin
-                         incr pass_count; Printf.printf "  ✓ Native ListColumn round-trip: sub-table 0 x=[1,2] correct\n"
+                         incr pass_count; Printf.printf "  SUCCESS Native ListColumn round-trip: sub-table 0 x=[1,2] correct\n"
                        end else begin
-                         incr fail_count; Printf.printf "  ✗ Native ListColumn round-trip: sub-table 0 x data mismatch\n"
+                         incr fail_count; Printf.printf "  FAILURE Native ListColumn round-trip: sub-table 0 x data mismatch\n"
                        end
                    | _ ->
-                       incr fail_count; Printf.printf "  ✗ Native ListColumn round-trip: sub-table 0 x wrong type\n");
+                       incr fail_count; Printf.printf "  FAILURE Native ListColumn round-trip: sub-table 0 x wrong type\n");
                   (match Arrow_table.get_column t "y" with
                    | Some (Arrow_table.StringColumn a) ->
                        if a.(0) = Some "a" && a.(1) = Some "b" then begin
-                         incr pass_count; Printf.printf "  ✓ Native ListColumn round-trip: sub-table 0 y=[a,b] correct\n"
+                         incr pass_count; Printf.printf "  SUCCESS Native ListColumn round-trip: sub-table 0 y=[a,b] correct\n"
                        end else begin
-                         incr fail_count; Printf.printf "  ✗ Native ListColumn round-trip: sub-table 0 y data mismatch\n"
+                         incr fail_count; Printf.printf "  FAILURE Native ListColumn round-trip: sub-table 0 y data mismatch\n"
                        end
                    | _ ->
-                       incr fail_count; Printf.printf "  ✗ Native ListColumn round-trip: sub-table 0 y wrong type\n")
+                       incr fail_count; Printf.printf "  FAILURE Native ListColumn round-trip: sub-table 0 y wrong type\n")
                 end else begin
-                  incr fail_count; Printf.printf "  ✗ Native ListColumn round-trip: sub-table 0 has %d rows (expected 2)\n" t.Arrow_table.nrows
+                  incr fail_count; Printf.printf "  FAILURE Native ListColumn round-trip: sub-table 0 has %d rows (expected 2)\n" t.Arrow_table.nrows
                 end
             | None ->
-                incr fail_count; Printf.printf "  ✗ Native ListColumn round-trip: sub-table 0 is None\n");
+                incr fail_count; Printf.printf "  FAILURE Native ListColumn round-trip: sub-table 0 is None\n");
            (match nested.(1) with
             | Some t ->
                 if t.Arrow_table.nrows = 1 then begin
                   (match Arrow_table.get_column t "x" with
                    | Some (Arrow_table.IntColumn a) ->
                        if a.(0) = Some 3 then begin
-                         incr pass_count; Printf.printf "  ✓ Native ListColumn round-trip: sub-table 1 x=[3] correct\n"
+                         incr pass_count; Printf.printf "  SUCCESS Native ListColumn round-trip: sub-table 1 x=[3] correct\n"
                        end else begin
-                         incr fail_count; Printf.printf "  ✗ Native ListColumn round-trip: sub-table 1 x data mismatch\n"
+                         incr fail_count; Printf.printf "  FAILURE Native ListColumn round-trip: sub-table 1 x data mismatch\n"
                        end
                    | _ ->
-                       incr fail_count; Printf.printf "  ✗ Native ListColumn round-trip: sub-table 1 x wrong type\n")
+                       incr fail_count; Printf.printf "  FAILURE Native ListColumn round-trip: sub-table 1 x wrong type\n")
                 end else begin
-                  incr fail_count; Printf.printf "  ✗ Native ListColumn round-trip: sub-table 1 has %d rows (expected 1)\n" t.Arrow_table.nrows
+                  incr fail_count; Printf.printf "  FAILURE Native ListColumn round-trip: sub-table 1 has %d rows (expected 1)\n" t.Arrow_table.nrows
                 end
             | None ->
-                incr fail_count; Printf.printf "  ✗ Native ListColumn round-trip: sub-table 1 is None\n")
+                incr fail_count; Printf.printf "  FAILURE Native ListColumn round-trip: sub-table 1 is None\n")
          end else begin
-           incr fail_count; Printf.printf "  ✗ Native ListColumn round-trip: nested has %d elements (expected 2)\n" (Array.length nested)
+           incr fail_count; Printf.printf "  FAILURE Native ListColumn round-trip: nested has %d elements (expected 2)\n" (Array.length nested)
          end
      | _ ->
-         incr fail_count; Printf.printf "  ✗ Native ListColumn round-trip: read-back returned wrong type\n")
+         incr fail_count; Printf.printf "  FAILURE Native ListColumn round-trip: read-back returned wrong type\n")
   end else begin
     Test_arrow_helpers.record_native_requirement_result pass_count fail_count
       "ListColumn table materializes to native Arrow"
@@ -1497,12 +1497,12 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     (match Arrow_table.get_column mat_null_tbl "data" with
      | Some (Arrow_table.ListColumn nested) ->
          if Array.length nested = 3 && nested.(1) = None then begin
-           incr pass_count; Printf.printf "  ✓ ListColumn with NA entry round-trip correct\n"
+           incr pass_count; Printf.printf "  SUCCESS ListColumn with NA entry round-trip correct\n"
          end else begin
-           incr fail_count; Printf.printf "  ✗ ListColumn with NA entry data mismatch\n"
+           incr fail_count; Printf.printf "  FAILURE ListColumn with NA entry data mismatch\n"
          end
      | _ ->
-         incr fail_count; Printf.printf "  ✗ ListColumn with NA entry read-back returned wrong type\n")
+         incr fail_count; Printf.printf "  FAILURE ListColumn with NA entry read-back returned wrong type\n")
   end else begin
     Test_arrow_helpers.record_native_requirement_result pass_count fail_count
       "ListColumn with NA entries materializes to native Arrow"
@@ -1511,9 +1511,9 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   (* Test: Empty ListColumn — falls back to pure OCaml (no struct schema to build) *)
   let list_col_empty = Arrow_table.ListColumn [||] in
   if not (Arrow_table.is_arrow_table_new_supported list_col_empty) then begin
-    incr pass_count; Printf.printf "  ✓ Empty ListColumn correctly falls back to pure OCaml\n"
+    incr pass_count; Printf.printf "  SUCCESS Empty ListColumn correctly falls back to pure OCaml\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ Empty ListColumn should not be materializable (no struct schema)\n"
+    incr fail_count; Printf.printf "  FAILURE Empty ListColumn should not be materializable (no struct schema)\n"
   end;
 
   (* Test: nest/unnest via T language round-trip *)
@@ -1556,14 +1556,14 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
                 | Some (Arrow_table.BoolColumn a) -> a.(0) = Some true && a.(1) = Some false
                 | _ -> false) in
               if ok_score && ok_flag then begin
-                incr pass_count; Printf.printf "  ✓ ListColumn with Float+Bool sub-fields round-trip correct\n"
+                incr pass_count; Printf.printf "  SUCCESS ListColumn with Float+Bool sub-fields round-trip correct\n"
               end else begin
-                incr fail_count; Printf.printf "  ✗ ListColumn with Float+Bool sub-fields data mismatch\n"
+                incr fail_count; Printf.printf "  FAILURE ListColumn with Float+Bool sub-fields data mismatch\n"
               end
           | None ->
-              incr fail_count; Printf.printf "  ✗ ListColumn with Float+Bool: sub-table 0 is None\n")
+              incr fail_count; Printf.printf "  FAILURE ListColumn with Float+Bool: sub-table 0 is None\n")
      | _ ->
-         incr fail_count; Printf.printf "  ✗ ListColumn with Float+Bool round-trip returned wrong type\n")
+         incr fail_count; Printf.printf "  FAILURE ListColumn with Float+Bool round-trip returned wrong type\n")
   end else begin
     Test_arrow_helpers.record_native_requirement_result pass_count fail_count
       "ListColumn with Float+Bool sub-fields materializes"
@@ -1628,12 +1628,12 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
            | _ -> false
          in
          if Array.length nested = 2 && dict_ok && ts_ok then begin
-           incr pass_count; Printf.printf "  ✓ ListColumn with nested Dictionary+Timestamp sub-fields round-trip correct\n"
+           incr pass_count; Printf.printf "  SUCCESS ListColumn with nested Dictionary+Timestamp sub-fields round-trip correct\n"
          end else begin
-           incr fail_count; Printf.printf "  ✗ ListColumn with nested Dictionary+Timestamp data mismatch\n"
+           incr fail_count; Printf.printf "  FAILURE ListColumn with nested Dictionary+Timestamp data mismatch\n"
          end
      | _ ->
-         incr fail_count; Printf.printf "  ✗ ListColumn with nested Dictionary+Timestamp returned wrong type\n")
+         incr fail_count; Printf.printf "  FAILURE ListColumn with nested Dictionary+Timestamp returned wrong type\n")
   end else begin
     Test_arrow_helpers.record_native_requirement_result pass_count fail_count
       "ListColumn with nested Dictionary+Timestamp sub-fields materializes"
@@ -1658,11 +1658,11 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
                                              && Array.length nested = 2
                                              && nested.(0) = None
                                              && nested.(1) = None ->
-         incr pass_count; Printf.printf "  ✓ All-NA ListColumn preserves NA entries in pure fallback\n"
+         incr pass_count; Printf.printf "  SUCCESS All-NA ListColumn preserves NA entries in pure fallback\n"
      | _ ->
-         incr fail_count; Printf.printf "  ✗ All-NA ListColumn fallback data mismatch\n")
+         incr fail_count; Printf.printf "  FAILURE All-NA ListColumn fallback data mismatch\n")
   end else begin
-    incr fail_count; Printf.printf "  ✗ All-NA ListColumn should fall back to pure OCaml\n"
+    incr fail_count; Printf.printf "  FAILURE All-NA ListColumn should fall back to pure OCaml\n"
   end;
 
   (* Test: Sparse ListColumn with heavy nulls round-trips without bitmap corruption *)
@@ -1698,12 +1698,12 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
            | None -> false
          in
          if Array.length nested = 100 && nested.(50) = None && first_ok && last_ok then begin
-           incr pass_count; Printf.printf "  ✓ Sparse ListColumn with heavy nulls round-trip correct\n"
+           incr pass_count; Printf.printf "  SUCCESS Sparse ListColumn with heavy nulls round-trip correct\n"
          end else begin
-           incr fail_count; Printf.printf "  ✗ Sparse ListColumn with heavy nulls data mismatch\n"
+           incr fail_count; Printf.printf "  FAILURE Sparse ListColumn with heavy nulls data mismatch\n"
          end
      | _ ->
-         incr fail_count; Printf.printf "  ✗ Sparse ListColumn read-back returned wrong type\n")
+         incr fail_count; Printf.printf "  FAILURE Sparse ListColumn read-back returned wrong type\n")
   end else begin
     Test_arrow_helpers.record_native_requirement_result pass_count fail_count
       "Sparse ListColumn with heavy nulls materializes to native Arrow"
@@ -1720,9 +1720,9 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
       | _ -> lifecycle_ok := false
     done;
     if !lifecycle_ok then begin
-      incr pass_count; Printf.printf "  ✓ Repeated native schema/field queries stay valid\n"
+      incr pass_count; Printf.printf "  SUCCESS Repeated native schema/field queries stay valid\n"
     end else begin
-      incr fail_count; Printf.printf "  ✗ Repeated native schema/field queries became invalid\n"
+      incr fail_count; Printf.printf "  FAILURE Repeated native schema/field queries became invalid\n"
     end
   end else begin
     Test_arrow_helpers.record_native_requirement_result pass_count fail_count
@@ -1778,9 +1778,9 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
         stress_failed := Some (Printexc.to_string exn));
     (match !stress_failed with
      | None ->
-         incr pass_count; Printf.printf "  ✓ Native ListColumn loop stress survives repeated GC\n"
+         incr pass_count; Printf.printf "  SUCCESS Native ListColumn loop stress survives repeated GC\n"
      | Some msg ->
-         incr fail_count; Printf.printf "  ✗ Native ListColumn loop stress failed: %s\n" msg)
+         incr fail_count; Printf.printf "  FAILURE Native ListColumn loop stress failed: %s\n" msg)
   end else begin
     Test_arrow_helpers.record_native_requirement_result pass_count fail_count
       "Native ListColumn loop stress survives repeated GC"
@@ -1813,7 +1813,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   if Arrow_ffi.arrow_available then begin
     (match Arrow_io.write_ipc ipc_tbl_src ipc_path with
      | Ok () ->
-         incr pass_count; Printf.printf "  ✓ Arrow_io.write_ipc writes IPC file\n";
+         incr pass_count; Printf.printf "  SUCCESS Arrow_io.write_ipc writes IPC file\n";
          (match Arrow_io.read_ipc ipc_path with
           | Ok ipc_tbl ->
               let shape_ok =
@@ -1839,14 +1839,14 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
                 | _ -> false
               in
               if shape_ok && id_ok && name_ok then begin
-                incr pass_count; Printf.printf "  ✓ Arrow_io.read_ipc round-trip preserves table data\n"
+                incr pass_count; Printf.printf "  SUCCESS Arrow_io.read_ipc round-trip preserves table data\n"
               end else begin
-                incr fail_count; Printf.printf "  ✗ Arrow_io.read_ipc round-trip data mismatch\n"
+                incr fail_count; Printf.printf "  FAILURE Arrow_io.read_ipc round-trip data mismatch\n"
               end
           | Error msg ->
-              incr fail_count; Printf.printf "  ✗ Arrow_io.read_ipc failed: %s\n" msg)
+              incr fail_count; Printf.printf "  FAILURE Arrow_io.read_ipc failed: %s\n" msg)
      | Error msg ->
-         incr fail_count; Printf.printf "  ✗ Arrow_io.write_ipc failed: %s\n" msg);
+         incr fail_count; Printf.printf "  FAILURE Arrow_io.write_ipc failed: %s\n" msg);
 
     let dict_ipc_tbl = Arrow_table.create [
       ("color", Arrow_table.DictionaryColumn (
@@ -1864,16 +1864,16 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
                | Some (Arrow_table.DictionaryColumn (idx, levels, ordered)) ->
                    if idx.(0) = Some 0 && idx.(1) = Some 1 && idx.(2) = None && idx.(3) = Some 2
                       && levels = ["red"; "green"; "blue"] && not ordered then begin
-                     incr pass_count; Printf.printf "  ✓ DictionaryColumn IPC round-trip preserves levels and indices\n"
+                     incr pass_count; Printf.printf "  SUCCESS DictionaryColumn IPC round-trip preserves levels and indices\n"
                    end else begin
-                     incr fail_count; Printf.printf "  ✗ DictionaryColumn IPC round-trip data mismatch\n"
+                     incr fail_count; Printf.printf "  FAILURE DictionaryColumn IPC round-trip data mismatch\n"
                    end
                | _ ->
-                   incr fail_count; Printf.printf "  ✗ DictionaryColumn IPC read-back returned wrong type\n")
+                   incr fail_count; Printf.printf "  FAILURE DictionaryColumn IPC read-back returned wrong type\n")
           | Error msg ->
-              incr fail_count; Printf.printf "  ✗ DictionaryColumn IPC read failed: %s\n" msg)
+              incr fail_count; Printf.printf "  FAILURE DictionaryColumn IPC read failed: %s\n" msg)
      | Error msg ->
-         incr fail_count; Printf.printf "  ✗ DictionaryColumn IPC write failed: %s\n" msg);
+         incr fail_count; Printf.printf "  FAILURE DictionaryColumn IPC write failed: %s\n" msg);
 
     let list_sub_a = Arrow_table.create [
       ("x", Arrow_table.IntColumn [| Some 1; Some 2 |]);
@@ -1901,16 +1901,16 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
                      | _ -> false
                    in
                    if ok then begin
-                     incr pass_count; Printf.printf "  ✓ ListColumn IPC round-trip preserves nested table shape\n"
+                     incr pass_count; Printf.printf "  SUCCESS ListColumn IPC round-trip preserves nested table shape\n"
                    end else begin
-                     incr fail_count; Printf.printf "  ✗ ListColumn IPC round-trip nested shape mismatch\n"
+                     incr fail_count; Printf.printf "  FAILURE ListColumn IPC round-trip nested shape mismatch\n"
                    end
                | _ ->
-                   incr fail_count; Printf.printf "  ✗ ListColumn IPC read-back returned wrong type\n")
+                   incr fail_count; Printf.printf "  FAILURE ListColumn IPC read-back returned wrong type\n")
           | Error msg ->
-              incr fail_count; Printf.printf "  ✗ ListColumn IPC read failed: %s\n" msg)
+              incr fail_count; Printf.printf "  FAILURE ListColumn IPC read failed: %s\n" msg)
      | Error msg ->
-          incr fail_count; Printf.printf "  ✗ ListColumn IPC write failed: %s\n" msg);
+          incr fail_count; Printf.printf "  FAILURE ListColumn IPC write failed: %s\n" msg);
 
     let nested_factor_ts_ipc_tbl = Arrow_table.create [
       ("grp", Arrow_table.StringColumn [| Some "a"; Some "b" |]);
@@ -1950,16 +1950,16 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
                      | _ -> false)
                    in
                    if ok then begin
-                     incr pass_count; Printf.printf "  ✓ Nested Dictionary+Timestamp IPC round-trip preserves schema and values\n"
+                     incr pass_count; Printf.printf "  SUCCESS Nested Dictionary+Timestamp IPC round-trip preserves schema and values\n"
                    end else begin
-                     incr fail_count; Printf.printf "  ✗ Nested Dictionary+Timestamp IPC round-trip data mismatch\n"
+                     incr fail_count; Printf.printf "  FAILURE Nested Dictionary+Timestamp IPC round-trip data mismatch\n"
                    end
                | _ ->
-                   incr fail_count; Printf.printf "  ✗ Nested Dictionary+Timestamp IPC read-back returned wrong type\n")
+                   incr fail_count; Printf.printf "  FAILURE Nested Dictionary+Timestamp IPC read-back returned wrong type\n")
           | Error msg ->
-              incr fail_count; Printf.printf "  ✗ Nested Dictionary+Timestamp IPC read failed: %s\n" msg)
+              incr fail_count; Printf.printf "  FAILURE Nested Dictionary+Timestamp IPC read failed: %s\n" msg)
      | Error msg ->
-         incr fail_count; Printf.printf "  ✗ Nested Dictionary+Timestamp IPC write failed: %s\n" msg);
+         incr fail_count; Printf.printf "  FAILURE Nested Dictionary+Timestamp IPC write failed: %s\n" msg);
 
     let hinted_empty_list_tbl = {
       Arrow_table.schema = [
@@ -1995,14 +1995,14 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
                 | _ -> false
               in
               if schema_ok && data_ok then begin
-                incr pass_count; Printf.printf "  ✓ Empty/all-null hinted ListColumn IPC round-trip preserves schema hints\n"
+                incr pass_count; Printf.printf "  SUCCESS Empty/all-null hinted ListColumn IPC round-trip preserves schema hints\n"
               end else begin
-                incr fail_count; Printf.printf "  ✗ Empty/all-null hinted ListColumn IPC round-trip lost schema hints\n"
+                incr fail_count; Printf.printf "  FAILURE Empty/all-null hinted ListColumn IPC round-trip lost schema hints\n"
               end
           | Error msg ->
-              incr fail_count; Printf.printf "  ✗ Empty/all-null hinted ListColumn IPC read failed: %s\n" msg)
+              incr fail_count; Printf.printf "  FAILURE Empty/all-null hinted ListColumn IPC read failed: %s\n" msg)
      | Error msg ->
-         incr fail_count; Printf.printf "  ✗ Empty/all-null hinted ListColumn IPC write failed: %s\n" msg);
+         incr fail_count; Printf.printf "  FAILURE Empty/all-null hinted ListColumn IPC write failed: %s\n" msg);
 
     let null_ipc_tbl = Arrow_table.create [
       ("missing", Arrow_table.NAColumn 3);
@@ -2013,15 +2013,15 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
            | Ok null_tbl ->
                (match Arrow_table.get_column null_tbl "missing" with
                | Some (Arrow_table.NAColumn 3) ->
-                   incr pass_count; Printf.printf "  ✓ NAColumn IPC round-trip preserves NA-only columns\n"
+                   incr pass_count; Printf.printf "  SUCCESS NAColumn IPC round-trip preserves NA-only columns\n"
                | Some _ ->
-                   incr fail_count; Printf.printf "  ✗ NAColumn IPC read-back returned wrong type or row count\n"
+                   incr fail_count; Printf.printf "  FAILURE NAColumn IPC read-back returned wrong type or row count\n"
                | None ->
-                   incr fail_count; Printf.printf "  ✗ NAColumn IPC read-back lost the NA-only column\n")
+                   incr fail_count; Printf.printf "  FAILURE NAColumn IPC read-back lost the NA-only column\n")
            | Error msg ->
-               incr fail_count; Printf.printf "  ✗ NAColumn IPC read failed: %s\n" msg)
+               incr fail_count; Printf.printf "  FAILURE NAColumn IPC read failed: %s\n" msg)
      | Error msg ->
-          incr fail_count; Printf.printf "  ✗ NAColumn IPC write failed: %s\n" msg);
+          incr fail_count; Printf.printf "  FAILURE NAColumn IPC write failed: %s\n" msg);
 
     let dt_ipc_tbl = Arrow_table.create [
       ("ts", Arrow_table.DatetimeColumn (
@@ -2051,14 +2051,14 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
                  | _ -> false
                in
                if schema_ok && data_ok then begin
-                 incr pass_count; Printf.printf "  ✓ DatetimeColumn IPC round-trip preserves timezone and values\n"
+                 incr pass_count; Printf.printf "  SUCCESS DatetimeColumn IPC round-trip preserves timezone and values\n"
                end else begin
-                 incr fail_count; Printf.printf "  ✗ DatetimeColumn IPC round-trip data mismatch\n"
+                 incr fail_count; Printf.printf "  FAILURE DatetimeColumn IPC round-trip data mismatch\n"
                end
            | Error msg ->
-               incr fail_count; Printf.printf "  ✗ DatetimeColumn IPC read failed: %s\n" msg)
+               incr fail_count; Printf.printf "  FAILURE DatetimeColumn IPC read failed: %s\n" msg)
      | Error msg ->
-         incr fail_count; Printf.printf "  ✗ DatetimeColumn IPC write failed: %s\n" msg);
+         incr fail_count; Printf.printf "  FAILURE DatetimeColumn IPC write failed: %s\n" msg);
 
     let env_ipc = Packages.init_env () in
     let env_ipc = Test_helpers.eval_setup eval_string_env env_ipc "test_arrow_integration:2066" (Printf.sprintf
@@ -2067,17 +2067,17 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     let (v, _) = eval_string_env (Printf.sprintf {|nrow(read_ipc("%s"))|} ipc_path) env_ipc in
     let nrow_result = Ast.Utils.value_to_string v in
     if nrow_result = "2" then begin
-      incr pass_count; Printf.printf "  ✓ write_ipc/read_ipc round-trip preserves nrow\n"
+      incr pass_count; Printf.printf "  SUCCESS write_ipc/read_ipc round-trip preserves nrow\n"
     end else begin
-      incr fail_count; Printf.printf "  ✗ write_ipc/read_ipc expected nrow=2, got %s\n" nrow_result
+      incr fail_count; Printf.printf "  FAILURE write_ipc/read_ipc expected nrow=2, got %s\n" nrow_result
     end;
 
     let (v, _) = eval_string_env (Printf.sprintf {|colnames(read_ipc("%s"))|} ipc_path) env_ipc in
     let colnames_result = Ast.Utils.value_to_string v in
     if colnames_result = {|["id", "grp"]|} then begin
-      incr pass_count; Printf.printf "  ✓ read_ipc preserves schema/column names\n"
+      incr pass_count; Printf.printf "  SUCCESS read_ipc preserves schema/column names\n"
     end else begin
-      incr fail_count; Printf.printf "  ✗ read_ipc schema mismatch: %s\n" colnames_result
+      incr fail_count; Printf.printf "  FAILURE read_ipc schema mismatch: %s\n" colnames_result
     end;
 
     test "write_ipc/read_ipc preserves nested to_factor levels after unnest"
@@ -2160,32 +2160,32 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
               if Arrow_table.is_native_backed parquet_tbl
                  && Arrow_table.num_rows parquet_tbl = 2
                  && Arrow_table.num_columns parquet_tbl = 2 then begin
-                incr pass_count; Printf.printf "  ✓ Arrow_io.read_parquet loads a native-backed table\n"
+                incr pass_count; Printf.printf "  SUCCESS Arrow_io.read_parquet loads a native-backed table\n"
               end else begin
-                incr fail_count; Printf.printf "  ✗ Arrow_io.read_parquet loaded an unexpected table shape/backing\n"
+                incr fail_count; Printf.printf "  FAILURE Arrow_io.read_parquet loaded an unexpected table shape/backing\n"
               end
           | Error msg ->
-              incr fail_count; Printf.printf "  ✗ Arrow_io.read_parquet failed: %s\n" msg);
+              incr fail_count; Printf.printf "  FAILURE Arrow_io.read_parquet failed: %s\n" msg);
 
          let env_parquet = Packages.init_env () in
          let (v, _) = eval_string_env (Printf.sprintf {|nrow(read_parquet("%s"))|} parquet_path) env_parquet in
          let parquet_nrow = Ast.Utils.value_to_string v in
          if parquet_nrow = "2" then begin
-           incr pass_count; Printf.printf "  ✓ read_parquet preserves row count\n"
+           incr pass_count; Printf.printf "  SUCCESS read_parquet preserves row count\n"
          end else begin
-           incr fail_count; Printf.printf "  ✗ read_parquet expected nrow=2, got %s\n" parquet_nrow
+           incr fail_count; Printf.printf "  FAILURE read_parquet expected nrow=2, got %s\n" parquet_nrow
          end;
 
          let (v, _) = eval_string_env (Printf.sprintf {|colnames(read_parquet("%s"))|} parquet_path) env_parquet in
          let parquet_colnames = Ast.Utils.value_to_string v in
          if parquet_colnames = {|["id", "name"]|} then begin
-           incr pass_count; Printf.printf "  ✓ read_parquet preserves schema/column names\n"
+           incr pass_count; Printf.printf "  SUCCESS read_parquet preserves schema/column names\n"
          end else begin
-           incr fail_count; Printf.printf "  ✗ read_parquet schema mismatch: %s\n" parquet_colnames
+           incr fail_count; Printf.printf "  FAILURE read_parquet schema mismatch: %s\n" parquet_colnames
          end
      | code ->
          incr fail_count;
-         Printf.printf "  ✗ Failed to generate Parquet test fixture with python3/pyarrow (exit %d)\n" code);
+         Printf.printf "  FAILURE Failed to generate Parquet test fixture with python3/pyarrow (exit %d)\n" code);
 
     let parquet_tbl_src = Arrow_table.create [
       ("id", Arrow_table.IntColumn [| Some 1; Some 2; Some 3 |]);
@@ -2193,7 +2193,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     ] 3 in
     (match Arrow_io.write_parquet parquet_tbl_src parquet_write_path with
      | Ok () ->
-         incr pass_count; Printf.printf "  ✓ Arrow_io.write_parquet writes Parquet file\n";
+         incr pass_count; Printf.printf "  SUCCESS Arrow_io.write_parquet writes Parquet file\n";
          (match Arrow_io.read_parquet parquet_write_path with
           | Ok parquet_tbl ->
               let shape_ok =
@@ -2219,14 +2219,14 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
                 | _ -> false
               in
               if shape_ok && id_ok && name_ok then begin
-                incr pass_count; Printf.printf "  ✓ Arrow_io.read_parquet round-trip preserves Parquet data\n"
+                incr pass_count; Printf.printf "  SUCCESS Arrow_io.read_parquet round-trip preserves Parquet data\n"
               end else begin
-                incr fail_count; Printf.printf "  ✗ Arrow_io.read_parquet round-trip data mismatch\n"
+                incr fail_count; Printf.printf "  FAILURE Arrow_io.read_parquet round-trip data mismatch\n"
               end
           | Error msg ->
-              incr fail_count; Printf.printf "  ✗ Arrow_io.read_parquet round-trip read failed: %s\n" msg)
+              incr fail_count; Printf.printf "  FAILURE Arrow_io.read_parquet round-trip read failed: %s\n" msg)
      | Error msg ->
-         incr fail_count; Printf.printf "  ✗ Arrow_io.write_parquet failed: %s\n" msg);
+         incr fail_count; Printf.printf "  FAILURE Arrow_io.write_parquet failed: %s\n" msg);
 
     let env_parquet = Packages.init_env () in
     let env_parquet = Test_helpers.eval_setup eval_string_env env_parquet "test_arrow_integration:2238" (Printf.sprintf
@@ -2235,17 +2235,17 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     let (v, _) = eval_string_env (Printf.sprintf {|nrow(read_parquet("%s"))|} parquet_write_path) env_parquet in
     let nrow_result = Ast.Utils.value_to_string v in
     if nrow_result = "2" then begin
-      incr pass_count; Printf.printf "  ✓ write_parquet/read_parquet round-trip preserves nrow\n"
+      incr pass_count; Printf.printf "  SUCCESS write_parquet/read_parquet round-trip preserves nrow\n"
     end else begin
-      incr fail_count; Printf.printf "  ✗ write_parquet/read_parquet expected nrow=2, got %s\n" nrow_result
+      incr fail_count; Printf.printf "  FAILURE write_parquet/read_parquet expected nrow=2, got %s\n" nrow_result
     end;
 
     let (v, _) = eval_string_env (Printf.sprintf {|colnames(read_parquet("%s"))|} parquet_write_path) env_parquet in
     let colnames_result = Ast.Utils.value_to_string v in
     if colnames_result = {|["id", "grp"]|} then begin
-      incr pass_count; Printf.printf "  ✓ write_parquet/read_parquet preserves schema/column names\n"
+      incr pass_count; Printf.printf "  SUCCESS write_parquet/read_parquet preserves schema/column names\n"
     end else begin
-      incr fail_count; Printf.printf "  ✗ write_parquet/read_parquet schema mismatch: %s\n" colnames_result
+      incr fail_count; Printf.printf "  FAILURE write_parquet/read_parquet schema mismatch: %s\n" colnames_result
     end
 
   end else begin
@@ -2286,36 +2286,36 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
        && ranks.(2) = Some 2
        && ranks.(0) = Some 3 && ranks.(4) = Some 3 in
      if ok then begin
-       incr pass_count; Printf.printf "  ✓ dense_rank_column works on pure OCaml table\n"
+       incr pass_count; Printf.printf "  SUCCESS dense_rank_column works on pure OCaml table\n"
      end else begin
-       incr fail_count; Printf.printf "  ✗ dense_rank_column incorrect results\n"
+       incr fail_count; Printf.printf "  FAILURE dense_rank_column incorrect results\n"
      end
    | None ->
-     incr pass_count; Printf.printf "  ✓ dense_rank_column returns None on non-native table (expected)\n");
+     incr pass_count; Printf.printf "  SUCCESS dense_rank_column returns None on non-native table (expected)\n");
 
   (* Test: Arrow-backed row_number *)
   (match Arrow_compute.row_number_column rank_tbl "x" with
    | Some ranks ->
      let ok = Array.length ranks = 5 in
      if ok then begin
-       incr pass_count; Printf.printf "  ✓ row_number_column returns result\n"
+       incr pass_count; Printf.printf "  SUCCESS row_number_column returns result\n"
      end else begin
-       incr fail_count; Printf.printf "  ✗ row_number_column wrong length\n"
+       incr fail_count; Printf.printf "  FAILURE row_number_column wrong length\n"
      end
    | None ->
-     incr pass_count; Printf.printf "  ✓ row_number_column returns None on non-native table (expected)\n");
+     incr pass_count; Printf.printf "  SUCCESS row_number_column returns None on non-native table (expected)\n");
 
   (* Test: Arrow-backed min_rank *)
   (match Arrow_compute.min_rank_column rank_tbl "x" with
    | Some ranks ->
      let ok = Array.length ranks = 5 in
      if ok then begin
-       incr pass_count; Printf.printf "  ✓ min_rank_column returns result\n"
+       incr pass_count; Printf.printf "  SUCCESS min_rank_column returns result\n"
      end else begin
-       incr fail_count; Printf.printf "  ✗ min_rank_column wrong length\n"
+       incr fail_count; Printf.printf "  FAILURE min_rank_column wrong length\n"
      end
    | None ->
-     incr pass_count; Printf.printf "  ✓ min_rank_column returns None on non-native table (expected)\n");
+     incr pass_count; Printf.printf "  SUCCESS min_rank_column returns None on non-native table (expected)\n");
 
   (* Test: Arrow-backed lag_column *)
   let lag_cols = [
@@ -2324,16 +2324,16 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   let lag_tbl = Arrow_table.create lag_cols 4 in
   (match Arrow_compute.lag_column lag_tbl "val" 1 with
    | Some _new_tbl ->
-     incr pass_count; Printf.printf "  ✓ lag_column returns a new table\n"
+     incr pass_count; Printf.printf "  SUCCESS lag_column returns a new table\n"
    | None ->
-     incr pass_count; Printf.printf "  ✓ lag_column returns None on non-native table (expected)\n");
+     incr pass_count; Printf.printf "  SUCCESS lag_column returns None on non-native table (expected)\n");
 
   (* Test: Arrow-backed lead_column *)
   (match Arrow_compute.lead_column lag_tbl "val" 1 with
    | Some _new_tbl ->
-     incr pass_count; Printf.printf "  ✓ lead_column returns a new table\n"
+     incr pass_count; Printf.printf "  SUCCESS lead_column returns a new table\n"
    | None ->
-     incr pass_count; Printf.printf "  ✓ lead_column returns None on non-native table (expected)\n");
+     incr pass_count; Printf.printf "  SUCCESS lead_column returns None on non-native table (expected)\n");
 
   (* Test: group_by_optimized on pure OCaml tables falls back to standard *)
   let grp_cols = [
@@ -2345,9 +2345,9 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   let groups = Arrow_compute.get_groups grouped in
   let n_groups = List.length groups in
   if n_groups = 2 then begin
-    incr pass_count; Printf.printf "  ✓ group_by_optimized falls back correctly (2 groups)\n"
+    incr pass_count; Printf.printf "  SUCCESS group_by_optimized falls back correctly (2 groups)\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ group_by_optimized fallback: expected 2 groups, got %d\n" n_groups
+    incr fail_count; Printf.printf "  FAILURE group_by_optimized fallback: expected 2 groups, got %d\n" n_groups
   end;
 
   (* Test: End-to-end window functions via T expressions *)

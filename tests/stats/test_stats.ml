@@ -1,4 +1,4 @@
-let run_tests pass_count fail_count failures _eval_string eval_string_env test test_env =
+let run_tests pass_count fail_count failures _eval_string eval_string_env test test_env _test_equal =
   Printf.printf "Phase 5 — Stats: mean():\n";
   test "mean of int list" "mean([1, 2, 3, 4, 5])" "3.";
   test "mean of float list" "mean([1.0, 2.0, 3.0])" "2.";
@@ -153,10 +153,10 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
       with _ -> false
     in
     if match_found then (
-      incr pass_count; Printf.printf "  ✓ %s\n" name
+      incr pass_count; Printf.printf "  SUCCESS %s\n" name
     ) else (
       incr fail_count;
-      let msg = Printf.sprintf "  ✗ %s\n    Expected (regex): %s\n    Got:               %s\n" name expected result in
+      let msg = Printf.sprintf "  FAILURE %s\n    Expected (regex): %s\n    Got:               %s\n" name expected result in
       failures := msg :: !failures;
       Printf.printf "%s" msg
     )
@@ -237,10 +237,10 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
   let has_fitted = String.length result > 0 && (try let _ = Str.search_forward (Str.regexp_string "fitted") result 0 in true with Not_found -> false) in
   let has_resid = String.length result > 0 && (try let _ = Str.search_forward (Str.regexp_string "resid") result 0 in true with Not_found -> false) in
   if has_fitted && has_resid then begin
-    incr pass_count; Printf.printf "  ✓ add_diagnostics() adds fitted and resid columns\n"
+    incr pass_count; Printf.printf "  SUCCESS add_diagnostics() adds fitted and resid columns\n"
   end else begin
     incr fail_count;
-    let msg = Printf.sprintf "  ✗ add_diagnostics() adds fitted and resid columns\n    Got columns: %s\n" result in
+    let msg = Printf.sprintf "  FAILURE add_diagnostics() adds fitted and resid columns\n    Got columns: %s\n" result in
     failures := msg :: !failures;
     Printf.printf "%s" msg
   end;

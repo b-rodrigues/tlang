@@ -222,7 +222,9 @@ add = \(a, b) a + b
 - Lambda return types are inferred from the body expression
 - Mismatches produce warnings: `Variable 'z' annotated as Int, but expression infers to string.`
 - Type annotations are optional — unannotated variables are inferred freely
-- Expression-level inference covers `BinOp`, `UnOp`, `IfElse`, `Match`, `ListLit`, `DotAccess`, and `Lambda` return types. Division always infers `Float`; comparison operators infer `Bool`
+- Expression-level inference covers `BinOp`, `UnOp`, `IfElse`, `Match`, `ListLit`, `DotAccess`, and `Lambda` return types. Division always infers `Float`; comparison operators infer `Bool`. Builtin calls infer to their documented return types, so annotation and argument checks see through calls.
+- `t check` warns on builtin arity mismatches: a non-variadic builtin called with the wrong count warns naming expected and received (pipe-fed values count as one argument). Variadic builtins, unknown names, and locally shadowed names stay silent. This catches calls the evaluator never reaches, such as calls inside lambda bodies. Arity stays warn-only by design: wrong counts have no safe automatic repair, so `t fix` does not touch them.
+- `t check` warns on definite argument-type mismatches: inferred argument types are compared against documented parameter types (positionals in order, named by name). Any doubtful position stays silent: missing/`Any`/`Unknown` types, argument-shape vocabulary, `$col`-mentioning expressions, undocumented extras, unknown names. Sites already failing arity are skipped.
 
 The analyzer also propagates types through pipeline operations:
 - `mutate` infers column types from expressions
@@ -393,9 +395,9 @@ p = pipeline {
 
 - **Project** = analysis workspace, data, scripts, pipelines, pinned environment.
 - **Package** = reusable library, exports functions, ships tests and docs.
-- **`r-package/`** = companion R package (`tlang`) that mirrors built-pipeline `read_node()` and defaults to `readRDS()` with an overrideable deserializer.
-- **`py-package/`** = companion Python package (`tlang`) that mirrors built-pipeline `read_node()` and defaults to pickle-based deserialization.
-- **`jl-package/`** = companion Julia package (`tlang`) that mirrors built-pipeline `read_node()`, defaults to `Serialization.deserialize`, and now exposes DeepDiffs-based Julia artifact diff helpers.
+- **`r-package/`** = companion R package (`tlang`) that mirrors built-pipeline `read_node()` with build-log serializer auto-pick (`readRDS` for `default`, `jsonlite` for `^json`, `arrow` for `^ipc`/`^parquet`) plus `read_node_tree()` for node plus transitive children/parents, `inspect_pipeline()` for per-node build status, frame helpers (`list_logs`, `build_log_to_frame`, `collect_exceptions`), T-named error helpers, and `show_code()` for node source.
+- **`py-package/`** = companion Python package (`tlang`) that mirrors built-pipeline `read_node()` with build-log serializer auto-pick (pickle for `default`, stdlib for `^json`, `pandas`/`pyarrow` for `^csv`/`^ipc`/`^parquet`) plus `read_node_tree()` for node plus transitive children/parents, `inspect_pipeline()` for per-node build status, frame helpers (`list_logs`, `build_log_to_frame`, `collect_exceptions`), T-named error helpers, and `show_code()` for node source.
+- **`jl-package/`** = companion Julia package (`tlang`) that mirrors built-pipeline `read_node()` with build-log serializer auto-pick (`Serialization` for `default`, `JSON`/`CSV`/`Arrow`/`Parquet2` per format) plus `read_node_tree()`, `inspect_pipeline()`, frame helpers (`list_logs`, `build_log_to_frame`, `collect_exceptions`), T-named error helpers, and `show_code()` for node source, and now exposes DeepDiffs-based Julia artifact diff helpers.
 
 Typical project files:
 - `tproject.toml`
@@ -556,6 +558,10 @@ Purpose: value introspection and intent-block inspection.
 
 - Introspection: `explain(x)`, `explain_json(x)`
 - Node introspection: `explain(read_node(...))` separates node metadata (`node_name`, `diagnostics`) from explained payload via `contents`
+- Pipeline lineage: `explain(p)` lists per-node `dependencies` (direct inputs) and `children` (direct dependents), plus transitive `ancestors` and `descendants` closures (nearest-first, de-duplicated)
+- CLI lineage: `t explain --node p.name` prints direct parents and children (and `--json` adds `parents`/`children` arrays) from the static dependency map, plus a `Transitive lineage` line (`ancestors`/`descendants` arrays in JSON) when indirect nodes exist
+- Foreign-node metadata: `explain(p.node)` for R/Python/Julia nodes exposes `foreign_meta` from the build-time `meta` sidecar — `kind`, one `dimensions` int list for all array-likes (frames, matrices, vectors), `task`, `n_obs`, `n_features`, `target`, full `formula` (R) and `features` plus free `metrics` for models, `artifact_size`; tree display shows short `features_preview`/`formula_preview` while dot access returns full values; `NA` when unbuilt
+- CLI: `t explain --node p.name` prints a `Foreign metadata` section (and a `foreign_meta` object with `--json`) from the same sidecar when present
 - CLI presentation: `explain(...)` returns regular `Dict` values, and `pretty_print()` (including default REPL/CLI display) renders large or nested `Dict`, `List`, and `Pipeline` outputs as trees for readability.
 - Intent helpers: `intent_fields(intent)`, `intent_get(intent, field)`
 

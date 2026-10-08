@@ -4,7 +4,7 @@
    cases; `test_env` substring matching keeps assertions on the explicit
    contract language (field names, valid sets, type names). *)
 
-let run_tests pass_count fail_count _failures _eval_string _eval_string_env test test_env =
+let run_tests pass_count fail_count _failures _eval_string _eval_string_env test test_env _test_equal =
   Printf.printf "Records:\n";
   let fresh () = Packages.init_env () in
   (* Baseline eval still works through the shared helper. *)
@@ -110,10 +110,10 @@ match(PtQ(x = 1.0)) { v => v.x }|}
   in
   (match v_syntax with
    | Ast.VError _ when found ->
-       incr pass_count; Printf.printf "  ✓ non-type two-identifier statement stays a syntax error\n"
+       incr pass_count; Printf.printf "  SUCCESS non-type two-identifier statement stays a syntax error\n"
    | _ ->
        incr fail_count;
-       Printf.printf "  ✗ non-type two-identifier statement stays a syntax error\n    Got: %s\n" rendered);
+       Printf.printf "  FAILURE non-type two-identifier statement stays a syntax error\n    Got: %s\n" rendered);
   test_env (fresh ()) "type() builtin keeps working"
     "type(1)"
     "Int";

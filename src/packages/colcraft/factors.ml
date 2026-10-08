@@ -709,7 +709,7 @@ let fct_c_impl (args : (string option * value) list) _env =
 --# Converts values to factor-encoded vectors with derived or explicit levels.
 --#
 --# @name to_factor
---# @param x :: Vector | List | Any The values to convert to factors.
+--# @param x :: Any The values to convert to factors. Accepts a vector, a list, or a scalar.
 --# @param levels :: Vector[String] | List[String] (Optional) Explicit level order. Defaults to sorted unique values.
 --# @param ordered :: Bool = false Mark the factor as ordered for ordinal comparisons.
 --# @return :: Vector[Factor] A factor vector.
@@ -765,7 +765,7 @@ let fct_c_impl (args : (string option * value) list) _env =
 --#
 --# @name fct_recode
 --# @param x :: Vector[Factor] A factor vector.
---# @param ... Named replacements in the form `new_name = old_name`.
+--# @param ... :: String Named replacements in the form `new_name = old_name`.
 --# @return :: Vector[Factor] A factor vector with renamed levels.
 --# @example
 --#   fct_recode(fct, high = "H", low = "L")
@@ -841,7 +841,7 @@ let fct_c_impl (args : (string option * value) list) _env =
 --#
 --# @name fct_relevel
 --# @param x :: Vector[Factor] A factor vector.
---# @param ... Level names to move to the front.
+--# @param ... :: String Level names to move to the front.
 --# @param after :: Int = 0 Position after which to place the moved levels (0 = front).
 --# @return :: Vector[Factor] A factor vector with selected levels moved.
 --# @example
@@ -857,7 +857,7 @@ let fct_c_impl (args : (string option * value) list) _env =
 --#
 --# @name fct_collapse
 --# @param x :: Vector[Factor] A factor vector.
---# @param ... Named lists mapping new level names to vectors of old level names.
+--# @param ... :: String | List | Vector Named lists mapping new level names to vectors of old level names.
 --# @return :: Vector[Factor] A factor vector with collapsed levels.
 --# @example
 --#   fct_collapse(fct, small = ["a", "b"], large = ["c", "d"])
@@ -901,7 +901,7 @@ let fct_c_impl (args : (string option * value) list) _env =
 --#
 --# @name fct_expand
 --# @param x :: Vector[Factor] A factor vector.
---# @param ... New level names to add.
+--# @param ... :: String New level names to add.
 --# @return :: Vector[Factor] A factor vector with additional levels.
 --# @example
 --#   fct_expand(fct, "new_level")
@@ -914,7 +914,7 @@ let fct_c_impl (args : (string option * value) list) _env =
 --# Combines multiple factor vectors while reconciling their levels.
 --#
 --# @name fct_c
---# @param ... Vector[Factor] Factor vectors to concatenate.
+--# @param ... :: Vector | List Factor vectors to concatenate.
 --# @return :: Vector[Factor] A combined factor vector with unified levels.
 --# @example
 --#   fct_c(fct1, fct2)
@@ -927,7 +927,7 @@ let fct_c_impl (args : (string option * value) list) _env =
 --# Creates factor vectors marked as ordered for ordinal comparisons.
 --#
 --# @name ordered
---# @param x :: Vector | List | Any The values to convert to an ordered factor.
+--# @param x :: Any The values to convert to an ordered factor. Accepts a vector, a list, or a scalar.
 --# @param levels :: Vector[String] | List[String] (Optional) Explicit level order.
 --# @return :: Vector[Factor] An ordered factor vector.
 --# @example

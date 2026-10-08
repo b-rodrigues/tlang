@@ -26,10 +26,10 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
   let check name condition =
     if condition then begin
       incr pass_count;
-      Printf.printf "  ✓ %s\n" name
+      Printf.printf "  SUCCESS %s\n" name
     end else begin
       incr fail_count;
-      let msg = Printf.sprintf "  ✗ %s\n" name in
+      let msg = Printf.sprintf "  FAILURE %s\n" name in
       failures := msg :: !failures;
       Printf.printf "%s" msg
     end
@@ -37,10 +37,10 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
   let check_eq name got expected =
     if got = expected then begin
       incr pass_count;
-      Printf.printf "  ✓ %s\n" name
+      Printf.printf "  SUCCESS %s\n" name
     end else begin
       incr fail_count;
-      let msg = Printf.sprintf "  ✗ %s\n    Expected: %s\n    Got: %s\n" name expected got in
+      let msg = Printf.sprintf "  FAILURE %s\n    Expected: %s\n    Got: %s\n" name expected got in
       failures := msg :: !failures;
       Printf.printf "%s" msg
     end
@@ -605,5 +605,76 @@ let run_tests pass_count fail_count failures eval_string _eval_string_env _test 
   check "t check tier 1: exit code 1"
     (Diagnostics.exit_code_of_diagnostics diags = 1);
   Sys.remove tmp_file;
+
+  Printf.printf "\nstrict check on Function-position calls (no call checking):\n";
+  (* The analyzer has no call checking, so doc-level `Function` params
+     cannot reject these forms. This test locks that they stay check-clean
+     (parse plus annotation flows) and guards future call checking from
+     going too strict. Rejection lives at annotated bindings and at
+     runtime, covered by the tests below it. *)
+  let tmp_fn = Filename.temp_file "tlang_check_fn_params" ".t" in
+  let oc_fn = open_out tmp_fn in
+  output_string oc_fn {|df = to_dataframe([[mpg: [21, 22], wt: [2.5, 3.0]]])
+a = filter(df, \(r) r.mpg > 20)
+b = select(df, matches("^m"))
+c = select(df, all_of(["mpg"]))
+d = select(df, where(is_numeric))
+e = over([a: 1], col_lens("a"), \(x) x + 1)
+f = prop_such_that(prop_gen_int_range(0, 5), \(x) x >= 0)
+p = pipeline { aa = node(command = 1)
+bb = node(command = 2) }
+g = p |> filter_node($runtime == "sh") |> pipeline_nodes
+h = which_nodes(p, \(nd) nd.name == "aa") |> map(\(nd) nd.name)
+i = mutate_node(p, $noop = true, where = $runtime == "sh")
+f_ann: Function = \(x: Int -> Int) x + 1
+b_ann: Bool = str_detect("a", "a")
+l_ann: List[Bool] = str_detect(["a"], "a")
+dfv = to_dataframe([[s: ["a", "b"]]])
+v_ann: Vector[Bool] = str_detect(pull(dfv, $s), "a")
+|};
+  close_out oc_fn;
+  let cr_fn = Check_utils.run_check Typecheck.Strict tmp_fn env in
+  let diags_fn = Diagnostics.check_result_entries cr_fn in
+  let errors_fn = List.filter (fun d ->
+    Diagnostics.diagnostic_severity d = Diagnostics.Error) diags_fn in
+  check "strict Function positions: lambda and NSE call forms produce zero errors"
+    (errors_fn = []);
+  Sys.remove tmp_fn;
+
+  Printf.printf "\nannotated bindings still reject mismatches:\n";
+  (* Strict run_check is failfast: one error per file, so each negative
+     gets its own temp file. *)
+  let check_neg name content needle =
+    let tmp = Filename.temp_file "tlang_check_fn_neg" ".t" in
+    let oc = open_out tmp in
+    output_string oc content;
+    close_out oc;
+    let cr = Check_utils.run_check Typecheck.Strict tmp env in
+    let diags = Diagnostics.check_result_entries cr in
+    let msgs = List.map Diagnostics.diagnostic_message diags in
+    let found = List.exists (fun m ->
+      try ignore (Str.search_forward (Str.regexp_string needle) m 0); true
+      with Not_found -> false) msgs in
+    check name found;
+    Sys.remove tmp
+  in
+  check_neg "annotated binding: Int against Function is rejected"
+    "x: Function = 5\n" "expected Function, got Int";
+  check_neg "annotated binding: Int against Column is rejected"
+    "y: Column = 1\n" "expected Column, got Int";
+  check_neg "annotated binding: Int against Selection is rejected"
+    "w: Selection = 1\n" "expected Selection, got Int";
+  check_neg "annotated binding: Int against KeywordArgs is rejected"
+    "k: KeywordArgs = 1\n" "expected KeywordArgs, got Int";
+  check_neg "annotated binding: Int against Expressions is rejected"
+    "ee: Expressions = 1\n" "expected Expressions, got Int";
+  check_neg "annotated binding: lambda against Column is rejected (no leak)"
+    "z: Column = \\(x: Int -> Int) x\n" "expected Column, got Function";
+  check_neg "annotated binding: lambda against Int is rejected (no leak)"
+    "f: Int = \\(x: Int -> Int) x\n" "expected Int, got Function";
+  check_neg "annotated binding: union return against wrong member is rejected"
+    "nn: Int = str_detect(\"a\", \"a\")\n" "expected Int, got Bool";
+  check_neg "annotated binding: list union return against wrong member names List"
+    "nn2: Int = str_detect([\"a\"], \"a\")\n" "expected Int, got List";
 
   Printf.printf "\n";;

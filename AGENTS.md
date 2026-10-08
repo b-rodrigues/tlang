@@ -298,7 +298,7 @@ Follow this checklist whenever you add a new function or language feature:
 
 ### 2. Add Tests
 
-- **Unit tests**: add a test module in the appropriate `tests/` subdirectory. Use `test` for stateless assertions, `test_env` when the test depends on prior env state. Register the module in `test_runner.ml` with `run` (for `test`-only modules) or `run_with_env` (for modules using `test_env`), and in the corresponding `dune` file.
+- **Unit tests**: add a test module in the appropriate `tests/` subdirectory. Use `test` for stateless assertions, `test_env` when the test depends on prior env state, `test_equal` for short value results where a substring would also match a wrong answer. Register the module in `test_runner.ml` with `run` (for `test`-only modules) or `run_with_env` (for modules using `test_env`/`test_equal`), and in the corresponding `dune` file.
 - **Golden tests** (preferred for numerical or statistical functions): add a `.t` script in `tests/golden/t_scripts/`, a matching R script in `tests/golden/r_scripts/` (or extend `generate_expected.R`), and a `test_that(…)` block in `tests/golden/test_golden_r.R`.
 
   Golden tests are **required** for any function that produces numeric or statistical output that can be verified against R or Python.
@@ -355,14 +355,17 @@ All OCaml tests are orchestrated by `tests/test_runner.ml`, which provides share
 |--------|-----------|----------|
 | `test name input expected` | Evaluates `input` against `shared_env`, compares string output to `expected`. | The test expression doesn't depend on prior state (no CSV loads, no pipeline setup). |
 | `test_env env name input expected` | Evaluates `input` against an explicit `env`, compares string output to `expected`. | The test depends on prior state — e.g. a CSV was loaded, a pipeline was created, or a variable was bound earlier in the same test. |
+| `test_equal env name input expected` | Evaluates `input` against an explicit `env`, requires exact string equality with `expected` (no substring fallback). | The expected value is short enough that a substring would also match a wrong answer — e.g. expected `"5"` also matches `"-5"`, `"1"` matches `"10"`. |
 
-Both helpers:
+Both `test`/`test_env` helpers:
 1. Try exact string match first.
 2. Fall back to substring match if the exact match fails.
 3. Strip `[L1:C1]` location markers from results before comparing.
 
+`test_equal` does only step 1 (plus location stripping). Use it for value results; keep `test_env` for error substrings where the full error text is long.
+
 **Regex semantics differ between the two:**
-- `test` fallback uses the expected string as a live `Str` regex — `.`, `[`, `]`, `*` are metacharacters. Use `{|...|}` delimiters for patterns containing these intentionally (e.g. `{|.*t check.*|}`).
+- `test` fallback uses the expected string as a live `Str` regex — `.`, `[`, `]`, `*`, `$`, `^`, `+`, `?` are metacharacters. Use `{|...|}` delimiters for patterns containing these intentionally (e.g. `{|.*t check.*|}`). For literal expectations containing them (e.g. `$column`), either expect the full string (exact match runs first) or use `test_equal`/`test_env`, which quote literally.
 - `test_env` fallback wraps the expected string in `Str.quote` — all metacharacters match literally. This is the safer default for new tests.
 
 #### When to keep OCaml-level assertions
@@ -396,7 +399,7 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
 
 ```ocaml
 (* tests/colcraft/test_my_thing.ml *)
-let run_tests pass_count fail_count _failures _eval_string eval_string_env test test_env =
+let run_tests pass_count fail_count _failures _eval_string eval_string_env test test_env _test_equal =
   Printf.printf "My Thing:\n";
   let env = Packages.init_env () in
   let (_, env) = eval_string_env {|df = read_csv("data/test.csv")|} env in
@@ -473,10 +476,13 @@ Current mutation targets:
 | `clean_collision` | `src/packages/dataframe/clean_colnames.ml` | Collision counter `count + 1` → `count - 1` | Duplicate column name tests |
 | `csv_type_fallback` | `src/packages/dataframe/t_read_csv.ml` | String fallback → `VInt 0` | CSV type inference tests |
 | `global_deps_guard` | `src/packages/pipeline/set_pipeline_global_options.ml` | `p_explicit_deps` rewritten unconditionally (flips `None` → `Some []`) when `dependencies` omitted | `set_pipeline_global_options` deps-omitted regression test |
+| `pipe_return_unknown` | `src/analyzer.ml` | Pipe inference returns `TUnknown` on both paths | Pipe return annotation tests |
+| `lambda_return_body` | `src/analyzer.ml` | Annotated lambda return ignored (body type wins) | Annotated-return-wins test |
+| `dangling_always_silent` | `src/check_utils.ml` | Node-read resolvability never resolves | Dangling-read warn tests |
 | `fix_node_def_prefix` | `src/fix.ml` | `is_node_definition` prefix check inverted (`= prefix` → `<> prefix`), so no line ever counts as a node definition | `apply_add_node_arg` / `test_dry_run_outcome` add_node_arg tests |
 | `fix_scan_always_found` | `src/fix.ml` | `scan_add_node_arg` always returns `Some true`, so the Add_node_arg dry-run never reports a missing node as skipped | `test_dry_run_outcome` add_node_arg (node absent) test |
 
-The script verifies each mutation was actually applied (via `diff -q`) before building/testing. If a mutation pattern doesn't match the current source, it reports "pattern did not match" instead of a false SURVIVED. The backup/restore mechanism uses an associative array to support mutations across multiple source files.
+The script verifies each mutation was actually applied (via `diff -q`) before building/testing. An unapplied pattern or a failed build marks the mutant INVALID (counted separately, fails the run) instead of a false SURVIVED or a vacuous kill. Only a green build plus failing tests counts as killed. The backup/restore mechanism uses an associative array to support mutations across multiple source files.
 
 **Mutation-test hygiene:** if `mutation_test.sh` is interrupted or aborted mid-run, the target source file can be left mutated (e.g. `src/eval.ml`) and a `.bak` file left behind. After any run, verify with `git status` that no unexpected `.ml` files are modified and no stray `*.bak` files exist. Restore with `git checkout <file>` and `rm <file>.bak`.
 

@@ -51,30 +51,30 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
     | Ok tbl ->
       (match tbl.native_handle with
        | Some _ ->
-         incr pass_count; Printf.printf "  ✓ Native CSV read retained Arrow handle\n";
+         incr pass_count; Printf.printf "  SUCCESS Native CSV read retained Arrow handle\n";
          (match Arrow_column.get_column tbl "value" with
           | Some col_view ->
             (match Arrow_column.zero_copy_view col_view with
              | Some (Arrow_column.FloatView _) ->
-               incr pass_count; Printf.printf "  ✓ Native float column exposes zero-copy view\n"
+               incr pass_count; Printf.printf "  SUCCESS Native float column exposes zero-copy view\n"
              | Some (Arrow_column.IntView _) ->
-               incr fail_count; Printf.printf "  ✗ Native float column returned IntView\n"
+               incr fail_count; Printf.printf "  FAILURE Native float column returned IntView\n"
              | None ->
                 Test_arrow_helpers.record_native_requirement_result pass_count fail_count
                   "native float zero-copy view is unavailable")
           | None ->
-            incr fail_count; Printf.printf "  ✗ Missing `value` column in native benchmark smoke table\n");
+            incr fail_count; Printf.printf "  FAILURE Missing `value` column in native benchmark smoke table\n");
          let (t_sum_native, native_sum) =
            time_it (fun () -> Arrow_compute.sum_column tbl "value")
          in
          (match native_sum with
           | Some sum when sum > 0.0 ->
             incr pass_count;
-            Printf.printf "  ✓ Native sum benchmark smoke completed in %.4fs (sum=%.1f)\n"
+            Printf.printf "  SUCCESS Native sum benchmark smoke completed in %.4fs (sum=%.1f)\n"
               t_sum_native sum
           | _ ->
             incr fail_count;
-            Printf.printf "  ✗ Native sum benchmark smoke failed\n")
+            Printf.printf "  FAILURE Native sum benchmark smoke failed\n")
        | None ->
           Test_arrow_helpers.record_native_requirement_result pass_count fail_count
             "CSV benchmark smoke fell back to pure OCaml storage")
@@ -90,12 +90,12 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
   (match Arrow_column.get_column tbl_10k "value" with
    | Some col_view ->
      if Arrow_column.column_length col_view = 10000 then begin
-       incr pass_count; Printf.printf "  ✓ Column view creation (10k rows)\n"
+       incr pass_count; Printf.printf "  SUCCESS Column view creation (10k rows)\n"
      end else begin
-       incr fail_count; Printf.printf "  ✗ Column view length mismatch (10k rows)\n"
+       incr fail_count; Printf.printf "  FAILURE Column view length mismatch (10k rows)\n"
      end
    | None ->
-     incr fail_count; Printf.printf "  ✗ Column view creation failed (10k rows)\n");
+     incr fail_count; Printf.printf "  FAILURE Column view creation failed (10k rows)\n");
 
   (* Test 2: get_value_at on column view *)
   (match Arrow_column.get_column tbl_10k "value" with
@@ -103,11 +103,11 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
      let v = Arrow_column.get_value_at col_view 0 in
      (match v with
       | Ast.VFloat f when f = 0.5 ->
-        incr pass_count; Printf.printf "  ✓ get_value_at returns correct value\n"
+        incr pass_count; Printf.printf "  SUCCESS get_value_at returns correct value\n"
       | _ ->
-        incr fail_count; Printf.printf "  ✗ get_value_at returned: %s\n" (Ast.Utils.value_to_string v))
+        incr fail_count; Printf.printf "  FAILURE get_value_at returned: %s\n" (Ast.Utils.value_to_string v))
    | None ->
-     incr fail_count; Printf.printf "  ✗ get_column failed\n");
+     incr fail_count; Printf.printf "  FAILURE get_column failed\n");
 
   (* Test 3: get_value_at out-of-bounds returns VNA NAGeneric *)
   (match Arrow_column.get_column tbl_10k "value" with
@@ -115,12 +115,12 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
      let v = Arrow_column.get_value_at col_view 99999 in
      (match v with
       | Ast.(VNA Ast.NAGeneric) ->
-        incr pass_count; Printf.printf "  ✓ get_value_at out-of-bounds returns VNA NAGeneric\n"
+        incr pass_count; Printf.printf "  SUCCESS get_value_at out-of-bounds returns VNA NAGeneric\n"
       | _ ->
-        incr fail_count; Printf.printf "  ✗ get_value_at out-of-bounds returned: %s\n"
+        incr fail_count; Printf.printf "  FAILURE get_value_at out-of-bounds returned: %s\n"
           (Ast.Utils.value_to_string v))
    | None ->
-     incr fail_count; Printf.printf "  ✗ get_column failed\n");
+     incr fail_count; Printf.printf "  FAILURE get_column failed\n");
 
   (* Test 4: get_slice correctness *)
   (match Arrow_column.get_column tbl_10k "id" with
@@ -130,15 +130,15 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
        let v0 = Arrow_column.get_value_at slice 0 in
        (match v0 with
         | Ast.VInt 6 ->
-          incr pass_count; Printf.printf "  ✓ get_slice returns correct slice (start=5, len=3)\n"
+          incr pass_count; Printf.printf "  SUCCESS get_slice returns correct slice (start=5, len=3)\n"
         | _ ->
-          incr fail_count; Printf.printf "  ✗ get_slice first element incorrect: %s\n"
+          incr fail_count; Printf.printf "  FAILURE get_slice first element incorrect: %s\n"
             (Ast.Utils.value_to_string v0))
      end else begin
-       incr fail_count; Printf.printf "  ✗ get_slice length incorrect\n"
+       incr fail_count; Printf.printf "  FAILURE get_slice length incorrect\n"
      end
    | None ->
-     incr fail_count; Printf.printf "  ✗ get_column failed\n");
+     incr fail_count; Printf.printf "  FAILURE get_column failed\n");
 
   (* Test 5: column_view_to_list correctness *)
   let small_tbl = Arrow_table.create [
@@ -148,12 +148,12 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
    | Some col_view ->
      let lst = Arrow_column.column_view_to_list col_view in
      if List.length lst = 3 then begin
-       incr pass_count; Printf.printf "  ✓ column_view_to_list returns correct list\n"
+       incr pass_count; Printf.printf "  SUCCESS column_view_to_list returns correct list\n"
      end else begin
-       incr fail_count; Printf.printf "  ✗ column_view_to_list length incorrect\n"
+       incr fail_count; Printf.printf "  FAILURE column_view_to_list length incorrect\n"
      end
    | None ->
-     incr fail_count; Printf.printf "  ✗ get_column failed\n");
+     incr fail_count; Printf.printf "  FAILURE get_column failed\n");
   print_newline ();
 
   Printf.printf "Arrow Performance — Vectorized Math Operations:\n";
@@ -169,14 +169,14 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
         let close a b = Float.abs (a -. b) < 1e-10 in
         if data.(0) = Some 2.0 && data.(1) = Some 3.0
            && (match data.(2) with Some f -> close f 4.0 | None -> false) then begin
-          incr pass_count; Printf.printf "  ✓ sqrt_column produces correct results\n"
+          incr pass_count; Printf.printf "  SUCCESS sqrt_column produces correct results\n"
         end else begin
-          incr fail_count; Printf.printf "  ✗ sqrt_column results incorrect\n"
+          incr fail_count; Printf.printf "  FAILURE sqrt_column results incorrect\n"
         end
       | _ ->
-        incr fail_count; Printf.printf "  ✗ sqrt_column result column type mismatch\n")
+        incr fail_count; Printf.printf "  FAILURE sqrt_column result column type mismatch\n")
    | None ->
-     incr fail_count; Printf.printf "  ✗ sqrt_column returned None\n");
+     incr fail_count; Printf.printf "  FAILURE sqrt_column returned None\n");
 
   (* Test 7: abs_column correctness *)
   let abs_tbl = Arrow_table.create [
@@ -187,14 +187,14 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
      (match Arrow_table.get_column result_tbl "x" with
       | Some (Arrow_table.FloatColumn data) ->
         if data.(0) = Some 3.0 && data.(1) = Some 0.0 && data.(2) = Some 5.0 then begin
-          incr pass_count; Printf.printf "  ✓ abs_column produces correct results\n"
+          incr pass_count; Printf.printf "  SUCCESS abs_column produces correct results\n"
         end else begin
-          incr fail_count; Printf.printf "  ✗ abs_column results incorrect\n"
+          incr fail_count; Printf.printf "  FAILURE abs_column results incorrect\n"
         end
       | _ ->
-        incr fail_count; Printf.printf "  ✗ abs_column result column type mismatch\n")
+        incr fail_count; Printf.printf "  FAILURE abs_column result column type mismatch\n")
    | None ->
-     incr fail_count; Printf.printf "  ✗ abs_column returned None\n");
+     incr fail_count; Printf.printf "  FAILURE abs_column returned None\n");
 
   (* Test 8: log_column correctness *)
   let log_tbl = Arrow_table.create [
@@ -207,14 +207,14 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
         let close a b = Float.abs (a -. b) < 1e-10 in
         if (match data.(0) with Some f -> close f 0.0 | None -> false)
            && (match data.(1) with Some f -> close f 1.0 | None -> false) then begin
-          incr pass_count; Printf.printf "  ✓ log_column produces correct results\n"
+          incr pass_count; Printf.printf "  SUCCESS log_column produces correct results\n"
         end else begin
-          incr fail_count; Printf.printf "  ✗ log_column results incorrect\n"
+          incr fail_count; Printf.printf "  FAILURE log_column results incorrect\n"
         end
       | _ ->
-        incr fail_count; Printf.printf "  ✗ log_column result column type mismatch\n")
+        incr fail_count; Printf.printf "  FAILURE log_column result column type mismatch\n")
    | None ->
-     incr fail_count; Printf.printf "  ✗ log_column returned None\n");
+     incr fail_count; Printf.printf "  FAILURE log_column returned None\n");
 
   (* Test 9: exp_column correctness *)
   let exp_tbl = Arrow_table.create [
@@ -227,14 +227,14 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
         let close a b = Float.abs (a -. b) < 1e-10 in
         if (match data.(0) with Some f -> close f 1.0 | None -> false)
            && (match data.(1) with Some f -> close f (exp 1.0) | None -> false) then begin
-          incr pass_count; Printf.printf "  ✓ exp_column produces correct results\n"
+          incr pass_count; Printf.printf "  SUCCESS exp_column produces correct results\n"
         end else begin
-          incr fail_count; Printf.printf "  ✗ exp_column results incorrect\n"
+          incr fail_count; Printf.printf "  FAILURE exp_column results incorrect\n"
         end
       | _ ->
-        incr fail_count; Printf.printf "  ✗ exp_column result column type mismatch\n")
+        incr fail_count; Printf.printf "  FAILURE exp_column result column type mismatch\n")
    | None ->
-     incr fail_count; Printf.printf "  ✗ exp_column returned None\n");
+     incr fail_count; Printf.printf "  FAILURE exp_column returned None\n");
 
   (* Test 10: pow_column correctness *)
   let pow_tbl = Arrow_table.create [
@@ -245,21 +245,21 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
      (match Arrow_table.get_column result_tbl "x" with
       | Some (Arrow_table.FloatColumn data) ->
         if data.(0) = Some 4.0 && data.(1) = Some 9.0 && data.(2) = Some 16.0 then begin
-          incr pass_count; Printf.printf "  ✓ pow_column produces correct results (x^2)\n"
+          incr pass_count; Printf.printf "  SUCCESS pow_column produces correct results (x^2)\n"
         end else begin
-          incr fail_count; Printf.printf "  ✗ pow_column results incorrect\n"
+          incr fail_count; Printf.printf "  FAILURE pow_column results incorrect\n"
         end
       | _ ->
-        incr fail_count; Printf.printf "  ✗ pow_column result column type mismatch\n")
+        incr fail_count; Printf.printf "  FAILURE pow_column result column type mismatch\n")
    | None ->
-     incr fail_count; Printf.printf "  ✗ pow_column returned None\n");
+     incr fail_count; Printf.printf "  FAILURE pow_column returned None\n");
 
   (* Test 11: Math on non-existent column returns None *)
   (match Arrow_compute.sqrt_column math_tbl "nonexistent" with
    | None ->
-     incr pass_count; Printf.printf "  ✓ sqrt_column returns None for missing column\n"
+     incr pass_count; Printf.printf "  SUCCESS sqrt_column returns None for missing column\n"
    | Some _ ->
-     incr fail_count; Printf.printf "  ✗ sqrt_column should return None for missing column\n");
+     incr fail_count; Printf.printf "  FAILURE sqrt_column should return None for missing column\n");
   print_newline ();
 
   Printf.printf "Arrow Performance — Column Aggregations:\n";
@@ -271,54 +271,54 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
   ] 4 in
   (match Arrow_compute.sum_column agg_tbl "x" with
    | Some sum when sum = 10.0 ->
-     incr pass_count; Printf.printf "  ✓ sum_column float = 10.0\n"
+     incr pass_count; Printf.printf "  SUCCESS sum_column float = 10.0\n"
    | Some sum ->
-     incr fail_count; Printf.printf "  ✗ sum_column float expected 10.0, got %f\n" sum
+     incr fail_count; Printf.printf "  FAILURE sum_column float expected 10.0, got %f\n" sum
    | None ->
-     incr fail_count; Printf.printf "  ✗ sum_column float returned None\n");
+     incr fail_count; Printf.printf "  FAILURE sum_column float returned None\n");
 
   (* Test 13: sum_column on int column *)
   (match Arrow_compute.sum_column agg_tbl "y" with
    | Some sum when sum = 100.0 ->
-     incr pass_count; Printf.printf "  ✓ sum_column int = 100.0\n"
+     incr pass_count; Printf.printf "  SUCCESS sum_column int = 100.0\n"
    | Some sum ->
-     incr fail_count; Printf.printf "  ✗ sum_column int expected 100.0, got %f\n" sum
+     incr fail_count; Printf.printf "  FAILURE sum_column int expected 100.0, got %f\n" sum
    | None ->
-     incr fail_count; Printf.printf "  ✗ sum_column int returned None\n");
+     incr fail_count; Printf.printf "  FAILURE sum_column int returned None\n");
 
   (* Test 14: mean_column *)
   (match Arrow_compute.mean_column agg_tbl "x" with
    | Some m when m = 2.5 ->
-     incr pass_count; Printf.printf "  ✓ mean_column = 2.5\n"
+     incr pass_count; Printf.printf "  SUCCESS mean_column = 2.5\n"
    | Some m ->
-     incr fail_count; Printf.printf "  ✗ mean_column expected 2.5, got %f\n" m
+     incr fail_count; Printf.printf "  FAILURE mean_column expected 2.5, got %f\n" m
    | None ->
-     incr fail_count; Printf.printf "  ✗ mean_column returned None\n");
+     incr fail_count; Printf.printf "  FAILURE mean_column returned None\n");
 
   (* Test 15: min_column *)
   (match Arrow_compute.min_column agg_tbl "x" with
    | Some m when m = 1.0 ->
-     incr pass_count; Printf.printf "  ✓ min_column = 1.0\n"
+     incr pass_count; Printf.printf "  SUCCESS min_column = 1.0\n"
    | Some m ->
-     incr fail_count; Printf.printf "  ✗ min_column expected 1.0, got %f\n" m
+     incr fail_count; Printf.printf "  FAILURE min_column expected 1.0, got %f\n" m
    | None ->
-     incr fail_count; Printf.printf "  ✗ min_column returned None\n");
+     incr fail_count; Printf.printf "  FAILURE min_column returned None\n");
 
   (* Test 16: max_column *)
   (match Arrow_compute.max_column agg_tbl "x" with
    | Some m when m = 4.0 ->
-     incr pass_count; Printf.printf "  ✓ max_column = 4.0\n"
+     incr pass_count; Printf.printf "  SUCCESS max_column = 4.0\n"
    | Some m ->
-     incr fail_count; Printf.printf "  ✗ max_column expected 4.0, got %f\n" m
+     incr fail_count; Printf.printf "  FAILURE max_column expected 4.0, got %f\n" m
    | None ->
-     incr fail_count; Printf.printf "  ✗ max_column returned None\n");
+     incr fail_count; Printf.printf "  FAILURE max_column returned None\n");
 
   (* Test 17: Aggregation on missing column returns None *)
   (match Arrow_compute.sum_column agg_tbl "nonexistent" with
    | None ->
-     incr pass_count; Printf.printf "  ✓ sum_column returns None for missing column\n"
+     incr pass_count; Printf.printf "  SUCCESS sum_column returns None for missing column\n"
    | Some _ ->
-     incr fail_count; Printf.printf "  ✗ sum_column should return None for missing column\n");
+     incr fail_count; Printf.printf "  FAILURE sum_column should return None for missing column\n");
   print_newline ();
 
   Printf.printf "Arrow Performance — Comparison Operations:\n";
@@ -331,34 +331,34 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
    | Some mask ->
      if Array.length mask = 4
         && not mask.(0) && mask.(1) && mask.(2) && not mask.(3) then begin
-       incr pass_count; Printf.printf "  ✓ compare_column_scalar 'gt' 4.0 correct\n"
+       incr pass_count; Printf.printf "  SUCCESS compare_column_scalar 'gt' 4.0 correct\n"
      end else begin
-       incr fail_count; Printf.printf "  ✗ compare_column_scalar 'gt' 4.0 mask incorrect\n"
+       incr fail_count; Printf.printf "  FAILURE compare_column_scalar 'gt' 4.0 mask incorrect\n"
      end
    | None ->
-     incr fail_count; Printf.printf "  ✗ compare_column_scalar 'gt' returned None\n");
+     incr fail_count; Printf.printf "  FAILURE compare_column_scalar 'gt' returned None\n");
 
   (* Test 19: compare_column_scalar "le" *)
   (match Arrow_compute.compare_column_scalar cmp_tbl "x" 5.0 Arrow_compute.Le with
    | Some mask ->
      if mask.(0) && mask.(1) && not mask.(2) && mask.(3) then begin
-       incr pass_count; Printf.printf "  ✓ compare_column_scalar 'le' 5.0 correct\n"
+       incr pass_count; Printf.printf "  SUCCESS compare_column_scalar 'le' 5.0 correct\n"
      end else begin
-       incr fail_count; Printf.printf "  ✗ compare_column_scalar 'le' 5.0 mask incorrect\n"
+       incr fail_count; Printf.printf "  FAILURE compare_column_scalar 'le' 5.0 mask incorrect\n"
      end
    | None ->
-     incr fail_count; Printf.printf "  ✗ compare_column_scalar 'le' returned None\n");
+     incr fail_count; Printf.printf "  FAILURE compare_column_scalar 'le' returned None\n");
 
   (* Test 20: compare_column_scalar "eq" *)
   (match Arrow_compute.compare_column_scalar cmp_tbl "x" 5.0 Arrow_compute.Eq with
    | Some mask ->
      if not mask.(0) && mask.(1) && not mask.(2) && not mask.(3) then begin
-       incr pass_count; Printf.printf "  ✓ compare_column_scalar 'eq' 5.0 correct\n"
+       incr pass_count; Printf.printf "  SUCCESS compare_column_scalar 'eq' 5.0 correct\n"
      end else begin
-       incr fail_count; Printf.printf "  ✗ compare_column_scalar 'eq' 5.0 mask incorrect\n"
+       incr fail_count; Printf.printf "  FAILURE compare_column_scalar 'eq' 5.0 mask incorrect\n"
      end
    | None ->
-     incr fail_count; Printf.printf "  ✗ compare_column_scalar 'eq' returned None\n");
+     incr fail_count; Printf.printf "  FAILURE compare_column_scalar 'eq' returned None\n");
 
   (* Test 21: compare on int column *)
   let int_cmp_tbl = Arrow_table.create [
@@ -367,12 +367,12 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
   (match Arrow_compute.compare_column_scalar int_cmp_tbl "n" 5.0 Arrow_compute.Ge with
    | Some mask ->
      if not mask.(0) && mask.(1) && mask.(2) then begin
-       incr pass_count; Printf.printf "  ✓ compare_column_scalar 'ge' on int column correct\n"
+       incr pass_count; Printf.printf "  SUCCESS compare_column_scalar 'ge' on int column correct\n"
      end else begin
-       incr fail_count; Printf.printf "  ✗ compare_column_scalar 'ge' on int column incorrect\n"
+       incr fail_count; Printf.printf "  FAILURE compare_column_scalar 'ge' on int column incorrect\n"
      end
    | None ->
-     incr fail_count; Printf.printf "  ✗ compare_column_scalar 'ge' on int column returned None\n");
+     incr fail_count; Printf.printf "  FAILURE compare_column_scalar 'ge' on int column returned None\n");
 
   (* Test 22 removed: comparison_op is now a closed ADT, invalid ops cannot be constructed *)
   print_newline ();
@@ -382,9 +382,9 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
   (* Test 23: Column selection on 10k rows *)
   let (t_sel, proj_10k) = time_it (fun () -> Arrow_compute.project tbl_10k ["id"; "value"]) in
   if Arrow_table.num_columns proj_10k = 2 && Arrow_table.num_rows proj_10k = 10000 then begin
-    incr pass_count; Printf.printf "  ✓ Project 2 columns from 10k rows (%.4fs)\n" t_sel
+    incr pass_count; Printf.printf "  SUCCESS Project 2 columns from 10k rows (%.4fs)\n" t_sel
   end else begin
-    incr fail_count; Printf.printf "  ✗ Project 10k rows failed\n"
+    incr fail_count; Printf.printf "  FAILURE Project 10k rows failed\n"
   end;
 
   (* Test 24: Filter on 10k rows *)
@@ -403,18 +403,18 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
   ) in
   let filt_nrows = Arrow_table.num_rows filt_10k in
   if filt_nrows > 0 && filt_nrows < 10000 then begin
-    incr pass_count; Printf.printf "  ✓ Filter 10k rows (%d kept, %.4fs)\n" filt_nrows t_filt
+    incr pass_count; Printf.printf "  SUCCESS Filter 10k rows (%d kept, %.4fs)\n" filt_nrows t_filt
   end else begin
-    incr fail_count; Printf.printf "  ✗ Filter 10k rows: unexpected result (%d rows)\n" filt_nrows
+    incr fail_count; Printf.printf "  FAILURE Filter 10k rows: unexpected result (%d rows)\n" filt_nrows
   end;
 
   (* Test 25: Aggregation on 10k rows *)
   let (t_sum, sum_10k) = time_it (fun () -> Arrow_compute.sum_column tbl_10k "value") in
   (match sum_10k with
    | Some s when s > 0.0 ->
-     incr pass_count; Printf.printf "  ✓ Sum 10k rows = %.1f (%.4fs)\n" s t_sum
+     incr pass_count; Printf.printf "  SUCCESS Sum 10k rows = %.1f (%.4fs)\n" s t_sum
    | _ ->
-     incr fail_count; Printf.printf "  ✗ Sum 10k rows failed\n");
+     incr fail_count; Printf.printf "  FAILURE Sum 10k rows failed\n");
 
   (* Test 26: Group-by on 10k rows with 100 groups *)
   let (t_grp, grouped_10k) = time_it (fun () ->
@@ -422,9 +422,9 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
   ) in
   let n_groups_10k = List.length (Arrow_compute.get_groups grouped_10k) in
   if n_groups_10k = 100 then begin
-    incr pass_count; Printf.printf "  ✓ Group-by 10k rows → 100 groups (%.4fs)\n" t_grp
+    incr pass_count; Printf.printf "  SUCCESS Group-by 10k rows → 100 groups (%.4fs)\n" t_grp
   end else begin
-    incr fail_count; Printf.printf "  ✗ Group-by 10k rows: expected 100 groups, got %d\n" n_groups_10k
+    incr fail_count; Printf.printf "  FAILURE Group-by 10k rows: expected 100 groups, got %d\n" n_groups_10k
   end;
 
   (* Test 27: Group aggregate on 10k rows *)
@@ -433,9 +433,9 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
   ) in
   (match gagg_10k_opt with
    | Some gagg_10k when Arrow_table.num_rows gagg_10k = 100 ->
-     incr pass_count; Printf.printf "  ✓ Group aggregate mean 10k rows → 100 groups (%.4fs)\n" t_gagg
+     incr pass_count; Printf.printf "  SUCCESS Group aggregate mean 10k rows → 100 groups (%.4fs)\n" t_gagg
    | _ ->
-     incr fail_count; Printf.printf "  ✗ Group aggregate mean 10k rows failed\n");
+     incr fail_count; Printf.printf "  FAILURE Group aggregate mean 10k rows failed\n");
   print_newline ();
 
   Printf.printf "Arrow Performance — 100k Row Tests:\n";
@@ -443,31 +443,31 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
   (* Test 28: 100k row operations *)
   let tbl_100k = generate_test_table 100000 1000 in
   if Arrow_table.num_rows tbl_100k = 100000 then begin
-    incr pass_count; Printf.printf "  ✓ Generated 100k row table\n"
+    incr pass_count; Printf.printf "  SUCCESS Generated 100k row table\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ 100k row table generation failed\n"
+    incr fail_count; Printf.printf "  FAILURE 100k row table generation failed\n"
   end;
 
   let (t_sel100k, _) = time_it (fun () -> Arrow_compute.project tbl_100k ["id"; "value"]) in
-  incr pass_count; Printf.printf "  ✓ Project 100k rows (%.4fs)\n" t_sel100k;
+  incr pass_count; Printf.printf "  SUCCESS Project 100k rows (%.4fs)\n" t_sel100k;
 
   let (t_sum100k, sum100k) = time_it (fun () -> Arrow_compute.sum_column tbl_100k "value") in
   (match sum100k with
    | Some s when s = 5000000.0 ->
-     incr pass_count; Printf.printf "  ✓ Sum 100k rows = 5,000,000.0 (%.4fs)\n" t_sum100k
+     incr pass_count; Printf.printf "  SUCCESS Sum 100k rows = 5,000,000.0 (%.4fs)\n" t_sum100k
    | Some s ->
-     incr fail_count; Printf.printf "  ✗ Sum 100k rows incorrect: expected 5,000,000.0, got %.1f\n" s
+     incr fail_count; Printf.printf "  FAILURE Sum 100k rows incorrect: expected 5,000,000.0, got %.1f\n" s
    | None ->
-     incr fail_count; Printf.printf "  ✗ Sum 100k rows: result is None\n");
+     incr fail_count; Printf.printf "  FAILURE Sum 100k rows: result is None\n");
 
   let (t_grp100k, grouped_100k) = time_it (fun () ->
     Arrow_compute.group_by tbl_100k ["group"]
   ) in
   let n_groups_100k = List.length (Arrow_compute.get_groups grouped_100k) in
   if n_groups_100k = 1000 then begin
-    incr pass_count; Printf.printf "  ✓ Group-by 100k rows → 1000 groups (%.4fs)\n" t_grp100k
+    incr pass_count; Printf.printf "  SUCCESS Group-by 100k rows → 1000 groups (%.4fs)\n" t_grp100k
   end else begin
-    incr fail_count; Printf.printf "  ✗ Group-by 100k rows: expected 1000 groups, got %d\n" n_groups_100k
+    incr fail_count; Printf.printf "  FAILURE Group-by 100k rows: expected 1000 groups, got %d\n" n_groups_100k
   end;
 
   let (t_gagg100k, gagg_100k_opt) = time_it (fun () ->
@@ -475,9 +475,9 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
   ) in
   (match gagg_100k_opt with
    | Some gagg_100k when Arrow_table.num_rows gagg_100k = 1000 ->
-     incr pass_count; Printf.printf "  ✓ Group aggregate sum 100k rows → 1000 groups (%.4fs)\n" t_gagg100k
+     incr pass_count; Printf.printf "  SUCCESS Group aggregate sum 100k rows → 1000 groups (%.4fs)\n" t_gagg100k
    | _ ->
-     incr fail_count; Printf.printf "  ✗ Group aggregate sum 100k rows failed\n");
+     incr fail_count; Printf.printf "  FAILURE Group aggregate sum 100k rows failed\n");
   print_newline ();
 
   Printf.printf "Arrow Performance — 1M Row Tests:\n";
@@ -485,42 +485,42 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
   (* Test 29: 1M row operations *)
   let tbl_1m = generate_test_table 1000000 10000 in
   if Arrow_table.num_rows tbl_1m = 1000000 then begin
-    incr pass_count; Printf.printf "  ✓ Generated 1M row table\n"
+    incr pass_count; Printf.printf "  SUCCESS Generated 1M row table\n"
   end else begin
-    incr fail_count; Printf.printf "  ✗ 1M row table generation failed\n"
+    incr fail_count; Printf.printf "  FAILURE 1M row table generation failed\n"
   end;
 
   let (t_sel1m, _) = time_it (fun () -> Arrow_compute.project tbl_1m ["id"; "value"]) in
-  incr pass_count; Printf.printf "  ✓ Project 1M rows (%.4fs)\n" t_sel1m;
+  incr pass_count; Printf.printf "  SUCCESS Project 1M rows (%.4fs)\n" t_sel1m;
 
   let (t_sum1m, sum1m) = time_it (fun () -> Arrow_compute.sum_column tbl_1m "value") in
   (match sum1m with
    | Some s when s = 50000000.0 ->
-     incr pass_count; Printf.printf "  ✓ Sum 1M rows = 50,000,000.0 (%.4fs)\n" t_sum1m
+     incr pass_count; Printf.printf "  SUCCESS Sum 1M rows = 50,000,000.0 (%.4fs)\n" t_sum1m
    | Some s ->
-     incr fail_count; Printf.printf "  ✗ Sum 1M rows incorrect: expected 50,000,000.0, got %.1f\n" s
+     incr fail_count; Printf.printf "  FAILURE Sum 1M rows incorrect: expected 50,000,000.0, got %.1f\n" s
    | None ->
-     incr fail_count; Printf.printf "  ✗ Sum 1M rows: result is None\n");
+     incr fail_count; Printf.printf "  FAILURE Sum 1M rows: result is None\n");
 
   let (t_mean1m, _) = time_it (fun () -> Arrow_compute.mean_column tbl_1m "value") in
-  incr pass_count; Printf.printf "  ✓ Mean 1M rows (%.4fs)\n" t_mean1m;
+  incr pass_count; Printf.printf "  SUCCESS Mean 1M rows (%.4fs)\n" t_mean1m;
 
   let (t_grp1m, grouped_1m) = time_it (fun () ->
     Arrow_compute.group_by tbl_1m ["group"]
   ) in
   let n_groups_1m = List.length (Arrow_compute.get_groups grouped_1m) in
   if n_groups_1m = 10000 then begin
-    incr pass_count; Printf.printf "  ✓ Group-by 1M rows → 10000 groups (%.4fs)\n" t_grp1m
+    incr pass_count; Printf.printf "  SUCCESS Group-by 1M rows → 10000 groups (%.4fs)\n" t_grp1m
   end else begin
-    incr fail_count; Printf.printf "  ✗ Group-by 1M rows: expected 10000 groups, got %d\n" n_groups_1m
+    incr fail_count; Printf.printf "  FAILURE Group-by 1M rows: expected 10000 groups, got %d\n" n_groups_1m
   end;
 
   let (t_gagg1m, gagg_1m_opt) = time_it (fun () ->
     Arrow_compute.group_aggregate grouped_1m "mean" "value"
   ) in
   (match gagg_1m_opt with
-   | Some _ -> incr pass_count; Printf.printf "  ✓ Group aggregate mean 1M rows (%.4fs)\n" t_gagg1m
-   | None   -> incr fail_count; Printf.printf "  ✗ Group aggregate mean 1M rows failed\n");
+   | Some _ -> incr pass_count; Printf.printf "  SUCCESS Group aggregate mean 1M rows (%.4fs)\n" t_gagg1m
+   | None   -> incr fail_count; Printf.printf "  FAILURE Group aggregate mean 1M rows failed\n");
 
   print_newline ();
 
@@ -532,9 +532,9 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
   ) in
   (match sqrt_result with
    | Some _ ->
-     incr pass_count; Printf.printf "  ✓ sqrt_column on 100k rows (%.4fs)\n" t_sqrt100k
+     incr pass_count; Printf.printf "  SUCCESS sqrt_column on 100k rows (%.4fs)\n" t_sqrt100k
    | None ->
-     incr fail_count; Printf.printf "  ✗ sqrt_column on 100k rows returned None\n");
+     incr fail_count; Printf.printf "  FAILURE sqrt_column on 100k rows returned None\n");
 
   (* Test 31: abs on 100k rows *)
   let (t_abs100k, abs_result) = time_it (fun () ->
@@ -542,9 +542,9 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
   ) in
   (match abs_result with
    | Some _ ->
-     incr pass_count; Printf.printf "  ✓ abs_column on 100k rows (%.4fs)\n" t_abs100k
+     incr pass_count; Printf.printf "  SUCCESS abs_column on 100k rows (%.4fs)\n" t_abs100k
    | None ->
-     incr fail_count; Printf.printf "  ✗ abs_column on 100k rows returned None\n");
+     incr fail_count; Printf.printf "  FAILURE abs_column on 100k rows returned None\n");
 
   (* Test 32: Comparison filter on 100k rows *)
   let (t_cmp100k, cmp_result) = time_it (fun () ->
@@ -553,9 +553,9 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env _tes
   (match cmp_result with
    | Some mask when Array.length mask = 100000 ->
      let n_true = Array.fold_left (fun acc b -> if b then acc + 1 else acc) 0 mask in
-     incr pass_count; Printf.printf "  ✓ compare_column_scalar on 100k rows (%d match, %.4fs)\n" n_true t_cmp100k
+     incr pass_count; Printf.printf "  SUCCESS compare_column_scalar on 100k rows (%d match, %.4fs)\n" n_true t_cmp100k
    | _ ->
-     incr fail_count; Printf.printf "  ✗ compare_column_scalar on 100k rows failed\n");
+     incr fail_count; Printf.printf "  FAILURE compare_column_scalar on 100k rows failed\n");
 
   print_newline ();
 

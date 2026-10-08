@@ -28,10 +28,10 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
          with _ -> false
        in
        if match_found then begin
-         incr pass_count; Printf.printf "  ✓ randomForest predict first label\n"
+         incr pass_count; Printf.printf "  SUCCESS randomForest predict first label\n"
        end else begin
          incr fail_count;
-         Printf.printf "  ✗ randomForest predict first label\n    Expected: \"setosa\"\n    Got: %s\n" result
+         Printf.printf "  FAILURE randomForest predict first label\n    Expected: \"setosa\"\n    Got: %s\n" result
        end
    | Ast.VDataFrame { arrow_table = table; _ } ->
        let column_names = Arrow_table.column_names table in
@@ -46,20 +46,20 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
            with _ -> false
          in
          if match_found then begin
-           incr pass_count; Printf.printf "  ✓ randomForest predict first label\n"
+           incr pass_count; Printf.printf "  SUCCESS randomForest predict first label\n"
          end else begin
            incr fail_count;
-           Printf.printf "  ✗ randomForest predict first label\n    Expected: \"setosa\"\n    Got: %s\n" result
+           Printf.printf "  FAILURE randomForest predict first label\n    Expected: \"setosa\"\n    Got: %s\n" result
          end
        end else begin
          incr fail_count;
-         Printf.printf "  ✗ randomForest predict first label\n    Expected: \"setosa\"\n    Got: prediction DataFrame is missing expected label column \"Species\" (got: %s)\n"
+         Printf.printf "  FAILURE randomForest predict first label\n    Expected: \"setosa\"\n    Got: prediction DataFrame is missing expected label column \"Species\" (got: %s)\n"
            (String.concat ", " column_names)
        end
    | _ ->
        let result = Ast.Utils.value_to_string v |> String.trim in
        incr fail_count;
-       Printf.printf "  ✗ randomForest predict first label\n    Expected: \"setosa\"\n    Got: %s\n" result);
+       Printf.printf "  FAILURE randomForest predict first label\n    Expected: \"setosa\"\n    Got: %s\n" result);
 
   let (stats_v, _) = eval_string_env {|fit_stats(m) |> colnames()|} env in
   let stats_cols = Ast.Utils.value_to_string stats_v |> String.trim in
@@ -70,10 +70,10 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     with _ -> false
   in
   if has_trees then begin
-    incr pass_count; Printf.printf "  ✓ randomForest fit_stats includes n_trees\n"
+    incr pass_count; Printf.printf "  SUCCESS randomForest fit_stats includes n_trees\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ randomForest fit_stats includes n_trees\n    Expected: column n_trees\n    Got: %s\n" stats_cols
+    Printf.printf "  FAILURE randomForest fit_stats includes n_trees\n    Expected: column n_trees\n    Got: %s\n" stats_cols
   end;
 
   test "summary random forest returns a Dict"
@@ -89,10 +89,10 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
     with _ -> false
   in
   if has_summary_trees then begin
-    incr pass_count; Printf.printf "  ✓ randomForest summary exposes model metrics\n"
+    incr pass_count; Printf.printf "  SUCCESS randomForest summary exposes model metrics\n"
   end else begin
     incr fail_count;
-    Printf.printf "  ✗ randomForest summary exposes model metrics\n    Expected: column n_trees\n    Got: %s\n" summary_cols
+    Printf.printf "  FAILURE randomForest summary exposes model metrics\n    Expected: column n_trees\n    Got: %s\n" summary_cols
   end;
 
   print_newline ()

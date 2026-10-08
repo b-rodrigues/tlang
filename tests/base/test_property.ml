@@ -1,4 +1,4 @@
-let run_tests pass_count fail_count failures _eval_string eval_string_env _test test_env =
+let run_tests pass_count fail_count failures _eval_string eval_string_env  _test test_env _test_equal =
   Printf.printf "Propcraft — property-based testing:\n";
   let env = Packages.init_env () in
 
@@ -14,9 +14,9 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env _test 
     | Ast.VError err ->
         incr fail_count;
         failures :=
-          Printf.sprintf "  ✗ %s\n    prop_show_spec raised: %s\n" label err.message
+          Printf.sprintf "  FAILURE %s\n    prop_show_spec raised: %s\n" label err.message
           :: !failures;
-        Printf.printf "  ✗ %s (prop_show_spec: %s)\n" label err.message
+        Printf.printf "  FAILURE %s (prop_show_spec: %s)\n" label err.message
     | VString rendered ->
         let (_, env2) =
           eval_string_env (Printf.sprintf "set_seed(42)\nrebuilt = %s" rendered) env1
@@ -39,21 +39,21 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env _test 
         in
         if draws orig = draws rebuilt then begin
           incr pass_count;
-          Printf.printf "  ✓ %s\n" label
+          Printf.printf "  SUCCESS %s\n" label
         end else begin
           incr fail_count;
           failures :=
-            Printf.sprintf "  ✗ %s\n    seeded streams differ (rendered: %s)\n" label rendered
+            Printf.sprintf "  FAILURE %s\n    seeded streams differ (rendered: %s)\n" label rendered
             :: !failures;
-          Printf.printf "  ✗ %s (rendered: %s)\n" label rendered
+          Printf.printf "  FAILURE %s (rendered: %s)\n" label rendered
         end
     | other ->
         incr fail_count;
         failures :=
-          Printf.sprintf "  ✗ %s\n    unexpected prop_show_spec result: %s\n" label
+          Printf.sprintf "  FAILURE %s\n    unexpected prop_show_spec result: %s\n" label
             (Ast.Utils.value_to_string other)
           :: !failures;
-        Printf.printf "  ✗ %s (unexpected result)\n" label
+        Printf.printf "  FAILURE %s (unexpected result)\n" label
   in
 
   (* PASS cases *)
@@ -660,10 +660,10 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env _test 
     let after = Rng.sample_indices ~total:5 ~k:3 ~replace:false in
     if before = after then begin
       incr pass_count;
-      Printf.printf "  ✓ with_seed restores RNG state after thunk exception\n"
+      Printf.printf "  SUCCESS with_seed restores RNG state after thunk exception\n"
     end else begin
       incr fail_count;
-      Printf.printf "  ✗ with_seed restores RNG state after thunk exception\n"
+      Printf.printf "  FAILURE with_seed restores RNG state after thunk exception\n"
     end
   in
   test_restore_after_error pass_count fail_count;

@@ -44,6 +44,10 @@ let distinct_impl (named_args : (string option * value) list) _env =
 --# Returns the distinct rows of a DataFrame, optionally using selected columns as uniqueness keys.
 --#
 --# @name distinct
+--# @param df :: DataFrame The input DataFrame.
+--# @param ... :: Symbol Optional uniqueness key columns.
+--# @param .keep_all :: Bool [Optional] Keep all columns. Defaults to false.
+--# @return :: DataFrame The DataFrame with unique rows.
 --# @family colcraft
 --# @export
 *)

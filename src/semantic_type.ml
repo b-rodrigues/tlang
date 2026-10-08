@@ -94,12 +94,17 @@ let rec from_string str =
   | "to_dataframe" | "table" | "dataframe" -> TDataFrame []
   | "any" | "value" | "all" | "mixed" | "..." -> TAny
   (* Nominal domain types, canonicalized to the annotation spelling
-     (annotations preserve case, so `Model` must stay `Model`). These only
-     ever match themselves (or Any), so they add precision without new
-     mismatch classes: a misspelled name simply never matches a real
-     annotation. Deliberately excluded: Function (arity lives in
-     TFunction), Error/VError/Null (descriptive positions, not
-     contracts), NA (bottom rules own it). *)
+     (annotations preserve case, so `Model` must stay `Model`). Unification
+     rule: a nominal matches only itself, `Any`, `Unknown`, or a type
+     variable — except `Function`, which also matches any `TArrow`
+     regardless of arity (see `Ast.types_compatible`), because arity lives
+     in the arrow and a bare `Function` name cannot name one. They add
+     precision without new mismatch classes: a misspelled name simply
+     never matches a real annotation. Argument-type checking warns on
+     definite mismatches only (`t check`, via `Check_utils`); these
+     contracts document and display but never reject a call. Deliberately
+     excluded: Error/VError/Null (descriptive positions, not contracts)
+     and NA (bottom rules own it). *)
   | "pipeline" -> TCustom "Pipeline"
   | "metapipeline" -> TCustom "MetaPipeline"
   | "model" -> TCustom "Model"
@@ -109,6 +114,24 @@ let rec from_string str =
   | "datetime" -> TCustom "Datetime"
   | "formula" -> TCustom "Formula"
   | "lens" -> TCustom "Lens"
+  (* Higher-order and selection vocabulary (`function`, `column`,
+     `selection`, `keywordargs`, `expressions`): opaque contracts under
+     the nominal rule above. `Function` is inhabited (lambdas and builtins
+     match it at value and static level). `Column`, `Selection`,
+     `KeywordArgs`, and `Expressions` are argument-shape words with no
+     value-level inhabitants: no builtin returns them (selection helpers
+     return `Function` or `List[String]`), so annotated bindings against
+     them reject everything but `Any`/`Unknown`/NA. That is intentional:
+     a permissive arm (e.g. `VBuiltin` matching `Selection`) would also
+     admit non-selections like `sum`. They document call shapes for
+     readers; `t check` skips them (plus `Strategy` and `$col`-mentioning
+     expressions) and checks the remaining positions, `Function`
+     included. *)
+  | "function" -> TCustom "Function"
+  | "column" -> TCustom "Column"
+  | "selection" -> TCustom "Selection"
+  | "keywordargs" -> TCustom "KeywordArgs"
+  | "expressions" -> TCustom "Expressions"
   | "strategy" -> TCustom "Strategy"
   | "shellresult" -> TCustom "ShellResult"
   | "factor" -> TCustom "Factor"
@@ -194,6 +217,59 @@ and parse_bracketed str =
       if n > 0 && str.[n - 1] = ']' && balanced (o + 1) 1 then
         Some (name, String.sub str (o + 1) (n - o - 2))
       else None
+
+(** Interpret a user-written annotation, mapping declared generic names
+    to unknown. A bare generic name (`T`) — or any compound mentioning
+    one (`List[T]`, `Dict[String, T]`) — has no inhabitants to check
+    against, so the position stays silent instead of riding on the
+    fallback parse (which would misread e.g. a generic named `List` as
+    a concrete collection). Non-generic annotations parse as written.
+
+    @param generics Declared generic parameter names (case-sensitive).
+    @param typ The annotation to interpret.
+    @return The corresponding semantic type. *)
+let of_annotation ~generics (typ : Ast.typ) =
+  let s = Ast.Utils.typ_to_string typ in
+  let is_word c =
+    (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+    || (c >= '0' && c <= '9') || c = '_'
+  in
+  let len = String.length s in
+  let rec tokens i cur acc =
+    if i >= len then (if cur = "" then acc else cur :: acc)
+    else if is_word s.[i] then tokens (i + 1) (cur ^ String.make 1 s.[i]) acc
+    else tokens (i + 1) "" (if cur = "" then acc else cur :: acc)
+  in
+  (* Generics are per-lambda: an inner lambda using an outer lambda's
+     name falls back to the plain parse below (usually unknown and
+     silent). Cross-lambda generics are rare; silence is safe. *)
+  let toks = tokens 0 "" [] in
+  if List.exists (fun g -> List.mem g toks) generics then TUnknown
+  else from_string s
+
+(** Pair parameter names with their declared types for lambda shapes.
+    Shared by Analyzer inference and value typing so the two paths
+    cannot drift. Missing entries (shorter annotation lists) stay
+    unknown; extra entries are dropped.
+
+    @param params Parameter names in order.
+    @param param_types Declared types in order.
+    @param generics Declared generic parameter names.
+    @return Name-type pairs for the function shape. *)
+let zip_params params param_types generics =
+  let rec zip ps ts acc =
+    match ps, ts with
+    | [], _ -> List.rev acc
+    | p :: ps', t :: ts' ->
+        let st =
+          match t with
+          | Some at -> of_annotation ~generics at
+          | None -> TUnknown
+        in
+        zip ps' ts' ((p, st) :: acc)
+    | p :: ps', [] -> zip ps' [] ((p, TUnknown) :: acc)
+  in
+  zip params param_types []
 
 (** Convert a semantic type to an AST type for comparison with annotations.
 

@@ -6,7 +6,7 @@ Coerces a value to a boolean. Recognizes 'TRUE'/'FALSE', 'T'/'F', non-zero numbe
 
 ## Parameters
 
-- **x** (`Any`): The value to convert.
+- **x** (`Bool | Int | Float | String | List | Vector`): The value to convert.
 
 
 ## Returns

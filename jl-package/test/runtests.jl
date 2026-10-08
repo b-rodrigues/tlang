@@ -1,3 +1,4 @@
+using JSON
 using Serialization
 using Test
 using tlang
@@ -51,5 +52,482 @@ end
         @test diff["identical"] == true
         @test diff["summary"]["changes"] == 0
         @test isempty(diff["detail"])
+    end
+end
+
+function _write_log(pipe::AbstractString, nodes, name::AbstractString)
+    mkpath(pipe)
+    open(joinpath(pipe, name), "w") do io
+        JSON.print(io, Dict("nodes" => nodes))
+    end
+end
+
+function _jl_node(name::AbstractString, path::AbstractString, serializer::AbstractString, deps)
+    Dict(
+        "node" => String(name),
+        "path" => String(path),
+        "serializer" => String(serializer),
+        "dependencies" => collect(String, deps),
+        "runtime" => "T",
+        "class" => "String",
+        "status" => "Completed",
+    )
+end
+
+@testset "read_node auto dispatch and tree" begin
+    @test tlang._normalize_serializer("^JSON") == "json"
+    @test tlang._normalize_serializer("") == "default"
+
+    mktempdir() do tmp_dir
+        pipe = joinpath(tmp_dir, "_pipeline")
+        payload = joinpath(tmp_dir, "v.json")
+        open(payload, "w") do io
+            JSON.print(io, Dict("a" => 1))
+        end
+        text = joinpath(tmp_dir, "t.txt")
+        write(text, "hello\r\n")
+        blob = joinpath(tmp_dir, "m.jls")
+        open(blob, "w") do io
+            Serialization.serialize(io, Dict("w" => 1))
+        end
+        _write_log(pipe, [
+            _jl_node("j", payload, "json", String[]),
+            _jl_node("t", text, "text", String[]),
+            _jl_node("m", blob, "default", String[]),
+        ], "build_log_20260101_000000_abc.json")
+        @test read_node("j", pipeline_dir=pipe)["a"] == 1
+        @test read_node("t", pipeline_dir=pipe) == "hello\r\n"
+        # Note: ^ipc/^parquet branches are untested here because Arrow,
+        # DataFrames, and Parquet2 are not test dependencies.
+        # rds has no Julia reader.
+        bad = joinpath(tmp_dir, "a.rds")
+        write(bad, "x")
+        _write_log(pipe, [_jl_node("r", bad, "rds", String[])],
+            "build_log_20260102_000000_def.json")
+        @test_throws ErrorException read_node("r", pipeline_dir=pipe, which_log="20260102")
+        # pmml suggests return_path.
+        pmml = joinpath(tmp_dir, "m.pmml")
+        write(pmml, "<PMML/>")
+        _write_log(pipe, [_jl_node("p", pmml, "pmml", String[])],
+            "build_log_20260103_000000_ghi.json")
+        err = try
+            read_node("p", pipeline_dir=pipe, which_log="20260103")
+            nothing
+        catch e
+            sprint(showerror, e)
+        end
+        @test occursin("return_path", err)
+    end
+
+    mktempdir() do tmp_dir
+        pipe = joinpath(tmp_dir, "_pipeline")
+        a = joinpath(tmp_dir, "a.txt"); write(a, "a")
+        b = joinpath(tmp_dir, "b.txt"); write(b, "b")
+        c = joinpath(tmp_dir, "c.txt"); write(c, "c")
+        _write_log(pipe, [
+            _jl_node("a", a, "text", String[]),
+            _jl_node("b", b, "text", ["a"]),
+            _jl_node("c", c, "text", ["b"]),
+        ], "build_log_20260104_000000_jkl.json")
+        @test sort(collect(keys(read_node_tree("a", pipeline_dir=pipe, which_log="20260104")))) == ["a", "b", "c"]
+        @test sort(collect(keys(read_node_tree("c", pipeline_dir=pipe, which_log="20260104", include="parents")))) == ["a", "b", "c"]
+        both = read_node_tree("b", pipeline_dir=pipe, which_log="20260104", include="both")
+        @test both["b"] == "b"
+        # Cycle terminates.
+        _write_log(pipe, [
+            _jl_node("a", a, "text", ["b"]),
+            _jl_node("b", b, "text", ["a"]),
+        ], "build_log_20260105_000000_mno.json")
+        cyc = read_node_tree("a", pipeline_dir=pipe, which_log="20260105", include="both")
+        @test sort(collect(keys(cyc))) == ["a", "b"]
+        # Unknown dependency errors.
+        _write_log(pipe, [_jl_node("a", a, "text", ["ghost"])],
+            "build_log_20260106_000000_pqr.json")
+        @test_throws ErrorException read_node_tree("a", pipeline_dir=pipe, which_log="20260106", include="parents")
+        # Snapshot race: omit which_log so "latest" is used. The racing
+        # deserializer writes a newer log that rewrites b to different
+        # contents; the in-progress tree must keep the original contents.
+        b_new = joinpath(tmp_dir, "b_new.txt"); write(b_new, "CHANGED")
+        _write_log(pipe, [
+            _jl_node("a", a, "text", String[]),
+            _jl_node("b", b, "text", ["a"]),
+        ], "build_log_20260108_000000_vwx.json")
+        function racing(path)
+            _write_log(pipe, [
+                _jl_node("a", a, "text", String[]),
+                _jl_node("b", b_new, "text", ["a"]),
+                _jl_node("c", c, "text", ["b"]),
+            ], "build_log_20260109_000000_zzz.json")
+            return read(String(path), String)
+        end
+        tree = read_node_tree("a", pipeline_dir=pipe,
+            deserializer=racing, include="children")
+        @test sort(collect(keys(tree))) == ["a", "b"]
+        @test tree["b"] == "b"
+        # Unreadable fallback.
+        pmml = joinpath(tmp_dir, "m.pmml"); write(pmml, "<PMML/>")
+        _write_log(pipe, [
+            _jl_node("good", a, "text", String[]),
+            _jl_node("bad", pmml, "pmml", ["good"]),
+        ], "build_log_20260110_000000_yza.json")
+        @test_throws ErrorException read_node_tree("good", pipeline_dir=pipe, which_log="20260110")
+        as_path = read_node_tree("good", pipeline_dir=pipe, which_log="20260110", on_unreadable="path")
+        @test as_path["good"] == "a"
+        @test endswith(as_path["bad"]["path"], "m.pmml")
+        @test as_path["bad"]["serializer"] == "pmml"
+        skipped = read_node_tree("good", pipeline_dir=pipe, which_log="20260110", on_unreadable="skip")
+        @test sort(collect(keys(skipped))) == ["good"]
+    end
+end
+
+@testset "inspect" begin
+    mktempdir() do tmp_dir
+        pipe = joinpath(tmp_dir, "_pipeline")
+        art = joinpath(tmp_dir, "a.txt"); write(art, "a")
+        _write_log(pipe, [
+            _jl_node("a", art, "text", String[]),
+            _jl_node("b", art, "json", ["a"]),
+        ], "build_log_20260101_000000_abc.json")
+        info = inspect_node("b", pipeline_dir=pipe)
+        @test info["name"] == "b"
+        @test info["serializer"] == "json"
+        @test info["dependencies"] == ["a"]
+        @test info["children"] == []
+        @test info["error"] === nothing
+        @test inspect_node("a", pipeline_dir=pipe)["children"] == ["b"]
+
+        open(joinpath(pipe, "build_log_20260102_000000_def.json"), "w") do io
+            JSON.print(io, Dict("nodes" => [
+                _jl_node("a", art, "text", String[]),
+                _jl_node("b", art, "text", ["a"]),
+                _jl_node("c", art, "text", ["b"]),
+            ]))
+        end
+        lin = lineage("b", pipeline_dir=pipe, which_log="20260102")
+        @test lin["parents"] == ["a"] && lin["children"] == ["c"]
+
+        # An R failure reads the same from Julia: plain VError JSON.
+        verror = joinpath(tmp_dir, "err.json")
+        open(verror, "w") do io
+            JSON.print(io, Dict("type" => "VError", "code" => "RunError",
+                "message" => "Error in lm.fit(x, y) : NA/NaN/Inf in 'y'",
+                "context" => Dict("runtime" => "R")))
+        end
+        _write_log(pipe, [
+            Dict("node" => "bad", "path" => verror, "runtime" => "R",
+                "serializer" => "default", "dependencies" => String[],
+                "status" => "SoftFailed", "class" => "VError"),
+            _jl_node("good", art, "text", String[]),
+        ], "build_log_20260103_000000_ghi.json")
+        err_msg = error_msg("bad", pipeline_dir=pipe, which_log="20260103")
+        @test occursin("lm.fit", err_msg)
+        @test error_code("bad", pipeline_dir=pipe, which_log="20260103") == "RunError"
+        @test_throws ErrorException error_msg("good", pipeline_dir=pipe, which_log="20260103")
+
+        # warning_msg joins own and upstream warnings like T.
+        parent_dir = joinpath(tmp_dir, "parent_art"); mkpath(parent_dir)
+        write(joinpath(parent_dir, "artifact"), "x")
+        open(joinpath(parent_dir, "warnings"), "w") do io
+            JSON.print(io, ["stale column"])
+        end
+        child_dir = joinpath(tmp_dir, "child_art"); mkpath(child_dir)
+        write(joinpath(child_dir, "artifact"), "x")
+        open(joinpath(child_dir, "warnings"), "w") do io
+            JSON.print(io, ["late column"])
+        end
+        open(joinpath(pipe, "build_log_20260104_000000_jkl.json"), "w") do io
+            JSON.print(io, Dict("nodes" => [
+                Dict("node" => "parent", "path" => joinpath(parent_dir, "artifact"),
+                    "runtime" => "T", "serializer" => "text", "dependencies" => String[],
+                    "status" => "Completed", "class" => "String", "warnings" => true),
+                Dict("node" => "child", "path" => joinpath(child_dir, "artifact"),
+                    "runtime" => "T", "serializer" => "text", "dependencies" => ["parent"],
+                    "status" => "Completed", "class" => "String", "warnings" => true),
+            ]))
+        end
+        @test warning_msg("child", pipeline_dir=pipe, which_log="20260104") ==
+            "late column. Furthermore, Ancestor node 'parent' reported following warning: stale column"
+        @test warning_msg("parent", pipeline_dir=pipe, which_log="20260104") == "stale column"
+
+        # Runtime mismatch hint: foreign bytes fail Serialization.
+        pkl = joinpath(tmp_dir, "m.pkl")
+        open(pkl, "w") do io
+            write(io, UInt8[0x37])
+        end
+        _write_log(pipe, [
+            Dict("node" => "m", "path" => pkl, "runtime" => "Python",
+                "serializer" => "default", "dependencies" => String[],
+                "status" => "Completed", "class" => "Vector"),
+        ], "build_log_20260105_000000_rt.json")
+        err = try
+            read_node("m", pipeline_dir=pipe, which_log="000000_rt")
+            nothing
+        catch e
+            sprint(showerror, e)
+        end
+        @test occursin("built by runtime `Python`", err)
+
+        # Completed status with a VError class still counts as failed.
+        verror2 = joinpath(tmp_dir, "err2.json")
+        open(verror2, "w") do io
+            JSON.print(io, Dict("type" => "VError", "code" => "RunError", "message" => "boom"))
+        end
+        _write_log(pipe, [
+            Dict("node" => "cv", "path" => verror2, "runtime" => "R",
+                "serializer" => "default", "dependencies" => String[],
+                "status" => "Completed", "class" => "VError"),
+        ], "build_log_20260111_000000_cmp.json")
+        @test error_code("cv", pipeline_dir=pipe, which_log="20260111") == "RunError"
+        errs = collect_exceptions(pipeline_dir=pipe, which_log="20260111")
+        @test length(errs) == 1 && errs[1]["code"] == "RunError"
+
+        # SoftFailed with a plain class still reads a VError artifact.
+        _write_log(pipe, [
+            Dict("node" => "sf", "path" => verror2, "runtime" => "R",
+                "serializer" => "default", "dependencies" => String[],
+                "status" => "SoftFailed", "class" => "DataFrame"),
+        ], "build_log_20260111_000000_sf.json")
+        @test error_code("sf", pipeline_dir=pipe, which_log="000000_sf") == "RunError"
+
+        # A healthy node never opens its artifact, even when the file holds
+        # valid VError JSON.
+        _write_log(pipe, [
+            _jl_node("ok", verror2, "default", String[]),
+        ], "build_log_20260111_000000_ok.json")
+        @test_throws ErrorException error_msg("ok", pipeline_dir=pipe, which_log="000000_ok")
+        @test inspect_node("ok", pipeline_dir=pipe, which_log="000000_ok")["error"] === nothing
+
+        # Message without a code keeps the class as the code.
+        plain = joinpath(tmp_dir, "plain.txt"); write(plain, "x")
+        _write_log(pipe, [
+            Dict("node" => "mo", "path" => plain, "runtime" => "T",
+                "serializer" => "text", "dependencies" => String[],
+                "status" => "SoftFailed", "class" => "VDict",
+                "error_message" => "just a message"),
+        ], "build_log_20260111_000000_mo.json")
+        errs = collect_exceptions(pipeline_dir=pipe, which_log="000000_mo")
+        @test length(errs) == 1 && errs[1]["code"] == "VDict"
+
+        # Neighbor order is sorted within each level in every language.
+        _write_log(pipe, [
+            _jl_node("a", art, "text", String[]),
+            _jl_node("z", art, "text", ["a"]),
+            _jl_node("m", art, "text", ["a"]),
+            _jl_node("leaf", art, "text", ["z", "m"]),
+        ], "build_log_20260112_000000_dia.json")
+        lin = lineage("leaf", pipeline_dir=pipe, which_log="20260112", direction="parents")
+        @test lin["parents"] == ["m", "z", "a"]
+        lin = lineage("a", pipeline_dir=pipe, which_log="20260112", direction="children")
+        @test lin["children"] == ["m", "z", "leaf"]
+
+        # Byte order (not locale order) in every language: B < _ < a < a1.
+        _write_log(pipe, [
+            _jl_node("root", art, "text", String[]),
+            _jl_node("a1", art, "text", ["root"]),
+            _jl_node("a", art, "text", ["root"]),
+            _jl_node("_x", art, "text", ["root"]),
+            _jl_node("B", art, "text", ["root"]),
+        ], "build_log_20260112_000000_byte.json")
+        lin = lineage("root", pipeline_dir=pipe, which_log="byte", direction="children")
+        @test lin["children"] == ["B", "_x", "a", "a1"]
+
+        # A healthy node with a dangling artifact path never opens the file.
+        _write_log(pipe, [
+            _jl_node("dang", "/tmp/definitely-missing-artifact", "text", String[]),
+        ], "build_log_20260113_000000_dng.json")
+        @test_throws ErrorException error_msg("dang", pipeline_dir=pipe, which_log="20260113")
+        @test inspect_node("dang", pipeline_dir=pipe, which_log="20260113")["error"] === nothing
+
+        # _loaded_module ignores non-module bindings in Main.
+        @eval Main __tlang_fake_mod__ = 42
+        @test tlang._loaded_module(:__tlang_fake_mod__) === nothing
+        @eval Main __tlang_fake_mod__ = nothing
+        @test tlang._loaded_module(:JSON) isa Module
+
+        # show_code returns embedded code verbatim and script paths as-is.
+        _write_log(pipe, [
+            Dict("node" => "emb", "path" => art, "runtime" => "R",
+                "serializer" => "default", "dependencies" => String[],
+                "status" => "Completed", "class" => "String",
+                "source" => "df <- read.csv(\"a.csv\")\nprint(df)"),
+            Dict("node" => "scr", "path" => art, "runtime" => "R",
+                "serializer" => "default", "dependencies" => String[],
+                "status" => "Completed", "class" => "String",
+                "script" => "train.R"),
+            _jl_node("old", art, "text", String[]),
+        ], "build_log_20260114_000000_src.json")
+        @test show_code("emb", pipeline_dir=pipe, which_log="20260114") ==
+            "df <- read.csv(\"a.csv\")\nprint(df)"
+        @test show_code("scr", pipeline_dir=pipe, which_log="20260114") == "train.R"
+        @test_throws ErrorException show_code("old", pipeline_dir=pipe, which_log="20260114")
+        err = try
+            show_code("old", pipeline_dir=pipe, which_log="20260114")
+            nothing
+        catch e
+            sprint(showerror, e)
+        end
+        @test occursin("record_source", err)
+
+        # show_code verify checks the recorded script hash.
+        script_path = joinpath(tmp_dir, "train.R"); write(script_path, "x <- 1\n")
+        digest = try
+            strip(split(read(`md5sum $script_path`, String))[1])
+        catch
+            @warn "Skipping verify test: `md5sum` not found."
+            nothing
+        end
+        if !isnothing(digest)
+            _write_log(pipe, [
+                Dict("node" => "ok", "path" => art, "runtime" => "R",
+                    "serializer" => "default", "dependencies" => String[],
+                    "status" => "Completed", "class" => "String",
+                    "script" => "train.R", "script_hash" => digest),
+                Dict("node" => "drifted", "path" => art, "runtime" => "R",
+                    "serializer" => "default", "dependencies" => String[],
+                    "status" => "Completed", "class" => "String",
+                    "script" => "train.R", "script_hash" => repeat("0", 32)),
+                Dict("node" => "nohash", "path" => art, "runtime" => "R",
+                    "serializer" => "default", "dependencies" => String[],
+                    "status" => "Completed", "class" => "String",
+                    "script" => "train.R"),
+                Dict("node" => "gone", "path" => art, "runtime" => "R",
+                    "serializer" => "default", "dependencies" => String[],
+                    "status" => "Completed", "class" => "String",
+                    "script" => "missing.R", "script_hash" => digest),
+                Dict("node" => "emb2", "path" => art, "runtime" => "R",
+                    "serializer" => "default", "dependencies" => String[],
+                    "status" => "Completed", "class" => "String",
+                    "source" => "x <- 1\n"),
+            ], "build_log_20260115_000000_ver.json")
+            @test show_code("ok", pipeline_dir=pipe, which_log="20260115", verify=true) == "train.R"
+            @test_throws ErrorException show_code("drifted", pipeline_dir=pipe, which_log="20260115", verify=true)
+            @test_throws ErrorException show_code("nohash", pipeline_dir=pipe, which_log="20260115", verify=true)
+            @test_throws ErrorException show_code("gone", pipeline_dir=pipe, which_log="20260115", verify=true)
+            @test show_code("emb2", pipeline_dir=pipe, which_log="20260115", verify=true) == "x <- 1\n"
+        end
+    end
+end
+
+@testset "inspect_pipeline" begin
+    mktempdir() do tmp_dir
+        pipe = joinpath(tmp_dir, "_pipeline")
+        art = joinpath(tmp_dir, "a.txt"); write(art, "a")
+        _write_log(pipe, [
+            Dict("node" => "a", "path" => art, "runtime" => "T",
+                "serializer" => "text", "dependencies" => String[],
+                "status" => "Completed", "class" => "String"),
+            Dict("node" => "b", "path" => art, "runtime" => "R",
+                "serializer" => "json", "dependencies" => ["a"],
+                "success" => true, "class" => "VDict"),
+            Dict("node" => "c", "path" => art, "runtime" => "Python",
+                "serializer" => "csv", "dependencies" => ["b"],
+                "success" => "false", "class" => "DataFrame"),
+        ], "build_log_20260101_000000_abc.json")
+        rows = inspect_pipeline(pipeline_dir=pipe)
+        @test [r["node"] for r in rows] == ["a", "b", "c"]
+        @test rows[1]["status"] == "Completed"
+        @test rows[2]["status"] == "Completed"
+        @test rows[3]["status"] == "SoftFailed"
+        @test rows[2]["dependencies"] == ["a"]
+
+        other = joinpath(tmp_dir, "o.txt"); write(other, "o")
+        _write_log(pipe, [
+            Dict("node" => "a", "path" => other, "runtime" => "R",
+                "serializer" => "text", "dependencies" => String[],
+                "status" => "Completed", "class" => "String"),
+        ], "build_log_20260102_000000_zzz.json")
+        @test inspect_pipeline(pipeline_dir=pipe)[1]["runtime"] == "R"
+        @test inspect_pipeline(pipeline_dir=pipe, which_log="20260101")[1]["runtime"] == "T"
+    end
+
+    mktempdir() do tmp_dir
+        pipe = joinpath(tmp_dir, "_pipeline")
+        mkpath(pipe)
+        open(joinpath(pipe, "dag.json"), "w") do io
+            JSON.print(io, [
+                Dict("node_name" => "a", "depends" => String[]),
+                Dict("node_name" => "b", "depends" => ["a"]),
+            ])
+        end
+        rows = inspect_pipeline(pipeline_dir=pipe)
+        @test [r["node"] for r in rows] == ["a", "b"]
+        @test all(r -> r["status"] == "unbuilt", rows)
+        @test rows[2]["dependencies"] == ["a"]
+    end
+end
+
+@testset "frames" begin
+    mktempdir() do tmp_dir
+        pipe = joinpath(tmp_dir, "_pipeline")
+        art = joinpath(tmp_dir, "a.txt"); write(art, "a")
+        _write_log(pipe, [
+            Dict("node" => "a", "path" => art, "runtime" => "T",
+                "serializer" => "text", "dependencies" => String[],
+                "status" => "Completed", "duration" => 1.5, "class" => "String"),
+            Dict("node" => "b", "path" => art, "runtime" => "R",
+                "serializer" => "json", "dependencies" => ["a"],
+                "success" => true, "class" => "VDict"),
+            Dict("node" => "c", "path" => art, "runtime" => "Python",
+                "serializer" => "csv", "dependencies" => ["b"],
+                "success" => "false", "class" => "DataFrame"),
+        ], "build_log_20260101_000000_abc.json")
+        rows = build_log_to_frame(pipeline_dir=pipe, which_log="20260101")
+        @test [r["name"] for r in rows] == ["a", "b", "c"]
+        @test rows[1]["duration"] == 1.5
+        @test rows[3]["status"] == "SoftFailed"
+
+        mkpath(joinpath(tmp_dir, "art"))
+        artifact = joinpath(tmp_dir, "art", "artifact"); write(artifact, "x")
+        open(joinpath(tmp_dir, "art", "warnings"), "w") do io
+            JSON.print(io, ["late column", Dict("kind" => "NA", "message" => "3 NAs")])
+        end
+        _write_log(pipe, [
+            Dict("node" => "bad", "path" => "/tmp/nonexistent",
+                "runtime" => "T", "class" => "Error", "status" => "Errored",
+                "error_code" => "NixError", "error_message" => "line1\nboom"),
+            Dict("node" => "warned", "path" => artifact, "runtime" => "T",
+                "class" => "DataFrame", "status" => "Completed", "warnings" => true),
+        ], "build_log_20260103_000000_qqq.json")
+        errs = collect_exceptions(pipeline_dir=pipe, which_log="20260103")
+        @test sort([r["node"] for r in errs]) == ["bad", "warned", "warned"]
+        bad = only([r for r in errs if r["node"] == "bad"])
+        @test (bad["status"], bad["code"], bad["message"]) == ("Error", "NixError", "boom")
+
+        # A soft failure whose message lives only in the VError artifact.
+        verror = joinpath(tmp_dir, "err.json")
+        open(verror, "w") do io
+            JSON.print(io, Dict("type" => "VError", "code" => "RunError",
+                "message" => "Error in lm.fit(x, y)"))
+        end
+        _write_log(pipe, [
+            Dict("node" => "soft", "path" => verror, "runtime" => "R",
+                "serializer" => "default", "dependencies" => String[],
+                "status" => "SoftFailed", "class" => "VError"),
+        ], "build_log_20260105_000000_art.json")
+        errs = collect_exceptions(pipeline_dir=pipe, which_log="20260105")
+        @test length(errs) == 1
+        @test (errs[1]["node"], errs[1]["code"], errs[1]["message"]) ==
+            ("soft", "RunError", "Error in lm.fit(x, y)")
+
+        # Warnings sidecar found through a relative log path.
+        mkpath(joinpath(tmp_dir, "data"))
+        write(joinpath(tmp_dir, "data", "artifact"), "x")
+        open(joinpath(tmp_dir, "data", "warnings"), "w") do io
+            JSON.print(io, ["late column"])
+        end
+        _write_log(pipe, [
+            Dict("node" => "a", "path" => "data/artifact", "runtime" => "T",
+                "serializer" => "text", "dependencies" => String[],
+                "status" => "Completed", "class" => "String", "warnings" => true),
+        ], "build_log_20260106_000000_rel.json")
+        errs = collect_exceptions(pipeline_dir=pipe, which_log="20260106")
+        @test length(errs) == 1 && errs[1]["message"] == "late column"
+
+        open(joinpath(pipe, "build_log_20260107_000000_lll.json"), "w") do io
+            JSON.print(io, Dict("pipeline" => "demo", "nodes" => []))
+        end
+        logs = list_logs(pipeline_dir=pipe)
+        @test logs[1]["filename"] == "build_log_20260107_000000_lll.json"
+        @test logs[1]["pipeline"] == "demo"
     end
 end

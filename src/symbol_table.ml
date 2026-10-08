@@ -125,6 +125,13 @@ let register_keywords scope =
 
 let builtin_typ_cache = Hashtbl.create 100
 
+(** Drop cached builtin types derived from documentation.
+    Call after the documentation registry changes (load, restore):
+    cached `TFunction` shapes would otherwise outlive the registry
+    content they were derived from. *)
+let clear_builtin_typ_cache () =
+  Hashtbl.clear builtin_typ_cache
+
 (** Infer the semantic type of a runtime AST value.
     
     Utilizes caching for builtins to optimize repeated queries.
@@ -142,9 +149,15 @@ let value_to_semantic_type v =
       let cols = List.map (fun name -> Semantic_type.{ name; col_typ = Semantic_type.TUnknown }) col_names in
       if group_keys = [] then Some (Semantic_type.TDataFrame cols)
       else Some (Semantic_type.TGroupedDataFrame (cols, group_keys))
-  | Ast.VLambda { params; _ } ->
-      let args = List.map (fun name -> (name, Semantic_type.TUnknown)) params in
-      Some (Semantic_type.TFunction (args, Semantic_type.TUnknown))
+  | Ast.VLambda { params; param_types; return_type; generic_params; _ } ->
+      (* Mirror Analyzer Lambda inference via the shared helper, so the
+         two paths cannot drift. *)
+      let args = Semantic_type.zip_params params param_types generic_params in
+      let ret =
+        match return_type with
+        | Some at -> Semantic_type.of_annotation ~generics:generic_params at
+        | None -> Semantic_type.TUnknown in
+      Some (Semantic_type.TFunction (args, ret))
   | Ast.VBuiltin { b_name; b_arity; b_variadic; _ } ->
       let cache_key = match b_name with Some n -> n | None -> "arity:" ^ string_of_int b_arity ^ (if b_variadic then "+" else "") in
       (match Hashtbl.find_opt builtin_typ_cache cache_key with

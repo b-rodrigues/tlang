@@ -45,7 +45,7 @@ validate_node_entry <- function(entry, index, dag_file) {
     )
   }
 
-  list(node_name = node_name, depends = unique(sort(depends)))
+  list(node_name = node_name, depends = unique(sort(depends, method = "radix")))
 }
 
 #' Get pipeline nodes and their dependencies from `_pipeline/dag.json`

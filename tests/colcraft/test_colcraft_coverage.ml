@@ -229,4 +229,27 @@ select(wide, where(is_logical)) |> ncol|}
     {|df = to_dataframe([[x: 1], [x: 1], [x: 2]]); distinct(df) |> nrow|}
     "2";
 
+  Printf.printf "Mistyped verb arguments still fail:\n";
+  test "filter rejects non-function predicate"
+    {|df = to_dataframe([[x: [1]]]); filter(df, 5)|}
+    "is not callable";
+  test "select rejects non-column"
+    {|df = to_dataframe([[x: [1]]]); select(df, 1)|}
+    {|Error(TypeError: "Function `select` expects $column syntax.")|};
+  test "mutate rejects bare value"
+    {|df = to_dataframe([[x: [1]]]); mutate(df, 5)|}
+    {|Error(TypeError: "Function `mutate` expects $column = expr syntax.")|};
+  test "summarize rejects bare value"
+    {|df = to_dataframe([[x: [1]]]); summarize(df, 5)|}
+    {|Error(TypeError: "Function `summarize` expects $column = expr syntax.")|};
+  test "uncount rejects non-column weights"
+    {|df = to_dataframe([[x: [1]]]); uncount(df, weights = 5)|}
+    "expects a weights column";
+  test "fct_recode rejects positional junk"
+    {|fct_recode(to_factor(["a"]), 5)|}
+    "expects at least 1 argument";
+  test "fct_collapse rejects missing factor"
+    {|fct_collapse(5)|}
+    "expects at least 1 argument";
+
   print_newline ()
