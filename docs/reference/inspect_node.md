@@ -2,7 +2,7 @@
 
 Inspect Pipeline Node Metadata
 
-Returns a dictionary with metadata about a computed node, including its name, runtime, artifact path, serializer, class, dependencies, and warnings. The `warnings` key contains a structured list of warning records, each with `source` ("own" or the ancestor node name) and `message`.
+Returns a dictionary with metadata about a computed node, including its name, runtime, artifact path, serializer, class, dependencies, and warnings. The `warnings` key contains a structured list of warning records, each with `source` ("own" or the ancestor node name) and `message`. Failed nodes (Error values) return the same keys with `status` = "Errored" plus `error_code` and `error_message`, so inspection works exactly when debug data matters most.
 
 ## Parameters
 
