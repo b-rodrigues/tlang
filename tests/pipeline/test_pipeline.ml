@@ -2291,15 +2291,20 @@ p.t_step|}
     in
     let res1 = inspect_fn [(None, err_node)] (ref env) in
     (match res1 with
-     | Ast.VError info ->
-         let expected_substr = "inspect_node: expected a ComputedNode, but got an Error because node `failing_node` failed" in
-         if contains_substring info.message expected_substr then begin
-           incr pass_count; Printf.printf "  SUCCESS inspect_node returns a clear error message on failing nodes\n"
+     | Ast.VDict fields ->
+         let get k = List.assoc_opt k fields in
+         let ok_name = match get "name" with Some (Ast.VString "failing_node") -> true | _ -> false in
+         let ok_status = match get "status" with Some (Ast.VString "Errored") -> true | _ -> false in
+         let ok_msg = match get "error_message" with
+           | Some (Ast.VString m) -> contains_substring m "failing_node failed"
+           | _ -> false in
+         if ok_name && ok_status && ok_msg then begin
+           incr pass_count; Printf.printf "  SUCCESS inspect_node returns error facts dict on failing nodes\n"
          end else begin
-           incr fail_count; Printf.printf "  FAILURE inspect_node error message mismatch: %s\n" info.message
+           incr fail_count; Printf.printf "  FAILURE inspect_node error dict mismatch: %s\n" (Ast.Utils.value_to_string res1)
          end
      | other ->
-         incr fail_count; Printf.printf "  FAILURE inspect_node expected VError, got: %s\n" (Ast.Utils.value_to_string other));
+         incr fail_count; Printf.printf "  FAILURE inspect_node expected Dict, got: %s\n" (Ast.Utils.value_to_string other));
     let res2 = inspect_fn [(None, Ast.VString "not_a_computed_node")] (ref env) in
     (match res2 with
      | Ast.VError info ->

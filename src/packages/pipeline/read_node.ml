@@ -616,6 +616,9 @@ let read_fn named_args _env =
 --# name, runtime, artifact path, serializer, class, dependencies, and warnings.
 --# The `warnings` key contains a structured list of warning records, each with
 --# `source` ("own" or the ancestor node name) and `message`.
+--# Failed nodes (Error values) return the same keys with `status` =
+--# "Errored" plus `error_code` and `error_message`, so inspection works
+--# exactly when debug data matters most.
 --#
 --# @name inspect_node
 --# @param node :: ComputedNode A computed node value (e.g. from a built pipeline).
@@ -649,16 +652,26 @@ let read_fn named_args _env =
           ("warnings", warning_entries);
         ]
     | VError err ->
+        (* Failed nodes carry the most debug value, so inspect them instead
+           of rejecting them: same keys as the success path, plus error
+           facts and NA for fields that need a computed artifact. *)
         let node_name =
           match List.assoc_opt "node_name" err.context with
           | Some (VString name) -> Some name
           | _ -> None
         in
-        (match node_name with
-         | Some name ->
-             Error.type_error (Printf.sprintf "inspect_node: expected a ComputedNode, but got an Error because node `%s` failed. To inspect its error, query its properties (e.g. `node.error_msg` or `node.error`) or use `read_node(p, \"%s\")`." name name)
-         | None ->
-             Error.type_error "inspect_node: expected a ComputedNode, but got an Error value. If this is a failing pipeline node, use its error properties or read_node() to inspect it.")
+        VDict [
+          ("name", (match node_name with Some n -> VString n | None -> VNA NAGeneric));
+          ("runtime", VNA NAGeneric);
+          ("path", VNA NAGeneric);
+          ("serializer", VNA NAGeneric);
+          ("class", VString "Error");
+          ("dependencies", VList []);
+          ("warnings", VList []);
+          ("status", VString "Errored");
+          ("error_code", VString (Utils.error_code_to_string err.code));
+          ("error_message", VString err.message);
+        ]
     | VSymbol name as other ->
         let node_name =
           if String.length name > 6 && String.sub name 0 6 = "<noop:" then
@@ -693,12 +706,23 @@ let read_fn named_args _env =
     | VComputedNode cn ->
         let quoted_name = Filename.quote cn.cn_name in
         let cmd = Printf.sprintf "nix-build --impure _pipeline/pipeline.nix -A %s --no-out-link 2>&1" quoted_name in
+        (* Keep failure output calm: report the last 15 lines (the same tail
+           convention as build failures) instead of the full log dump. *)
+        let last_lines output n =
+          let lines = String.split_on_char '\n' output in
+          let rec drop k xs = if k <= 0 then xs else match xs with [] -> [] | _ :: t -> drop (k - 1) t in
+          let len = List.length lines in
+          String.concat "\n" (drop (max 0 (len - n)) lines)
+        in
         (match Builder_utils.run_command_capture cmd with
          | Ok (Unix.WEXITED 0, output) ->
              let store_path = String.trim output in
              let new_path = Filename.concat (Filename.concat store_path cn.cn_name) "artifact" in
              VComputedNode { cn with cn_path = new_path }
-         | Ok (_, output) -> Error.make_error GenericError (Printf.sprintf "rebuild_node failed: %s" output)
+         | Ok (_, output) ->
+             Error.make_error GenericError
+               (Printf.sprintf "rebuild_node failed for node `%s` (last 15 lines):\n%s\nRun `read_log(p.%s)` for the full log."
+                  cn.cn_name (last_lines output 15) cn.cn_name)
          | Error msg -> Error.make_error GenericError (Printf.sprintf "Failed to run nix-build: %s" msg))
     | other ->
         Error.type_error

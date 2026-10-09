@@ -132,6 +132,7 @@ val diagnostic_phase : diagnostic -> diagnostic_phase
 val diagnostic_severity : diagnostic -> severity
 val diagnostic_error_class : diagnostic -> error_class
 val diagnostic_message : diagnostic -> string
+val suggested_fix_summary : suggested_fix -> string option
 val check_result_entries : check_result -> diagnostic list
 val make_result : tier:int -> phase:diagnostic_phase -> diagnostic list -> check_result
 val extract_name_and_suggestion : string -> (string * (string * int * bool) option)

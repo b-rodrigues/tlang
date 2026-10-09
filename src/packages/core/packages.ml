@@ -859,6 +859,7 @@ let init_env () =
   let env = Pipeline_to_frame.register env in
   let env = Pipeline_config_to_frame.register env in
   let env = Pipeline_status.register env in
+  let env = Pipeline_overview.register env in
   let env = Pipeline_to_drv.register env in
   let env = Pipeline_to_store.register env in
   let env = Set_nix_defaults.register env in

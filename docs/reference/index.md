@@ -325,6 +325,7 @@
 | [pipeline_node](pipeline_node.html) | Get Pipeline Node |
 | [pipeline_node_options](pipeline_node_options.html) | Get Pipeline Node Options (read-back) |
 | [pipeline_nodes](pipeline_nodes.html) | List Pipeline Nodes |
+| [pipeline_overview](pipeline_overview.html) | Unified pipeline overview table |
 | [pipeline_print](pipeline_print.html) | Pretty-Print a Pipeline |
 | [pipeline_report](pipeline_report.html) | Generate Pipeline Report |
 | [pipeline_roots](pipeline_roots.html) | Pipeline Root Nodes |

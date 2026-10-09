@@ -101,6 +101,10 @@
           "Arrow"
           "CairoMakie"
           "Plots"
+          # Needed by jl-package tests (diff helpers via DeepDiffs).
+          # Keep jl-package/Manifest.toml pins aligned with this depot;
+          # re-resolve it whenever this list changes (see jl-package/README.md).
+          "DeepDiffs"
         ];
 
         # Pin a specific version of OCaml for reproducibility.
@@ -504,7 +508,11 @@ chmod +x $out/bin/bisect-ppx-report
 
             # Make local companion language packages importable in nix develop
             export PYTHONPATH="$TLANG_REPO_ROOT/py-package/src''${PYTHONPATH:+:$PYTHONPATH}"
-            export JULIA_LOAD_PATH="$TLANG_REPO_ROOT/jl-package:''${JULIA_LOAD_PATH:-@}"
+            # Keep the wrapper depot env (@) for prebuilt packages, the repo
+            # companion second for `tlang`, and @stdlib last so stdlibs
+            # (Pkg, REPL, Serialization) always resolve. A bare `@` default
+            # drops @stdlib and breaks every stdlib import.
+            export JULIA_LOAD_PATH="$TLANG_REPO_ROOT/jl-package:''${JULIA_LOAD_PATH:-@:@stdlib}"
 
             # Export R library paths for editors that bypass the R wrapper (e.g. Positron).
             # The wrapper sets R_LIBS_SITE internally. Positron may start base R directly,

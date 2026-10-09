@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.56.1] - unreleased
+
+### New features
+
+- **`t check` text output shows what to do next**: each diagnostic now prints `expected` vs `actual`, the `caused by` chain, and a one-line fix hint (JSON output is unchanged). Humans and agents see the same actionable facts without passing `--json`.
+- **`t fix --json` for agents and scripts**: the new flag prints the fix plan as structured JSON — per-entry outcomes plus full diagnostics with fix-kind details — so automation needs no text parsing. `t diff --json` nodes now also carry `class_a`/`class_b`, so type changes across builds are visible to tools.
+- **New `pipeline_overview(p)` table**: one call joins static node config (`runtime`, `serializer`, `deserializer`, `noop`, `deps`, `depth`, `command_type`) with live build state (`status`, `duration`, `path`, `error`). Column names match `pipeline_to_frame` and `pipeline_status`, so existing filters copy over unchanged. Failed nodes sort first.
+- **Calmer node debugging**: `inspect_node` now returns error facts (`status`, `error_code`, `error_message`) for failed nodes instead of refusing them, so inspection works exactly when debug data matters most. `rebuild_node` failures show the last 15 lines plus a `read_log(p.<node>)` pointer instead of a full log dump.
+
+### Fixes
+
+- **Internal cleanup with no behavior change**: `explain()` keeps the single top-level `runtime` from `0.56.0`, and the now-unused duplicate inside the node configuration record is removed from the codebase.
+- **Julia test path works in `nix develop` again**: the shell kept only the repo env plus wrapper env on `JULIA_LOAD_PATH`, so stdlib imports (`Pkg`, `Serialization`) failed. `@stdlib` is back on the path. The `DeepDiffs` test dependency joins the Nix Julia set, and `jl-package/Manifest.toml` pins match the depot again (`JSON 0.21.4`, `Parsers 2.8.6`), so the full Julia suite (82 tests) runs offline.
+
 ## [0.56.0] - 2026-10-08
 
 ### New features

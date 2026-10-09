@@ -221,6 +221,8 @@ let diff_result_to_yojson (r : diff_result) =
     let base = [
       ("name", `String e.nde_name);
       ("status", `String status_str);
+      ("class_a", `String e.nde_class_a);
+      ("class_b", `String e.nde_class_b);
       ("reasons", `List (List.map (fun s -> `String s) e.nde_reasons));
       ("affected", `List (List.map (fun s -> `String s) e.nde_affected));
     ] in

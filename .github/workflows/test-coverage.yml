@@ -43,7 +43,7 @@ jobs:
 
       - name: Run unit and golden tests with coverage
         run: |
-          nix develop --accept-flake-config --command bash -lc '
+          nix develop --profile $RUNNER_TEMP/dev-profile --accept-flake-config --command bash -lc '
             set -euo pipefail
             find . -name "*.coverage" -delete
             dune clean
@@ -58,4 +58,4 @@ jobs:
 
       - name: Write coverage summary
         run: |
-          nix develop --accept-flake-config --command python3 "$GITHUB_WORKSPACE/scripts/coverage_summary.py" "$GITHUB_WORKSPACE/coverage.xml" --repo-root "$GITHUB_WORKSPACE" >> "$GITHUB_STEP_SUMMARY"
+          nix develop --profile $RUNNER_TEMP/dev-profile --accept-flake-config --command python3 "$GITHUB_WORKSPACE/scripts/coverage_summary.py" "$GITHUB_WORKSPACE/coverage.xml" --repo-root "$GITHUB_WORKSPACE" >> "$GITHUB_STEP_SUMMARY"

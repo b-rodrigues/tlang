@@ -55,6 +55,26 @@ nrow(filter(df, \(row) row.depth == 0))|}
 
   print_newline ();
 
+  Printf.printf "Phase 1b2 — pipeline_overview:\n";
+
+  test "pipeline_overview returns one row per node"
+    {|p = pipeline { ov_a = 1; ov_b = ov_a + 1 }; nrow(pipeline_overview(p))|}
+    "2";
+
+  test "pipeline_overview column names correct"
+    {|p = pipeline { ov_a = 1 }; colnames(pipeline_overview(p))|}
+    {|["name", "runtime", "serializer", "deserializer", "noop", "deps", "depth", "command_type", "status", "duration", "path", "error"]|};
+
+  test "pipeline_overview depth matches pipeline_to_frame"
+    {|p = pipeline { ov_a = 1; ov_b = ov_a + 1 }; identical(pipeline_overview(p) |> pull($depth), pipeline_to_frame(p) |> pull($depth))|}
+    "true";
+
+  test "pipeline_overview rejects non-pipeline"
+    {|pipeline_overview(42)|}
+    {|Error(TypeError: "Function `pipeline_overview` expects a Pipeline, but got Int.")|};
+
+  print_newline ();
+
   Printf.printf "Phase 1c — read_log:\n";
 
   test "read_log rejects String names"
