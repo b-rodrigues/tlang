@@ -590,3 +590,32 @@ let cmd_fix ?(dry_run = false) ~check_fn file =
     |> sort_fixes_by_descending_line
   in
   apply_fixes ~dry_run ~default_file:file fixes
+
+(** Machine-readable form of a fix result, for `t fix --json` and agents.
+    Additive: text output is unchanged. Per-entry outcomes carry the
+    human message plus a machine outcome; full diagnostics (with fix
+    kind JSON) ride along so agents need no text parsing. *)
+let fix_result_to_yojson (r : fix_result) =
+  let entry_to_yojson e =
+    let outcome, note = match e.entry_outcome with
+      | Would_apply -> ("would_apply", None)
+      | Skipped n -> ("skipped", n)
+    in
+    `Assoc [
+      ("message", `String e.entry_message);
+      ("file", `String e.entry_file);
+      ("outcome", `String outcome);
+      ("note", (match note with Some n -> `String n | None -> `Null));
+    ]
+  in
+  `Assoc [
+    ("schema_version", `String "1");
+    ("file", `String r.file);
+    ("dry_run", `Bool r.dry_run);
+    ("applied", `Int r.applied);
+    ("skipped", `Int r.skipped);
+    ("would_apply", `Int r.would_apply);
+    ("skip_notes", `List (List.map (fun s -> `String s) r.skip_notes));
+    ("entries", `List (List.map entry_to_yojson r.dry_run_entries));
+    ("diagnostics", `List (List.map Diagnostics.diagnostic_to_yojson r.diagnostics));
+  ]
