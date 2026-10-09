@@ -4031,6 +4031,26 @@ pipeline_status(p) |> filter($status == "Errored")
 
 ---
 
+### `pipeline_overview(p)`
+
+One-call table joining static node config with live build state. It replaces three separate calls (`pipeline_to_frame`, `pipeline_status`, `pipeline_config_to_frame`) when you need both. Column names match the source frames. Failed nodes sort first.
+
+**Parameters:**
+
+- `p` — The Pipeline object.
+
+**Returns:**
+
+`DataFrame` — Columns `name`, `runtime`, `serializer`, `deserializer`, `noop`, `deps`, `depth`, `command_type`, `status`, `duration`, `path`, `error`. Status fields are NA when the pipeline has no matching build log yet.
+
+**Examples:**
+```t
+pipeline_overview(p)
+pipeline_overview(p) |> filter($status == "Errored")
+```
+
+---
+
 ### `build_log_history(p, n = NA, pattern = NA)`
 
 Returns a summary DataFrame of all historical builds matching the current pipeline's node signature, ordered from most recent to oldest.
