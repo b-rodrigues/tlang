@@ -36,6 +36,39 @@
             cmakeFlags = (old.cmakeFlags or []) ++ [ "-DUSE_GPU=OFF" ];
             buildInputs = (old.buildInputs or []) ++ [ self.boost ];
           });
+
+          jpmml-statsmodels = self.stdenv.mkDerivation rec {
+            pname = "jpmml-statsmodels";
+            version = "1.3.13";
+
+            src = self.fetchurl {
+              url = "https://github.com/jpmml/jpmml-statsmodels/releases/download/${version}/pmml-statsmodels-example-executable-${version}.jar";
+              hash = "sha256-vwwqHZE009J2PRxiKMLLcRMOUjBVtuyI55X5PfiDzbY=";
+            };
+
+            dontUnpack = true;
+            nativeBuildInputs = [ self.makeBinaryWrapper ];
+
+            installPhase = ''
+              runHook preInstall
+
+              mkdir -p "$out/share/java" "$out/bin"
+              install -Dm444 "$src" "$out/share/java/jpmml-statsmodels.jar"
+              makeBinaryWrapper ${self.lib.getExe self.jre_headless} "$out/bin/jpmml-statsmodels" \
+                --add-flags "-jar $out/share/java/jpmml-statsmodels.jar"
+
+              runHook postInstall
+            '';
+
+            meta = with self.lib; {
+              description = "Java library and CLI for converting StatsModels models to PMML";
+              homepage = "https://github.com/jpmml/jpmml-statsmodels";
+              license = licenses.agpl3Only;
+              mainProgram = "jpmml-statsmodels";
+              platforms = platforms.all;
+              sourceProvenance = with sourceTypes; [ binaryBytecode ];
+            };
+          };
         });
 
         # Build R with specific packages
