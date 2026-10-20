@@ -677,4 +677,29 @@ v_ann: Vector[Bool] = str_detect(pull(dfv, $s), "a")
   check_neg "annotated binding: list union return against wrong member names List"
     "nn2: Int = str_detect([\"a\"], \"a\")\n" "expected Int, got List";
 
+  Printf.printf "\nactionable text output (expected/actual/fix):\n";
+  let action_diag = { test_diag with
+    Diagnostics.diag_expected = Some "Int";
+    diag_actual = Some "String";
+    diag_caused_by = ["upstream_node"];
+    diag_suggested_fix = Diagnostics.make_suggest_identifier_fix ~name:"prnt" ~suggestion:"print"
+      ~edit_distance:1 ~is_unique:true ?file:(Some "test.t") ?line:(Some 1) () } in
+  let action_text = Check_utils.format_check_result
+    (Diagnostics.make_result ~tier:1 ~phase:Diagnostics.Exec [action_diag]) in
+  let has needle =
+    try ignore (Str.search_forward (Str.regexp_string needle) action_text 0); true
+    with Not_found -> false
+  in
+  check "text output shows expected vs actual" (has "expected: Int | actual: String");
+  check "text output shows caused by" (has "caused by: upstream_node");
+  check "text output shows fix hint" (has "did you mean 'print' instead of 'prnt'");
+  let plain_text = Check_utils.format_check_result
+    (Diagnostics.make_result ~tier:1 ~phase:Diagnostics.Exec [test_diag]) in
+  let lacks needle =
+    try ignore (Str.search_forward (Str.regexp_string needle) plain_text 0); false
+    with Not_found -> true
+  in
+  check "text output omits expected line when absent" (lacks "expected:");
+  check "text output omits fix line when NoFix" (lacks "fix:");
+
   Printf.printf "\n";;

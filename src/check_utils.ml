@@ -1298,7 +1298,25 @@ let format_check_result ?(json=false) check_result =
            loc
            (Diagnostics.severity_to_string (Diagnostics.diagnostic_severity d))
            (Diagnostics.error_class_to_string (Diagnostics.diagnostic_error_class d))
-           (Diagnostics.diagnostic_message d))
+           (Diagnostics.diagnostic_message d));
+      (* Actionable details: expected vs actual, cause chain, and the
+         suggested fix summary. JSON already carries these fields; text
+         now shows them too so humans and LLMs can act without --json. *)
+      (match d.Diagnostics.diag_expected, d.Diagnostics.diag_actual with
+       | Some e, Some a ->
+           Buffer.add_string buf (Printf.sprintf "    expected: %s | actual: %s\n" e a)
+       | Some e, None ->
+           Buffer.add_string buf (Printf.sprintf "    expected: %s\n" e)
+       | None, Some a ->
+           Buffer.add_string buf (Printf.sprintf "    actual: %s\n" a)
+       | None, None -> ());
+      (match d.Diagnostics.diag_caused_by with
+       | [] -> ()
+       | causes ->
+           Buffer.add_string buf (Printf.sprintf "    caused by: %s\n" (String.concat ", " causes)));
+      (match Diagnostics.suggested_fix_summary d.Diagnostics.diag_suggested_fix with
+       | None -> ()
+       | Some s -> Buffer.add_string buf (Printf.sprintf "    %s\n" s))
     ) cr_diags;
     if cr_diags <> [] then Buffer.add_char buf '\n';
     Buffer.contents buf

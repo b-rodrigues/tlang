@@ -359,8 +359,12 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
        let json_str = Yojson.Safe.pretty_to_string (Builder_diff.diff_result_to_yojson result) in
        check "JSON output: contains reasons"
          (try let _ = Str.search_forward (Str.regexp_string "\"reasons\"") json_str 0 in true with Not_found -> false);
-       check "JSON output: contains affected"
-         (try let _ = Str.search_forward (Str.regexp_string "\"affected\"") json_str 0 in true with Not_found -> false));
+       check "JSON output: contains affected plus class fields"
+         (try let _ = Str.search_forward (Str.regexp_string "\"affected\"") json_str 0 in true with Not_found -> false);
+        check "JSON output: contains class_a"
+          (try let _ = Str.search_forward (Str.regexp_string "\"class_a\"") json_str 0 in true with Not_found -> false);
+        check "JSON output: contains class_b"
+          (try let _ = Str.search_forward (Str.regexp_string "\"class_b\"") json_str 0 in true with Not_found -> false));
   remove_path dir8;
 
   Printf.printf "\n"
