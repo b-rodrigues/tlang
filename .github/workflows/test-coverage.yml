@@ -31,6 +31,8 @@ jobs:
           nix_path: nixpkgs=channel:nixos-unstable
           extra_nix_config: |
             experimental-features = nix-command flakes
+            keep-derivations = true
+            keep-outputs = true
             substituters = https://cache.nixos.org https://rstats-on-nix.cachix.org
             trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= rstats-on-nix.cachix.org-1:vdiiVgocg6WeJrODIqdprZRUrhi1JzhBnXv7aWI6+F0=
 
@@ -58,4 +60,5 @@ jobs:
 
       - name: Write coverage summary
         run: |
+          rm -rf ~/.cache/nix/eval-cache-* || true
           nix develop --profile $RUNNER_TEMP/dev-profile --accept-flake-config --command python3 "$GITHUB_WORKSPACE/scripts/coverage_summary.py" "$GITHUB_WORKSPACE/coverage.xml" --repo-root "$GITHUB_WORKSPACE" >> "$GITHUB_STEP_SUMMARY"
