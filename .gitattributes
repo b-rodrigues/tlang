@@ -1,0 +1,3 @@
+# Binary artifacts. Jars are zip archives; a text-mode checkout would
+# rewrite their line endings and change the bytes.
+*.jar binary

@@ -58,6 +58,9 @@ jobs:
           rm -rf ~/.cache/nix/eval-cache-* || true
           nix develop --profile "$RUNNER_TEMP/dev-profile" --accept-flake-config --command bash scripts/check_docs_determinism.sh
 
+      - name: Check vendored PMML jars
+        run: bash scripts/check_vendored_jars.sh
+
       - name: Upload T executable as artifact
         uses: actions/upload-artifact@v4
         with:

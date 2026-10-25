@@ -37,14 +37,17 @@
             buildInputs = (old.buildInputs or []) ++ [ self.boost ];
           });
 
+          # Both PMML jars are vendored under vendor/pmml/ and committed to the
+          # repository. Nothing fetches them at build time, so an upstream
+          # release asset cannot be deleted, retagged, or replaced under us.
+          # The vendored bytes are the published release assets (their sha256
+          # matches the fetchurl pins this derivation used before); see
+          # scripts/check_vendored_jars.sh, which fails if a jar changes.
           jpmml-statsmodels = self.stdenv.mkDerivation rec {
             pname = "jpmml-statsmodels";
             version = "1.3.13";
 
-            src = self.fetchurl {
-              url = "https://github.com/jpmml/jpmml-statsmodels/releases/download/${version}/pmml-statsmodels-example-executable-${version}.jar";
-              hash = "sha256-vwwqHZE009J2PRxiKMLLcRMOUjBVtuyI55X5PfiDzbY=";
-            };
+            src = ./vendor/pmml/jpmml-statsmodels.jar;
 
             dontUnpack = true;
             nativeBuildInputs = [ self.makeBinaryWrapper ];
@@ -72,15 +75,13 @@
 
           # Same treatment for the evaluator. nixpkgs builds it from the source
           # tarball with Maven, so its transitive dependency graph drifts and an
-          # unchanged project can stop building. Use the released executable jar.
+          # unchanged project can stop building. The vendored executable jar is
+          # the same file the release published.
           jpmml-evaluator = self.stdenv.mkDerivation rec {
             pname = "jpmml-evaluator";
             version = "1.7.7";
 
-            src = self.fetchurl {
-              url = "https://github.com/jpmml/jpmml-evaluator/releases/download/${version}/pmml-evaluator-example-executable-${version}.jar";
-              hash = "sha256-PPSAgk3A1IFjYpJEg413SvNKPwPpe2wTZ+I0oBDsHw4=";
-            };
+            src = ./vendor/pmml/jpmml-evaluator.jar;
 
             dontUnpack = true;
             nativeBuildInputs = [ self.makeBinaryWrapper ];
@@ -255,11 +256,10 @@
               cp _build/default/src/lsp_server.exe $out/bin/.t-lsp-unwrapped
               mkdir -p $out/share/tlang
               cp -r src $out/share/tlang/
-              # Ship the PMML-StatsModels jar inside the t output. Every consumer
-              # (the t wrapper, pipeline node derivations, project dev shells)
-              # then reads this one fixed jar. The jar is a single download with
-              # a pinned hash; it does not build from Maven, so its transitive
-              # dependency graph cannot drift.
+              # Ship the PMML jars inside the t output. Every consumer (the t
+              # wrapper, pipeline node derivations, project dev shells) then
+              # reads this one fixed jar. The jars are committed under
+              # vendor/pmml/, so nothing is fetched or built from Maven here.
               mkdir -p $out/share/java
               cp ${pkgs.jpmml-statsmodels}/share/java/jpmml-statsmodels.jar $out/share/java/jpmml-statsmodels.jar
               cp ${pkgs.jpmml-evaluator}/share/java/jpmml-evaluator.jar $out/share/java/jpmml-evaluator.jar
@@ -581,6 +581,7 @@ chmod +x $out/bin/bisect-ppx-report
 
             export T_JPMML_EVALUATOR_JAR="${pkgs.jpmml-evaluator}/share/java/jpmml-evaluator.jar"
             export T_JPMML_STATSMODELS_JAR="${pkgs.jpmml-statsmodels}/share/java/jpmml-statsmodels.jar"
+            export T_JPMML_JAVA="${pkgs.jre}/bin/java"
             export TLANG_AGENTS_DIR="$TLANG_REPO_ROOT/agents"
 
             # Make local companion language packages importable in nix develop

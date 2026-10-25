@@ -256,6 +256,7 @@ When implementing new functions, check if similar logic already exists in utilit
 The `scripts/` directory contains tools for automated health checks:
 -   **`scripts/audit_aliases.sh`**: Detects usage of known deprecated aliases.
 -   **`scripts/audit_docs.py`**: Verifies that every exported function has a corresponding `--#` docstring block.
+-   **`scripts/check_vendored_jars.sh`**: Verifies the committed PMML jars in `vendor/pmml/` are present, unmodified, and not fetched by `flake.nix`. CI runs it; run it after any change under `vendor/`.
 -   **`scripts/refactor_alias.sh`**: A utility to safely rename functions and update all references.
 
 ### 3. Detecting Implicit Aliases in OCaml

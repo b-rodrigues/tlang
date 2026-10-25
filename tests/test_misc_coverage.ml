@@ -1255,4 +1255,66 @@ min_version = "0.51.0"
     && String.ends_with ~suffix:"test_1_pass.t" (List.hd suite_res.results).file
     && (List.nth suite_res.results 1).success = false
   );
+
+  Printf.printf "  PMML JVM resolution:\n";
+  let saved_java = Sys.getenv_opt "T_JPMML_JAVA" in
+  let saved_path = Sys.getenv_opt "PATH" in
+  (* An empty value means "unset" for java_executable, so this restores the
+     original state without needing Unix.unsetenv. *)
+  let restore_env () =
+    (match saved_java with
+     | Some v -> Unix.putenv "T_JPMML_JAVA" v
+     | None -> Unix.putenv "T_JPMML_JAVA" "");
+    match saved_path with
+    | Some v -> Unix.putenv "PATH" v
+    | None -> Unix.putenv "PATH" ""
+  in
+  let make_dir_with_java () =
+    let dir = Filename.temp_file "tlang-java-probe" "" in
+    Sys.remove dir;
+    Sys.mkdir dir 0o755;
+    let java = Filename.concat dir "java" in
+    let oc = open_out java in
+    output_string oc "#!/bin/sh\nexit 0\n";
+    close_out oc;
+    Unix.chmod java 0o755;
+    (dir, java)
+  in
+  let fake_dir, fake_java = make_dir_with_java () in
+  let empty_dir = Filename.temp_file "tlang-no-java" "" in
+  Sys.remove empty_dir;
+  Sys.mkdir empty_dir 0o755;
+  Fun.protect
+    ~finally:(fun () ->
+      restore_env ();
+      (try Sys.remove fake_java with _ -> ());
+      (try Sys.rmdir fake_dir with _ -> ());
+      try Sys.rmdir empty_dir with _ -> ())
+    (fun () ->
+      test_case "java_executable uses T_JPMML_JAVA when set" (fun () ->
+        Unix.putenv "T_JPMML_JAVA" fake_java;
+        match T_score_pmml.java_executable () with
+        | Ok cmd -> cmd = fake_java
+        | Error _ -> false);
+      test_case "java_executable finds java on PATH" (fun () ->
+        Unix.putenv "T_JPMML_JAVA" "";
+        Unix.putenv "PATH" fake_dir;
+        match T_score_pmml.java_executable () with
+        | Ok cmd -> cmd = fake_java
+        | Error _ -> false);
+      test_case "java_executable reports a missing T_JPMML_JAVA path" (fun () ->
+        Unix.putenv "T_JPMML_JAVA" (Filename.concat fake_dir "nope");
+        match T_score_pmml.java_executable () with
+        | Ok _ -> false
+        | Error msg -> String.starts_with ~prefix:"JPMML: T_JPMML_JAVA points at" msg);
+      test_case "java_executable names the fix when no JVM exists" (fun () ->
+        Unix.putenv "T_JPMML_JAVA" "";
+        Unix.putenv "PATH" empty_dir;
+        match T_score_pmml.java_executable () with
+        | Ok _ -> false
+        | Error msg ->
+            String.ends_with
+              ~suffix:"Add `jre` to [additional-tools] in tproject.toml, or set T_JPMML_JAVA to a java executable."
+              msg));
+
   print_newline ()
