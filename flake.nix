@@ -69,6 +69,42 @@
               sourceProvenance = with sourceTypes; [ binaryBytecode ];
             };
           };
+
+          # Same treatment for the evaluator. nixpkgs builds it from the source
+          # tarball with Maven, so its transitive dependency graph drifts and an
+          # unchanged project can stop building. Use the released executable jar.
+          jpmml-evaluator = self.stdenv.mkDerivation rec {
+            pname = "jpmml-evaluator";
+            version = "1.7.7";
+
+            src = self.fetchurl {
+              url = "https://github.com/jpmml/jpmml-evaluator/releases/download/${version}/pmml-evaluator-example-executable-${version}.jar";
+              hash = "sha256-PPSAgk3A1IFjYpJEg413SvNKPwPpe2wTZ+I0oBDsHw4=";
+            };
+
+            dontUnpack = true;
+            nativeBuildInputs = [ self.makeBinaryWrapper ];
+
+            installPhase = ''
+              runHook preInstall
+
+              mkdir -p "$out/share/java" "$out/bin"
+              install -Dm444 "$src" "$out/share/java/jpmml-evaluator.jar"
+              makeBinaryWrapper ${self.lib.getExe self.jre_headless} "$out/bin/jpmml-evaluator" \
+                --add-flags "-jar $out/share/java/jpmml-evaluator.jar"
+
+              runHook postInstall
+            '';
+
+            meta = with self.lib; {
+              description = "Java library and CLI for evaluating PMML models";
+              homepage = "https://github.com/jpmml/jpmml-evaluator";
+              license = licenses.agpl3Only;
+              mainProgram = "jpmml-evaluator";
+              platforms = platforms.all;
+              sourceProvenance = with sourceTypes; [ binaryBytecode ];
+            };
+          };
         });
 
         # Build R with specific packages
@@ -219,6 +255,14 @@
               cp _build/default/src/lsp_server.exe $out/bin/.t-lsp-unwrapped
               mkdir -p $out/share/tlang
               cp -r src $out/share/tlang/
+              # Ship the PMML-StatsModels jar inside the t output. Every consumer
+              # (the t wrapper, pipeline node derivations, project dev shells)
+              # then reads this one fixed jar. The jar is a single download with
+              # a pinned hash; it does not build from Maven, so its transitive
+              # dependency graph cannot drift.
+              mkdir -p $out/share/java
+              cp ${pkgs.jpmml-statsmodels}/share/java/jpmml-statsmodels.jar $out/share/java/jpmml-statsmodels.jar
+              cp ${pkgs.jpmml-evaluator}/share/java/jpmml-evaluator.jar $out/share/java/jpmml-evaluator.jar
               mkdir -p $out/share/tlang/agents
               cp -r agents/* $out/share/tlang/agents/
               # Copy generated source files so coverage reports can find them
@@ -236,8 +280,8 @@
                 --prefix DYLD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.arrow-glib pkgs.glib pkgs.arrow-cpp pkgs.onnxruntime ]}" \
                 --set TLANG_DOCS_PATH "$out/share/tlang/help/docs.json" \
                 --set TLANG_AGENTS_DIR "$out/share/tlang/agents" \
-                --set T_JPMML_STATSMODELS_JAR "${pkgs.jpmml-statsmodels}/share/java/jpmml-statsmodels.jar" \
-                --set T_JPMML_EVALUATOR_JAR "${pkgs.jpmml-evaluator}/share/java/jpmml-evaluator.jar"
+                --set T_JPMML_STATSMODELS_JAR "$out/share/java/jpmml-statsmodels.jar" \
+                --set T_JPMML_EVALUATOR_JAR "$out/share/java/jpmml-evaluator.jar"
 
               makeWrapper $out/bin/.t-lsp-unwrapped $out/bin/t-lsp \
                 --prefix PATH : "${runtimePath}" \

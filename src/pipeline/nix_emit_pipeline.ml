@@ -284,11 +284,16 @@ let
   # Additional Tools & LaTeX
   additionalTools = (toml.additional-tools or {}).packages or [];
   latexPkgs = (toml.latex or {}).packages or [];
-  
+
+  # The JPMML JAR tools are filtered out of additionalTools. Their nixpkgs
+  # packages build from Maven and their transitive dependency graphs drift over
+  # time, so a build can break although this project did not change. Generated
+  # node code never calls the CLIs; it reads the jars that t-lang ships, through
+  # T_JPMML_STATSMODELS_JAR and T_JPMML_EVALUATOR_JAR (see nix_emit_node).
   latexCombined = if latexPkgs == [] then null 
                   else pkgs.texlive.combine (builtins.listToAttrs (builtins.map (name: { name = name; value = pkgs.texlive.${name}; }) (["scheme-small"] ++ latexPkgs)));
                   
-  globalBuildInputs = (builtins.map (p: pkgs.${p}) (builtins.filter (p: p != "atelier") additionalTools))%s
+  globalBuildInputs = (builtins.map (p: pkgs.${p}) (builtins.filter (p: p != "atelier" && p != "jpmml-statsmodels" && p != "jpmml-evaluator") additionalTools))%s
                       ++ (if latexCombined == null then [] else [ latexCombined ]);
 
   # Per-node flake environments

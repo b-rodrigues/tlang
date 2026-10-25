@@ -974,8 +974,10 @@ def _resolve_jpmml_statsmodels_jar():
     jar = os.environ.get("T_JPMML_STATSMODELS_JAR")
     if not jar or not os.path.exists(jar):
         raise RuntimeError(
-            "JPMML-StatsModels JAR not found. "
-            "Ensure the t-pmml-java derivation is present in your environment."
+            "JPMML-StatsModels JAR not found. T ships this JAR at "
+            "<t-lang>/share/java/jpmml-statsmodels.jar. The t-lang package for "
+            "this pipeline is too old or is not a T package; point the t-lang "
+            "input at a version that ships the JAR."
         )
     return jar
 
@@ -1089,7 +1091,12 @@ def py_read_pmml(path):
 
             jar_path = os.environ.get("T_JPMML_EVALUATOR_JAR")
             if not jar_path or not os.path.exists(jar_path):
-                raise RuntimeError("T_JPMML_EVALUATOR_JAR not found in environment.")
+                raise RuntimeError(
+                    "JPMML-Evaluator JAR not found. T ships this JAR at "
+                    "<t-lang>/share/java/jpmml-evaluator.jar. The t-lang package "
+                    "for this pipeline is too old or is not a T package; point "
+                    "the t-lang input at a version that ships the JAR."
+                )
 
             with tempfile.TemporaryDirectory() as tmp:
                 in_path = os.path.join(tmp, "input.csv")
@@ -4589,8 +4596,8 @@ EOF
   %s = stdenv.mkDerivation {
     name = "%s";
     buildInputs = [ tBin %s ] ++ globalBuildInputs;
-    T_JPMML_STATSMODELS_JAR = if (pkgs ? jpmml-statsmodels) then "${pkgs.jpmml-statsmodels}/share/java/jpmml-statsmodels.jar" else "";
-    T_JPMML_EVALUATOR_JAR = if (pkgs ? jpmml-evaluator) then "${pkgs.jpmml-evaluator}/share/java/jpmml-evaluator.jar" else "";
+    T_JPMML_STATSMODELS_JAR = let jar = "${tBin}/share/java/jpmml-statsmodels.jar"; in if builtins.pathExists jar then jar else "";
+    T_JPMML_EVALUATOR_JAR = let jar = "${tBin}/share/java/jpmml-evaluator.jar"; in if builtins.pathExists jar then jar else "";
     JULIA_COPY_STACKS = "1";
     MPLCONFIGDIR = ".";
     HOME = ".";
