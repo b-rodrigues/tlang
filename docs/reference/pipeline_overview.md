@@ -2,7 +2,13 @@
 
 Unified pipeline overview table
 
-One call joins pipeline structure with the latest build log into a single per-node table: static config from `pipeline_to_frame`, live build state from `pipeline_status`, and the config columns of `pipeline_config_to_frame`. It does not carry the `diagnostics` column; use `pipeline_config_to_frame(p)` when you need per-node diagnostics. Column names match the source frames so filters copy over unchanged. Failed nodes sort first so the root cause is visible without extra calls.  Columns: 
+One call joins pipeline structure with the latest build log into a single per-node table: the columns of `pipeline_to_frame` plus the live build state of `pipeline_status`. 
+
+It is not a superset of the other frames. `pipeline_config_to_frame` also reports `shell`, `flake`, the `prov_*` provenance columns and the `n_*` count columns, and `pipeline_to_frame` carries `diagnostics`. None of these are repeated here; call those functions when you need them. 
+
+Column names match the source frames so filters copy over unchanged. Failed nodes sort first so the root cause is visible without extra calls. 
+
+Columns: 
 
 - `name` — node name (String) 
 - `runtime` — e.g. "T", "R", "Python" (String) 

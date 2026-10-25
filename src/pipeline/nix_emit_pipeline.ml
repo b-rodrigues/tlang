@@ -172,7 +172,9 @@ let emit_pipeline ?(rel_root="..") ?(r_git_pkgs : Package_types.r_git_dependency
   in
 
   (* Injected as text because the template below is positional: adding one
-     more `%s` would shift every later argument. The marker appears once. *)
+     more `%s` would shift every later argument, and OCaml formats must be
+     literals, so the marker is substituted in the rendered text. The marker
+     is unique to this template. *)
   let pmml_tool_names_nix =
     String.concat " "
       (List.map (fun (name, _, _) -> Nix_utils.nix_double_quote name) Nix_utils.pmml_jar_tools)

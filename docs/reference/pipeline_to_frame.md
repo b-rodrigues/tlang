@@ -2,7 +2,9 @@
 
 Convert Pipeline to DataFrame
 
-Converts a Pipeline to a DataFrame where each row represents a node and each column represents a metadata field. This is a key inspection utility for understanding and debugging pipeline structure.  The columns returned are: 
+Converts a Pipeline to a DataFrame where each row represents a node and each column represents a metadata field. This is a key inspection utility for understanding and debugging pipeline structure. 
+
+The columns returned are: 
 
 - `name` — the node name (String) 
 - `runtime` — one of "T", "R", "Python" (String) 

@@ -2,7 +2,11 @@
 
 Run a thunk with a scoped random seed
 
-Sets the global random number generator to `seed` for the duration of the thunk evaluation, then restores the previous RNG state. This scopes determinism to a single expression: any random draws outside the thunk are unaffected. Useful for reproducible property tests and sampling.  The thunk is a one-parameter lambda (the argument is ignored) so that it binds lazily, mirroring prop_for_all's predicate convention:  with_seed(42, \(x) sample([1, 2, 3, 4, 5], n = 3))
+Sets the global random number generator to `seed` for the duration of the thunk evaluation, then restores the previous RNG state. This scopes determinism to a single expression: any random draws outside the thunk are unaffected. Useful for reproducible property tests and sampling. 
+
+The thunk is a one-parameter lambda (the argument is ignored) so that it binds lazily, mirroring prop_for_all's predicate convention: 
+
+with_seed(42, \(x) sample([1, 2, 3, 4, 5], n = 3))
 
 ## Parameters
 

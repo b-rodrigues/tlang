@@ -2,7 +2,9 @@
 
 Pipeline health table
 
-Joins pipeline structure with the latest build log into a single per-node health table. Failed nodes sort first so the root cause is visible without extra calls.  Columns: 
+Joins pipeline structure with the latest build log into a single per-node health table. Failed nodes sort first so the root cause is visible without extra calls. 
+
+Columns: 
 
 - `name` — node name (String) 
 - `runtime` — e.g. "T", "R", "Python" (String) 

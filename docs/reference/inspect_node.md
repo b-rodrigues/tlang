@@ -2,7 +2,11 @@
 
 Inspect Pipeline Node Metadata
 
-Returns a dictionary with metadata about a computed node, including its name, runtime, artifact path, serializer, class, dependencies, and warnings. The `warnings` key contains a structured list of warning records, each with `source` ("own" or the ancestor node name) and `message`.  Behaviour change: a failed node used to return a TypeError. Code that tested failure with `is_error(inspect_node(x))` must test `inspect_node(x).status == "Errored"` instead.  A computed node and a failed node return the same ten keys, so one schema covers both cases: 
+Returns a dictionary with metadata about a computed node, including its name, runtime, artifact path, serializer, class, dependencies, and warnings. The `warnings` key contains a structured list of warning records, each with `source` ("own" or the ancestor node name) and `message`. 
+
+Behaviour change: a failed node used to return a TypeError. Code that tested failure with `is_error(inspect_node(x))` must test `inspect_node(x).status == "Errored"` instead. 
+
+A computed node and a failed node return the same ten keys, so one schema covers both cases: 
 
 - `status` is "Built" for a computed node and "Errored" for a failed one. 
 - `error_code` and `error_message` describe the failure. Both are NA for a computed node. 

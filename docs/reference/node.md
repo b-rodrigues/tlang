@@ -2,7 +2,9 @@
 
 Configure a Pipeline Node
 
-Configure execution settings such as the runtime and custom serialized methods for a pipeline node. This function is typically used directly within a `pipeline { ... }` block to wrap expressions, enable cross-runtime evaluation, and optionally render a `.qmd` document via `runtime = Quarto`.  Node commands run in a fresh sandbox, not a closure. Outer data values are inlined as frozen literals; block-local bindings stay local; functions and builtins stay symbolic (share code via `functions`, not bare references); quoted `to_expr`/`quo` code runs later at node runtime. Reassigning a captured outer data variable is a construction error.
+Configure execution settings such as the runtime and custom serialized methods for a pipeline node. This function is typically used directly within a `pipeline { ... }` block to wrap expressions, enable cross-runtime evaluation, and optionally render a `.qmd` document via `runtime = Quarto`. 
+
+Node commands run in a fresh sandbox, not a closure. Outer data values are inlined as frozen literals; block-local bindings stay local; functions and builtins stay symbolic (share code via `functions`, not bare references); quoted `to_expr`/`quo` code runs later at node runtime. Reassigning a captured outer data variable is a construction error.
 
 ## Parameters
 

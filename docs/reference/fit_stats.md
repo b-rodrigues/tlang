@@ -2,7 +2,9 @@
 
 Model Goodness-of-Fit Statistics
 
-Returns a tidy DataFrame of model-level statistics (e.g. R-squared, AIC, BIC). Supports single model objects or labeled collections of models for comparison.  When passed a list or dictionary of models, it stacks the results into a single DataFrame, automatically adding a 'model' column if labels are present.
+Returns a tidy DataFrame of model-level statistics (e.g. R-squared, AIC, BIC). Supports single model objects or labeled collections of models for comparison. 
+
+When passed a list or dictionary of models, it stacks the results into a single DataFrame, automatically adding a 'model' column if labels are present.
 
 ## Parameters
 

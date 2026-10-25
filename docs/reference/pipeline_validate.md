@@ -2,7 +2,9 @@
 
 Validate a Pipeline
 
-Checks a pipeline for structural errors without throwing. Returns a list of error messages. An empty list means the pipeline is valid.  Checks performed (shared with populate_pipeline and `t check` tier 1): 
+Checks a pipeline for structural errors without throwing. Returns a list of error messages. An empty list means the pipeline is valid. 
+
+Checks performed (shared with populate_pipeline and `t check` tier 1): 
 
 - No dependency cycles 
 - All referenced dependencies exist as nodes in the pipeline 

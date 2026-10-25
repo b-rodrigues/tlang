@@ -2,7 +2,9 @@
 
 Set Pipeline Global Options (pure)
 
-Pure function that returns a new pipeline with the given defaults merged into nodes.  The original pipeline is not modified.  By default the settings are merged into every node; pass `runtimes` and/or `nodes` to restrict the merge to a subset (union semantics when both are given).  Omitting both scoping arguments (or passing `na()`) targets every node; an explicitly empty list (`nodes = []`) targets no nodes.  Merge semantics vary per option: * Combine (prepend): `functions`, `include`, `env_vars`, `args`, `shell_args`, `dependencies`.  Global values come first; per-node values follow (for same-key dict entries, the later per-node value wins). * Override: `serializer`, `deserializer`, `shell`, `flake`.  A provided global value replaces the node's per-node value entirely. * Force-only: `noop`.  `noop = true` forces nodes to no-op; `noop = false` has no effect and cannot un-set a per-node `noop = true`.
+Pure function that returns a new pipeline with the given defaults merged into nodes.  The original pipeline is not modified.  By default the settings are merged into every node; pass `runtimes` and/or `nodes` to restrict the merge to a subset (union semantics when both are given).  Omitting both scoping arguments (or passing `na()`) targets every node; an explicitly empty list (`nodes = []`) targets no nodes. 
+
+Merge semantics vary per option: * Combine (prepend): `functions`, `include`, `env_vars`, `args`, `shell_args`, `dependencies`.  Global values come first; per-node values follow (for same-key dict entries, the later per-node value wins). * Override: `serializer`, `deserializer`, `shell`, `flake`.  A provided global value replaces the node's per-node value entirely. * Force-only: `noop`.  `noop = true` forces nodes to no-op; `noop = false` has no effect and cannot un-set a per-node `noop = true`.
 
 ## Parameters
 

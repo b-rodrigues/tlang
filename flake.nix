@@ -586,10 +586,11 @@ chmod +x $out/bin/bisect-ppx-report
             # Make local companion language packages importable in nix develop
             export PYTHONPATH="$TLANG_REPO_ROOT/py-package/src''${PYTHONPATH:+:$PYTHONPATH}"
             # Put the repo companion first so a local `tlang` wins in a dev
-            # shell. The rest of the load path follows (its first `@` is the
-            # project env), and @stdlib stays last so stdlibs (Pkg, REPL,
-            # Serialization) always resolve. A bare `@` default drops
-            # @stdlib and breaks every stdlib import.
+            # shell. The rest of the load path follows: its first `@` is the
+            # project env. When the variable is unset, the default value
+            # below ends with @stdlib so stdlibs (Pkg, REPL, Serialization)
+            # resolve. A value inherited from the caller is used as-is, so an
+            # exported path without @stdlib stays without it.
             export JULIA_LOAD_PATH="$TLANG_REPO_ROOT/jl-package:''${JULIA_LOAD_PATH:-@:@stdlib}"
 
             # Export R library paths for editors that bypass the R wrapper (e.g. Positron).
