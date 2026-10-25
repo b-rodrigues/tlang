@@ -1103,6 +1103,12 @@ let dangling_node_read_diagnostics ~pipelines program filename =
           " Valid nodes: " ^ String.concat ", " names ^ "."
         else ""
       in
+      let hint =
+        match fix with
+        | Diagnostics.Suggest_identifier { suggestion; _ } ->
+            Printf.sprintf " Did you mean `%s`?" suggestion
+        | _ -> ""
+      in
       diags := {
         Diagnostics.diag_id = Diagnostics.gen_id ();
         Diagnostics.diag_error_class = Diagnostics.Key_error;
@@ -1119,7 +1125,7 @@ let dangling_node_read_diagnostics ~pipelines program filename =
         Diagnostics.diag_end_line = None;
         Diagnostics.diag_end_column = None;
         Diagnostics.diag_message = Printf.sprintf
-          "Node `%s` not found in pipeline `%s`.%s" node pname valid;
+          "Node `%s` not found in pipeline `%s`.%s%s" node pname hint valid;
         Diagnostics.diag_expected = None;
         Diagnostics.diag_actual = None;
         Diagnostics.diag_caused_by = [];

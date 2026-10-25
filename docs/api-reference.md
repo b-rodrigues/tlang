@@ -4033,7 +4033,7 @@ pipeline_status(p) |> filter($status == "Errored")
 
 ### `pipeline_overview(p)`
 
-One-call table joining the columns of `pipeline_to_frame` with the live build state of `pipeline_status`. It is not a superset: `pipeline_config_to_frame` adds `shell`, `flake`, `prov_*` and `n_*` columns, and `pipeline_to_frame` carries `diagnostics`. Column names match the source frames. Failed nodes sort first.
+One-call table joining the columns of `pipeline_to_frame` with the live build state of `pipeline_status`. It is not a superset: `pipeline_config_to_frame` adds `shell`, `flake`, `prov_*` and `n_*` columns. Node diagnostics live in `pipeline_node_options` (and as `$diagnostics` in `filter_node` predicates). Column names match the source frames. Failed nodes sort first.
 
 **Parameters:**
 

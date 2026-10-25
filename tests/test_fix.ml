@@ -651,7 +651,8 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
     (match Fix.dry_run_outcome ~default_file:"test.t" d_ident with
      | Fix.Skipped (Some note) ->
          check "suggest_identifier -> Skipped with note"
-           (Test_helpers.contains note "`mpg`" && Test_helpers.contains note "`mpg2`")
+           (Test_helpers.contains note "`mpg`" && Test_helpers.contains note "manual"
+           && not (Test_helpers.contains note "`mpg2`"))
      | _ -> check "suggest_identifier -> Skipped with note" false);
     (* run_command is never auto-applied and shows the command *)
     let d_cmd = { base with
@@ -693,7 +694,7 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
     check "skip notes: dry-run would_apply = 0" (dry.Fix.would_apply = 0);
     check "skip notes: dry-run skipped = 2" (dry.Fix.skipped = 2);
     check "skip notes: dry-run note for identifier"
-      (List.exists (fun n -> Test_helpers.contains n "mpg2") dry.Fix.skip_notes);
+      (List.exists (fun n -> Test_helpers.contains n "`mpg`" && Test_helpers.contains n "manual") dry.Fix.skip_notes);
     check "skip notes: dry-run note for command"
       (List.exists (fun n -> Test_helpers.contains n "t add R jsonlite") dry.Fix.skip_notes);
     check "skip notes: dry-run entries both Skipped"
@@ -716,7 +717,7 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
     check "skip notes: real applied = 0" (real.Fix.applied = 0);
     check "skip notes: real skipped = 2" (real.Fix.skipped = 2);
     check "skip notes: real note for identifier"
-      (List.exists (fun n -> Test_helpers.contains n "mpg2") real.Fix.skip_notes);
+      (List.exists (fun n -> Test_helpers.contains n "`mpg`" && Test_helpers.contains n "manual") real.Fix.skip_notes);
     check "skip notes: real note for command"
       (List.exists (fun n -> Test_helpers.contains n "t add R jsonlite") real.Fix.skip_notes);
     Sys.remove tmp

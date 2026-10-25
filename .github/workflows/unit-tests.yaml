@@ -61,6 +61,9 @@ jobs:
       - name: Check vendored PMML jars
         run: bash scripts/check_vendored_jars.sh
 
+      - name: Check Julia Manifest matches Nix depot
+        run: nix develop --profile "$RUNNER_TEMP/dev-profile" --accept-flake-config --command bash scripts/check_julia_manifest.sh
+
       - name: Upload T executable as artifact
         uses: actions/upload-artifact@v4
         with:

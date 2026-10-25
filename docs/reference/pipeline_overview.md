@@ -4,7 +4,7 @@ Unified pipeline overview table
 
 One call joins pipeline structure with the latest build log into a single per-node table: the columns of `pipeline_to_frame` plus the live build state of `pipeline_status`. 
 
-It is not a superset of the other frames. `pipeline_config_to_frame` also reports `shell`, `flake`, the `prov_*` provenance columns and the `n_*` count columns, and `pipeline_to_frame` carries `diagnostics`. None of these are repeated here; call those functions when you need them. 
+It is not a superset of the other frames. `pipeline_config_to_frame` also reports `shell`, `flake`, the `prov_*` provenance columns and the `n_*` count columns. None of these are repeated here; call that function when you need them. Node diagnostics live in `pipeline_node_options` (and as `$diagnostics` in `filter_node` predicates), not in this table nor in `pipeline_to_frame`. 
 
 Column names match the source frames so filters copy over unchanged. Failed nodes sort first so the root cause is visible without extra calls. 
 

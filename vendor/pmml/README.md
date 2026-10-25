@@ -17,6 +17,22 @@ does not fetch them again. CI runs that script.
 
 Both jars are AGPL-3.0-only. Their licence and copyright belong to the JPMML
 project; they are redistributed here as unmodified upstream artifacts.
+Upstream sources and release notes are at
+`https://github.com/jpmml/jpmml-statsmodels` (`1.3.13`) and
+`https://github.com/jpmml/jpmml-evaluator` (`1.7.7`).
+
+These are shaded executable jars: each bundles its own dependencies.
+Bundled licences and notices ship inside the jar, for example under
+`META-INF/NOTICE` and `META-INF/LICENSE`. List them with
+`unzip -l vendor/pmml/<jar> | grep META-INF`.
+
+Sizes are about 6.4 MB (`jpmml-statsmodels.jar`) and 19.0 MB
+(`jpmml-evaluator.jar`). Git keeps each version permanently, so each upgrade
+adds about that size to history again.
+
+The hash check guards against accidents, not tampering: the expected hash
+sits in this repo next to the jar, so a change to both passes silently.
+The check catches truncation, text-conversion, and missed upgrades.
 
 To upgrade a jar:
 

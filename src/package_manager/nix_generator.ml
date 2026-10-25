@@ -578,6 +578,8 @@ let generate_project_flake
         "            export T_JPMML_%s_JAR=\"${t-lang.packages.${system}.default}/share/java/%s\"\n"
         env_suffix jar)
     pmml_jar_tools_requested;
+  if pmml_jar_tools_requested <> [] then
+    Buffer.add_string buf "            export T_JPMML_JAVA=\"${pkgs.lib.getExe pkgs.jre_headless}\"\n";
   Buffer.add_string buf "          '';\n";
   Buffer.add_string buf "        };\n";
   Buffer.add_string buf "      }\n";
@@ -744,6 +746,8 @@ let generate_package_flake
         "            export T_JPMML_%s_JAR=\"${t-lang.packages.${system}.default}/share/java/%s\"\n"
         env_suffix jar)
     pmml_jar_tools_requested;
+  if pmml_jar_tools_requested <> [] then
+    Buffer.add_string buf "            export T_JPMML_JAVA=\"${pkgs.lib.getExe pkgs.jre_headless}\"\n";
   Buffer.add_string buf "          '';\n";
   Buffer.add_string buf "        };\n";
   Buffer.add_string buf "      }\n";

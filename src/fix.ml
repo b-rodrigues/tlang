@@ -493,9 +493,9 @@ let dry_run_outcome ~default_file (d : Diagnostics.diagnostic) =
              (String.concat ", " (List.map string_of_int lines))
              file_to_fix))
        | NotFound -> Skipped None)
-  | Diagnostics.Suggest_identifier { name; suggestion; _ } ->
+  | Diagnostics.Suggest_identifier { name; _ } ->
       Skipped (Some (Printf.sprintf
-        "Identifier `%s` is misspelled — did you mean `%s`? Apply the rename manually." name suggestion))
+        "Identifier `%s` needs manual rename (t fix does not apply it)." name))
   | Diagnostics.Run_command { command; description; _ } ->
       Skipped (Some (Printf.sprintf "Manual step required: %s — run: %s." description command))
   | Diagnostics.NoFix -> Skipped None

@@ -10,9 +10,9 @@ let get_pmml_evaluator_jar () =
   | None ->
       Error "T_JPMML_EVALUATOR_JAR environment variable not set. T sets it in pipeline node builds and in generated project shells. Update your Nix environment."
 
-(* The evaluator needs a JVM. T_JPMML_JAVA names one explicitly (generated
-   project shells and the dev shell set it to their `jre`); otherwise use
-   `java` from PATH. The lookup is done here so a missing JVM produces a named
+(* The evaluator needs a JVM. T_JPMML_JAVA names one explicitly (the dev shell
+   sets it to its `jre`; generated project shells set it when PMML jar tools
+   are requested); otherwise use `java` from PATH. The lookup is done here so a missing JVM produces a named
    error instead of a shell "command not found" from inside the bridge. *)
 let find_on_path name =
   match Sys.getenv_opt "PATH" with

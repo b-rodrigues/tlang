@@ -692,7 +692,8 @@ v_ann: Vector[Bool] = str_detect(pull(dfv, $s), "a")
   in
   check "text output shows expected vs actual" (has "expected: Int | actual: String");
   check "text output shows caused by" (has "caused by: upstream_node");
-  check "text output shows fix hint" (has "did you mean 'print' instead of 'prnt'");
+  check "text output shows fix hint" (has "rename identifier 'prnt' by hand");
+  check "fix hint does not duplicate suggestion" (not (has "did you mean"));
   let plain_text = Check_utils.format_check_result
     (Diagnostics.make_result ~tier:1 ~phase:Diagnostics.Exec [test_diag]) in
   let lacks needle =

@@ -2074,9 +2074,10 @@ let () =
        | Some f ->
             let check_fn = fun file -> run_check ~schema:true script_mode file env in
             let result = Fix.cmd_fix ~dry_run ~check_fn f in
+            let fix_exit = if result.Fix.skipped > 0 then 1 else 0 in
             if json then begin
               Printf.printf "%s\n" (Yojson.Safe.pretty_to_string (Fix.fix_result_to_yojson result));
-              exit 0
+              exit fix_exit
             end;
             if result.Fix.applied = 0 && result.Fix.would_apply = 0 && result.Fix.skipped = 0 then
               Printf.printf "No fixes to apply.\n"
@@ -2096,7 +2097,7 @@ let () =
               end;
               List.iter (fun note -> Printf.printf "  - %s\n" note) result.Fix.skip_notes
             end;
-            exit 0)
+            exit fix_exit)
   | _ :: "repl" :: _ -> cmd_repl ~failfast mode_parse.mode env
   | _ :: "demo" :: rest ->
       let headless = List.mem "--headless" rest in
