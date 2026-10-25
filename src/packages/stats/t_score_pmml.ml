@@ -2,12 +2,13 @@ open Ast
 
 let get_pmml_evaluator_jar () =
   match Sys.getenv_opt "T_JPMML_EVALUATOR_JAR" with
-  | Some path -> Ok path
-  | None -> 
-      (* Fallback for development/testing if the env var isn't set yet *)
-      let default = "/nix/store/dummy-jpmml-evaluator.jar" in
-      if Sys.file_exists default then Ok default
-      else Error "T_JPMML_EVALUATOR_JAR environment variable not set. Please update your Nix environment."
+  | Some path when Sys.file_exists path -> Ok path
+  | Some path ->
+      Error (Printf.sprintf
+               "JPMML evaluator JAR not found at `%s`. T ships this JAR at `<t-lang>/share/java/jpmml-evaluator.jar`. The `t-lang` input for this project is too old; point it at a version that ships the JAR."
+               path)
+  | None ->
+      Error "T_JPMML_EVALUATOR_JAR environment variable not set. T sets it in pipeline node builds and in generated project shells. Update your Nix environment."
 
 let score_pmml_jpmml (df : dataframe) model_dict =
   match Pmml_utils.pmml_source_path model_dict with

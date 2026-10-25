@@ -73,6 +73,47 @@ nrow(filter(df, \(row) row.depth == 0))|}
     {|pipeline_overview(42)|}
     {|Error(TypeError: "Function `pipeline_overview` expects a Pipeline, but got Int.")|};
 
+  (* A unit test cannot produce a build log whose node hashes match a fresh
+     pipeline, so the failed-first order and the status/error columns are
+     checked on the two pure steps that build them. *)
+  let check_bool name cond =
+    if cond then begin
+      incr pass_count;
+      Printf.printf "  SUCCESS %s\n" name
+    end else begin
+      incr fail_count;
+      let msg = Printf.sprintf "  FAILURE %s\n" name in
+      failures := msg :: !failures;
+      Printf.printf "%s" msg
+    end
+  in
+  check_bool "pipeline_overview orders failed nodes first, stable otherwise"
+    (Pipeline_overview.order_failed_first
+       ~is_failed:(fun n -> n = "ov_b")
+       ["ov_a"; "ov_b"; "ov_c"]
+     = ["ov_b"; "ov_a"; "ov_c"]);
+  let overview_health =
+    Pipeline_status.health_of_log_json
+      (Yojson.Safe.from_string
+         {|{"node":"x","status":"Errored","error_code":"BuildError","error_message":"boom","duration":1.5,"path":"/nix/store/x-pipeline_output/x/artifact"}|})
+  in
+  check_bool "pipeline_overview status/error/duration/path come from the log"
+    (overview_health.Pipeline_status.h_status = Some "Errored"
+     && overview_health.Pipeline_status.h_error = Some "BuildError: boom"
+     && overview_health.Pipeline_status.h_duration = Some 1.5
+     && overview_health.Pipeline_status.h_path
+        = Some "/nix/store/x-pipeline_output/x/artifact");
+  let long_error = String.make 250 'y' in
+  let long_health =
+    Pipeline_status.health_of_log_json
+      (Yojson.Safe.from_string
+         (Printf.sprintf {|{"node":"x","status":"Errored","error_message":"%s"}|} long_error))
+  in
+  check_bool "pipeline_overview truncates long error messages to 200 chars"
+    (match long_health.Pipeline_status.h_error with
+     | Some msg -> String.length msg = 200 && msg.[197] = '.'
+     | None -> false);
+
   print_newline ();
 
   Printf.printf "Phase 1c — read_log:\n";

@@ -388,6 +388,34 @@ name = "test"
     occurrences nix "myPkg = pkgs.rPackages.buildRPackage" = 1
   );
 
+  (* Both generators must resolve the JPMML tools to the jars shipped in
+     t-lang: a nixpkgs Maven build would drift and break an unchanged project.
+     Both names must also stay out of the nixpkgs `additionalTools` list. *)
+  let check_pmml_tools nix =
+    Test_helpers.contains nix "writeShellScriptBin \"jpmml-statsmodels\""
+    && Test_helpers.contains nix "writeShellScriptBin \"jpmml-evaluator\""
+    && Test_helpers.contains nix "share/java/jpmml-statsmodels.jar"
+    && Test_helpers.contains nix "share/java/jpmml-evaluator.jar"
+    && Test_helpers.contains nix "export T_JPMML_STATSMODELS_JAR="
+    && Test_helpers.contains nix "export T_JPMML_EVALUATOR_JAR="
+    && Test_helpers.contains nix "++ [ jpmml-statsmodels jpmml-evaluator ]"
+    && Test_helpers.contains nix "          jre\n"
+    && not (Test_helpers.contains nix "          jpmml-statsmodels\n")
+    && not (Test_helpers.contains nix "          jpmml-evaluator\n")
+  in
+  test_pm "nix_generator: project flake wires PMML tools to the t-lang jars" (fun () ->
+    check_pmml_tools
+      (Nix_generator.generate_project_flake
+         ~project_name:"test" ~nixpkgs_date:"2024-01-01" ~t_version:"0.54.0"
+         ~uv2nix_commit:"dummy" ~deps:[]
+         ~additional_tools:["jpmml-statsmodels"; "jpmml-evaluator"; "jre"] ()));
+  test_pm "nix_generator: package flake wires PMML tools to the t-lang jars" (fun () ->
+    check_pmml_tools
+      (Nix_generator.generate_package_flake
+         ~package_name:"mypkg" ~package_version:"0.1.0" ~nixpkgs_date:"2024-01-01"
+         ~t_version:"0.54.0" ~deps:[]
+         ~additional_tools:["jpmml-statsmodels"; "jpmml-evaluator"; "jre"] ()));
+
   test_pm "format project sync message reports T, R, and Python counts" (fun () ->
     match Toml_parser.parse_tproject_toml project_toml with
     | Ok cfg ->

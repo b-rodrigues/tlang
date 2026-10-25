@@ -158,7 +158,29 @@ let parse_block lines filename line_num =
       | `Brief -> 
           if !brief = "" then brief := clean_line 
           else (current_tag := `Full; Buffer.add_string full clean_line; Buffer.add_char full ' ')
-      | `Full -> Buffer.add_string full clean_line; Buffer.add_char full ' '
+      | `Full ->
+          (* Keep list items on their own lines. Markdown needs a blank line
+             before a list and a single newline between items; a plain space
+             turns the whole list into one paragraph. *)
+          let is_item line =
+            String.length line >= 2 && line.[0] = '-' && line.[1] = ' '
+          in
+          let current = Buffer.contents full in
+          if is_item clean_line then begin
+            let trimmed = String.trim current in
+            let previous_line_is_item =
+              match List.rev (String.split_on_char '\n' trimmed) with
+              | last :: _ -> is_item last
+              | [] -> false
+            in
+            if trimmed <> "" then
+              (* A list starts after a blank line; items sit on
+                 consecutive lines. Wrapped item text keeps joining with
+                 a space. *)
+              if previous_line_is_item then Buffer.add_char full '\n'
+              else Buffer.add_string full "\n\n"
+          end;
+          Buffer.add_string full clean_line; Buffer.add_char full ' '
       | `Example -> examples := clean_line :: !examples (* Reverse order, fix later *)
       | _ -> () (* Ignore others for now *)
     )

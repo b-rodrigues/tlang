@@ -7,7 +7,7 @@
 - **`t check` text output shows what to do next**: each diagnostic now prints `expected` vs `actual`, the `caused by` chain, and a one-line fix hint (JSON output is unchanged). Humans and agents see the same actionable facts without passing `--json`.
 - **`t fix --json` for agents and scripts**: the new flag prints the fix plan as structured JSON — per-entry outcomes plus full diagnostics with fix-kind details — so automation needs no text parsing. `t diff --json` nodes now also carry `class_a`/`class_b`, so type changes across builds are visible to tools.
 - **New `pipeline_overview(p)` table**: one call joins static node config (`runtime`, `serializer`, `deserializer`, `noop`, `deps`, `depth`, `command_type`) with live build state (`status`, `duration`, `path`, `error`). Column names match `pipeline_to_frame` and `pipeline_status`, so existing filters copy over unchanged. Failed nodes sort first.
-- **Calmer node debugging**: `inspect_node` now returns error facts (`status`, `error_code`, `error_message`) for failed nodes instead of refusing them, so inspection works exactly when debug data matters most. `rebuild_node` failures show the last 15 lines plus a `read_log(p.<node>)` pointer instead of a full log dump.
+- **Calmer node debugging**: `inspect_node` now returns the same ten keys for a built node and a failed one. A failed node carries `status = "Errored"` plus `error_code` and `error_message`, so inspection works exactly when debug data matters most. **This is a behaviour change**: a failed node used to raise a `TypeError`, and `is_error(inspect_node(x))` no longer detects failure — test `inspect_node(x).status` instead. `rebuild_node` failures show the last 15 lines plus a `read_log()` pointer instead of a full log dump.
 
 ### Fixes
 

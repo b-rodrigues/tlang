@@ -4,11 +4,12 @@ open Ast
 --# Unified pipeline overview table
 --#
 --# One call joins pipeline structure with the latest build log into a
---# single per-node table. It replaces three separate calls
---# (`pipeline_to_frame`, `pipeline_status`, `pipeline_config_to_frame`)
---# when you need both static config and live build state. Column names
---# match the source frames so filters copy over unchanged. Failed nodes
---# sort first so the root cause is visible without extra calls.
+--# single per-node table: static config from `pipeline_to_frame`, live build
+--# state from `pipeline_status`, and the config columns of
+--# `pipeline_config_to_frame`. It does not carry the `diagnostics` column;
+--# use `pipeline_config_to_frame(p)` when you need per-node diagnostics.
+--# Column names match the source frames so filters copy over unchanged.
+--# Failed nodes sort first so the root cause is visible without extra calls.
 --#
 --# Columns:
 --# - `name` — node name (String)
@@ -35,6 +36,11 @@ open Ast
 --# @export
 *)
 
+(* Failed nodes first, stable within each group. *)
+let order_failed_first ~is_failed names =
+  let failed, ok = List.partition is_failed names in
+  failed @ ok
+
 let register env =
   Env.add "pipeline_overview"
     (make_builtin ~name:"pipeline_overview" 1 (fun args _env ->
@@ -48,11 +54,11 @@ let register env =
              | Some h -> h
              | None -> Pipeline_status.empty_health
            in
-           (* Failed nodes first, stable within each group. *)
-           let failed, ok =
-             List.partition (fun name -> Pipeline_status.is_failed (health_of name).Pipeline_status.h_status) node_names
+           let ordered =
+             order_failed_first
+               ~is_failed:(fun name -> Pipeline_status.is_failed (health_of name).Pipeline_status.h_status)
+               node_names
            in
-           let ordered = failed @ ok in
            let nrows = List.length ordered in
            let str_of f = Array.of_list (List.map (fun n -> f n) ordered) in
            let runtime_of n =

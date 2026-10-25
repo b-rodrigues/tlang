@@ -3,23 +3,15 @@
 
 open Package_types
 
-(* PMML helper JARs come from the JARs shipped inside t-lang, not from the
-   nixpkgs packages: those build from Maven and their transitive dependency
-   graphs drift, so an unchanged project can stop building. Each entry is
-   (additional-tool name, JAR file name, environment-variable suffix). *)
-let pmml_jar_tools =
-  [
-    ("jpmml-statsmodels", "jpmml-statsmodels.jar", "STATSMODELS");
-    ("jpmml-evaluator", "jpmml-evaluator.jar", "EVALUATOR");
-  ]
-
+(* The JPMML tool table lives in Nix_utils so the pipeline emitter cannot
+   drift from this generator. *)
 let requested_pmml_jar_tools additional_tools =
-  List.filter (fun (tool, _, _) -> List.mem tool additional_tools) pmml_jar_tools
+  List.filter
+    (fun (tool, _, _) -> List.mem tool additional_tools)
+    Nix_utils.pmml_jar_tools
 
 let strip_pmml_jar_tools additional_tools =
-  List.filter
-    (fun tool -> not (List.exists (fun (name, _, _) -> name = tool) pmml_jar_tools))
-    additional_tools
+  List.filter (fun tool -> not (Nix_utils.is_pmml_jar_tool tool)) additional_tools
 
 (* Shared shellHook fragment: re-export R_LIBS_SITE for editors (e.g. Positron)
    that bypass the r-env wrapper and start base R directly. The wrapper sets
@@ -744,7 +736,8 @@ let generate_package_flake
   Buffer.add_string buf "            echo \"\"\n";
   Buffer.add_string buf "            echo \"To add dependencies:\"\n";
   Buffer.add_string buf "            echo \"  * Add them to DESCRIPTION.toml\"\n";
-  Buffer.add_string buf "            echo \"  * Run 't update' to sync flake.nix\"\n";    Buffer.add_string buf "            echo \"\"\n";
+  Buffer.add_string buf "            echo \"  * Run 't update' to sync flake.nix\"\n";
+  Buffer.add_string buf "            echo \"\"\n";
   List.iter
     (fun (_, jar, env_suffix) ->
       Printf.bprintf buf

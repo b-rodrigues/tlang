@@ -242,6 +242,27 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
    | other ->
        incr fail_count; Printf.printf "  FAILURE builtin reassignment wrongly rejected: %s\n"
          (Ast.Utils.value_to_string other));
+  (* PMML helper jars come from the t-lang output, never from an eval-time
+     `builtins.pathExists` probe: that probe realises t-lang during evaluation
+     and breaks dry runs and `allow-import-from-derivation = false`. *)
+  let (v_pmml, _) = eval_string_env
+    {|pipeline { a = node(command = { 1 }, serializer = ^pmml) }|}
+    (Packages.init_env ()) in
+  (match v_pmml with
+   | Ast.VPipeline p ->
+       let nix = Nix_emit_pipeline.emit_pipeline p in
+       let has s = try ignore (Str.search_forward (Str.regexp_string s) nix 0); true
+                   with Not_found -> false in
+       if has "T_JPMML_STATSMODELS_JAR = \"${tBin}/share/java/jpmml-statsmodels.jar\";"
+          && has "T_JPMML_EVALUATOR_JAR = \"${tBin}/share/java/jpmml-evaluator.jar\";"
+          && not (has "builtins.pathExists \"${tBin}/share/java")
+          && has "pmmlJarToolNames = [ \"jpmml-statsmodels\" \"jpmml-evaluator\" ];"
+          && has "!(builtins.elem p pmmlJarToolNames)"
+       then begin incr pass_count; Printf.printf "  SUCCESS PMML jars come from t-lang with no eval-time probe\n" end
+       else begin incr fail_count; Printf.printf "  FAILURE PMML jar emission changed\n" end
+   | other ->
+       incr fail_count; Printf.printf "  FAILURE pmml fixture failed: %s\n"
+         (Ast.Utils.value_to_string other));
   (* Reassignment of a block-local name is fine and stays local. The sentinel
      outer binding proves no leakage: shadowing (x = 1) plus reassignment
      must keep every later read local, so the emitted script contains the

@@ -4596,8 +4596,8 @@ EOF
   %s = stdenv.mkDerivation {
     name = "%s";
     buildInputs = [ tBin %s ] ++ globalBuildInputs;
-    T_JPMML_STATSMODELS_JAR = let jar = "${tBin}/share/java/jpmml-statsmodels.jar"; in if builtins.pathExists jar then jar else "";
-    T_JPMML_EVALUATOR_JAR = let jar = "${tBin}/share/java/jpmml-evaluator.jar"; in if builtins.pathExists jar then jar else "";
+    T_JPMML_STATSMODELS_JAR = "${tBin}/share/java/jpmml-statsmodels.jar";
+    T_JPMML_EVALUATOR_JAR = "${tBin}/share/java/jpmml-evaluator.jar";
     JULIA_COPY_STACKS = "1";
     MPLCONFIGDIR = ".";
     HOME = ".";

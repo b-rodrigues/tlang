@@ -331,7 +331,7 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
     "pipeline": "test_pipeline",
     "nodes": [
       {"node": "raw", "path": "/nix/store/aaa111-pipeline_output/raw/artifact", "hash": "aaa111", "runtime": "T", "serializer": "csv", "class": "VDataFrame", "dependencies": [], "status": "Completed", "success": true, "warnings": false, "duration": 0.3},
-      {"node": "mid", "path": "/nix/store/ddd444-pipeline_output/mid/artifact", "hash": "ddd444", "runtime": "T", "serializer": "json", "class": "VDataFrame", "dependencies": ["raw"], "status": "Completed", "success": true, "warnings": false, "duration": 0.2},
+      {"node": "mid", "path": "/nix/store/ddd444-pipeline_output/mid/artifact", "hash": "ddd444", "runtime": "T", "serializer": "json", "class": "VVector", "dependencies": ["raw"], "status": "Completed", "success": true, "warnings": false, "duration": 0.2},
       {"node": "top", "path": "/nix/store/eee555-pipeline_output/top/artifact", "hash": "eee555", "runtime": "T", "serializer": "csv", "class": "VDataFrame", "dependencies": ["mid"], "status": "Completed", "success": true, "warnings": false, "duration": 0.2}
     ]
   }|} in
@@ -346,6 +346,10 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
        let mid = find "mid" in
        check_eq "reasons: serializer flip detected"
          (String.concat "," mid.Builder_diff.nde_reasons) "serializer";
+       check_eq "class_a: class recorded before the change"
+         mid.Builder_diff.nde_class_a "VDataFrame";
+       check_eq "class_b: class recorded after the change"
+         mid.Builder_diff.nde_class_b "VVector";
        check_eq "affected: downstream closure of changed node"
          (String.concat "," mid.Builder_diff.nde_affected) "mid,top";
        let top = find "top" in
@@ -354,6 +358,8 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
        check_eq "affected: leaf affects only itself"
          (String.concat "," top.Builder_diff.nde_affected) "top";
        let raw = find "raw" in
+       check_eq "class_a: unchanged node keeps its class"
+         raw.Builder_diff.nde_class_a "VDataFrame";
        check "reasons: unchanged node has no reasons"
          (raw.Builder_diff.nde_reasons = [] && raw.Builder_diff.nde_affected = []);
        let json_str = Yojson.Safe.pretty_to_string (Builder_diff.diff_result_to_yojson result) in

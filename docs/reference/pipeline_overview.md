@@ -2,7 +2,20 @@
 
 Unified pipeline overview table
 
-One call joins pipeline structure with the latest build log into a single per-node table. It replaces three separate calls (`pipeline_to_frame`, `pipeline_status`, `pipeline_config_to_frame`) when you need both static config and live build state. Column names match the source frames so filters copy over unchanged. Failed nodes sort first so the root cause is visible without extra calls.  Columns: - `name` — node name (String) - `runtime` — e.g. "T", "R", "Python" (String) - `serializer` — e.g. "default", "^csv" (String) - `deserializer` — e.g. "default", "^csv" (String) - `noop` — whether the node is a no-op (Bool) - `deps` — names of nodes this node depends on (String, comma-separated) - `depth` — topological depth in the DAG (Int); roots are depth 0 - `command_type` — one of "command" or "script" (String) - `status` — build status from the latest matching log, or NA - `duration` — node build duration in seconds (Float), or NA - `path` — Nix store path of the node output, or NA - `error` — `code: message` for failed nodes, or NA
+One call joins pipeline structure with the latest build log into a single per-node table: static config from `pipeline_to_frame`, live build state from `pipeline_status`, and the config columns of `pipeline_config_to_frame`. It does not carry the `diagnostics` column; use `pipeline_config_to_frame(p)` when you need per-node diagnostics. Column names match the source frames so filters copy over unchanged. Failed nodes sort first so the root cause is visible without extra calls.  Columns: 
+
+- `name` — node name (String) 
+- `runtime` — e.g. "T", "R", "Python" (String) 
+- `serializer` — e.g. "default", "^csv" (String) 
+- `deserializer` — e.g. "default", "^csv" (String) 
+- `noop` — whether the node is a no-op (Bool) 
+- `deps` — names of nodes this node depends on (String, comma-separated) 
+- `depth` — topological depth in the DAG (Int); roots are depth 0 
+- `command_type` — one of "command" or "script" (String) 
+- `status` — build status from the latest matching log, or NA 
+- `duration` — node build duration in seconds (Float), or NA 
+- `path` — Nix store path of the node output, or NA 
+- `error` — `code: message` for failed nodes, or NA
 
 ## Parameters
 
