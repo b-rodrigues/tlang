@@ -2319,7 +2319,12 @@ p.t_step|}
          let ok_msg = match get "error_message" with
            | Some (Ast.VString m) -> contains_substring m "failing_node failed"
            | _ -> false in
-         if ok_name && ok_status && ok_msg then begin
+         let expected_keys = List.sort compare ["name"; "runtime"; "path"; "serializer"; "class"; "dependencies"; "warnings"; "status"; "error_code"; "error_message"] in
+         let actual_keys = List.sort compare (List.map fst fields) in
+         let ok_keys = actual_keys = expected_keys in
+         let ok_code = match get "error_code" with Some (Ast.VString "RuntimeError") -> true | _ -> false in
+         let ok_class = match get "class" with Some (Ast.VString "Error") -> true | _ -> false in
+         if ok_name && ok_status && ok_msg && ok_keys && ok_code && ok_class then begin
            incr pass_count; Printf.printf "  SUCCESS inspect_node returns error facts dict on failing nodes\n"
          end else begin
            incr fail_count; Printf.printf "  FAILURE inspect_node error dict mismatch: %s\n" (Ast.Utils.value_to_string res1)

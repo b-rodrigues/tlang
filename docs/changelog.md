@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.56.1] - unreleased
+## [0.56.1] - 2026-10-26
 
 ### New features
 
