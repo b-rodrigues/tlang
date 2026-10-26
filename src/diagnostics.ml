@@ -738,6 +738,24 @@ let diagnostic_error_class d = d.diag_error_class
 let diagnostic_message d = d.diag_message
 let check_result_entries r = r.cr_diagnostics
 
+(** One-line human summary of a suggested fix, for text output.
+    Returns None when there is no fix to show.
+    Suggest_identifier stays generic: the diagnostic message already carries
+    the "Did you mean" suggestion (or the Valid-nodes list for dangling
+    reads), so the hint must not repeat it. *)
+let suggested_fix_summary = function
+  | Rename_column { old_name; new_name; _ } ->
+      Some (Printf.sprintf "fix: rename column '%s' to '%s' (t fix applies it)" old_name new_name)
+  | Rename_node { old_name; new_name; _ } ->
+      Some (Printf.sprintf "fix: rename node '%s' to '%s' (rename references by hand first)" old_name new_name)
+  | Add_node_arg { node; arg; _ } ->
+      Some (Printf.sprintf "fix: add '%s' to node '%s' (t fix applies it)" arg node)
+  | Suggest_identifier { name; _ } ->
+      Some (Printf.sprintf "fix: rename identifier '%s' by hand (t fix does not apply it)" name)
+  | Run_command { command; description; _ } ->
+      Some (Printf.sprintf "fix: %s: %s" description command)
+  | NoFix -> None
+
 let make_result ~tier ~phase entries =
   let status = if entries = [] then "ok" else "error" in
   {

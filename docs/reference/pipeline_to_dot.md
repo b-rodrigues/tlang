@@ -2,7 +2,9 @@
 
 Export Pipeline/MetaPipeline as DOT Graph
 
-Returns a string containing a Graphviz DOT representation of the pipeline or metapipeline dependency graph, including node names and language runtimes.  For MetaPipelines, sub-pipelines are rendered as DOT subgraph clusters by default, providing visual grouping of related nodes. Set flatten = true to get a flat diagram.
+Returns a string containing a Graphviz DOT representation of the pipeline or metapipeline dependency graph, including node names and language runtimes. 
+
+For MetaPipelines, sub-pipelines are rendered as DOT subgraph clusters by default, providing visual grouping of related nodes. Set flatten = true to get a flat diagram.
 
 ## Parameters
 

@@ -185,6 +185,14 @@ apply_mutation() {
       ;;
 
     # ── check_utils.ml mutations ─────────────────────────────────────
+    arity_always_silent)
+      backup_file "$REPO_ROOT/src/check_utils.ml"
+      perl -i -pe 's/\| Some entry when not entry\.bs_variadic && received <> entry\.bs_arity/| Some entry when not entry.bs_variadic \&\& false/' "$REPO_ROOT/src/check_utils.ml"
+      ;;
+    type_always_silent)
+      backup_file "$REPO_ROOT/src/check_utils.ml"
+      perl -i -pe 's/if not \(types_compatible actual expected\) then/if false then/' "$REPO_ROOT/src/check_utils.ml"
+      ;;
     dangling_always_silent)
       backup_file "$REPO_ROOT/src/check_utils.ml"
       perl -i -0pe 's/\| Some info ->\n        if Hashtbl\.find_opt assign_count pname = Some 1\n           && not \(Hashtbl\.mem reassigned pname\)\n           && not \(Hashtbl\.mem shadowed pname\)\n        then Some info\n        else None/| Some _ ->\n        if Hashtbl.find_opt assign_count pname = Some 1\n           && not (Hashtbl.mem reassigned pname)\n           && not (Hashtbl.mem shadowed pname)\n        then None\n        else None/' "$REPO_ROOT/src/check_utils.ml"
@@ -284,6 +292,8 @@ declare -a MUTATION_NAMES=(
   "global_deps_guard"
   "pipe_return_unknown"
   "lambda_return_body"
+  "arity_always_silent"
+  "type_always_silent"
   "dangling_always_silent"
   "fix_node_def_prefix"
   "fix_scan_always_found"

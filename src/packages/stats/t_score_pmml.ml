@@ -2,12 +2,46 @@ open Ast
 
 let get_pmml_evaluator_jar () =
   match Sys.getenv_opt "T_JPMML_EVALUATOR_JAR" with
-  | Some path -> Ok path
-  | None -> 
-      (* Fallback for development/testing if the env var isn't set yet *)
-      let default = "/nix/store/dummy-jpmml-evaluator.jar" in
-      if Sys.file_exists default then Ok default
-      else Error "T_JPMML_EVALUATOR_JAR environment variable not set. Please update your Nix environment."
+  | Some path when Sys.file_exists path -> Ok path
+  | Some path ->
+      Error (Printf.sprintf
+               "JPMML evaluator JAR not found at `%s`. T ships this JAR at `<t-lang>/share/java/jpmml-evaluator.jar`. The `t-lang` input for this project is too old; point it at a version that ships the JAR."
+               path)
+  | None ->
+      Error "T_JPMML_EVALUATOR_JAR environment variable not set. T sets it in pipeline node builds and in generated project shells. Update your Nix environment."
+
+(* The evaluator needs a JVM. T_JPMML_JAVA names one explicitly (the dev shell
+   sets it to its `jre`; generated project shells set it when PMML jar tools
+   are requested); otherwise use `java` from PATH. The lookup is done here so a missing JVM produces a named
+   error instead of a shell "command not found" from inside the bridge. *)
+let find_on_path name =
+  match Sys.getenv_opt "PATH" with
+  | None -> None
+  | Some path ->
+      List.find_map
+        (fun dir ->
+          if dir = "" then None
+          else
+            let candidate = Filename.concat dir name in
+            if Sys.file_exists candidate then Some candidate else None)
+        (String.split_on_char ':' path)
+
+(* Quote only when the path needs it, so a plain store path stays readable. *)
+let as_command path = if String.contains path ' ' then Filename.quote path else path
+
+let java_executable () =
+  match Sys.getenv_opt "T_JPMML_JAVA" with
+  | Some path when String.trim path <> "" ->
+      if Sys.file_exists path then Ok (as_command path)
+      else
+        Error (Printf.sprintf
+                 "JPMML: T_JPMML_JAVA points at `%s`, which does not exist. Unset it to use `java` from PATH, or point it at a JVM executable."
+                 path)
+  | _ ->
+      (match find_on_path "java" with
+       | Some path -> Ok (as_command path)
+       | None ->
+           Error "JPMML: `predict()` on a PMML model needs a Java runtime, and no `java` is on PATH. Add `jre` to [additional-tools] in tproject.toml, or set T_JPMML_JAVA to a java executable.")
 
 let score_pmml_jpmml (df : dataframe) model_dict =
   match Pmml_utils.pmml_source_path model_dict with
@@ -17,6 +51,9 @@ let score_pmml_jpmml (df : dataframe) model_dict =
       (match get_pmml_evaluator_jar () with
        | Error msg -> Error.make_error RuntimeError msg
        | Ok jar_path ->
+         (match java_executable () with
+          | Error msg -> Error.make_error RuntimeError msg
+          | Ok java ->
              (* 1. Write the DataFrame to a temporary CSV file (standardized bridge format) *)
              let tmp_in = Filename.temp_file "tlang_jpmml_in_" ".csv" in
              let tmp_out = Filename.temp_file "tlang_jpmml_out_" ".csv" in
@@ -34,7 +71,8 @@ let score_pmml_jpmml (df : dataframe) model_dict =
                      (* 2. Invoke JPMML-evaluator.
                         Standardized on CSV format for maximum compatibility across JPMML versions. *)
                      let cmd = Printf.sprintf
-                       "java -jar %s --model %s --input %s --output %s"
+                       "%s -jar %s --model %s --input %s --output %s"
+                       java
                        (Filename.quote jar_path)
                        (Filename.quote pmml_path)
                        (Filename.quote tmp_in)
@@ -68,7 +106,7 @@ let score_pmml_jpmml (df : dataframe) model_dict =
                       | Ok (_, output) ->
                           Error.make_error RuntimeError (Printf.sprintf "JPMML bridge: execution failed:\n%s" output)
                       | Error msg ->
-                          Error.make_error RuntimeError (Printf.sprintf "JPMML bridge: failed to launch JVM: %s" msg))))
+                          Error.make_error RuntimeError (Printf.sprintf "JPMML bridge: failed to launch JVM: %s" msg)))))
 
 let t_score_pmml =
   make_builtin ~name:"t_score_pmml" 2 (fun args _env ->

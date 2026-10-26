@@ -39,9 +39,10 @@
 if <code>condition</code> is truthy, otherwise returns a null marker
 that causes the pipeline to exclude the node entirely. This preserves
 Nix’s static DAG requirement — the condition is checked before the
-build. <code>node_when</code> is only meaningful as the direct value of
-a node binding inside a <code>pipeline { }</code> block. Using the
-result outside that context (arithmetic, <code>is_na()</code>, etc.) is
+build.</p>
+<p><code>node_when</code> is only meaningful as the direct value of a
+node binding inside a <code>pipeline { }</code> block. Using the result
+outside that context (arithmetic, <code>is_na()</code>, etc.) is
 unsupported.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>

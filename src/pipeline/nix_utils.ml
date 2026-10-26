@@ -22,6 +22,22 @@ let op_to_string = function
   | Formula -> "~"
   | FatArrow -> "=>"
 
+(* PMML helper JARs are shipped inside t-lang, not taken from nixpkgs: those
+   packages build from Maven and their transitive graphs drift, so an
+   unchanged project can stop building. The jars are committed under
+   vendor/pmml/ and copied from there, so no build downloads them. Each entry is
+   (additional-tool name, JAR file name, environment-variable suffix).
+   Both the project/package flake generator and the pipeline emitter read this
+   one list, so the names cannot drift apart. *)
+let pmml_jar_tools =
+  [
+    ("jpmml-statsmodels", "jpmml-statsmodels.jar", "STATSMODELS");
+    ("jpmml-evaluator", "jpmml-evaluator.jar", "EVALUATOR");
+  ]
+
+let is_pmml_jar_tool name =
+  List.exists (fun (tool, _, _) -> tool = name) pmml_jar_tools
+
 let shell_single_quote s =
   "'" ^ String.concat "'\"\\'\"'" (String.split_on_char '\'' s) ^ "'"
 

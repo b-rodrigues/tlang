@@ -284,7 +284,7 @@ packages in project configuration. PMML support is not implicit magic.
 
 ### Python PMML loading fails
 
-Check that `jpmml-evaluator` is available in `[additional-tools]` and that `pyarrow` is available in `[py-dependencies]`. Also ensure the JVM-backed PMML toolchain is correctly provisioned.
+Do not add `jpmml-evaluator` or `jpmml-statsmodels` to `[additional-tools]`. Both jars are vendored in `vendor/pmml/` (`jpmml-statsmodels` 1.3.13, `jpmml-evaluator` 1.7.7) and shipped in `t-lang` output `share/java/`. Pipeline builds set `T_JPMML_EVALUATOR_JAR` and `T_JPMML_STATSMODELS_JAR`. `predict()` selects the JVM from `T_JPMML_JAVA`, else `java` on `PATH`. If no `java` exists, add `jre` to `[additional-tools]` or set `T_JPMML_JAVA` to a Java executable. Keep `pyarrow` in `[py-dependencies]` where the Python code needs it.
 
 ### `t_write_pmml()` rejects a model
 

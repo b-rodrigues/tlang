@@ -40,9 +40,10 @@ and returns the value for the first truthy condition. If no condition
 matches, returns a null marker (node excluded). Provide
 <code>.default</code> to control the fallback value. This preserves
 Nix’s static DAG requirement — the condition is checked before the
-build. <code>node_fork</code> is only meaningful as the direct value of
-a node binding inside a <code>pipeline { }</code> block. Using the
-result outside that context is unsupported.</p>
+build.</p>
+<p><code>node_fork</code> is only meaningful as the direct value of a
+node binding inside a <code>pipeline { }</code> block. Using the result
+outside that context is unsupported.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
 <li><p><strong>…</strong> (<code>Any</code>): Pairs of condition-value

@@ -651,7 +651,8 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
     (match Fix.dry_run_outcome ~default_file:"test.t" d_ident with
      | Fix.Skipped (Some note) ->
          check "suggest_identifier -> Skipped with note"
-           (Test_helpers.contains note "`mpg`" && Test_helpers.contains note "`mpg2`")
+           (Test_helpers.contains note "`mpg`" && Test_helpers.contains note "manual"
+           && not (Test_helpers.contains note "`mpg2`"))
      | _ -> check "suggest_identifier -> Skipped with note" false);
     (* run_command is never auto-applied and shows the command *)
     let d_cmd = { base with
@@ -693,7 +694,7 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
     check "skip notes: dry-run would_apply = 0" (dry.Fix.would_apply = 0);
     check "skip notes: dry-run skipped = 2" (dry.Fix.skipped = 2);
     check "skip notes: dry-run note for identifier"
-      (List.exists (fun n -> Test_helpers.contains n "mpg2") dry.Fix.skip_notes);
+      (List.exists (fun n -> Test_helpers.contains n "`mpg`" && Test_helpers.contains n "manual") dry.Fix.skip_notes);
     check "skip notes: dry-run note for command"
       (List.exists (fun n -> Test_helpers.contains n "t add R jsonlite") dry.Fix.skip_notes);
     check "skip notes: dry-run entries both Skipped"
@@ -716,9 +717,50 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
     check "skip notes: real applied = 0" (real.Fix.applied = 0);
     check "skip notes: real skipped = 2" (real.Fix.skipped = 2);
     check "skip notes: real note for identifier"
-      (List.exists (fun n -> Test_helpers.contains n "mpg2") real.Fix.skip_notes);
+      (List.exists (fun n -> Test_helpers.contains n "`mpg`" && Test_helpers.contains n "manual") real.Fix.skip_notes);
     check "skip notes: real note for command"
       (List.exists (fun n -> Test_helpers.contains n "t add R jsonlite") real.Fix.skip_notes);
     Sys.remove tmp
   in
   test_apply_fixes_skip_notes ();
+
+  Printf.printf "\nfix_result_to_yojson:\n";
+  let test_fix_json () =
+    let tmp = Filename.temp_file "test_fix_json" ".t" in
+    let oc = open_out tmp in
+    output_string oc "x = 1\n";
+    close_out oc;
+    let d = { Diagnostics.
+      diag_id = "T1002"; diag_error_class = Diagnostics.Name_error; diag_severity = Error;
+      diag_phase = Schema; diag_node_id = None; diag_node_lang = None;
+      diag_file = Some tmp; diag_line = Some 1; diag_column = None;
+      diag_end_line = None; diag_end_column = None;
+      diag_message = "did you mean 'mpg2' instead of 'mpg'?"; diag_expected = None; diag_actual = None;
+      diag_caused_by = [];
+      diag_suggested_fix = Diagnostics.make_suggest_identifier_fix ~name:"mpg" ~suggestion:"mpg2" ~edit_distance:1 ~is_unique:true ?file:(Some tmp) ?line:(Some 1) ();
+    } in
+    let dry = Fix.apply_fixes ~dry_run:true ~default_file:tmp [d] in
+    let json = Fix.fix_result_to_yojson dry in
+    let open Yojson.Safe.Util in
+    check "fix json: schema_version is 1"
+      ((json |> member "schema_version" |> to_string) = "1");
+    check "fix json: dry_run is true"
+      ((json |> member "dry_run" |> to_bool) = true);
+    check "fix json: skipped is 1"
+      ((json |> member "skipped" |> to_int) = 1);
+    check "fix json: one entry"
+      ((json |> member "entries" |> to_list |> List.length) = 1);
+    check "fix json: entry outcome is skipped"
+      ((json |> member "entries" |> to_list |> List.hd |> member "outcome" |> to_string) = "skipped");
+    check "fix json: diagnostics carry fix kind"
+      (let ds = json |> member "diagnostics" |> to_list in
+       match ds with
+       | [diag] -> (diag |> member "suggested_fix" |> member "kind" |> to_string) = "suggest_identifier"
+       | _ -> false);
+    let empty_json = Fix.fix_result_to_yojson
+      (Fix.apply_fixes ~dry_run:true ~default_file:tmp []) in
+    check "fix json: empty entries list"
+      ((empty_json |> member "entries" |> to_list) = []);
+    Sys.remove tmp
+  in
+  test_fix_json ();

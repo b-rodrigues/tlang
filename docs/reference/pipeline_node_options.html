@@ -39,33 +39,46 @@
 single pipeline node, after any <code>set_pipeline_global_options</code>
 merges have been applied. This is the read-back companion to
 <code>set_pipeline_global_options</code>: what you merged in, you can
-read back out. The returned Dict has the following keys: -
-<code>name</code> — the node name (String) - <code>runtime</code> — one
-of “T”, “R”, “Python”, “Julia”, “Quarto”, “sh” (String) -
-<code>serializer</code> — resolved strategy value (a Symbol like ^csv, a
-strategy Dict, or “default” for unset) - <code>deserializer</code> —
-resolved strategy value, same shapes as <code>serializer</code> -
-<code>noop</code> — whether the node is a no-op (Bool) -
-<code>deps</code> — names of nodes this node depends on (List of String)
-- <code>depth</code> — topological depth in the DAG (Int); roots are
-depth 0 - <code>command_type</code> — one of “command” or “script”
-(String) - <code>diagnostics</code> — node diagnostics (Dict) -
-<code>functions</code> — function files merged into the node (List of
-String) - <code>include</code> — included files (List of String) -
-<code>env_vars</code> — build environment variables (Dict) -
-<code>args</code> — runtime/tool arguments (Dict) - <code>shell</code> —
-shell interpreter, or NA when unset (String | NA) -
-<code>shell_args</code> — shell interpreter arguments (List of String) -
-<code>flake</code> — Nix flake path, or NA when unset (String | NA) -
-<code>provenance</code> — where each resolved option came from (Dict).
-Combine options (<code>functions</code>, <code>include</code>,
+read back out.</p>
+<p>The returned Dict has the following keys:</p>
+<ul>
+<li><code>name</code> — the node name (String)</li>
+<li><code>runtime</code> — one of “T”, “R”, “Python”, “Julia”, “Quarto”,
+“sh” (String)</li>
+<li><code>serializer</code> — resolved strategy value (a Symbol like
+^csv, a strategy Dict, or “default” for unset)</li>
+<li><code>deserializer</code> — resolved strategy value, same shapes as
+<code>serializer</code></li>
+<li><code>noop</code> — whether the node is a no-op (Bool)</li>
+<li><code>deps</code> — names of nodes this node depends on (List of
+String)</li>
+<li><code>depth</code> — topological depth in the DAG (Int); roots are
+depth 0</li>
+<li><code>command_type</code> — one of “command” or “script”
+(String)</li>
+<li><code>diagnostics</code> — node diagnostics (Dict)</li>
+<li><code>functions</code> — function files merged into the node (List
+of String)</li>
+<li><code>include</code> — included files (List of String)</li>
+<li><code>env_vars</code> — build environment variables (Dict)</li>
+<li><code>args</code> — runtime/tool arguments (Dict)</li>
+<li><code>shell</code> — shell interpreter, or NA when unset (String |
+NA)</li>
+<li><code>shell_args</code> — shell interpreter arguments (List of
+String)</li>
+<li><code>flake</code> — Nix flake path, or NA when unset (String |
+NA)</li>
+<li><code>provenance</code> — where each resolved option came from
+(Dict). Combine options (<code>functions</code>, <code>include</code>,
 <code>shell_args</code>, <code>dependencies</code>) are grouped into
 <code>global</code>/<code>node</code> sub-lists; override options
 (<code>serializer</code>, <code>deserializer</code>, <code>shell</code>,
 <code>flake</code>, <code>noop</code>) map to a source String (“global”
 | “node”) or NA when unset; <code>env_vars</code> and <code>args</code>
-map each key to its source String. An unknown node name is a
-<code>TypeError</code> listing the valid node names.</p>
+map each key to its source String.</li>
+</ul>
+<p>An unknown node name is a <code>TypeError</code> listing the valid
+node names.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
 <li><p><strong>pipeline</strong> (<code>Pipeline</code>): The input

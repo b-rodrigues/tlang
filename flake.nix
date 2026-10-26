@@ -36,6 +36,76 @@
             cmakeFlags = (old.cmakeFlags or []) ++ [ "-DUSE_GPU=OFF" ];
             buildInputs = (old.buildInputs or []) ++ [ self.boost ];
           });
+
+          # Both PMML jars are vendored under vendor/pmml/ and committed to the
+          # repository. Nothing fetches them at build time, so an upstream
+          # release asset cannot be deleted, retagged, or replaced under us.
+          # The vendored bytes are the published release assets (their sha256
+          # matches the fetchurl pins this derivation used before); see
+          # scripts/check_vendored_jars.sh, which fails if a jar changes.
+          jpmml-statsmodels = self.stdenv.mkDerivation rec {
+            pname = "jpmml-statsmodels";
+            version = "1.3.13";
+
+            src = ./vendor/pmml/jpmml-statsmodels.jar;
+
+            dontUnpack = true;
+            nativeBuildInputs = [ self.makeBinaryWrapper ];
+
+            installPhase = ''
+              runHook preInstall
+
+              mkdir -p "$out/share/java" "$out/bin"
+              install -Dm444 "$src" "$out/share/java/jpmml-statsmodels.jar"
+              makeBinaryWrapper ${self.lib.getExe self.jre_headless} "$out/bin/jpmml-statsmodels" \
+                --add-flags "-jar $out/share/java/jpmml-statsmodels.jar"
+
+              runHook postInstall
+            '';
+
+            meta = with self.lib; {
+              description = "Java library and CLI for converting StatsModels models to PMML";
+              homepage = "https://github.com/jpmml/jpmml-statsmodels";
+              license = licenses.agpl3Only;
+              mainProgram = "jpmml-statsmodels";
+              platforms = platforms.all;
+              sourceProvenance = with sourceTypes; [ binaryBytecode ];
+            };
+          };
+
+          # Same treatment for the evaluator. nixpkgs builds it from the source
+          # tarball with Maven, so its transitive dependency graph drifts and an
+          # unchanged project can stop building. The vendored executable jar is
+          # the same file the release published.
+          jpmml-evaluator = self.stdenv.mkDerivation rec {
+            pname = "jpmml-evaluator";
+            version = "1.7.7";
+
+            src = ./vendor/pmml/jpmml-evaluator.jar;
+
+            dontUnpack = true;
+            nativeBuildInputs = [ self.makeBinaryWrapper ];
+
+            installPhase = ''
+              runHook preInstall
+
+              mkdir -p "$out/share/java" "$out/bin"
+              install -Dm444 "$src" "$out/share/java/jpmml-evaluator.jar"
+              makeBinaryWrapper ${self.lib.getExe self.jre_headless} "$out/bin/jpmml-evaluator" \
+                --add-flags "-jar $out/share/java/jpmml-evaluator.jar"
+
+              runHook postInstall
+            '';
+
+            meta = with self.lib; {
+              description = "Java library and CLI for evaluating PMML models";
+              homepage = "https://github.com/jpmml/jpmml-evaluator";
+              license = licenses.agpl3Only;
+              mainProgram = "jpmml-evaluator";
+              platforms = platforms.all;
+              sourceProvenance = with sourceTypes; [ binaryBytecode ];
+            };
+          };
         });
 
         # Build R with specific packages
@@ -101,6 +171,10 @@
           "Arrow"
           "CairoMakie"
           "Plots"
+          # Needed by jl-package tests (diff helpers via DeepDiffs).
+          # Keep jl-package/Manifest.toml pins aligned with this depot;
+          # re-resolve it whenever this list changes (see jl-package/README.md).
+          "DeepDiffs"
         ];
 
         # Pin a specific version of OCaml for reproducibility.
@@ -182,6 +256,13 @@
               cp _build/default/src/lsp_server.exe $out/bin/.t-lsp-unwrapped
               mkdir -p $out/share/tlang
               cp -r src $out/share/tlang/
+              # Ship the PMML jars inside the t output. Every consumer (the t
+              # wrapper, pipeline node derivations, project dev shells) then
+              # reads this one fixed jar. The jars are committed under
+              # vendor/pmml/, so nothing is fetched or built from Maven here.
+              mkdir -p $out/share/java
+              cp ${pkgs.jpmml-statsmodels}/share/java/jpmml-statsmodels.jar $out/share/java/jpmml-statsmodels.jar
+              cp ${pkgs.jpmml-evaluator}/share/java/jpmml-evaluator.jar $out/share/java/jpmml-evaluator.jar
               mkdir -p $out/share/tlang/agents
               cp -r agents/* $out/share/tlang/agents/
               # Copy generated source files so coverage reports can find them
@@ -199,8 +280,8 @@
                 --prefix DYLD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.arrow-glib pkgs.glib pkgs.arrow-cpp pkgs.onnxruntime ]}" \
                 --set TLANG_DOCS_PATH "$out/share/tlang/help/docs.json" \
                 --set TLANG_AGENTS_DIR "$out/share/tlang/agents" \
-                --set T_JPMML_STATSMODELS_JAR "${pkgs.jpmml-statsmodels}/share/java/jpmml-statsmodels.jar" \
-                --set T_JPMML_EVALUATOR_JAR "${pkgs.jpmml-evaluator}/share/java/jpmml-evaluator.jar"
+                --set T_JPMML_STATSMODELS_JAR "$out/share/java/jpmml-statsmodels.jar" \
+                --set T_JPMML_EVALUATOR_JAR "$out/share/java/jpmml-evaluator.jar"
 
               makeWrapper $out/bin/.t-lsp-unwrapped $out/bin/t-lsp \
                 --prefix PATH : "${runtimePath}" \
@@ -500,11 +581,18 @@ chmod +x $out/bin/bisect-ppx-report
 
             export T_JPMML_EVALUATOR_JAR="${pkgs.jpmml-evaluator}/share/java/jpmml-evaluator.jar"
             export T_JPMML_STATSMODELS_JAR="${pkgs.jpmml-statsmodels}/share/java/jpmml-statsmodels.jar"
+            export T_JPMML_JAVA="${pkgs.jre}/bin/java"
             export TLANG_AGENTS_DIR="$TLANG_REPO_ROOT/agents"
 
             # Make local companion language packages importable in nix develop
             export PYTHONPATH="$TLANG_REPO_ROOT/py-package/src''${PYTHONPATH:+:$PYTHONPATH}"
-            export JULIA_LOAD_PATH="$TLANG_REPO_ROOT/jl-package:''${JULIA_LOAD_PATH:-@}"
+            # Put the repo companion first so a local `tlang` wins in a dev
+            # shell. The rest of the load path follows: its first `@` is the
+            # project env. When the variable is unset, the default value
+            # below ends with @stdlib so stdlibs (Pkg, REPL, Serialization)
+            # resolve. A value inherited from the caller is used as-is, so an
+            # exported path without @stdlib stays without it.
+            export JULIA_LOAD_PATH="$TLANG_REPO_ROOT/jl-package:''${JULIA_LOAD_PATH:-@:@stdlib}"
 
             # Export R library paths for editors that bypass the R wrapper (e.g. Positron).
             # The wrapper sets R_LIBS_SITE internally. Positron may start base R directly,

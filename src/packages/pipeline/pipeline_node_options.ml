@@ -25,7 +25,7 @@ open Ast
 --# - `shell` — shell interpreter, or NA when unset (String | NA)
 --# - `shell_args` — shell interpreter arguments (List of String)
 --# - `flake` — Nix flake path, or NA when unset (String | NA)
---# - `provenance` — where each resolved option came from (Dict).  Combine
+--# - `provenance` — where each resolved option came from (Dict). Combine
 --#   options (`functions`, `include`, `shell_args`, `dependencies`) are
 --#   grouped into `global`/`node` sub-lists; override options
 --#   (`serializer`, `deserializer`, `shell`, `flake`, `noop`) map to a source

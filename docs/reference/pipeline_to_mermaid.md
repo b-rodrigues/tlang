@@ -2,7 +2,9 @@
 
 Export Pipeline/MetaPipeline as Mermaid Graph
 
-Returns a string containing a Mermaid JS flowchart representation of the pipeline or metapipeline dependency graph, including node names, language runtimes, and execution error status (errored nodes are highlighted with a red stroke). You can view the diagram in your browser by passing the result to show_plot().  For MetaPipelines, sub-pipelines are rendered as Mermaid subgraph blocks by default, providing visual grouping of related nodes. Set flatten = true to get a flat diagram.
+Returns a string containing a Mermaid JS flowchart representation of the pipeline or metapipeline dependency graph, including node names, language runtimes, and execution error status (errored nodes are highlighted with a red stroke). You can view the diagram in your browser by passing the result to show_plot(). 
+
+For MetaPipelines, sub-pipelines are rendered as Mermaid subgraph blocks by default, providing visual grouping of related nodes. Set flatten = true to get a flat diagram.
 
 ## Parameters
 

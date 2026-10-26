@@ -2060,19 +2060,25 @@ let () =
         | Some f -> cmd_diff ~json ~log_a ~log_b f env)
       end
   | _ :: "fix" :: [] ->
-      Printf.eprintf "Usage: t fix [--dry-run] <file.t>\n";
+      Printf.eprintf "Usage: t fix [--dry-run] [--json] <file.t>\n";
       exit 1
   | _ :: "fix" :: rest ->
       let dry_run = List.mem "--dry-run" rest in
+      let json = List.mem "--json" rest in
       let filename = List.find_opt (fun s -> not (String.length s > 0 && s.[0] = '-')) rest in
       let script_mode = if mode_parse.mode = Typecheck.Repl && not mode_parse.mode_flag then Typecheck.Strict else mode_parse.mode in
       (match filename with
        | None ->
-           Printf.eprintf "Usage: t fix [--dry-run] <file.t>\n";
+           Printf.eprintf "Usage: t fix [--dry-run] [--json] <file.t>\n";
            exit 1
        | Some f ->
             let check_fn = fun file -> run_check ~schema:true script_mode file env in
             let result = Fix.cmd_fix ~dry_run ~check_fn f in
+            let fix_exit = if result.Fix.skipped > 0 then 1 else 0 in
+            if json then begin
+              Printf.printf "%s\n" (Yojson.Safe.pretty_to_string (Fix.fix_result_to_yojson result));
+              exit fix_exit
+            end;
             if result.Fix.applied = 0 && result.Fix.would_apply = 0 && result.Fix.skipped = 0 then
               Printf.printf "No fixes to apply.\n"
             else begin
@@ -2091,7 +2097,7 @@ let () =
               end;
               List.iter (fun note -> Printf.printf "  - %s\n" note) result.Fix.skip_notes
             end;
-            exit 0)
+            exit fix_exit)
   | _ :: "repl" :: _ -> cmd_repl ~failfast mode_parse.mode env
   | _ :: "demo" :: rest ->
       let headless = List.mem "--headless" rest in

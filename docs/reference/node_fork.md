@@ -2,7 +2,9 @@
 
 Static pipeline multi-way branch
 
-Evaluated at pipeline construction time. Takes condition-value pairs and returns the value for the first truthy condition. If no condition matches, returns a null marker (node excluded). Provide `.default` to control the fallback value. This preserves Nix's static DAG requirement — the condition is checked before the build.  `node_fork` is only meaningful as the direct value of a node binding inside a `pipeline { }` block. Using the result outside that context is unsupported.
+Evaluated at pipeline construction time. Takes condition-value pairs and returns the value for the first truthy condition. If no condition matches, returns a null marker (node excluded). Provide `.default` to control the fallback value. This preserves Nix's static DAG requirement — the condition is checked before the build. 
+
+`node_fork` is only meaningful as the direct value of a node binding inside a `pipeline { }` block. Using the result outside that context is unsupported.
 
 ## Parameters
 

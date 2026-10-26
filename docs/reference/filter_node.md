@@ -2,7 +2,11 @@
 
 Filter Pipeline Nodes
 
-Returns a new pipeline containing only the nodes for which the predicate returns `true`. Uses NSE (`$field`) to refer to node metadata fields.  No DAG validity check is performed. If a retained node depends on a node that was removed, that inconsistency surfaces only at `build_pipeline` or `pipeline_run`.  Supported metadata fields: `$name`, `$runtime`, `$serializer`, `$deserializer`, `$noop`, `$depth`, `$command_type`, `$diagnostics`.
+Returns a new pipeline containing only the nodes for which the predicate returns `true`. Uses NSE (`$field`) to refer to node metadata fields. 
+
+No DAG validity check is performed. If a retained node depends on a node that was removed, that inconsistency surfaces only at `build_pipeline` or `pipeline_run`. 
+
+Supported metadata fields: `$name`, `$runtime`, `$serializer`, `$deserializer`, `$noop`, `$depth`, `$command_type`, `$diagnostics`.
 
 ## Parameters
 

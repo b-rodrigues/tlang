@@ -171,7 +171,15 @@ let emit_pipeline ?(rel_root="..") ?(r_git_pkgs : Package_types.r_git_dependency
       "  rGitPkgSet = rec {\n" ^ String.concat "\n" entries ^ "\n  };"
   in
 
-  Printf.sprintf {|
+  (* Injected as text because the template below is positional: adding one
+     more `%s` would shift every later argument, and OCaml formats must be
+     literals, so the marker is substituted in the rendered text. The marker
+     is unique to this template. *)
+  let pmml_tool_names_nix =
+    String.concat " "
+      (List.map (fun (name, _, _) -> Nix_utils.nix_double_quote name) Nix_utils.pmml_jar_tools)
+  in
+  let emitted = Printf.sprintf {|
 { system ? builtins.currentSystem }:
 let
   # mkNodeEnv: build a runtime environment from an arbitrary flake path.
@@ -284,11 +292,18 @@ let
   # Additional Tools & LaTeX
   additionalTools = (toml.additional-tools or {}).packages or [];
   latexPkgs = (toml.latex or {}).packages or [];
-  
+
+  # The JPMML JAR tools are filtered out of additionalTools. Their nixpkgs
+  # packages build from Maven and their transitive dependency graphs drift over
+  # time, so a build can break although this project did not change. Generated
+  # node code never calls the CLIs; it reads the jars that t-lang ships, through
+  # T_JPMML_STATSMODELS_JAR and T_JPMML_EVALUATOR_JAR (see nix_emit_node).
+  # The list below is generated from Nix_utils.pmml_jar_tools.
+  pmmlJarToolNames = [ __PMML_JAR_TOOL_NAMES__ ];
   latexCombined = if latexPkgs == [] then null 
                   else pkgs.texlive.combine (builtins.listToAttrs (builtins.map (name: { name = name; value = pkgs.texlive.${name}; }) (["scheme-small"] ++ latexPkgs)));
                   
-  globalBuildInputs = (builtins.map (p: pkgs.${p}) (builtins.filter (p: p != "atelier") additionalTools))%s
+  globalBuildInputs = (builtins.map (p: pkgs.${p}) (builtins.filter (p: p != "atelier" && !(builtins.elem p pmmlJarToolNames)) additionalTools))%s
                       ++ (if latexCombined == null then [] else [ latexCombined ]);
 
   # Per-node flake environments
@@ -306,3 +321,5 @@ rec {
   };
 }
 |} rel_root rel_root rel_root rel_root rel_root rel_root r_serializer_packages_str py_serializer_packages_str r_renv_cran_pkgs_str r_git_pkgs_str py_version_val julia_packages_injection julia_build_input flake_env_bindings nodes (String.concat " " node_names) final_copy
+  in
+  Str.global_replace (Str.regexp_string "__PMML_JAR_TOOL_NAMES__") pmml_tool_names_nix emitted

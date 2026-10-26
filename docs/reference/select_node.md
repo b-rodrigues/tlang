@@ -2,7 +2,9 @@
 
 Select Node Metadata Fields
 
-Returns a DataFrame summarising the requested metadata fields for all nodes in the pipeline. This is a read-only inspection operation — it does not return a Pipeline.  Available fields: `$name`, `$runtime`, `$serializer`, `$deserializer`, `$noop`, `$deps`, `$depth`, `$command_type`.
+Returns a DataFrame summarising the requested metadata fields for all nodes in the pipeline. This is a read-only inspection operation — it does not return a Pipeline. 
+
+Available fields: `$name`, `$runtime`, `$serializer`, `$deserializer`, `$noop`, `$deps`, `$depth`, `$command_type`.
 
 ## Parameters
 

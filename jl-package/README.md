@@ -122,3 +122,16 @@ using tlang
 nodes = pipeline_nodes()
 println(nodes)
 ```
+
+## `Manifest.toml` pins
+
+`Manifest.toml` pins must match the `julia-with-packages` depot in the root
+`flake.nix`. The dev shell puts this repo env first on `JULIA_LOAD_PATH`, so
+stale pins here shadow depot versions and break loads. After any change to
+that package list, copy the matching `version` plus `git-tree-sha1` stanzas
+from the fresh wrapper depot manifest into `Manifest.toml` (drop pins the
+depot no longer needs, e.g. `StructUtils`), then run the tests below:
+
+```bash
+nix develop --command bash -c 'julia --startup-file=no --project=jl-package jl-package/test/runtests.jl'
+```

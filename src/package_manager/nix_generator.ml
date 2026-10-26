@@ -3,6 +3,16 @@
 
 open Package_types
 
+(* The JPMML tool table lives in Nix_utils so the pipeline emitter cannot
+   drift from this generator. *)
+let requested_pmml_jar_tools additional_tools =
+  List.filter
+    (fun (tool, _, _) -> List.mem tool additional_tools)
+    Nix_utils.pmml_jar_tools
+
+let strip_pmml_jar_tools additional_tools =
+  List.filter (fun tool -> not (Nix_utils.is_pmml_jar_tool tool)) additional_tools
+
 (* Shared shellHook fragment: re-export R_LIBS_SITE for editors (e.g. Positron)
    that bypass the r-env wrapper and start base R directly. The wrapper sets
    R_LIBS_SITE internally; direnv shells re-export it here. Empty R output
@@ -260,6 +270,8 @@ let generate_project_flake
   let has_atelier_in_tools = List.mem "atelier" additional_tools in
   let effective_use_atelier = use_atelier || has_atelier_in_tools in
   let additional_tools = List.filter (fun t -> t <> "atelier") additional_tools in
+  let pmml_jar_tools_requested = requested_pmml_jar_tools additional_tools in
+  let additional_tools = strip_pmml_jar_tools additional_tools in
   let has_quarto = List.mem "quarto" additional_tools in
   let latex_pkgs = safe_pkg_names ~warn:warn_invalid_pkg_names latex_pkgs in
   let buf = Buffer.create 2048 in
@@ -455,6 +467,16 @@ let generate_project_flake
   Buffer.add_string buf "        # pipeline.nix envs). Declaring any Julia dependency restores juliaPkg.\n";
   Printf.bprintf buf "        juliaPkg = pkgs.%s;\n" jl_attr;
   end;
+  List.iter
+    (fun (tool, jar, _) ->
+      Buffer.add_string buf "\n";
+      Printf.bprintf buf "        # %s CLI from the jar shipped with t-lang.\n" tool;
+      Printf.bprintf buf "        %s = pkgs.writeShellScriptBin \"%s\" ''\n" tool tool;
+      Printf.bprintf buf
+        "          exec ${pkgs.lib.getExe pkgs.jre_headless} -jar \"${t-lang.packages.${system}.default}/share/java/%s\" \"$@\"\n"
+        jar;
+      Buffer.add_string buf "        '';\n")
+    pmml_jar_tools_requested;
   if additional_tools <> [] then begin
     Buffer.add_string buf "\n";
     Buffer.add_string buf "        # Additional Tools\n";
@@ -483,6 +505,10 @@ let generate_project_flake
             if latex_pkgs <> [] then Buffer.add_string buf "            latex-env\n";
   let extra_pkgs = 
     (if additional_tools <> [] then " ++ additionalTools" else "") ^
+    (match pmml_jar_tools_requested with
+     | [] -> ""
+     | tools ->
+       " ++ [ " ^ String.concat " " (List.map (fun (tool, _, _) -> tool) tools) ^ " ]") ^
     (if deps <> [] then " ++ tPackages" else "")
   in
   Buffer.add_string buf (Printf.sprintf "          ]%s;\n" extra_pkgs);
@@ -546,12 +572,14 @@ let generate_project_flake
     Buffer.add_string buf "            echo \"Quarto is enabled via [additional-tools]. Render {t} chunks with filters: [tlang].\"\n";
     Buffer.add_string buf "            echo \"\"\n";
   end;
-  if List.mem "jpmml-evaluator" additional_tools then begin
-    Buffer.add_string buf "            export T_JPMML_EVALUATOR_JAR=\"${pkgs.jpmml-evaluator}/share/java/jpmml-evaluator.jar\"\n";
-  end;
-  if List.mem "jpmml-statsmodels" additional_tools then begin
-    Buffer.add_string buf "            export T_JPMML_STATSMODELS_JAR=\"${pkgs.jpmml-statsmodels}/share/java/jpmml-statsmodels.jar\"\n";
-  end;
+  List.iter
+    (fun (_, jar, env_suffix) ->
+      Printf.bprintf buf
+        "            export T_JPMML_%s_JAR=\"${t-lang.packages.${system}.default}/share/java/%s\"\n"
+        env_suffix jar)
+    pmml_jar_tools_requested;
+  if pmml_jar_tools_requested <> [] then
+    Buffer.add_string buf "            export T_JPMML_JAVA=\"${pkgs.lib.getExe pkgs.jre_headless}\"\n";
   Buffer.add_string buf "          '';\n";
   Buffer.add_string buf "        };\n";
   Buffer.add_string buf "      }\n";
@@ -577,6 +605,8 @@ let generate_package_flake
   let has_atelier_in_tools = List.mem "atelier" additional_tools in
   let effective_use_atelier = use_atelier || has_atelier_in_tools in
   let additional_tools = List.filter (fun t -> t <> "atelier") additional_tools in
+  let pmml_jar_tools_requested = requested_pmml_jar_tools additional_tools in
+  let additional_tools = strip_pmml_jar_tools additional_tools in
   let buf = Buffer.create 2048 in
   let dep_input_names = List.map (fun d -> nix_safe_name d.dep_name) deps in
   let all_output_args =
@@ -612,6 +642,16 @@ let generate_package_flake
   Buffer.add_string buf "    flake-utils.lib.eachDefaultSystem (system:\n";
   Buffer.add_string buf "      let\n";
   Buffer.add_string buf "        pkgs = nixpkgs.legacyPackages.${system};\n";
+  List.iter
+    (fun (tool, jar, _) ->
+      Buffer.add_string buf "\n";
+      Printf.bprintf buf "        # %s CLI from the jar shipped with t-lang.\n" tool;
+      Printf.bprintf buf "        %s = pkgs.writeShellScriptBin \"%s\" ''\n" tool tool;
+      Printf.bprintf buf
+        "          exec ${pkgs.lib.getExe pkgs.jre_headless} -jar \"${t-lang.packages.${system}.default}/share/java/%s\" \"$@\"\n"
+        jar;
+      Buffer.add_string buf "        '';\n")
+    pmml_jar_tools_requested;
   if additional_tools <> [] then begin
     Buffer.add_string buf "\n";
     Buffer.add_string buf "        # Additional Tools\n";
@@ -664,10 +704,14 @@ let generate_package_flake
     Printf.bprintf buf "            %s.packages.${system}.default\n"
       (nix_safe_name dep.dep_name)
   ) deps;
-  if additional_tools <> [] then
-    Buffer.add_string buf "          ] ++ additionalTools;\n"
-  else
-    Buffer.add_string buf "          ];\n";
+  let extra_pkgs =
+    (if additional_tools <> [] then " ++ additionalTools" else "") ^
+    (match pmml_jar_tools_requested with
+     | [] -> ""
+     | tools ->
+       " ++ [ " ^ String.concat " " (List.map (fun (tool, _, _) -> tool) tools) ^ " ]")
+  in
+  Buffer.add_string buf (Printf.sprintf "          ]%s;\n" extra_pkgs);
   Buffer.add_string buf "\n";
   Buffer.add_string buf "          shellHook = ''\n";
   if deps <> [] then begin
@@ -696,12 +740,14 @@ let generate_package_flake
   Buffer.add_string buf "            echo \"  * Add them to DESCRIPTION.toml\"\n";
   Buffer.add_string buf "            echo \"  * Run 't update' to sync flake.nix\"\n";
   Buffer.add_string buf "            echo \"\"\n";
-  if List.mem "jpmml-evaluator" additional_tools then begin
-    Buffer.add_string buf "            export T_JPMML_EVALUATOR_JAR=\"${pkgs.jpmml-evaluator}/share/java/jpmml-evaluator.jar\"\n";
-  end;
-  if List.mem "jpmml-statsmodels" additional_tools then begin
-    Buffer.add_string buf "            export T_JPMML_STATSMODELS_JAR=\"${pkgs.jpmml-statsmodels}/share/java/jpmml-statsmodels.jar\"\n";
-  end;
+  List.iter
+    (fun (_, jar, env_suffix) ->
+      Printf.bprintf buf
+        "            export T_JPMML_%s_JAR=\"${t-lang.packages.${system}.default}/share/java/%s\"\n"
+        env_suffix jar)
+    pmml_jar_tools_requested;
+  if pmml_jar_tools_requested <> [] then
+    Buffer.add_string buf "            export T_JPMML_JAVA=\"${pkgs.lib.getExe pkgs.jre_headless}\"\n";
   Buffer.add_string buf "          '';\n";
   Buffer.add_string buf "        };\n";
   Buffer.add_string buf "      }\n";

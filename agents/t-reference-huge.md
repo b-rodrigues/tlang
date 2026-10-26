@@ -14,7 +14,7 @@ Simulations in Julia, ML in Python, statistics in R — or the exact opposite. I
 
 A language for the LLM era, T is designed to be piloted by both humans and AI models. It gives you one hermetic dependency graph where your tools communicate without glue and execute consistently through space and time: on your laptop today, on a cluster tomorrow, and five years from now without bitrot.
 
-**Status:** Version 0.56.0 "L'Empire du ruban rouge".
+**Status:** Version 0.56.1 "L'Empire du ruban rouge".
 
 ---
 
@@ -463,7 +463,7 @@ Now that you have your first project set up and understand the folder structure,
 
 # T Language Overview
 
-> **Version**: 0.56.0
+> **Version**: 0.56.1
 
 T is a functional programming language designed for declarative, tabular data manipulation. It combines the pipeline-driven style of R's tidyverse with OCaml's type discipline, producing a small, focused language for data wrangling and basic statistics.
 
@@ -5721,6 +5721,26 @@ pipeline_status(p) |> filter($status == "Errored")
 
 ---
 
+### `pipeline_overview(p)`
+
+One-call table joining the columns of `pipeline_to_frame` with the live build state of `pipeline_status`. It is not a superset: `pipeline_config_to_frame` adds `shell`, `flake`, `prov_*` and `n_*` columns. Node diagnostics live in `pipeline_node_options` (and as `$diagnostics` in `filter_node` predicates). Column names match the source frames. Failed nodes sort first.
+
+**Parameters:**
+
+- `p` — The Pipeline object.
+
+**Returns:**
+
+`DataFrame` — Columns `name`, `runtime`, `serializer`, `deserializer`, `noop`, `deps`, `depth`, `command_type`, `status`, `duration`, `path`, `error`. Status fields are NA when the pipeline has no matching build log yet.
+
+**Examples:**
+```t
+pipeline_overview(p)
+pipeline_overview(p) |> filter($status == "Errored")
+```
+
+---
+
 ### `build_log_history(p, n = NA, pattern = NA)`
 
 Returns a summary DataFrame of all historical builds matching the current pipeline's node signature, ordered from most recent to oldest.
@@ -9661,6 +9681,24 @@ Now that you can work with numerical arrays, explore statistical modeling and re
 # FILE: docs/changelog.md
 
 # Changelog
+
+## [0.56.1] - 2026-10-26
+
+### New features
+
+- **`t check` text output shows what to do next**: each diagnostic now prints `expected` vs `actual`, the `caused by` chain, and a one-line fix hint (JSON output is unchanged). Humans and agents see the same actionable facts without passing `--json`.
+- **`t fix --json` for agents and scripts**: the new flag prints the fix plan as structured JSON — per-entry outcomes plus full diagnostics with fix-kind details — so automation needs no text parsing. `t diff --json` nodes now also carry `class_a`/`class_b`, so type changes across builds are visible to tools.
+- **New `pipeline_overview(p)` table**: one call joins static node config (`runtime`, `serializer`, `deserializer`, `noop`, `deps`, `depth`, `command_type`) with live build state (`status`, `duration`, `path`, `error`). Column names match `pipeline_to_frame` and `pipeline_status`, so existing filters copy over unchanged. Failed nodes sort first.
+- **Calmer node debugging**: `inspect_node` now returns the same ten keys for a built node and a failed one. A failed node carries `status = "Errored"` plus `error_code` and `error_message`, so inspection works exactly when debug data matters most. **This is a behaviour change**: a failed node used to raise a `TypeError`, and `is_error(inspect_node(x))` no longer detects failure — test `inspect_node(x).status` instead. `rebuild_node` failures show the last 15 lines plus a `read_log()` pointer instead of a full log dump.
+
+### Fixes
+
+- **PMML helper jars no longer build from Maven, and are committed to the repository**: `jpmml-statsmodels` 1.3.13 and `jpmml-evaluator` 1.7.7 are the released executable jars, stored under `vendor/pmml/` and read from there by `flake.nix`. Pipeline node builds and project shells read both jars from the `t-lang` output (`share/java/`), and `T_JPMML_STATSMODELS_JAR` / `T_JPMML_EVALUATOR_JAR` point there. `predict()` on a PMML model now resolves the JVM via `T_JPMML_JAVA`, then `java` on `PATH`, with an explicit error naming the fix when neither exists. The dev shell exports `T_JPMML_JAVA`; generated project and package shells export it when PMML jar tools are requested. The nixpkgs packages built these jars from source with Maven, so drift in a transitive dependency could break a project that did not change. Because the jars are committed, no build downloads them either, so a deleted or retagged upstream release cannot break a build. `[additional-tools]` entries with these names now resolve to the shipped jars. Point the `t-lang` input at a version that ships the jars; an older `t-lang` gives an explicit "JAR not found" error instead of a Maven build.
+- **Internal cleanup with no behavior change**: `explain()` keeps the single top-level `runtime` from `0.56.0`, and the now-unused duplicate inside the node configuration record is removed from the codebase.
+- **Julia test path works in `nix develop` again**: the shell kept only the repo env plus wrapper env on `JULIA_LOAD_PATH`, so stdlib imports (`Pkg`, `Serialization`) failed. `@stdlib` is back on the path. The `DeepDiffs` test dependency joins the Nix Julia set, and `jl-package/Manifest.toml` pins match the depot again (`JSON 0.21.4`, `Parsers 2.8.6`), so the full Julia suite (82 tests) runs offline.
+- **`t fix` exit codes match in text and JSON**: both modes now exit `0` when no fix was skipped and `1` when any fix needs manual work. Scripts can rely on the exit code in either mode.
+- **Cleaner spelling hints in `t check`**: the message shows the suggestion (`Did you mean …?` or `Valid nodes: …`), and the fix hint no longer repeats it. Dangling node reads now include the closest name in the message.
+- **Julia companion environment stays aligned**: CI runs the Julia companion suite, so a stale `jl-package/Manifest.toml` pin fails fast instead of breaking loads later.
 
 ## [0.56.0] - 2026-10-08
 
@@ -22381,7 +22419,7 @@ packages in project configuration. PMML support is not implicit magic.
 
 ### Python PMML loading fails
 
-Check that `jpmml-evaluator` is available in `[additional-tools]` and that `pyarrow` is available in `[py-dependencies]`. Also ensure the JVM-backed PMML toolchain is correctly provisioned.
+Do not add `jpmml-evaluator` or `jpmml-statsmodels` to `[additional-tools]`. Both jars are vendored in `vendor/pmml/` (`jpmml-statsmodels` 1.3.13, `jpmml-evaluator` 1.7.7) and shipped in `t-lang` output `share/java/`. Pipeline builds set `T_JPMML_EVALUATOR_JAR` and `T_JPMML_STATSMODELS_JAR`. `predict()` selects the JVM from `T_JPMML_JAVA`, else `java` on `PATH`. If no `java` exists, add `jre` to `[additional-tools]` or set `T_JPMML_JAVA` to a Java executable. Keep `pyarrow` in `[py-dependencies]` where the Python code needs it.
 
 ### `t_write_pmml()` rejects a model
 
@@ -22473,7 +22511,7 @@ my_stats = { git = "https://github.com/user/my-stats", tag = "v0.1.0" }
 data_utils = { git = "https://github.com/user/data-utils", tag = "v0.2.0" }
 
 [t]
-min_version = "0.56.0"
+min_version = "0.56.1"
 ```
 
 > **Important**: `[dependencies]` entries **must** be `{ git, tag }` inline tables pointing to T packages. Version-constraint strings (e.g. `tlang = ">=0.52.0"`) and array values (e.g. `python = ["polars"]`) are **not valid** and will produce a hard error from `t update`. To declare runtime-language packages, use the dedicated sections:
@@ -25803,7 +25841,9 @@ dense_rank([1, 2, 2, 4])
 
 Binary Deserialization
 
-Reads a serialized T value from a file. Verifies an integrity digest before unmarshalling to reject tampered or externally-supplied artifacts.  SECURITY NOTE: OCaml Marshal is not safe for fully untrusted input. The MD5 digest check detects accidental corruption only — MD5 is not cryptographically secure and provides no protection against intentional tampering. Only load .tobj files produced by your own T installation.
+Reads a serialized T value from a file. Verifies an integrity digest before unmarshalling to reject tampered or externally-supplied artifacts. 
+
+SECURITY NOTE: OCaml Marshal is not safe for fully untrusted input. The MD5 digest check detects accidental corruption only — MD5 is not cryptographically secure and provides no protection against intentional tampering. Only load .tobj files produced by your own T installation.
 
 ## Parameters
 
@@ -25941,7 +25981,9 @@ Pipeline with shared nodes removed.
 
 Summarize Output Changes Across Builds
 
-Compares the two most recent builds of a pipeline and returns a DataFrame summarizing which nodes changed, were added, or were removed.  Uses per-node Nix content hashes stored in build logs to detect changes without loading artifacts. Only loads artifacts for nodes that actually changed.
+Compares the two most recent builds of a pipeline and returns a DataFrame summarizing which nodes changed, were added, or were removed. 
+
+Uses per-node Nix content hashes stored in build logs to detect changes without loading artifacts. Only loads artifacts for nodes that actually changed.
 
 ## Parameters
 
@@ -26476,7 +26518,9 @@ expand(df, $type, 2010:2012)
 
 Expand pattern-based branching in a pipeline.
 
-Patterned nodes using `map_pattern(dep)`, `cross_pattern(...)`, `slice_pattern(dep, [i1, i2, ...])`, `head_pattern(dep, n)`, `tail_pattern(dep, n)`, or `sample_pattern(dep, n)` are replaced with N branch copies, where N depends on the pattern type. Supports List, Vector, and DataFrame dependencies.  `populate_pipeline(p)`, `build_pipeline(p)`, and pipeline composition functions (`chain`, `parallel`, `union`, ...) now call this function automatically when they detect unexpanded patterns.
+Patterned nodes using `map_pattern(dep)`, `cross_pattern(...)`, `slice_pattern(dep, [i1, i2, ...])`, `head_pattern(dep, n)`, `tail_pattern(dep, n)`, or `sample_pattern(dep, n)` are replaced with N branch copies, where N depends on the pattern type. Supports List, Vector, and DataFrame dependencies. 
+
+`populate_pipeline(p)`, `build_pipeline(p)`, and pipeline composition functions (`chain`, `parallel`, `union`, ...) now call this function automatically when they detect unexpanded patterns.
 
 ## Parameters
 
@@ -27789,7 +27833,13 @@ assert(expect_values(df, "status", ["PENDING", "APPROVED"]))
 
 Assert that a pipeline node produced a warning diagnostic
 
-Passes if the node's diagnostics contain at least one warning. Optionally filters by warning `kind` string and/or regex on the warning `message`.  This only checks pipeline node warning diagnostics (stored in `nd_warnings` on `NodeResult`/`ComputedNode`). It does not capture runtime warnings or print output.  `ComputedNode` values must already have been evaluated (e.g. via `build_pipeline` or `run_pipeline`); otherwise the expectation fails.  The `message` pattern uses OCaml's standard `Str` regular expression syntax (not PCRE). Matching is substring-based (searches anywhere in the message). Empty string values for `kind` or `message` are treated as omitted filters (match any).
+Passes if the node's diagnostics contain at least one warning. Optionally filters by warning `kind` string and/or regex on the warning `message`. 
+
+This only checks pipeline node warning diagnostics (stored in `nd_warnings` on `NodeResult`/`ComputedNode`). It does not capture runtime warnings or print output. 
+
+`ComputedNode` values must already have been evaluated (e.g. via `build_pipeline` or `run_pipeline`); otherwise the expectation fails. 
+
+The `message` pattern uses OCaml's standard `Str` regular expression syntax (not PCRE). Matching is substring-based (searches anywhere in the message). Empty string values for `kind` or `message` are treated as omitted filters (match any).
 
 ## Parameters
 
@@ -28431,7 +28481,11 @@ filter(mtcars, \(row) -> row.mpg > 20)
 
 Filter Pipeline Nodes
 
-Returns a new pipeline containing only the nodes for which the predicate returns `true`. Uses NSE (`$field`) to refer to node metadata fields.  No DAG validity check is performed. If a retained node depends on a node that was removed, that inconsistency surfaces only at `build_pipeline` or `pipeline_run`.  Supported metadata fields: `$name`, `$runtime`, `$serializer`, `$deserializer`, `$noop`, `$depth`, `$command_type`, `$diagnostics`.
+Returns a new pipeline containing only the nodes for which the predicate returns `true`. Uses NSE (`$field`) to refer to node metadata fields. 
+
+No DAG validity check is performed. If a retained node depends on a node that was removed, that inconsistency surfaces only at `build_pipeline` or `pipeline_run`. 
+
+Supported metadata fields: `$name`, `$runtime`, `$serializer`, `$deserializer`, `$noop`, `$depth`, `$command_type`, `$diagnostics`.
 
 ## Parameters
 
@@ -28465,7 +28519,9 @@ p |> filter_node(!is_na($diagnostics.error))
 
 Model Goodness-of-Fit Statistics
 
-Returns a tidy DataFrame of model-level statistics (e.g. R-squared, AIC, BIC). Supports single model objects or labeled collections of models for comparison.  When passed a list or dictionary of models, it stacks the results into a single DataFrame, automatically adding a 'model' column if labels are present.
+Returns a tidy DataFrame of model-level statistics (e.g. R-squared, AIC, BIC). Supports single model objects or labeled collections of models for comparison. 
+
+When passed a list or dictionary of models, it stacks the results into a single DataFrame, automatically adding a 'model' column if labels are present.
 
 ## Parameters
 
@@ -29366,6 +29422,7 @@ A confirmation message describing the imported archive.
 | [pipeline_node](pipeline_node.html) | Get Pipeline Node |
 | [pipeline_node_options](pipeline_node_options.html) | Get Pipeline Node Options (read-back) |
 | [pipeline_nodes](pipeline_nodes.html) | List Pipeline Nodes |
+| [pipeline_overview](pipeline_overview.html) | Unified pipeline overview table |
 | [pipeline_print](pipeline_print.html) | Pretty-Print a Pipeline |
 | [pipeline_report](pipeline_report.html) | Generate Pipeline Report |
 | [pipeline_roots](pipeline_roots.html) | Pipeline Root Nodes |
@@ -29682,7 +29739,16 @@ A DataFrame with columns = derivation, build_success, path, output.
 
 Inspect Pipeline Node Metadata
 
-Returns a dictionary with metadata about a computed node, including its name, runtime, artifact path, serializer, class, dependencies, and warnings. The `warnings` key contains a structured list of warning records, each with `source` ("own" or the ancestor node name) and `message`.
+Returns a dictionary with metadata about a computed node, including its name, runtime, artifact path, serializer, class, dependencies, and warnings. The `warnings` key contains a structured list of warning records, each with `source` ("own" or the ancestor node name) and `message`. 
+
+Behaviour change: a failed node used to return a TypeError. Code that tested failure with `is_error(inspect_node(x))` must test `inspect_node(x).status == "Errored"` instead. 
+
+A computed node and a failed node return the same ten keys, so one schema covers both cases: 
+
+- `status` is "Built" for a computed node and "Errored" for a failed one. 
+- `error_code` and `error_message` describe the failure. Both are NA for a computed node. 
+- `class` is the node class for a computed node and "Error" for a failed one. 
+- A failed node has no artifact, so `runtime`, `path` and `serializer` are NA, and `dependencies` and `warnings` are empty lists.
 
 ## Parameters
 
@@ -29691,7 +29757,7 @@ Returns a dictionary with metadata about a computed node, including its name, ru
 
 ## Returns
 
-A dictionary with keys = name, runtime, path, serializer, class, dependencies, warnings.
+A dictionary with keys = name, runtime, path, serializer, class, dependencies, warnings, status, error_code, error_message.
 
 ## See Also
 
@@ -30437,7 +30503,9 @@ The number of elements.
 
 Lens Library
 
-Lenses provide a robust way to focus on, retrieve, and update nested data structures. Historically implemented as functional closures, Tlang lenses are now structured serializable objects (VLens), allowing them to be passed across Nix-isolated pipeline boundaries.  Retrieval should primarily be performed via the unified `get(data, lens)` primitive. Updates are performed via `over(data, lens, func)`.
+Lenses provide a robust way to focus on, retrieve, and update nested data structures. Historically implemented as functional closures, Tlang lenses are now structured serializable objects (VLens), allowing them to be passed across Nix-isolated pipeline boundaries. 
+
+Retrieval should primarily be performed via the unified `get(data, lens)` primitive. Updates are performed via `over(data, lens, func)`.
 
 
 
@@ -31216,7 +31284,11 @@ mutate(mtcars, $ratio = $mpg / $hp)
 
 Mutate Pipeline Node Metadata
 
-Modifies metadata fields on pipeline nodes. Supports a `where` named argument to scope changes to a subset of nodes. Without `where`, all nodes are affected.  Mutable metadata fields: `noop` (Bool), `serializer` (Strategy), `deserializer` (Strategy), `runtime` (String), `deps` (List[String]), `functions` (List[String]), `include` (List[String]), `env_vars` (Dict), `args` (Dict), `shell` (String), `shell_args` (List[String]), `flake` (String).  The `where` clause uses NSE (`$field`) just like `filter_node`.
+Modifies metadata fields on pipeline nodes. Supports a `where` named argument to scope changes to a subset of nodes. Without `where`, all nodes are affected. 
+
+Mutable metadata fields: `noop` (Bool), `serializer` (Strategy), `deserializer` (Strategy), `runtime` (String), `deps` (List[String]), `functions` (List[String]), `include` (List[String]), `env_vars` (Dict), `args` (Dict), `shell` (String), `shell_args` (List[String]), `flake` (String). 
+
+The `where` clause uses NSE (`$field`) just like `filter_node`.
 
 ## Parameters
 
@@ -31501,7 +31573,9 @@ expand(df, nesting($year, $month))
 
 Nest columns into sub-dataframes
 
-Packs selected columns into nested DataFrame values grouped by the remaining columns. Supports flexible column selection using symbols, strings, or selection helpers (like starts_with, ends_with).  If the DataFrame is already grouped (via group_by()) and no columns are specified, nest() will automatically nest all columns except the grouping keys.
+Packs selected columns into nested DataFrame values grouped by the remaining columns. Supports flexible column selection using symbols, strings, or selection helpers (like starts_with, ends_with). 
+
+If the DataFrame is already grouped (via group_by()) and no columns are specified, nest() will automatically nest all columns except the grouping keys.
 
 ## Parameters
 
@@ -31576,7 +31650,19 @@ n = nobs(model)
 
 Compare Node Outputs Across Builds
 
-Compares the artifact produced by a named node across two historical builds of the same pipeline.  Returns a structured VDiff dictionary with a consistent envelope (kind, node_a, node_b, log_a, log_b, value_type, identical, summary, detail, hunks).  Dispatches to a type-appropriate comparison: - DataFrame → row-/column-level diff with optional key-based alignment - Model (PMML) → coefficient deltas and fit-stat comparison - Scalar → before/after with numeric delta - Python-native objects → unified_diff-based structural comparison - Julia-native objects → DeepDiffs-based structural comparison - R-native objects → diffobj-based structural comparison - Generic → structural comparison over string representations  Runtime-native object diffs are preserved only for runtime artifacts using the standard `default`/`tobj` serializers. Custom serializer names follow the normal artifact-loading path; use the companion helper packages directly when you need a custom deserializer for native objects.
+Compares the artifact produced by a named node across two historical builds of the same pipeline.  Returns a structured VDiff dictionary with a consistent envelope (kind, node_a, node_b, log_a, log_b, value_type, identical, summary, detail, hunks). 
+
+Dispatches to a type-appropriate comparison: 
+
+- DataFrame → row-/column-level diff with optional key-based alignment 
+- Model (PMML) → coefficient deltas and fit-stat comparison 
+- Scalar → before/after with numeric delta 
+- Python-native objects → unified_diff-based structural comparison 
+- Julia-native objects → DeepDiffs-based structural comparison 
+- R-native objects → diffobj-based structural comparison 
+- Generic → structural comparison over string representations 
+
+Runtime-native object diffs are preserved only for runtime artifacts using the standard `default`/`tobj` serializers. Custom serializer names follow the normal artifact-loading path; use the companion helper packages directly when you need a custom deserializer for native objects.
 
 ## Parameters
 
@@ -31605,7 +31691,9 @@ A VDiff envelope dictionary.
 
 Static pipeline multi-way branch
 
-Evaluated at pipeline construction time. Takes condition-value pairs and returns the value for the first truthy condition. If no condition matches, returns a null marker (node excluded). Provide `.default` to control the fallback value. This preserves Nix's static DAG requirement — the condition is checked before the build.  `node_fork` is only meaningful as the direct value of a node binding inside a `pipeline { }` block. Using the result outside that context is unsupported.
+Evaluated at pipeline construction time. Takes condition-value pairs and returns the value for the first truthy condition. If no condition matches, returns a null marker (node excluded). Provide `.default` to control the fallback value. This preserves Nix's static DAG requirement — the condition is checked before the build. 
+
+`node_fork` is only meaningful as the direct value of a node binding inside a `pipeline { }` block. Using the result outside that context is unsupported.
 
 ## Parameters
 
@@ -31657,7 +31745,9 @@ A lens for the node's value.
 
 Configure a Pipeline Node
 
-Configure execution settings such as the runtime and custom serialized methods for a pipeline node. This function is typically used directly within a `pipeline { ... }` block to wrap expressions, enable cross-runtime evaluation, and optionally render a `.qmd` document via `runtime = Quarto`.  Node commands run in a fresh sandbox, not a closure. Outer data values are inlined as frozen literals; block-local bindings stay local; functions and builtins stay symbolic (share code via `functions`, not bare references); quoted `to_expr`/`quo` code runs later at node runtime. Reassigning a captured outer data variable is a construction error.
+Configure execution settings such as the runtime and custom serialized methods for a pipeline node. This function is typically used directly within a `pipeline { ... }` block to wrap expressions, enable cross-runtime evaluation, and optionally render a `.qmd` document via `runtime = Quarto`. 
+
+Node commands run in a fresh sandbox, not a closure. Outer data values are inlined as frozen literals; block-local bindings stay local; functions and builtins stay symbolic (share code via `functions`, not bare references); quoted `to_expr`/`quo` code runs later at node runtime. Reassigning a captured outer data variable is a construction error.
 
 ## Parameters
 
@@ -31715,7 +31805,9 @@ A lens for the specified metadata field.
 
 Static pipeline node conditional
 
-Evaluated at pipeline construction time. Returns `value` if `condition` is truthy, otherwise returns a null marker that causes the pipeline to exclude the node entirely. This preserves Nix's static DAG requirement — the condition is checked before the build.  `node_when` is only meaningful as the direct value of a node binding inside a `pipeline { }` block. Using the result outside that context (arithmetic, `is_na()`, etc.) is unsupported.
+Evaluated at pipeline construction time. Returns `value` if `condition` is truthy, otherwise returns a null marker that causes the pipeline to exclude the node entirely. This preserves Nix's static DAG requirement — the condition is checked before the build. 
+
+`node_when` is only meaningful as the direct value of a node binding inside a `pipeline { }` block. Using the result outside that context (arithmetic, `is_na()`, etc.) is unsupported.
 
 ## Parameters
 
@@ -32467,7 +32559,17 @@ pipeline_cache_status(p)
 
 Convert Pipeline Config to DataFrame
 
-Produces a DataFrame with one row per node, showing resolved configuration values and per-field provenance counts.  Extends [pipeline_to_frame] with provenance columns so queries like "which nodes got their serializer from global options?" can be answered directly in T.  Columns: - `name`, `runtime`, `depth`, `command_type` — identity (as in pipeline_to_frame) - `serializer`, `deserializer`, `noop`, `shell`, `flake` — resolved values - `prov_serializer`, ..., `prov_flake` — source ("node" / "global" / NA) - `n_deps`, `n_funcs`, `n_incs`, `n_env_vars`, `n_args`, `n_shell_args` — total counts (non-NA columns) - `n_*_global`, `n_*_node` — provenance counts for each list-type option  NOTE: `n_deps` is sourced from `p_deps` (which includes auto-inferred dependencies), while `n_deps_global` / `n_deps_node` are sourced from `prov_explicit_deps` (which only tracks explicitly-declared or globally-injected deps).  Consequently `n_deps` may exceed `n_deps_global + n_deps_node` when a node has auto-inferred edges. The other five list-count groups (`n_funcs`, `n_incs`, `n_env_vars`, `n_args`, `n_shell_args`) DO reconcile because they come from the same underlying lists as their provenance columns.
+Produces a DataFrame with one row per node, showing resolved configuration values and per-field provenance counts.  Extends [pipeline_to_frame] with provenance columns so queries like "which nodes got their serializer from global options?" can be answered directly in T. 
+
+Columns: 
+
+- `name`, `runtime`, `depth`, `command_type` — identity (as in pipeline_to_frame) 
+- `serializer`, `deserializer`, `noop`, `shell`, `flake` — resolved values 
+- `prov_serializer`, ..., `prov_flake` — source ("node" / "global" / NA) 
+- `n_deps`, `n_funcs`, `n_incs`, `n_env_vars`, `n_args`, `n_shell_args` — total counts (non-NA columns) 
+- `n_*_global`, `n_*_node` — provenance counts for each list-type option 
+
+NOTE: `n_deps` is sourced from `p_deps` (which includes auto-inferred dependencies), while `n_deps_global` / `n_deps_node` are sourced from `prov_explicit_deps` (which only tracks explicitly-declared or globally-injected deps).  Consequently `n_deps` may exceed `n_deps_global + n_deps_node` when a node has auto-inferred edges. The other five list-count groups (`n_funcs`, `n_incs`, `n_env_vars`, `n_args`, `n_shell_args`) DO reconcile because they come from the same underlying lists as their provenance columns.
 
 ## Parameters
 
@@ -32602,7 +32704,9 @@ pipeline_depth(p)
 
 Compare Pipeline Structures
 
-Compares two `Pipeline` values and returns a structured diff describing which nodes were added, removed, changed, or rewired.  Unlike `node_diff`, which compares node artifacts across builds, `pipeline_diff` compares in-memory pipeline structure.
+Compares two `Pipeline` values and returns a structured diff describing which nodes were added, removed, changed, or rewired. 
+
+Unlike `node_diff`, which compares node artifacts across builds, `pipeline_diff` compares in-memory pipeline structure.
 
 ## Parameters
 
@@ -32733,7 +32837,29 @@ The value of the node.
 
 Get Pipeline Node Options (read-back)
 
-Returns a Dict describing the fully resolved configuration of a single pipeline node, after any `set_pipeline_global_options` merges have been applied.  This is the read-back companion to `set_pipeline_global_options`: what you merged in, you can read back out.  The returned Dict has the following keys: - `name` — the node name (String) - `runtime` — one of "T", "R", "Python", "Julia", "Quarto", "sh" (String) - `serializer` — resolved strategy value (a Symbol like ^csv, a strategy Dict, or "default" for unset) - `deserializer` — resolved strategy value, same shapes as `serializer` - `noop` — whether the node is a no-op (Bool) - `deps` — names of nodes this node depends on (List of String) - `depth` — topological depth in the DAG (Int); roots are depth 0 - `command_type` — one of "command" or "script" (String) - `diagnostics` — node diagnostics (Dict) - `functions` — function files merged into the node (List of String) - `include` — included files (List of String) - `env_vars` — build environment variables (Dict) - `args` — runtime/tool arguments (Dict) - `shell` — shell interpreter, or NA when unset (String | NA) - `shell_args` — shell interpreter arguments (List of String) - `flake` — Nix flake path, or NA when unset (String | NA) - `provenance` — where each resolved option came from (Dict).  Combine options (`functions`, `include`, `shell_args`, `dependencies`) are grouped into `global`/`node` sub-lists; override options (`serializer`, `deserializer`, `shell`, `flake`, `noop`) map to a source String ("global" | "node") or NA when unset; `env_vars` and `args` map each key to its source String.  An unknown node name is a `TypeError` listing the valid node names.
+Returns a Dict describing the fully resolved configuration of a single pipeline node, after any `set_pipeline_global_options` merges have been applied.  This is the read-back companion to `set_pipeline_global_options`: what you merged in, you can read back out. 
+
+The returned Dict has the following keys: 
+
+- `name` — the node name (String) 
+- `runtime` — one of "T", "R", "Python", "Julia", "Quarto", "sh" (String) 
+- `serializer` — resolved strategy value (a Symbol like ^csv, a strategy Dict, or "default" for unset) 
+- `deserializer` — resolved strategy value, same shapes as `serializer` 
+- `noop` — whether the node is a no-op (Bool) 
+- `deps` — names of nodes this node depends on (List of String) 
+- `depth` — topological depth in the DAG (Int); roots are depth 0 
+- `command_type` — one of "command" or "script" (String) 
+- `diagnostics` — node diagnostics (Dict) 
+- `functions` — function files merged into the node (List of String) 
+- `include` — included files (List of String) 
+- `env_vars` — build environment variables (Dict) 
+- `args` — runtime/tool arguments (Dict) 
+- `shell` — shell interpreter, or NA when unset (String | NA) 
+- `shell_args` — shell interpreter arguments (List of String) 
+- `flake` — Nix flake path, or NA when unset (String | NA) 
+- `provenance` — where each resolved option came from (Dict). Combine options (`functions`, `include`, `shell_args`, `dependencies`) are grouped into `global`/`node` sub-lists; override options (`serializer`, `deserializer`, `shell`, `flake`, `noop`) map to a source String ("global" | "node") or NA when unset; `env_vars` and `args` map each key to its source String. 
+
+An unknown node name is a `TypeError` listing the valid node names.
 
 ## Parameters
 
@@ -32778,6 +32904,55 @@ The node names.
 ## See Also
 
 [pipeline_deps](pipeline_deps.html), [pipeline_node](pipeline_node.html)
+
+
+
+# FILE: docs/reference/pipeline_overview.md
+
+# pipeline_overview
+
+Unified pipeline overview table
+
+One call joins pipeline structure with the latest build log into a single per-node table: the columns of `pipeline_to_frame` plus the live build state of `pipeline_status`. 
+
+It is not a superset of the other frames. `pipeline_config_to_frame` also reports `shell`, `flake`, the `prov_*` provenance columns and the `n_*` count columns. None of these are repeated here; call that function when you need them. Node diagnostics live in `pipeline_node_options` (and as `$diagnostics` in `filter_node` predicates), not in this table nor in `pipeline_to_frame`. 
+
+Column names match the source frames so filters copy over unchanged. Failed nodes sort first so the root cause is visible without extra calls. 
+
+Columns: 
+
+- `name` — node name (String) 
+- `runtime` — e.g. "T", "R", "Python" (String) 
+- `serializer` — e.g. "default", "^csv" (String) 
+- `deserializer` — e.g. "default", "^csv" (String) 
+- `noop` — whether the node is a no-op (Bool) 
+- `deps` — names of nodes this node depends on (String, comma-separated) 
+- `depth` — topological depth in the DAG (Int); roots are depth 0 
+- `command_type` — one of "command" or "script" (String) 
+- `status` — build status from the latest matching log, or NA 
+- `duration` — node build duration in seconds (Float), or NA 
+- `path` — Nix store path of the node output, or NA 
+- `error` — `code: message` for failed nodes, or NA
+
+## Parameters
+
+- **pipeline** (`Pipeline`): The pipeline to summarize.
+
+
+## Returns
+
+One row per node, failed nodes first.
+
+## Examples
+
+```t
+pipeline_overview(p)
+pipeline_overview(p) |> filter($status == "Errored")
+```
+
+## See Also
+
+[pipeline_config_to_frame](pipeline_config_to_frame.html), [pipeline_status](pipeline_status.html), [pipeline_to_frame](pipeline_to_frame.html)
 
 
 
@@ -32904,7 +33079,16 @@ The executed pipeline, or a dry-run plan DataFrame.
 
 Pipeline health table
 
-Joins pipeline structure with the latest build log into a single per-node health table. Failed nodes sort first so the root cause is visible without extra calls.  Columns: - `name` — node name (String) - `runtime` — e.g. "T", "R", "Python" (String) - `status` — build status from the latest matching log ("Completed", "Errored", "SoftFailed", "Cached", "Skipped", ...), or NA when the pipeline has no matching build log yet - `duration` — node build duration in seconds (Float), or NA - `path` — Nix store path of the node output, or NA - `error` — `code: message` for failed nodes (truncated), or NA
+Joins pipeline structure with the latest build log into a single per-node health table. Failed nodes sort first so the root cause is visible without extra calls. 
+
+Columns: 
+
+- `name` — node name (String) 
+- `runtime` — e.g. "T", "R", "Python" (String) 
+- `status` — build status from the latest matching log ("Completed", "Errored", "SoftFailed", "Cached", "Skipped", ...), or NA when the pipeline has no matching build log yet 
+- `duration` — node build duration in seconds (Float), or NA 
+- `path` — Nix store path of the node output, or NA 
+- `error` — `code: message` for failed nodes (truncated), or NA
 
 ## Parameters
 
@@ -32934,7 +33118,9 @@ pipeline_status(p) |> filter($status == "Errored")
 
 Export Pipeline/MetaPipeline as DOT Graph
 
-Returns a string containing a Graphviz DOT representation of the pipeline or metapipeline dependency graph, including node names and language runtimes.  For MetaPipelines, sub-pipelines are rendered as DOT subgraph clusters by default, providing visual grouping of related nodes. Set flatten = true to get a flat diagram.
+Returns a string containing a Graphviz DOT representation of the pipeline or metapipeline dependency graph, including node names and language runtimes. 
+
+For MetaPipelines, sub-pipelines are rendered as DOT subgraph clusters by default, providing visual grouping of related nodes. Set flatten = true to get a flat diagram.
 
 ## Parameters
 
@@ -32997,7 +33183,18 @@ pipeline_to_drv(p)
 
 Convert Pipeline to DataFrame
 
-Converts a Pipeline to a DataFrame where each row represents a node and each column represents a metadata field. This is a key inspection utility for understanding and debugging pipeline structure.  The columns returned are: - `name` — the node name (String) - `runtime` — one of "T", "R", "Python" (String) - `serializer` — e.g. "default", "pmml" (String) - `deserializer` — e.g. "default", "pmml" (String) - `noop` — whether the node is a no-op (Bool) - `deps` — names of nodes this node depends on (String, comma-separated) - `depth` — topological depth in the DAG (Int); roots are depth 0 - `command_type` — one of "command" or "script" (String)
+Converts a Pipeline to a DataFrame where each row represents a node and each column represents a metadata field. This is a key inspection utility for understanding and debugging pipeline structure. 
+
+The columns returned are: 
+
+- `name` — the node name (String) 
+- `runtime` — one of "T", "R", "Python" (String) 
+- `serializer` — e.g. "default", "pmml" (String) 
+- `deserializer` — e.g. "default", "pmml" (String) 
+- `noop` — whether the node is a no-op (Bool) 
+- `deps` — names of nodes this node depends on (String, comma-separated) 
+- `depth` — topological depth in the DAG (Int); roots are depth 0 
+- `command_type` — one of "command" or "script" (String)
 
 ## Parameters
 
@@ -33058,7 +33255,9 @@ pipeline_to_ga(file = ".github/workflows/ci.yml")
 
 Export Pipeline/MetaPipeline as Mermaid Graph
 
-Returns a string containing a Mermaid JS flowchart representation of the pipeline or metapipeline dependency graph, including node names, language runtimes, and execution error status (errored nodes are highlighted with a red stroke). You can view the diagram in your browser by passing the result to show_plot().  For MetaPipelines, sub-pipelines are rendered as Mermaid subgraph blocks by default, providing visual grouping of related nodes. Set flatten = true to get a flat diagram.
+Returns a string containing a Mermaid JS flowchart representation of the pipeline or metapipeline dependency graph, including node names, language runtimes, and execution error status (errored nodes are highlighted with a red stroke). You can view the diagram in your browser by passing the result to show_plot(). 
+
+For MetaPipelines, sub-pipelines are rendered as Mermaid subgraph blocks by default, providing visual grouping of related nodes. Set flatten = true to get a flat diagram.
 
 ## Parameters
 
@@ -33121,7 +33320,18 @@ pipeline_to_store(p)
 
 Validate a Pipeline
 
-Checks a pipeline for structural errors without throwing. Returns a list of error messages. An empty list means the pipeline is valid.  Checks performed (shared with populate_pipeline and `t check` tier 1): - No dependency cycles - All referenced dependencies exist as nodes in the pipeline - Every node uses a known runtime - Cross-runtime dependencies declare an explicit deserializer - Multiple dependencies with a single non-dictionary deserializer strategy - Deserializer/format coherence across dependency edges (`text` is treated as format-agnostic raw bytes: shell/`capture = "stdout"` nodes may consume any format and typed nodes may read a shell node's raw output) - Referenced function/include/script files exist on the file system - The ^bin serializer is only used by fetchurl nodes
+Checks a pipeline for structural errors without throwing. Returns a list of error messages. An empty list means the pipeline is valid. 
+
+Checks performed (shared with populate_pipeline and `t check` tier 1): 
+
+- No dependency cycles 
+- All referenced dependencies exist as nodes in the pipeline 
+- Every node uses a known runtime 
+- Cross-runtime dependencies declare an explicit deserializer 
+- Multiple dependencies with a single non-dictionary deserializer strategy 
+- Deserializer/format coherence across dependency edges (`text` is treated as format-agnostic raw bytes: shell/`capture = "stdout"` nodes may consume any format and typed nodes may read a shell node's raw output) 
+- Referenced function/include/script files exist on the file system 
+- The ^bin serializer is only used by fetchurl nodes
 
 ## Parameters
 
@@ -34764,7 +34974,9 @@ read_file("config.json")
 
 Read an Arrow IPC (Feather) file
 
-Loads a DataFrame from an Arrow IPC file (also known as Feather v2) on disk. Returns a FileError value when the file cannot be read.  IPC is the fastest format to read and write (no compression), ideal for pipeline intermediates and cross-runtime exchange. For compressed, long-term storage of large datasets, use read_parquet instead.
+Loads a DataFrame from an Arrow IPC file (also known as Feather v2) on disk. Returns a FileError value when the file cannot be read. 
+
+IPC is the fastest format to read and write (no compression), ideal for pipeline intermediates and cross-runtime exchange. For compressed, long-term storage of large datasets, use read_parquet instead.
 
 ## Parameters
 
@@ -34812,7 +35024,11 @@ The build log content.
 
 Read Pipeline Node Artifact
 
-Reads and returns the contents of a ComputedNode. For in-memory pipelines, returns the dynamically computed value directly from the registry. For built pipelines, reads the materialized artifact from the latest build log.  Note: The `.warnings` field previously returned on the result has been removed. Use `warning_msg(node)` to inspect a node's own warnings and any upstream warnings inherited from ancestor nodes. Use `inspect_node(node)` for structured warning metadata.  Use `read_past_node(p.node_name, which_log = "...")` to read a node from a specific historical build log without needing the pipeline in scope.
+Reads and returns the contents of a ComputedNode. For in-memory pipelines, returns the dynamically computed value directly from the registry. For built pipelines, reads the materialized artifact from the latest build log. 
+
+Note: The `.warnings` field previously returned on the result has been removed. Use `warning_msg(node)` to inspect a node's own warnings and any upstream warnings inherited from ancestor nodes. Use `inspect_node(node)` for structured warning metadata. 
+
+Use `read_past_node(p.node_name, which_log = "...")` to read a node from a specific historical build log without needing the pipeline in scope.
 
 ## Parameters
 
@@ -34835,7 +35051,9 @@ The deserialized artifact value, or the in-memory value.
 
 Read Parquet file
 
-Reads a DataFrame from a Parquet file using the native parquet-glib reader. Returns a FileError value when the file cannot be read.  Prefer Parquet for compressed, long-term storage of large datasets or when sharing data with external analytics tooling. For the fastest possible round trip (no compression), use read_ipc instead.
+Reads a DataFrame from a Parquet file using the native parquet-glib reader. Returns a FileError value when the file cannot be read. 
+
+Prefer Parquet for compressed, long-term storage of large datasets or when sharing data with external analytics tooling. For the fastest possible round trip (no compression), use read_ipc instead.
 
 ## Parameters
 
@@ -35641,7 +35859,9 @@ select(mtcars, $mpg, $wt)
 
 Select Node Metadata Fields
 
-Returns a DataFrame summarising the requested metadata fields for all nodes in the pipeline. This is a read-only inspection operation — it does not return a Pipeline.  Available fields: `$name`, `$runtime`, `$serializer`, `$deserializer`, `$noop`, `$deps`, `$depth`, `$command_type`.
+Returns a DataFrame summarising the requested metadata fields for all nodes in the pipeline. This is a read-only inspection operation — it does not return a Pipeline. 
+
+Available fields: `$name`, `$runtime`, `$serializer`, `$deserializer`, `$noop`, `$deps`, `$depth`, `$command_type`.
 
 ## Parameters
 
@@ -35898,7 +36118,9 @@ Returns "Nix defaults updated" upon successfully setting the defaults.
 
 Set Pipeline Global Options (pure)
 
-Pure function that returns a new pipeline with the given defaults merged into nodes.  The original pipeline is not modified.  By default the settings are merged into every node; pass `runtimes` and/or `nodes` to restrict the merge to a subset (union semantics when both are given).  Omitting both scoping arguments (or passing `na()`) targets every node; an explicitly empty list (`nodes = []`) targets no nodes.  Merge semantics vary per option: * Combine (prepend): `functions`, `include`, `env_vars`, `args`, `shell_args`, `dependencies`.  Global values come first; per-node values follow (for same-key dict entries, the later per-node value wins). * Override: `serializer`, `deserializer`, `shell`, `flake`.  A provided global value replaces the node's per-node value entirely. * Force-only: `noop`.  `noop = true` forces nodes to no-op; `noop = false` has no effect and cannot un-set a per-node `noop = true`.
+Pure function that returns a new pipeline with the given defaults merged into nodes.  The original pipeline is not modified.  By default the settings are merged into every node; pass `runtimes` and/or `nodes` to restrict the merge to a subset (union semantics when both are given).  Omitting both scoping arguments (or passing `na()`) targets every node; an explicitly empty list (`nodes = []`) targets no nodes. 
+
+Merge semantics vary per option: * Combine (prepend): `functions`, `include`, `env_vars`, `args`, `shell_args`, `dependencies`.  Global values come first; per-node values follow (for same-key dict entries, the later per-node value wins). * Override: `serializer`, `deserializer`, `shell`, `flake`.  A provided global value replaces the node's per-node value entirely. * Force-only: `noop`.  `noop = true` forces nodes to no-op; `noop = false` has no effect and cannot un-set a per-node `noop = true`.
 
 ## Parameters
 
@@ -38618,7 +38840,11 @@ True if x is within the interval.
 
 Run a thunk with a scoped random seed
 
-Sets the global random number generator to `seed` for the duration of the thunk evaluation, then restores the previous RNG state. This scopes determinism to a single expression: any random draws outside the thunk are unaffected. Useful for reproducible property tests and sampling.  The thunk is a one-parameter lambda (the argument is ignored) so that it binds lazily, mirroring prop_for_all's predicate convention:  with_seed(42, \(x) sample([1, 2, 3, 4, 5], n = 3))
+Sets the global random number generator to `seed` for the duration of the thunk evaluation, then restores the previous RNG state. This scopes determinism to a single expression: any random draws outside the thunk are unaffected. Useful for reproducible property tests and sampling. 
+
+The thunk is a one-parameter lambda (the argument is ignored) so that it binds lazily, mirroring prop_for_all's predicate convention: 
+
+with_seed(42, \(x) sample([1, 2, 3, 4, 5], n = 3))
 
 ## Parameters
 
@@ -38703,7 +38929,9 @@ write_csv(df, "output.csv")
 
 Write Arrow IPC file
 
-Writes a DataFrame to an Apache Arrow IPC (Feather v2) file. Returns a FileError value when the file cannot be written.  IPC is the fastest format to read and write (no compression), ideal for pipeline intermediates and cross-runtime exchange. For compressed, long-term storage of large datasets, use write_parquet instead.
+Writes a DataFrame to an Apache Arrow IPC (Feather v2) file. Returns a FileError value when the file cannot be written. 
+
+IPC is the fastest format to read and write (no compression), ideal for pipeline intermediates and cross-runtime exchange. For compressed, long-term storage of large datasets, use write_parquet instead.
 
 ## Parameters
 
@@ -38734,7 +38962,9 @@ write_ipc(df, "data.arrow")
 
 Write Parquet file
 
-Writes a DataFrame to a Parquet file using the native parquet-glib writer. Returns a FileError value when the file cannot be written.  Prefer Parquet for compressed, long-term storage of large datasets or when sharing data with external analytics tooling. For the fastest possible round trip (no compression), use write_ipc instead.
+Writes a DataFrame to a Parquet file using the native parquet-glib writer. Returns a FileError value when the file cannot be written. 
+
+Prefer Parquet for compressed, long-term storage of large datasets or when sharing data with external analytics tooling. For the fastest possible round trip (no compression), use write_ipc instead.
 
 ## Parameters
 
@@ -39047,7 +39277,7 @@ Every T project is a **Nix flake**:
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
-    tlang.url = "github:b-rodrigues/tlang/v0.56.0";
+    tlang.url = "github:b-rodrigues/tlang/v0.56.1";
   };
 
   outputs = { self, nixpkgs, tlang }: {
@@ -39172,7 +39402,7 @@ intent {
   ],
   
   environment: {
-    t_version: "0.56.0",
+    t_version: "0.56.1",
     nix_revision: "abc123",
     run_date: "2024-01-15"
   }
@@ -39216,7 +39446,7 @@ my-analysis/
   
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
-    tlang.url = "github:b-rodrigues/tlang/v0.56.0";
+    tlang.url = "github:b-rodrigues/tlang/v0.56.1";
   };
   
   outputs = { self, nixpkgs, tlang }: {

@@ -1103,6 +1103,12 @@ let dangling_node_read_diagnostics ~pipelines program filename =
           " Valid nodes: " ^ String.concat ", " names ^ "."
         else ""
       in
+      let hint =
+        match fix with
+        | Diagnostics.Suggest_identifier { suggestion; _ } ->
+            Printf.sprintf " Did you mean `%s`?" suggestion
+        | _ -> ""
+      in
       diags := {
         Diagnostics.diag_id = Diagnostics.gen_id ();
         Diagnostics.diag_error_class = Diagnostics.Key_error;
@@ -1119,7 +1125,7 @@ let dangling_node_read_diagnostics ~pipelines program filename =
         Diagnostics.diag_end_line = None;
         Diagnostics.diag_end_column = None;
         Diagnostics.diag_message = Printf.sprintf
-          "Node `%s` not found in pipeline `%s`.%s" node pname valid;
+          "Node `%s` not found in pipeline `%s`.%s%s" node pname hint valid;
         Diagnostics.diag_expected = None;
         Diagnostics.diag_actual = None;
         Diagnostics.diag_caused_by = [];
@@ -1298,7 +1304,25 @@ let format_check_result ?(json=false) check_result =
            loc
            (Diagnostics.severity_to_string (Diagnostics.diagnostic_severity d))
            (Diagnostics.error_class_to_string (Diagnostics.diagnostic_error_class d))
-           (Diagnostics.diagnostic_message d))
+           (Diagnostics.diagnostic_message d));
+      (* Actionable details: expected vs actual, cause chain, and the
+         suggested fix summary. JSON already carries these fields; text
+         now shows them too so humans and LLMs can act without --json. *)
+      (match d.Diagnostics.diag_expected, d.Diagnostics.diag_actual with
+       | Some e, Some a ->
+           Buffer.add_string buf (Printf.sprintf "    expected: %s | actual: %s\n" e a)
+       | Some e, None ->
+           Buffer.add_string buf (Printf.sprintf "    expected: %s\n" e)
+       | None, Some a ->
+           Buffer.add_string buf (Printf.sprintf "    actual: %s\n" a)
+       | None, None -> ());
+      (match d.Diagnostics.diag_caused_by with
+       | [] -> ()
+       | causes ->
+           Buffer.add_string buf (Printf.sprintf "    caused by: %s\n" (String.concat ", " causes)));
+      (match Diagnostics.suggested_fix_summary d.Diagnostics.diag_suggested_fix with
+       | None -> ()
+       | Some s -> Buffer.add_string buf (Printf.sprintf "    %s\n" s))
     ) cr_diags;
     if cr_diags <> [] then Buffer.add_char buf '\n';
     Buffer.contents buf

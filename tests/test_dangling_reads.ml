@@ -52,7 +52,7 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
     {|x = p.raw|} 0;
   check_msg "dot access typo warns naming pipeline"
     {|x = read_node(p.modle)|}
-    "Node `modle` not found in pipeline `p`. Valid nodes: raw, clean, model.";
+    "Node `modle` not found in pipeline `p`. Did you mean `model`? Valid nodes: raw, clean, model.";
   check "dot typo suggests closest node" (
     match diags {|x = p.modle|} with
     | [d] ->
@@ -140,7 +140,7 @@ let run_tests pass_count fail_count failures _eval_string _eval_string_env _test
   let entries body =
     Diagnostics.check_result_entries (run_file_check body)
   in
-  let dangling_msg = "Node `b` not found in pipeline `p`. Valid nodes: a." in
+  let dangling_msg = "Node `b` not found in pipeline `p`. Did you mean `a`? Valid nodes: a." in
   let dangling_only body =
     List.filter (fun d -> d.Diagnostics.diag_message = dangling_msg) (entries body)
   in

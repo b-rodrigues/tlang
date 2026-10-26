@@ -38,19 +38,24 @@
 <p>Compares the artifact produced by a named node across two historical
 builds of the same pipeline. Returns a structured VDiff dictionary with
 a consistent envelope (kind, node_a, node_b, log_a, log_b, value_type,
-identical, summary, detail, hunks). Dispatches to a type-appropriate
-comparison: - DataFrame → row-/column-level diff with optional key-based
-alignment - Model (PMML) → coefficient deltas and fit-stat comparison -
-Scalar → before/after with numeric delta - Python-native objects →
-unified_diff-based structural comparison - Julia-native objects →
-DeepDiffs-based structural comparison - R-native objects → diffobj-based
-structural comparison - Generic → structural comparison over string
-representations Runtime-native object diffs are preserved only for
-runtime artifacts using the standard
-<code>default</code>/<code>tobj</code> serializers. Custom serializer
-names follow the normal artifact-loading path; use the companion helper
-packages directly when you need a custom deserializer for native
-objects.</p>
+identical, summary, detail, hunks).</p>
+<p>Dispatches to a type-appropriate comparison:</p>
+<ul>
+<li>DataFrame → row-/column-level diff with optional key-based
+alignment</li>
+<li>Model (PMML) → coefficient deltas and fit-stat comparison</li>
+<li>Scalar → before/after with numeric delta</li>
+<li>Python-native objects → unified_diff-based structural
+comparison</li>
+<li>Julia-native objects → DeepDiffs-based structural comparison</li>
+<li>R-native objects → diffobj-based structural comparison</li>
+<li>Generic → structural comparison over string representations</li>
+</ul>
+<p>Runtime-native object diffs are preserved only for runtime artifacts
+using the standard <code>default</code>/<code>tobj</code> serializers.
+Custom serializer names follow the normal artifact-loading path; use the
+companion helper packages directly when you need a custom deserializer
+for native objects.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
 <li><p><strong>node_a</strong> (<code>ComputedNode</code>): The “before”

@@ -37,16 +37,21 @@
 <p>Convert Pipeline to DataFrame</p>
 <p>Converts a Pipeline to a DataFrame where each row represents a node
 and each column represents a metadata field. This is a key inspection
-utility for understanding and debugging pipeline structure. The columns
-returned are: - <code>name</code> — the node name (String) -
-<code>runtime</code> — one of “T”, “R”, “Python” (String) -
-<code>serializer</code> — e.g. “default”, “pmml” (String) -
-<code>deserializer</code> — e.g. “default”, “pmml” (String) -
-<code>noop</code> — whether the node is a no-op (Bool) -
-<code>deps</code> — names of nodes this node depends on (String,
-comma-separated) - <code>depth</code> — topological depth in the DAG
-(Int); roots are depth 0 - <code>command_type</code> — one of “command”
-or “script” (String)</p>
+utility for understanding and debugging pipeline structure.</p>
+<p>The columns returned are:</p>
+<ul>
+<li><code>name</code> — the node name (String)</li>
+<li><code>runtime</code> — one of “T”, “R”, “Python” (String)</li>
+<li><code>serializer</code> — e.g. “default”, “pmml” (String)</li>
+<li><code>deserializer</code> — e.g. “default”, “pmml” (String)</li>
+<li><code>noop</code> — whether the node is a no-op (Bool)</li>
+<li><code>deps</code> — names of nodes this node depends on (String,
+comma-separated)</li>
+<li><code>depth</code> — topological depth in the DAG (Int); roots are
+depth 0</li>
+<li><code>command_type</code> — one of “command” or “script”
+(String)</li>
+</ul>
 <h2 id="parameters">Parameters</h2>
 <ul>
 <li><strong>pipeline</strong> (<code>Pipeline</code>): The pipeline to

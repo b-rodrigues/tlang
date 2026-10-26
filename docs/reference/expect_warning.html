@@ -37,17 +37,19 @@
 <p>Assert that a pipeline node produced a warning diagnostic</p>
 <p>Passes if the node’s diagnostics contain at least one warning.
 Optionally filters by warning <code>kind</code> string and/or regex on
-the warning <code>message</code>. This only checks pipeline node warning
-diagnostics (stored in <code>nd_warnings</code> on
+the warning <code>message</code>.</p>
+<p>This only checks pipeline node warning diagnostics (stored in
+<code>nd_warnings</code> on
 <code>NodeResult</code>/<code>ComputedNode</code>). It does not capture
-runtime warnings or print output. <code>ComputedNode</code> values must
-already have been evaluated (e.g. via <code>build_pipeline</code> or
-<code>run_pipeline</code>); otherwise the expectation fails. The
-<code>message</code> pattern uses OCaml’s standard <code>Str</code>
-regular expression syntax (not PCRE). Matching is substring-based
-(searches anywhere in the message). Empty string values for
-<code>kind</code> or <code>message</code> are treated as omitted filters
-(match any).</p>
+runtime warnings or print output.</p>
+<p><code>ComputedNode</code> values must already have been evaluated
+(e.g. via <code>build_pipeline</code> or <code>run_pipeline</code>);
+otherwise the expectation fails.</p>
+<p>The <code>message</code> pattern uses OCaml’s standard
+<code>Str</code> regular expression syntax (not PCRE). Matching is
+substring-based (searches anywhere in the message). Empty string values
+for <code>kind</code> or <code>message</code> are treated as omitted
+filters (match any).</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
 <li><p><strong>node</strong> (<code>NodeResult | ComputedNode</code>):
