@@ -37,13 +37,14 @@
 <p>Filter Pipeline Nodes</p>
 <p>Returns a new pipeline containing only the nodes for which the
 predicate returns <code>true</code>. Uses NSE (<code>$field</code>) to
-refer to node metadata fields. No DAG validity check is performed. If a
-retained node depends on a node that was removed, that inconsistency
-surfaces only at <code>build_pipeline</code> or
-<code>pipeline_run</code>. Supported metadata fields:
-<code>$name</code>, <code>$runtime</code>, <code>$serializer</code>,
-<code>$deserializer</code>, <code>$noop</code>, <code>$depth</code>,
-<code>$command_type</code>, <code>$diagnostics</code>.</p>
+refer to node metadata fields.</p>
+<p>No DAG validity check is performed. If a retained node depends on a
+node that was removed, that inconsistency surfaces only at
+<code>build_pipeline</code> or <code>pipeline_run</code>.</p>
+<p>Supported metadata fields: <code>$name</code>, <code>$runtime</code>,
+<code>$serializer</code>, <code>$deserializer</code>,
+<code>$noop</code>, <code>$depth</code>, <code>$command_type</code>,
+<code>$diagnostics</code>.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
 <li><p><strong>p</strong> (<code>Pipeline</code>): The pipeline to

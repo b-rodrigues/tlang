@@ -41,11 +41,11 @@
 <code>head_pattern(dep, n)</code>, <code>tail_pattern(dep, n)</code>, or
 <code>sample_pattern(dep, n)</code> are replaced with N branch copies,
 where N depends on the pattern type. Supports List, Vector, and
-DataFrame dependencies. <code>populate_pipeline(p)</code>,
-<code>build_pipeline(p)</code>, and pipeline composition functions
-(<code>chain</code>, <code>parallel</code>, <code>union</code>, …) now
-call this function automatically when they detect unexpanded
-patterns.</p>
+DataFrame dependencies.</p>
+<p><code>populate_pipeline(p)</code>, <code>build_pipeline(p)</code>,
+and pipeline composition functions (<code>chain</code>,
+<code>parallel</code>, <code>union</code>, …) now call this function
+automatically when they detect unexpanded patterns.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
 <li><p><strong>p</strong> (<code>Pipeline</code>): The pipeline to

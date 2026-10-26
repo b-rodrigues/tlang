@@ -41,17 +41,18 @@ settings are merged into every node; pass <code>runtimes</code> and/or
 <code>nodes</code> to restrict the merge to a subset (union semantics
 when both are given). Omitting both scoping arguments (or passing
 <code>na()</code>) targets every node; an explicitly empty list
-(<code>nodes = []</code>) targets no nodes. Merge semantics vary per
-option: * Combine (prepend): <code>functions</code>,
-<code>include</code>, <code>env_vars</code>, <code>args</code>,
-<code>shell_args</code>, <code>dependencies</code>. Global values come
-first; per-node values follow (for same-key dict entries, the later
-per-node value wins). * Override: <code>serializer</code>,
-<code>deserializer</code>, <code>shell</code>, <code>flake</code>. A
-provided global value replaces the node’s per-node value entirely. *
-Force-only: <code>noop</code>. <code>noop = true</code> forces nodes to
-no-op; <code>noop = false</code> has no effect and cannot un-set a
-per-node <code>noop = true</code>.</p>
+(<code>nodes = []</code>) targets no nodes.</p>
+<p>Merge semantics vary per option: * Combine (prepend):
+<code>functions</code>, <code>include</code>, <code>env_vars</code>,
+<code>args</code>, <code>shell_args</code>, <code>dependencies</code>.
+Global values come first; per-node values follow (for same-key dict
+entries, the later per-node value wins). * Override:
+<code>serializer</code>, <code>deserializer</code>, <code>shell</code>,
+<code>flake</code>. A provided global value replaces the node’s per-node
+value entirely. * Force-only: <code>noop</code>.
+<code>noop = true</code> forces nodes to no-op;
+<code>noop = false</code> has no effect and cannot un-set a per-node
+<code>noop = true</code>.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
 <li><p><strong>pipeline</strong> (<code>Pipeline</code>): The input

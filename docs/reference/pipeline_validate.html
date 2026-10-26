@@ -36,17 +36,24 @@
 <h1 id="pipeline_validate">pipeline_validate</h1>
 <p>Validate a Pipeline</p>
 <p>Checks a pipeline for structural errors without throwing. Returns a
-list of error messages. An empty list means the pipeline is valid.
-Checks performed (shared with populate_pipeline and <code>t check</code>
-tier 1): - No dependency cycles - All referenced dependencies exist as
-nodes in the pipeline - Every node uses a known runtime - Cross-runtime
-dependencies declare an explicit deserializer - Multiple dependencies
-with a single non-dictionary deserializer strategy - Deserializer/format
-coherence across dependency edges (<code>text</code> is treated as
-format-agnostic raw bytes: shell/<code>capture = "stdout"</code> nodes
-may consume any format and typed nodes may read a shell node’s raw
-output) - Referenced function/include/script files exist on the file
-system - The ^bin serializer is only used by fetchurl nodes</p>
+list of error messages. An empty list means the pipeline is valid.</p>
+<p>Checks performed (shared with populate_pipeline and
+<code>t check</code> tier 1):</p>
+<ul>
+<li>No dependency cycles</li>
+<li>All referenced dependencies exist as nodes in the pipeline</li>
+<li>Every node uses a known runtime</li>
+<li>Cross-runtime dependencies declare an explicit deserializer</li>
+<li>Multiple dependencies with a single non-dictionary deserializer
+strategy</li>
+<li>Deserializer/format coherence across dependency edges
+(<code>text</code> is treated as format-agnostic raw bytes:
+shell/<code>capture = "stdout"</code> nodes may consume any format and
+typed nodes may read a shell node’s raw output)</li>
+<li>Referenced function/include/script files exist on the file
+system</li>
+<li>The ^bin serializer is only used by fetchurl nodes</li>
+</ul>
 <h2 id="parameters">Parameters</h2>
 <ul>
 <li><strong>p</strong> (<code>Pipeline</code>): The pipeline to

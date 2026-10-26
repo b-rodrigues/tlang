@@ -37,14 +37,20 @@
 <p>Pipeline health table</p>
 <p>Joins pipeline structure with the latest build log into a single
 per-node health table. Failed nodes sort first so the root cause is
-visible without extra calls. Columns: - <code>name</code> — node name
-(String) - <code>runtime</code> — e.g. “T”, “R”, “Python” (String) -
-<code>status</code> — build status from the latest matching log
+visible without extra calls.</p>
+<p>Columns:</p>
+<ul>
+<li><code>name</code> — node name (String)</li>
+<li><code>runtime</code> — e.g. “T”, “R”, “Python” (String)</li>
+<li><code>status</code> — build status from the latest matching log
 (“Completed”, “Errored”, “SoftFailed”, “Cached”, “Skipped”, …), or NA
-when the pipeline has no matching build log yet - <code>duration</code>
-— node build duration in seconds (Float), or NA - <code>path</code> —
-Nix store path of the node output, or NA - <code>error</code> —
-<code>code: message</code> for failed nodes (truncated), or NA</p>
+when the pipeline has no matching build log yet</li>
+<li><code>duration</code> — node build duration in seconds (Float), or
+NA</li>
+<li><code>path</code> — Nix store path of the node output, or NA</li>
+<li><code>error</code> — <code>code: message</code> for failed nodes
+(truncated), or NA</li>
+</ul>
 <h2 id="parameters">Parameters</h2>
 <ul>
 <li><strong>pipeline</strong> (<code>Pipeline</code>): The pipeline to

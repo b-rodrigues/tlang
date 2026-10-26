@@ -307,10 +307,19 @@ returns an error about missing PMML dependencies</h3>
 declares the required packages in project configuration. PMML support is
 not implicit magic.</p>
 <h3 id="python-pmml-loading-fails">Python PMML loading fails</h3>
-<p>Check that <code>jpmml-evaluator</code> is available in
-<code>[additional-tools]</code> and that <code>pyarrow</code> is
-available in <code>[py-dependencies]</code>. Also ensure the JVM-backed
-PMML toolchain is correctly provisioned.</p>
+<p>Do not add <code>jpmml-evaluator</code> or
+<code>jpmml-statsmodels</code> to <code>[additional-tools]</code>. Both
+jars are vendored in <code>vendor/pmml/</code>
+(<code>jpmml-statsmodels</code> 1.3.13, <code>jpmml-evaluator</code>
+1.7.7) and shipped in <code>t-lang</code> output
+<code>share/java/</code>. Pipeline builds set
+<code>T_JPMML_EVALUATOR_JAR</code> and
+<code>T_JPMML_STATSMODELS_JAR</code>. <code>predict()</code> selects the
+JVM from <code>T_JPMML_JAVA</code>, else <code>java</code> on
+<code>PATH</code>. If no <code>java</code> exists, add <code>jre</code>
+to <code>[additional-tools]</code> or set <code>T_JPMML_JAVA</code> to a
+Java executable. Keep <code>pyarrow</code> in
+<code>[py-dependencies]</code> where the Python code needs it.</p>
 <h3 id="t_write_pmml-rejects-a-model"><code>t_write_pmml()</code>
 rejects a model</h3>
 <p>That usually means the value does not carry a source PMML artifact

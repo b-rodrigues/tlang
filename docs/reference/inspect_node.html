@@ -40,6 +40,23 @@ its name, runtime, artifact path, serializer, class, dependencies, and
 warnings. The <code>warnings</code> key contains a structured list of
 warning records, each with <code>source</code> (“own” or the ancestor
 node name) and <code>message</code>.</p>
+<p>Behaviour change: a failed node used to return a TypeError. Code that
+tested failure with <code>is_error(inspect_node(x))</code> must test
+<code>inspect_node(x).status == "Errored"</code> instead.</p>
+<p>A computed node and a failed node return the same ten keys, so one
+schema covers both cases:</p>
+<ul>
+<li><code>status</code> is “Built” for a computed node and “Errored” for
+a failed one.</li>
+<li><code>error_code</code> and <code>error_message</code> describe the
+failure. Both are NA for a computed node.</li>
+<li><code>class</code> is the node class for a computed node and “Error”
+for a failed one.</li>
+<li>A failed node has no artifact, so <code>runtime</code>,
+<code>path</code> and <code>serializer</code> are NA, and
+<code>dependencies</code> and <code>warnings</code> are empty
+lists.</li>
+</ul>
 <h2 id="parameters">Parameters</h2>
 <ul>
 <li><strong>node</strong> (<code>ComputedNode</code>): A computed node
@@ -47,7 +64,7 @@ value (e.g. from a built pipeline).</li>
 </ul>
 <h2 id="returns">Returns</h2>
 <p>A dictionary with keys = name, runtime, path, serializer, class,
-dependencies, warnings.</p>
+dependencies, warnings, status, error_code, error_message.</p>
 <h2 id="see-also">See Also</h2>
 <p><a href="warning_msg.html">warning_msg</a>, <a
 href="rebuild_node.html">rebuild_node</a>, <a
