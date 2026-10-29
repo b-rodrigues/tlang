@@ -123,3 +123,113 @@ def inspect_pipeline(
             continue
         rows.append(_row_from_entry(entry, pipeline_path))
     return rows
+
+
+_ONLY_VALUES = (
+    "failed",
+    "errored",
+    "built",
+    "completed",
+    "unbuilt",
+    "pending",
+    "all",
+)
+
+
+def _overview_entries(
+    pipeline_dir: str | Path, which_log: str | None
+) -> dict[str, dict[str, Any]]:
+    """Index the selected build log's entries by node name, or {} if absent."""
+    from .node_inspect import _entries_map, _load_log
+
+    pipeline_path = _pipeline_path(pipeline_dir)
+    if not _list_build_logs(pipeline_path):
+        return {}
+    try:
+        nodes, _log_file, _deps = _load_log(which_log, pipeline_path)
+        return _entries_map(nodes)
+    except (OSError, ValueError, KeyError, TypeError):
+        return {}
+
+
+def pipeline_overview(
+    pipeline_dir: str | Path = "_pipeline",
+    which_log: str | None = None,
+    only: str | None = None,
+) -> list[dict[str, Any]]:
+    """Overview table, failed first. Mirrors T pipeline_overview.
+
+    Rows have ``name``, ``runtime``, ``serializer``, ``dependencies``,
+    ``status``, ``class``, ``path``, ``error_code``, and ``error_message``.
+    Failed nodes carry ``status = "Errored"``; completed nodes carry
+    ``"Built"``. Unbuilt or skipped nodes keep their own status instead of
+    being reported as built.
+
+    Use ``only="failed"``, ``"built"``, ``"unbuilt"``, or ``"all"`` to
+    filter. Any other value raises ``ValueError``.
+    """
+    key: str | None = None
+    if only is not None:
+        if not isinstance(only, str):
+            raise TypeError("only must be a string.")
+        key = only.strip().lower()
+        if key not in _ONLY_VALUES:
+            raise ValueError(
+                f'pipeline_overview: only must be failed, built, unbuilt, or all, but got "{only}".'
+            )
+
+    from ._build_log import _error_of_entry
+
+    rows = inspect_pipeline(pipeline_dir=pipeline_dir, which_log=which_log)
+    pipeline_path = _pipeline_path(pipeline_dir)
+    entries = _overview_entries(pipeline_dir, which_log)
+    out: list[dict[str, Any]] = []
+    for r in rows:
+        name = r.get("node")
+        entry = entries.get(name, {}) if isinstance(name, str) else {}
+        try:
+            err = _error_of_entry(entry, pipeline_path) if entry else None
+        except (OSError, ValueError, KeyError, TypeError):
+            err = None
+        raw_status = r.get("status")
+        status_text = raw_status.strip() if isinstance(raw_status, str) else ""
+        failed = (
+            err is not None
+            or status_text in ("Errored", "SoftFailed")
+            or r.get("class") == "Error"
+        )
+        if failed:
+            status = "Errored"
+        elif status_text in ("Completed", "Built", "Cached"):
+            status = "Built"
+        elif status_text:
+            status = status_text
+        else:
+            status = "Unbuilt"
+        out.append(
+            {
+                "name": name,
+                "runtime": r.get("runtime"),
+                "serializer": r.get("serializer"),
+                "dependencies": r.get("dependencies", []),
+                "status": status,
+                "class": "Error" if failed else r.get("class"),
+                "path": None if failed else r.get("path"),
+                "error_code": err["code"] if isinstance(err, dict) else None,
+                "error_message": err["message"] if isinstance(err, dict) else None,
+            }
+        )
+    failed_rows = [x for x in out if x["status"] == "Errored"]
+    ok_rows = [x for x in out if x["status"] != "Errored"]
+    ordered = failed_rows + ok_rows
+    if key is None or key == "all":
+        return ordered
+    if key in ("failed", "errored"):
+        return failed_rows
+    if key in ("built", "completed"):
+        return [x for x in ordered if x["status"] == "Built"]
+    return [
+        x
+        for x in ordered
+        if str(x["status"]).lower() in ("unbuilt", "pending", "skipped", "na")
+    ]

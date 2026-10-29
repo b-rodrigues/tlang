@@ -76,8 +76,11 @@ let parse_and_eval ?filename ?(failfast=false) mode env input =
   | Invalid_match_pattern msg ->
       let pos = Lexing.lexeme_start_p lexbuf in
       (make_located_error ?file:filename SyntaxError msg pos, env)
-  | Invalid_type_declaration msg ->
-      let pos = Lexing.lexeme_start_p lexbuf in
+  | Invalid_type_declaration (msg, pos_opt) ->
+      let pos = match pos_opt with
+        | Some p -> p
+        | None -> Lexing.lexeme_start_p lexbuf
+      in
       (make_located_error ?file:filename SyntaxError msg pos, env)
   | Sys.Break ->
       (interrupt_error (), env)
@@ -945,9 +948,11 @@ type pipeline_node_index = {
     parameters, meta-pipelines), non-literal node names, three-argument
     `get` (which returns its default), `orig_branch_N` names whose
     origin is declared, and `prefix` reads of dotted node names all
-    stay silent, mirroring runtime resolution. Near-miss names carry a
-    `Suggest_identifier` fix, which `t fix` never auto-applies (manual
-    rename). Severity is Warning. *)
+    stay silent, mirroring runtime resolution. A near-miss name at edit
+    distance 1 with a unique match carries a `Replace_text` fix that `t fix`
+    applies (scoped to the read's own line, with the spelling used at that
+    site); other near misses carry a `Suggest_identifier` fix for a manual
+    rename. Severity is Warning. *)
 let dangling_node_read_diagnostics ~pipelines program filename =
   let assign_count = Hashtbl.create 8 in
   let reassigned = Hashtbl.create 8 in
@@ -1040,13 +1045,21 @@ let dangling_node_read_diagnostics ~pipelines program filename =
         else None
   in
   (* A literal node selector: strings as written, symbols and `$name`
-     column references stripped to the bare node name. Anything else
-     (variables, calls) is dynamic and stays silent. *)
-  let literal_node_name e =
+     column references stripped to the bare node name. The fix text must
+     match the spelling at this site — `p.node` for dot reads,
+     `pipeline_node(p, "node")` for a string argument, `pipeline_node(p,
+     $node)` for a column reference — so `t fix` rewrites the call it
+     diagnosed instead of a lookalike elsewhere. Anything else (variables,
+     calls) is dynamic and stays silent. *)
+  let literal_node_info e =
     match e.node with
-    | Value (VString s) -> Some s
-    | Value (VSymbol s) -> Some (Utils.strip_dollar s)
-    | ColumnRef s -> Some s
+    | Value (VString s) ->
+        Some (s, (fun best -> ("\"" ^ s ^ "\"", "\"" ^ best ^ "\"")))
+    | Value (VSymbol s) ->
+        let name = Utils.strip_dollar s in
+        Some (name, (fun best -> (s, best)))
+    | ColumnRef s ->
+        Some (s, (fun best -> ("$" ^ s, "$" ^ best)))
     | _ -> None
   in
   (* Mirror Eval.try_lazy_expand_branch name parsing: the last
@@ -1078,13 +1091,14 @@ let dangling_node_read_diagnostics ~pipelines program filename =
     ) names
   in
   let diags = ref [] in
-  let check_site pname info node loc =
+  let check_site pname info node loc fix_text =
     if List.mem node info.pni_names
        || branch_resolves info.pni_names info.pni_patterns node
        || prefix_resolves info.pni_names node then ()
     else begin
       let names = info.pni_names in
       let loc_line = match loc with Some (l : source_location) -> l.line | None -> 1 in
+      let loc_column = match loc with Some (l : source_location) -> Some l.column | None -> None in
       let fix =
         match Ast.suggest_names_with_scores node names with
         | [] -> Diagnostics.no_fix
@@ -1094,9 +1108,16 @@ let dangling_node_read_diagnostics ~pipelines program filename =
               | [] -> true
               | (_, runner_dist) :: _ -> runner_dist > dist
             in
-            Diagnostics.make_suggest_identifier_fix
-              ~name:node ~suggestion:best ~edit_distance:dist ~is_unique
-              ~file:filename ~line:loc_line ()
+            if dist = 1 && is_unique then begin
+              let old_text, new_text = fix_text best in
+              Diagnostics.make_replace_text_fix
+                ~old_text ~new_text
+                ?target_node:(Some best) ~file:filename ~line:loc_line
+                ?column:loc_column ()
+            end else
+              Diagnostics.make_suggest_identifier_fix
+                ~name:node ~suggestion:best ~edit_distance:dist ~is_unique
+                ~file:filename ~line:loc_line ()
       in
       let valid =
         if List.length names <= 10 && names <> [] then
@@ -1107,6 +1128,13 @@ let dangling_node_read_diagnostics ~pipelines program filename =
         match fix with
         | Diagnostics.Suggest_identifier { suggestion; _ } ->
             Printf.sprintf " Did you mean `%s`?" suggestion
+        | Diagnostics.Replace_text _ ->
+            let best =
+              match Ast.suggest_names_with_scores node names with
+              | (b, _) :: _ -> b
+              | [] -> node
+            in
+            Printf.sprintf " Did you mean `%s`?" best
         | _ -> ""
       in
       diags := {
@@ -1139,8 +1167,8 @@ let dangling_node_read_diagnostics ~pipelines program filename =
     | [(_, { node = Var pname; _ }); (_, namex)] ->
         (match resolvable pname with
          | Some info ->
-             (match literal_node_name namex with
-              | Some n -> check_site pname info n loc
+             (match literal_node_info namex with
+              | Some (n, fix_text) -> check_site pname info n loc fix_text
               | None -> ())
          | None -> ())
     | _ -> ()
@@ -1149,7 +1177,9 @@ let dangling_node_read_diagnostics ~pipelines program filename =
     match e.node with
     | DotAccess { target = { node = Var pname; _ }; field } ->
         (match resolvable pname with
-         | Some info -> check_site pname info field e.loc
+         | Some info ->
+             check_site pname info field e.loc
+               (fun best -> (pname ^ "." ^ field, pname ^ "." ^ best))
          | None -> ())
     | Call { fn = { node = Var "pipeline_node"; _ }; args; _ } ->
         check_call_args "pipeline_node" args e.loc
@@ -1158,6 +1188,111 @@ let dangling_node_read_diagnostics ~pipelines program filename =
     | _ -> ()
   ) exprs;
   List.rev !diags
+
+(** Dead pattern: is_error(inspect_node(x)) is always false.
+    Since 0.56.1 inspect_node returns the same ten keys for built and
+    failed nodes. A failed node carries status Errored, not a VError.
+    Test status or use is_failed instead. Warn-only, no auto-fix. *)
+let dead_inspect_diagnostics program filename =
+  (* A local binding named inspect_node/is_error makes the pattern harmless
+     or deliberately different; stay silent rather than guessing. *)
+  let bound = locally_bound_names program in
+  if Hashtbl.mem bound "inspect_node" || Hashtbl.mem bound "is_error" then []
+  else begin
+  let rec exprs_in_expr e =
+    e :: List.concat_map exprs_in_expr (Ast.children_of_expr e)
+  in
+  let exprs =
+    List.concat_map (fun s -> List.concat_map exprs_in_expr (Ast.children_of_stmt s)) program
+  in
+  List.filter_map (fun (e : Ast.expr) ->
+    match e.Ast.node with
+    | Ast.Call { fn = { Ast.node = Ast.Var "is_error"; _ }; args; _ } ->
+        (match args with
+         | [(_, { Ast.node = Ast.Call { fn = { Ast.node = Ast.Var "inspect_node"; _ }; _ }; _ })] ->
+             Some {
+               Diagnostics.diag_id = Diagnostics.gen_id ();
+               Diagnostics.diag_error_class = Diagnostics.Type_error;
+               Diagnostics.diag_severity = Diagnostics.Warning;
+               Diagnostics.diag_phase = Diagnostics.Wire;
+               Diagnostics.diag_node_id = None;
+               Diagnostics.diag_node_lang = None;
+               Diagnostics.diag_file = Some filename;
+               Diagnostics.diag_line = (match e.Ast.loc with Some l -> Some l.Ast.line | None -> None);
+               Diagnostics.diag_column = (match e.Ast.loc with Some l -> Some l.Ast.column | None -> None);
+               Diagnostics.diag_end_line = None;
+               Diagnostics.diag_end_column = None;
+               Diagnostics.diag_message = "is_error(inspect_node(...)) is always false. inspect_node returns a Dict with status Built or Errored. Test inspect_node(x).status == \"Errored\" or use is_failed(x).";
+               Diagnostics.diag_expected = None;
+               Diagnostics.diag_actual = None;
+               Diagnostics.diag_caused_by = [];
+               Diagnostics.diag_suggested_fix = Diagnostics.no_fix;
+             }
+         | _ -> None)
+    | _ -> None
+  ) exprs
+  end
+
+(** String read_log: read_log("node") must be read_log(p.node).
+    The pipeline name comes from the parsed program (the first top-level
+    `p = pipeline { ... }` assignment), never from raw file text, so a call
+    such as `s = pipeline_status(p)` cannot be mistaken for the pipeline
+    binding. Emits Replace_text for the quoted argument only, so `t fix` is
+    insensitive to whitespace inside the call. Stays silent when read_log is
+    locally bound; falls back to `p`, the documented spelling, otherwise. *)
+let read_log_string_diagnostics program filename =
+  let bound = locally_bound_names program in
+  if Hashtbl.mem bound "read_log" then []
+  else begin
+  let pipe_name =
+    let rec find = function
+      | [] -> "p"
+      | (s : stmt) :: rest ->
+          (match s.node with
+           | Assignment { name; expr = { node = PipelineDef _ | PipelineOfDef _; _ }; _ } ->
+               name
+           | _ -> find rest)
+    in
+    find program
+  in
+  let rec exprs_in_expr e =
+    e :: List.concat_map exprs_in_expr (Ast.children_of_expr e)
+  in
+  let exprs =
+    List.concat_map (fun s -> List.concat_map exprs_in_expr (Ast.children_of_stmt s)) program
+  in
+  List.filter_map (fun (e : Ast.expr) ->
+    match e.Ast.node with
+    | Ast.Call { fn = { Ast.node = Ast.Var "read_log"; _ }; args; _ } ->
+        (match args with
+         | [(_, { Ast.node = Ast.Value (Ast.VString s); _ })] ->
+             let old_text = "\"" ^ s ^ "\"" in
+             let new_text = Printf.sprintf "%s.%s" pipe_name s in
+             Some {
+               Diagnostics.diag_id = Diagnostics.gen_id ();
+               Diagnostics.diag_error_class = Diagnostics.Type_error;
+               Diagnostics.diag_severity = Diagnostics.Error;
+               Diagnostics.diag_phase = Diagnostics.Wire;
+               Diagnostics.diag_node_id = None;
+               Diagnostics.diag_node_lang = None;
+               Diagnostics.diag_file = Some filename;
+               Diagnostics.diag_line = (match e.Ast.loc with Some l -> Some l.Ast.line | None -> None);
+               Diagnostics.diag_column = (match e.Ast.loc with Some l -> Some l.Ast.column | None -> None);
+               Diagnostics.diag_end_line = None;
+               Diagnostics.diag_end_column = None;
+               Diagnostics.diag_message = Printf.sprintf "read_log takes p.node_name, not a String. Use read_log(%s)." new_text;
+               Diagnostics.diag_expected = None;
+               Diagnostics.diag_actual = None;
+               Diagnostics.diag_caused_by = [];
+               Diagnostics.diag_suggested_fix =
+                 Diagnostics.make_replace_text_fix ~old_text ~new_text ~file:filename
+                   ?line:(match e.Ast.loc with Some l -> Some l.Ast.line | None -> None)
+                   ?column:(match e.Ast.loc with Some l -> Some l.Ast.column | None -> None) ();
+             }
+         | _ -> None)
+    | _ -> None
+  ) exprs
+  end
 
 (** Parse program text for static checks. Returns None when the text
     cannot be parsed; those failures are already reported through the
@@ -1227,41 +1362,106 @@ let run_check ?(schema=false) ?(env_check=false) ?(offline=false) mode filename 
         wire_diags @ schema_diags @ env_diags
       ) pipelines in
       let extra_diags = !extra_diagnostics_hook filename in
-      (* Dangling node reads use evaluated pipeline values (accurate
-         for derived pipelines) but only when the file evaluates
-         cleanly: with failfast on, a top-level dangling read already
-         surfaces as the runtime error, so warning again would double
-         report. Clean files still gain warnings for reads hidden in
-         unexecuted code (lambdas, node blocks, match arms). *)
-      let dangling_diags =
-        match result with
-        | VError _ -> []
-        | _ ->
-            let node_maps =
-              List.filter_map (fun (name, v) ->
-                match v with
-                | VPipeline p ->
-                    (* Runtime reads consult cached results first, so
-                       materialized node names count alongside declared
-                       ones (covers branch expansion and lens writes). *)
-                    let expr_names = List.map fst p.p_exprs in
-                    let extra = List.filter (fun n -> not (List.mem n expr_names))
-                      (List.map fst p.p_nodes) in
-                    Some (name, { pni_names = expr_names @ extra;
-                                  pni_patterns = List.map fst p.p_patterns })
-                | _ -> None
-              ) (Env.bindings new_env)
-            in
-            if node_maps = [] then []
-            else match content with
-              | None -> []
-              | Some text ->
-                  (match parse_program_string text filename with
-                   | None -> []
-                   | Some program ->
-                       dangling_node_read_diagnostics ~pipelines:node_maps program filename)
+      let parsed_program = match content with
+        | None -> None
+        | Some text -> parse_program_string text filename
       in
-      let unordered = extra_diags @ error_diags @ pipeline_diags @ dangling_diags in
+      (* AST-only checks run here, not in the CLI hook, so tests and library
+         callers of run_check see them too. *)
+      let static_diags = match parsed_program with
+        | None -> extra_diags
+        | Some program ->
+            extra_diags
+            @ dead_inspect_diagnostics program filename
+            @ read_log_string_diagnostics program filename
+      in
+      (* Dangling node reads use evaluated pipeline values (accurate
+         for derived pipelines) and run even when the file already failed:
+         the site-merge below folds a top-level dangling read into its runtime
+         error instead of reporting it twice, while the fix stays available.
+         Clean files still gain warnings for reads hidden in unexecuted code
+         (lambdas, node blocks, match arms). *)
+      let dangling_diags =
+        let node_maps =
+          List.filter_map (fun (name, v) ->
+            match v with
+            | VPipeline p ->
+                (* Runtime reads consult cached results first, so
+                   materialized node names count alongside declared
+                   ones (covers branch expansion and lens writes). *)
+                let expr_names = List.map fst p.p_exprs in
+                let extra = List.filter (fun n -> not (List.mem n expr_names))
+                  (List.map fst p.p_nodes) in
+                Some (name, { pni_names = expr_names @ extra;
+                              pni_patterns = List.map fst p.p_patterns })
+            | _ -> None
+          ) (Env.bindings new_env)
+        in
+        if node_maps = [] then []
+        else match parsed_program with
+          | None -> []
+          | Some program ->
+              dangling_node_read_diagnostics ~pipelines:node_maps program filename
+      in
+      (* Merge only true duplicates at one site: a dangling node read (or a
+         string read_log) also surfaces as a runtime error. Keep the runtime
+         error, which is authoritative, and graft the static fix onto it so no
+         actionable information is lost. Unrelated warnings at the same site
+         (e.g. an annotation warning next to its runtime type error) stay. *)
+      let error_diags, static_diags =
+        let mentions msg needle =
+          try ignore (Str.search_forward (Str.regexp_string needle) msg 0); true
+          with Not_found -> false
+        in
+        let mergeable (sd : Diagnostics.diagnostic) (ed : Diagnostics.diagnostic) =
+          sd.diag_line <> None
+          && sd.diag_line = ed.diag_line
+          && sd.diag_column = ed.diag_column
+          && ed.diag_severity = Diagnostics.Error
+          && ((sd.diag_error_class = Diagnostics.Key_error
+               && ed.diag_error_class = Diagnostics.Key_error
+               && mentions sd.diag_message "not found"
+               && mentions ed.diag_message "not found")
+              || (mentions sd.diag_message "read_log"
+                  && mentions ed.diag_message "read_log"))
+        in
+        let error_diags = ref error_diags in
+        let kept = List.filter (fun (sd : Diagnostics.diagnostic) ->
+          match List.find_opt (mergeable sd) !error_diags with
+          | None -> true
+          | Some ed ->
+              let fix = match sd.diag_suggested_fix with
+                | Diagnostics.NoFix -> ed.diag_suggested_fix
+                | f -> f
+              in
+              error_diags := List.map (fun (e : Diagnostics.diagnostic) ->
+                if e.diag_id = ed.diag_id then { e with diag_suggested_fix = fix }
+                else e) !error_diags;
+              false
+        ) (static_diags @ dangling_diags)
+        in
+        (* One read_log call, one diagnostic. A call that never runs (inside
+           a lambda, or after an earlier runtime error) has no runtime error
+           to merge into, yet both the static string-argument check and the
+           call-type check fire at the same site. The string check is
+           authoritative: keep it and drop the type warning there. Other
+           same-site pairs (an annotation warning next to its runtime type
+           error) stay. *)
+        let read_log_sites =
+          List.filter_map (fun (d : Diagnostics.diagnostic) ->
+            if d.diag_severity = Diagnostics.Error
+               && mentions d.diag_message "read_log"
+            then Some (d.diag_line, d.diag_column)
+            else None) kept
+        in
+        let kept = List.filter (fun (d : Diagnostics.diagnostic) ->
+          not (d.diag_severity = Diagnostics.Warning
+               && mentions d.diag_message "read_log"
+               && List.mem (d.diag_line, d.diag_column) read_log_sites)) kept
+        in
+        (!error_diags, kept)
+      in
+      let unordered = static_diags @ error_diags @ pipeline_diags in
       (* Diagnostics read better in source order than grouped by category:
          stable sort by location, keeping category order within one spot.
          Location-less diagnostics sort last. Applies to text and JSON. *)

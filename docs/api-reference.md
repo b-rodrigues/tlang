@@ -2621,6 +2621,8 @@ Update the timezone label of a Datetime value.
 
 ## Strcraft Package
 
+`str_to_title(s)` title-cases each word on Unicode code-point boundaries.
+
 Modern string manipulation utilities, inspired by R's `stringr`.
 
 ### `str_replace(string, pattern, replacement)` / `replace_first(string, pattern, replacement)`
@@ -4031,13 +4033,14 @@ pipeline_status(p) |> filter($status == "Errored")
 
 ---
 
-### `pipeline_overview(p)`
+### `pipeline_overview(p, only = NA)`
 
 One-call table joining the columns of `pipeline_to_frame` with the live build state of `pipeline_status`. It is not a superset: `pipeline_config_to_frame` adds `shell`, `flake`, `prov_*` and `n_*` columns. Node diagnostics live in `pipeline_node_options` (and as `$diagnostics` in `filter_node` predicates). Column names match the source frames. Failed nodes sort first.
 
 **Parameters:**
 
 - `p` — The Pipeline object.
+- `only` (optional) — Filter rows: `failed`, `built`, `unbuilt`, or `all`. Default shows all, failed first.
 
 **Returns:**
 
@@ -4046,7 +4049,69 @@ One-call table joining the columns of `pipeline_to_frame` with the live build st
 **Examples:**
 ```t
 pipeline_overview(p)
+pipeline_overview(p, only = "failed")
 pipeline_overview(p) |> filter($status == "Errored")
+```
+
+---
+
+### `pipeline_overview_markdown(p, only = NA)`
+
+Same rows as `pipeline_overview`, rendered as a Markdown table for reports and workflow summaries. Used by `pipeline_report`.
+
+**Parameters:**
+
+- `p` — The Pipeline object.
+- `only` (optional) — Same filter as `pipeline_overview`.
+
+**Returns:**
+
+`String` — Markdown table with `name`, `runtime`, `status`, `depth`, `error`.
+
+**Examples:**
+```t
+pipeline_overview_markdown(p)
+pipeline_overview_markdown(p, only = "failed")
+```
+
+---
+
+### `is_failed(node)`
+
+Test if a node failed. Returns true for a failed node (`VError`), for a `read_node()` result whose value or diagnostics carry an error, or for an inspect result with status `Errored` or `SoftFailed`. Use after 0.56.1 instead of `is_error(inspect_node(x))`, which is always false. `NA` propagates as `NA`.
+
+**Parameters:**
+
+- `node` — A node value, `read_node()` result, inspect result, or error.
+
+**Returns:**
+
+`Bool | NA` — True when failed or Errored.
+
+**Examples:**
+```t
+is_failed(p.bad)
+is_failed(inspect_node(p.bad))
+```
+
+---
+
+### `node_status(node)`
+
+Node build status. Returns `Built` for a computed node, `Errored` for a failed node or a `read_node()` result carrying an error, or the status field of an inspect result. `NA` propagates as `NA`.
+
+**Parameters:**
+
+- `node` — A node value, `read_node()` result, inspect result, or error.
+
+**Returns:**
+
+`String | NA` — `Built` or `Errored`.
+
+**Examples:**
+```t
+node_status(p.good)
+inspect_node(p.bad).status == "Errored"
 ```
 
 ---

@@ -572,6 +572,27 @@ let register env =
                       Buffer.add_string buf (generate_dag_table p depths);
                       Buffer.add_char buf '\n';
 
+                      Buffer.add_string buf "## Node Overview\n\n";
+                      Buffer.add_string buf "Same rows as pipeline_overview, failed first. Use pipeline_overview_markdown(p) for this table alone.\n\n";
+                      Buffer.add_string buf "| name | runtime | status | depth | error |\n";
+                      Buffer.add_string buf "|------|---------|--------|-------|-------|\n";
+                      (* Match the section promise (and pipeline_overview):
+                         failed nodes first, stable declaration order otherwise. *)
+                      let overview_nodes =
+                        errored_nodes
+                        @ List.filter (fun n -> match classify n with Errored -> false | _ -> true) node_names
+                      in
+                      List.iter (fun name ->
+                        let d = node_depth name depths in
+                        let rt = node_runtime name p in
+                        let st = get_node_status_str name log_entries_map in
+                        let msg = match node_error_message name p log_entries_map with
+                          | Some m -> truncate_message m | None -> "" in
+                        Buffer.add_string buf (Printf.sprintf "| %s | %s | %s | %d | %s |\n"
+                          (escape_markdown_table name) (escape_markdown_table rt) (escape_markdown_table st) d (escape_markdown_table msg))
+                      ) overview_nodes;
+                      Buffer.add_char buf '\n';
+
                       Buffer.add_string buf (Printf.sprintf "## Built Nodes (%d)\n\n" (List.length built_nodes));
                       if built_nodes = [] then
                         Buffer.add_string buf "_No nodes built yet._\n\n"
