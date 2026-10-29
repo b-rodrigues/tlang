@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>T Programming Language - cli-json-schemas</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<nav>
+    <a href="index.html">Home</a>
+    <a href="getting-started.html">Get Started</a>
+    <a href="language_overview.html">Overview</a>
+    <a href="api-reference.html">API Docs</a>
+    <a href="https://github.com/b-rodrigues/tlang">GitHub</a>
+</nav>
+<div class="container">
+<h1 id="cli-json-schemas">CLI JSON Schemas</h1>
+<p>All machine-readable outputs share one shape. Each command envelope
+has <code>schema_version</code>. Version is <code>"1"</code> now.
+<code>t run --json</code> uses NDJSON events: only the first
+<code>run_started</code> event carries <code>schema_version</code>
+(<code>"1.0"</code>); the <code>node_completed</code>,
+<code>node_failed</code>, <code>node_skipped</code>, and
+<code>run_finished</code> events do not. Treat both spellings as version
+1.</p>
+<h2 id="shared-diagnostic-shape">Shared diagnostic shape</h2>
+<p><code>t check --json</code> returns:</p>
+<pre><code>{
+  &quot;schema_version&quot;: &quot;1&quot;,
+  &quot;status&quot;: &quot;ok&quot; | &quot;error&quot;,
+  &quot;phase&quot;: &quot;parse&quot; | &quot;wire&quot; | &quot;schema&quot; | &quot;env&quot; | &quot;build&quot; | &quot;exec&quot;,
+  &quot;tier&quot;: 1 | 2 | 3,
+  &quot;diagnostics&quot;: [ Diagnostic ]
+}</code></pre>
+<p>Diagnostic:</p>
+<pre><code>{
+  &quot;id&quot;: &quot;T1001&quot;,
+  &quot;error_class&quot;: &quot;type_error&quot; | ...,
+  &quot;severity&quot;: &quot;error&quot; | &quot;warning&quot;,
+  &quot;phase&quot;: &quot;wire&quot; | ...,
+  &quot;node&quot;: { &quot;id&quot;: string|null, &quot;lang&quot;: string|null, &quot;file&quot;: string|null,
+             &quot;span&quot;: { &quot;start&quot;: [line, col], &quot;end&quot;: [line, col]|null }|null },
+  &quot;message&quot;: string,
+  &quot;expected&quot;: { &quot;kind&quot;: &quot;arrow_type&quot;, &quot;value&quot;: string }|null,
+  &quot;actual&quot;: { &quot;kind&quot;: &quot;arrow_type&quot;, &quot;value&quot;: string }|null,
+  &quot;caused_by&quot;: [string],
+  &quot;suggested_fix&quot;: Fix|null
+}</code></pre>
+<p>Fix kinds: <code>rename_column</code>, <code>add_node_arg</code>,
+<code>rename_node</code>, <code>replace_text</code>,
+<code>suggest_identifier</code>, <code>run_command</code>. Each fix has
+<code>confidence</code>: <code>high</code>, <code>medium</code>,
+<code>low</code>. <code>t fix</code> applies <code>rename_column</code>,
+<code>add_node_arg</code>, <code>rename_node</code>,
+<code>replace_text</code>. It never applies
+<code>suggest_identifier</code> or <code>run_command</code>. Those need
+manual work.</p>
+<h2 id="command-envelopes">Command envelopes</h2>
+<ul>
+<li><code>t check --json</code>: check envelope above. Exit 0 = no
+diagnostics. Exit 1 = wire/parse. Exit 2 = schema. Exit 3 = env.</li>
+<li><code>t fix --json</code>:
+<code>{ schema_version: "1", file, dry_run, applied, skipped, would_apply, skip_notes, entries, diagnostics }</code>.
+Entries have <code>message</code>, <code>file</code>,
+<code>outcome</code> (<code>would_apply</code>|<code>skipped</code>),
+<code>note</code>. <code>entries</code> is populated only when
+<code>--dry-run</code> is active; a real run always reports
+<code>[]</code>. Exit 0 = nothing skipped. Exit 1 = some fix
+skipped.</li>
+<li><code>t diff --json</code>:
+<code>{ schema_version: "1", status, phase: "diff", build_a, build_b, summary, nodes }</code>.
+Nodes have <code>name</code>, <code>status</code>, <code>class_a</code>,
+<code>class_b</code>, <code>reasons</code>, <code>affected</code>, plus
+<code>hash</code> or <code>hash_a</code>/<code>hash_b</code>. Exit 0 =
+done. Exit 1 = no logs or compute error.</li>
+<li><code>t test --json</code>:
+<code>{ schema_version: "1", status: "passed"|"failed", total, passed, failed, duration_ms, results }</code>.
+Results have <code>file</code>, <code>status</code>,
+<code>duration_ms</code>, <code>error</code>. Exit 0 = all passed. Exit
+1 = some failed.</li>
+<li><code>t run --json</code>: NDJSON. First event is
+<code>run_started</code> with <code>schema_version</code>. Then
+<code>node_completed</code>, <code>node_failed</code>,
+<code>node_skipped</code>. Last event is <code>run_finished</code> with
+<code>status</code>. Exit 0 = success. Exit 1 = build or runtime
+error.</li>
+</ul>
+<h2 id="rules">Rules</h2>
+<ul>
+<li>Do not parse human text. Use <code>--json</code>.</li>
+<li>Confidence <code>high</code> means safe to auto-apply.
+<code>medium</code> means review first. <code>low</code> means manual
+step.</li>
+<li><code>dry_run</code> never writes files. Real run writes files
+bottom-up.</li>
+</ul>
+</div>
+<footer>
+    <p>Best viewed with a sense of curiosity.</p>
+    <a href="https://github.com/b-rodrigues/tlang">View Source on GitHub</a>
+</footer>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const blocks = document.querySelectorAll("pre");
+        for (const block of blocks) {
+            const button = document.createElement("button");
+            button.className = "copy-btn";
+            button.innerText = "COPY";
+
+            button.addEventListener("click", () => {
+                // Get pre content excluding the button specifically
+                // Since button is not inside a potential code tag if pandoc produces <pre><code>
+                // but if we use innerText on pre, we might get the button's text too.
+                const clone = block.cloneNode(true);
+                const btnInClone = clone.querySelector(".copy-btn");
+                if (btnInClone) btnInClone.remove();
+
+                const code = clone.innerText.trim();
+
+                navigator.clipboard.writeText(code).then(() => {
+                    button.innerText = "COPIED!";
+                    setTimeout(() => { button.innerText = "COPY"; }, 2000);
+                }).catch((err) => {
+                    console.error("Failed to copy!", err);
+                });
+            });
+
+            block.appendChild(button);
+        }
+    });
+</script>
+</body>
+</html>

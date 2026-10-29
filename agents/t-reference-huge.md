@@ -14,7 +14,7 @@ Simulations in Julia, ML in Python, statistics in R — or the exact opposite. I
 
 A language for the LLM era, T is designed to be piloted by both humans and AI models. It gives you one hermetic dependency graph where your tools communicate without glue and execute consistently through space and time: on your laptop today, on a cluster tomorrow, and five years from now without bitrot.
 
-**Status:** Version 0.56.1 "L'Empire du ruban rouge".
+**Status:** Version 0.56.2 "L'Empire du ruban rouge".
 
 ---
 
@@ -463,7 +463,7 @@ Now that you have your first project set up and understand the folder structure,
 
 # T Language Overview
 
-> **Version**: 0.56.1
+> **Version**: 0.56.2
 
 T is a functional programming language designed for declarative, tabular data manipulation. It combines the pipeline-driven style of R's tidyverse with OCaml's type discipline, producing a small, focused language for data wrangling and basic statistics.
 
@@ -4311,6 +4311,8 @@ Update the timezone label of a Datetime value.
 
 ## Strcraft Package
 
+`str_to_title(s)` title-cases each word on Unicode code-point boundaries.
+
 Modern string manipulation utilities, inspired by R's `stringr`.
 
 ### `str_replace(string, pattern, replacement)` / `replace_first(string, pattern, replacement)`
@@ -5721,13 +5723,14 @@ pipeline_status(p) |> filter($status == "Errored")
 
 ---
 
-### `pipeline_overview(p)`
+### `pipeline_overview(p, only = NA)`
 
 One-call table joining the columns of `pipeline_to_frame` with the live build state of `pipeline_status`. It is not a superset: `pipeline_config_to_frame` adds `shell`, `flake`, `prov_*` and `n_*` columns. Node diagnostics live in `pipeline_node_options` (and as `$diagnostics` in `filter_node` predicates). Column names match the source frames. Failed nodes sort first.
 
 **Parameters:**
 
 - `p` — The Pipeline object.
+- `only` (optional) — Filter rows: `failed`, `built`, `unbuilt`, or `all`. Default shows all, failed first.
 
 **Returns:**
 
@@ -5736,7 +5739,69 @@ One-call table joining the columns of `pipeline_to_frame` with the live build st
 **Examples:**
 ```t
 pipeline_overview(p)
+pipeline_overview(p, only = "failed")
 pipeline_overview(p) |> filter($status == "Errored")
+```
+
+---
+
+### `pipeline_overview_markdown(p, only = NA)`
+
+Same rows as `pipeline_overview`, rendered as a Markdown table for reports and workflow summaries. Used by `pipeline_report`.
+
+**Parameters:**
+
+- `p` — The Pipeline object.
+- `only` (optional) — Same filter as `pipeline_overview`.
+
+**Returns:**
+
+`String` — Markdown table with `name`, `runtime`, `status`, `depth`, `error`.
+
+**Examples:**
+```t
+pipeline_overview_markdown(p)
+pipeline_overview_markdown(p, only = "failed")
+```
+
+---
+
+### `is_failed(node)`
+
+Test if a node failed. Returns true for a failed node (`VError`), for a `read_node()` result whose value or diagnostics carry an error, or for an inspect result with status `Errored` or `SoftFailed`. Use after 0.56.1 instead of `is_error(inspect_node(x))`, which is always false. `NA` propagates as `NA`.
+
+**Parameters:**
+
+- `node` — A node value, `read_node()` result, inspect result, or error.
+
+**Returns:**
+
+`Bool | NA` — True when failed or Errored.
+
+**Examples:**
+```t
+is_failed(p.bad)
+is_failed(inspect_node(p.bad))
+```
+
+---
+
+### `node_status(node)`
+
+Node build status. Returns `Built` for a computed node, `Errored` for a failed node or a `read_node()` result carrying an error, or the status field of an inspect result. `NA` propagates as `NA`.
+
+**Parameters:**
+
+- `node` — A node value, `read_node()` result, inspect result, or error.
+
+**Returns:**
+
+`String | NA` — `Built` or `Errored`.
+
+**Examples:**
+```t
+node_status(p.good)
+inspect_node(p.bad).status == "Errored"
 ```
 
 ---
@@ -9682,6 +9747,24 @@ Now that you can work with numerical arrays, explore statistical modeling and re
 
 # Changelog
 
+## [0.56.2] - 2026-10-29
+
+### New features
+
+- **`t check` and `t fix` close the loop**: new `Replace_text` fix kind covers `^arrow` to `^ipc`, `read_log("node")` to `read_log(p.node)`, bare `Missing` to `Missing()`, and dangling reads at edit distance 1 with unique match. `t fix` applies it only inside the diagnosed line and never inside comments, strings, or raw code blocks, so valid lookalike text is left untouched. Docs in `docs/cli-json-schemas.md` unify `diagnostics` shape, `schema_version`, and exit codes for `t check`, `t diff`, `t test`, `t run`, `t fix`.
+- **`is_failed(node)` and `node_status(node)`**: stable replacement for `is_error(inspect_node(x))`, which is always false since 0.56.1. Both accept `read_node()` results and propagate NA. `is_failed()` answers `false` for any value that is not a node or an error, like a predicate; `node_status()` raises a `TypeError` for it, because it has no status to report. `t check` warns on the dead pattern.
+- **`pipeline_overview(p, only = ...)` and `pipeline_overview_markdown(p)`**: filter rows by failed, built, unbuilt, or all; Markdown output for `pipeline_report` and workflow summaries. Companions add `pipeline_overview()` with failed-first sort.
+- **Companion parity**: R, Python, Julia `inspect_node()` return `status` Built or Errored plus `error_code` and `error_message`, matching T ten keys. Healthy path keeps `children` and `error` for compat. R `pipeline_overview()` now returns the same `name` column and error fields as the Python and Julia companions.
+- **String helpers**: `str_to_title(s)` title-cases words on Unicode code-point boundaries.
+- **`t doctor` JVM check**: for projects that use PMML, warns when `T_JPMML_JAVA` is missing and `java` is not on `PATH`, and names the Nix declaration that provides a JVM.
+
+### Fixes
+
+- **Clearer generic message**: `Int is not widened to Float in generic T. Convert explicitly.`
+- **PMML runtime check**: `t doctor` checks the runtime side and tells you to declare `jre` in `tproject.toml`. Jar resolution stays in the Nix shell.
+- **Julia `pipeline_overview` status**: built nodes report `Built` and skipped nodes keep their own status again. The status helper returned a `SubString`, so the `isa String` test failed and every healthy node showed as `Unbuilt`.
+
+
 ## [0.56.1] - 2026-10-26
 
 ### New features
@@ -11108,6 +11191,61 @@ Version history and roadmap for the T programming language.
 - Changelog (this file)
 - **Model Interchange & PMML**: Documentation for cross-language model support and broom-style outputs for imported models.
 - **Improved Data Inspection**: Enhanced `glimpse()` documentation for quick DataFrame summaries.
+
+
+# FILE: docs/cli-json-schemas.md
+
+# CLI JSON Schemas
+
+All machine-readable outputs share one shape. Each command envelope has `schema_version`. Version is `"1"` now. `t run --json` uses NDJSON events: only the first `run_started` event carries `schema_version` (`"1.0"`); the `node_completed`, `node_failed`, `node_skipped`, and `run_finished` events do not. Treat both spellings as version 1.
+
+## Shared diagnostic shape
+
+`t check --json` returns:
+
+```
+{
+  "schema_version": "1",
+  "status": "ok" | "error",
+  "phase": "parse" | "wire" | "schema" | "env" | "build" | "exec",
+  "tier": 1 | 2 | 3,
+  "diagnostics": [ Diagnostic ]
+}
+```
+
+Diagnostic:
+
+```
+{
+  "id": "T1001",
+  "error_class": "type_error" | ...,
+  "severity": "error" | "warning",
+  "phase": "wire" | ...,
+  "node": { "id": string|null, "lang": string|null, "file": string|null,
+             "span": { "start": [line, col], "end": [line, col]|null }|null },
+  "message": string,
+  "expected": { "kind": "arrow_type", "value": string }|null,
+  "actual": { "kind": "arrow_type", "value": string }|null,
+  "caused_by": [string],
+  "suggested_fix": Fix|null
+}
+```
+
+Fix kinds: `rename_column`, `add_node_arg`, `rename_node`, `replace_text`, `suggest_identifier`, `run_command`. Each fix has `confidence`: `high`, `medium`, `low`. `t fix` applies `rename_column`, `add_node_arg`, `rename_node`, `replace_text`. It never applies `suggest_identifier` or `run_command`. Those need manual work.
+
+## Command envelopes
+
+* `t check --json`: check envelope above. Exit 0 = no diagnostics. Exit 1 = wire/parse. Exit 2 = schema. Exit 3 = env.
+* `t fix --json`: `{ schema_version: "1", file, dry_run, applied, skipped, would_apply, skip_notes, entries, diagnostics }`. Entries have `message`, `file`, `outcome` (`would_apply`|`skipped`), `note`. `entries` is populated only when `--dry-run` is active; a real run always reports `[]`. Exit 0 = nothing skipped. Exit 1 = some fix skipped.
+* `t diff --json`: `{ schema_version: "1", status, phase: "diff", build_a, build_b, summary, nodes }`. Nodes have `name`, `status`, `class_a`, `class_b`, `reasons`, `affected`, plus `hash` or `hash_a`/`hash_b`. Exit 0 = done. Exit 1 = no logs or compute error.
+* `t test --json`: `{ schema_version: "1", status: "passed"|"failed", total, passed, failed, duration_ms, results }`. Results have `file`, `status`, `duration_ms`, `error`. Exit 0 = all passed. Exit 1 = some failed.
+* `t run --json`: NDJSON. First event is `run_started` with `schema_version`. Then `node_completed`, `node_failed`, `node_skipped`. Last event is `run_finished` with `status`. Exit 0 = success. Exit 1 = build or runtime error.
+
+## Rules
+
+* Do not parse human text. Use `--json`.
+* Confidence `high` means safe to auto-apply. `medium` means review first. `low` means manual step.
+* `dry_run` never writes files. Real run writes files bottom-up.
 
 
 # FILE: docs/code-of-ethics.md
@@ -22511,7 +22649,7 @@ my_stats = { git = "https://github.com/user/my-stats", tag = "v0.1.0" }
 data_utils = { git = "https://github.com/user/data-utils", tag = "v0.2.0" }
 
 [t]
-min_version = "0.56.1"
+min_version = "0.56.2"
 ```
 
 > **Important**: `[dependencies]` entries **must** be `{ git, tag }` inline tables pointing to T packages. Version-constraint strings (e.g. `tlang = ">=0.52.0"`) and array values (e.g. `python = ["polars"]`) are **not valid** and will produce a hard error from `t update`. To declare runtime-language packages, use the dedicated sections:
@@ -39277,7 +39415,7 @@ Every T project is a **Nix flake**:
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
-    tlang.url = "github:b-rodrigues/tlang/v0.56.1";
+    tlang.url = "github:b-rodrigues/tlang/v0.56.2";
   };
 
   outputs = { self, nixpkgs, tlang }: {
@@ -39402,7 +39540,7 @@ intent {
   ],
   
   environment: {
-    t_version: "0.56.1",
+    t_version: "0.56.2",
     nix_revision: "abc123",
     run_date: "2024-01-15"
   }
@@ -39446,7 +39584,7 @@ my-analysis/
   
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
-    tlang.url = "github:b-rodrigues/tlang/v0.56.1";
+    tlang.url = "github:b-rodrigues/tlang/v0.56.2";
   };
   
   outputs = { self, nixpkgs, tlang }: {
