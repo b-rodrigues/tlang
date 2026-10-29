@@ -106,11 +106,13 @@ module Server = struct
       ~severity:DiagnosticSeverity.Error
       ()
 
-  let diagnostic_at_lexeme lexbuf message =
-    let pos = Lexing.lexeme_start_p lexbuf in
+  let diagnostic_at_position pos message =
     let line = max 0 (pos.Lexing.pos_lnum - 1) in
     let character = max 0 (pos.Lexing.pos_cnum - pos.Lexing.pos_bol) in
     make_diagnostic ~line ~character ~message
+
+  let diagnostic_at_lexeme lexbuf message =
+    diagnostic_at_position (Lexing.lexeme_start_p lexbuf) message
 
   let is_op_char = function
     | '|' | '>' | '?' | '+' | '-' | '*' | '/' | '=' | '!' | '<' | '&' | '%' | '~' | '.' -> true
@@ -177,8 +179,11 @@ module Server = struct
            diagnostics := [ diagnostic_at_lexeme lexbuf "Mixed bracket literal (found both single elements and key-value pairs)" ]
         | Ast.Invalid_match_pattern msg ->
            diagnostics := [ diagnostic_at_lexeme lexbuf msg ]
-        | Ast.Invalid_type_declaration msg ->
-           diagnostics := [ diagnostic_at_lexeme lexbuf msg ]
+        | Ast.Invalid_type_declaration (msg, pos_opt) ->
+           diagnostics :=
+             [ (match pos_opt with
+                | Some pos -> diagnostic_at_position pos msg
+                | None -> diagnostic_at_lexeme lexbuf msg) ]
       | Lexer.SyntaxError msg ->
           diagnostics :=
             [ diagnostic_at_lexeme lexbuf (Printf.sprintf "Lexer error: %s" msg) ]

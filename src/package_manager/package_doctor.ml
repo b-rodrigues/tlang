@@ -210,6 +210,63 @@ let check_julia_load_path () =
       }
   | Some _ -> None
 
+(** Check the JVM that PMML scoring uses. T_JPMML_JAVA names the JVM;
+    otherwise java on PATH is used. Jar resolution happens in the Nix shell
+    via T_JPMML_STATSMODELS_JAR / T_JPMML_EVALUATOR_JAR, so this check only
+    covers the runtime side. Missing JVM is an explicit error in predict.
+
+    The check runs only for projects or packages that actually use PMML
+    (a declared jpmml/pmml tool, or T_JPMML_JAVA set). Every other project
+    gets no JVM warning, because its shell carries no JRE by design. *)
+let check_jvm_pmml () =
+  let issues = ref [] in
+  (match Sys.getenv_opt "T_JPMML_JAVA" with
+   | Some v when String.trim v <> "" ->
+       if not (Sys.file_exists (String.trim v)) then
+         issues := {
+           level = Warning;
+           message = Printf.sprintf "T_JPMML_JAVA points to missing file: %s" v;
+           suggestion = Some "Set T_JPMML_JAVA to the java binary exported by the project shell, or unset it to use java on PATH. Declare `jre` in [additional-tools] in tproject.toml and run `t update` when the shell has no JVM.";
+         } :: !issues
+   | _ ->
+       if Sys.command "command -v java >/dev/null 2>&1" <> 0 then
+         issues := {
+           level = Warning;
+           message = "No JVM found: T_JPMML_JAVA is not set and java is not on PATH";
+           suggestion = Some "PMML predict needs a JVM from the project shell. Declare `jre` in [additional-tools] in tproject.toml, then run `t update` and rebuild.";
+         } :: !issues);
+  List.rev !issues
+
+(* Does [needle] occur in [haystack]? Plain substring search; used only for
+   lowercased config text. *)
+let contains_sub ~haystack ~needle =
+  let n = String.length haystack and m = String.length needle in
+  let rec loop i =
+    if m = 0 then true
+    else if i + m > n then false
+    else if String.sub haystack i m = needle then true
+    else loop (i + 1)
+  in
+  loop 0
+
+let file_mentions_pmml path =
+  try
+    let ch = open_in path in
+    let content = Fun.protect ~finally:(fun () -> close_in_noerr ch)
+      (fun () -> really_input_string ch (in_channel_length ch))
+    in
+    let lowered = String.lowercase_ascii content in
+    contains_sub ~haystack:lowered ~needle:"jpmml"
+    || contains_sub ~haystack:lowered ~needle:"pmml"
+  with Sys_error _ -> false
+
+let project_uses_pmml dir =
+  match Sys.getenv_opt "T_JPMML_JAVA" with
+  | Some v when String.trim v <> "" -> true
+  | _ ->
+      file_mentions_pmml (Filename.concat dir "tproject.toml")
+      || file_mentions_pmml (Filename.concat dir "DESCRIPTION.toml")
+
 (** Scan for required Julia packages (JSON, DataFrames, CSV, Arrow) in the environment.
     
     @return List of issues for missing packages. *)
@@ -474,7 +531,7 @@ let parse_program path =
       | Parser.Error -> Result.error (Printf.sprintf "Could not parse %s" path)
       | Ast.Mixed_bracket_form -> Result.error (Printf.sprintf "Could not parse %s: Mixed bracket literal (found both single elements and key-value pairs)" path)
       | Ast.Invalid_match_pattern msg -> Result.error (Printf.sprintf "Could not parse %s: %s" path msg)
-      | Ast.Invalid_type_declaration msg -> Result.error (Printf.sprintf "Could not parse %s: %s" path msg)
+      | Ast.Invalid_type_declaration (msg, _) -> Result.error (Printf.sprintf "Could not parse %s: %s" path msg)
 
 let doctor_issue_for_package ~section ~runtime pkg =
   {
@@ -586,7 +643,8 @@ let run_doctor () =
     let base_issues = List.filter_map (fun x -> x) base_checks in
     base_issues
   in
-  let issues = issues @ julia_issues @ project_dependency_issues dir in
+  let jvm_issues = if project_uses_pmml dir then check_jvm_pmml () else [] in
+  let issues = issues @ julia_issues @ jvm_issues @ project_dependency_issues dir in
 
   if issues = [] then
     Printf.printf "\n✓ Everything looks good!\n"

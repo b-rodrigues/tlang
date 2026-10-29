@@ -802,6 +802,35 @@ let read_fn named_args _env =
 --# @family pipeline
 --# @export
 *)
+(*
+--# Test if a node failed
+--#
+--# Returns true for a failed node (VError), for a `read_node()` result
+--# whose value or diagnostics carry an error, or for an inspect result
+--# with status Errored or SoftFailed. Use this after 0.56.1 instead of
+--# is_error(inspect_node(x)), which is always false. NA propagates as
+--# NA; a value that is not a node, read_node result, inspect result, or
+--# error is false.
+--#
+--# @name is_failed
+--# @param node :: Any A node value, read_node result, inspect result, or error.
+--# @return :: Bool | NA True when failed or Errored.
+--# @family pipeline
+--# @export
+*)
+(*
+--# Node build status
+--#
+--# Returns Built for a computed node, Errored for a failed node or a
+--# `read_node()` result carrying an error, or the status field of an
+--# inspect result. NA propagates as NA.
+--#
+--# @name node_status
+--# @param node :: Any A node value, read_node result, inspect result, or error.
+--# @return :: String | NA Built or Errored.
+--# @family pipeline
+--# @export
+*)
   let suppress_warnings_fn args _env =
     match args with
     | [VNodeResult nr] ->
@@ -812,10 +841,56 @@ let read_fn named_args _env =
     | _ -> Error.arity_error_named "suppress_warnings" 1 (List.length args)
   in
 
+  let node_result_failed v diagnostics =
+    match v with
+    | VError _ -> true
+    | _ -> Option.is_some diagnostics.nd_error
+  in
+  let is_failed_fn args _env =
+    match args with
+    | [VNA _] -> VNA NABool
+    | [VError _] -> VBool true
+    | [VComputedNode _] -> VBool false
+    | [VNodeResult { v; diagnostics; _ }] -> VBool (node_result_failed v diagnostics)
+    | [VDict d] ->
+        (match List.assoc_opt "status" d with
+         | Some (VString s) -> VBool (s = "Errored" || s = "SoftFailed")
+         | Some (VNA _) -> VNA NABool
+         | Some _ ->
+             Error.type_error "is_failed: dict status must be a String. Use inspect_node(x)."
+         | None ->
+             Error.type_error "is_failed: dict has no status key. Use inspect_node(x).")
+    | [_] -> VBool false
+    | _ -> Error.arity_error_named "is_failed" 1 (List.length args)
+  in
+  let node_status_fn args _env =
+    match args with
+    | [VNA _] -> VNA NAString
+    | [VError _] -> VString "Errored"
+    | [VComputedNode _] -> VString "Built"
+    | [VNodeResult { v; diagnostics; _ }] ->
+        VString (if node_result_failed v diagnostics then "Errored" else "Built")
+    | [VDict d] ->
+        (match List.assoc_opt "status" d with
+         | Some (VString s) -> VString s
+         | Some (VNA _) -> VNA NAString
+         | Some _ ->
+             Error.type_error "node_status: dict status must be a String. Use inspect_node(x)."
+         | None ->
+             Error.type_error "node_status: dict has no status key. Use inspect_node(x).")
+    | [other] ->
+        Error.type_error
+          (Printf.sprintf
+             "node_status: expected a node, read_node result, inspect result, or error, but got %s."
+             (Utils.type_name other))
+    | _ -> Error.arity_error_named "node_status" 1 (List.length args)
+  in
   env
   |> Env.add "read_node" (make_builtin_named ~name:"read_node" ~variadic:true 1 read_fn)
   |> Env.add "read_pipeline" (make_builtin_named ~name:"read_pipeline" ~variadic:true 1 read_pipeline_fn)
   |> Env.add "inspect_node" (make_builtin_named ~name:"inspect_node" ~unwrap:false ~variadic:true 1 inspect_fn)
   |> Env.add "rebuild_node" (make_builtin_named ~name:"rebuild_node" ~unwrap:false ~variadic:true 1 rebuild_fn)
   |> Env.add "suppress_warnings" (make_builtin ~name:"suppress_warnings" ~unwrap:false 1 suppress_warnings_fn)
+  |> Env.add "is_failed" (make_builtin ~name:"is_failed" ~unwrap:false 1 is_failed_fn)
+  |> Env.add "node_status" (make_builtin ~name:"node_status" ~unwrap:false 1 node_status_fn)
   |> Env.add "debug_node" (make_builtin_named ~name:"debug_node" ~unwrap:false ~variadic:true 1 debug_fn)

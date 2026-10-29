@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.56.2] - 2026-10-29
+
+### New features
+
+- **`t check` and `t fix` close the loop**: new `Replace_text` fix kind covers `^arrow` to `^ipc`, `read_log("node")` to `read_log(p.node)`, bare `Missing` to `Missing()`, and dangling reads at edit distance 1 with unique match. `t fix` applies it only inside the diagnosed line and never inside comments, strings, or raw code blocks, so valid lookalike text is left untouched. Docs in `docs/cli-json-schemas.md` unify `diagnostics` shape, `schema_version`, and exit codes for `t check`, `t diff`, `t test`, `t run`, `t fix`.
+- **`is_failed(node)` and `node_status(node)`**: stable replacement for `is_error(inspect_node(x))`, which is always false since 0.56.1. Both accept `read_node()` results and propagate NA. `is_failed()` answers `false` for any value that is not a node or an error, like a predicate; `node_status()` raises a `TypeError` for it, because it has no status to report. `t check` warns on the dead pattern.
+- **`pipeline_overview(p, only = ...)` and `pipeline_overview_markdown(p)`**: filter rows by failed, built, unbuilt, or all; Markdown output for `pipeline_report` and workflow summaries. Companions add `pipeline_overview()` with failed-first sort.
+- **Companion parity**: R, Python, Julia `inspect_node()` return `status` Built or Errored plus `error_code` and `error_message`, matching T ten keys. Healthy path keeps `children` and `error` for compat. R `pipeline_overview()` now returns the same `name` column and error fields as the Python and Julia companions.
+- **String helpers**: `str_to_title(s)` title-cases words on Unicode code-point boundaries.
+- **`t doctor` JVM check**: for projects that use PMML, warns when `T_JPMML_JAVA` is missing and `java` is not on `PATH`, and names the Nix declaration that provides a JVM.
+
+### Fixes
+
+- **Clearer generic message**: `Int is not widened to Float in generic T. Convert explicitly.`
+- **PMML runtime check**: `t doctor` checks the runtime side and tells you to declare `jre` in `tproject.toml`. Jar resolution stays in the Nix shell.
+- **Julia `pipeline_overview` status**: built nodes report `Built` and skipped nodes keep their own status again. The status helper returned a `SubString`, so the `isa String` test failed and every healthy node showed as `Unbuilt`.
+
+
 ## [0.56.1] - 2026-10-26
 
 ### New features

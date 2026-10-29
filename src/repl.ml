@@ -543,8 +543,11 @@ let parse_program_from_file filename =
     | Ast.Invalid_match_pattern msg ->
         let pos = Lexing.lexeme_start_p lexbuf in
         Error (make_located_error ~file:filename Ast.SyntaxError msg pos)
-    | Ast.Invalid_type_declaration msg ->
-        let pos = Lexing.lexeme_start_p lexbuf in
+    | Ast.Invalid_type_declaration (msg, pos_opt) ->
+        let pos = match pos_opt with
+          | Some p -> p
+          | None -> Lexing.lexeme_start_p lexbuf
+        in
         Error (make_located_error ~file:filename Ast.SyntaxError msg pos)
     | Sys.Break ->
         Error (interrupt_error ())
@@ -740,7 +743,8 @@ let check_type_annotations filename =
   | Lexer.SyntaxError _ ->
     (* Parse/syntax errors are already reported by check_utils normal flow. *)
     []
-  | Parser.Error | Ast.Mixed_bracket_form ->
+  | Parser.Error | Ast.Mixed_bracket_form | Ast.Invalid_type_declaration _ ->
+    (* Parse/type-declaration errors are already reported by the normal flow. *)
     []
   | exn ->
     Printf.eprintf "Warning: type annotation check unexpected exception: %s\n" (Printexc.to_string exn);
@@ -1756,8 +1760,11 @@ let () =
                | Ast.Invalid_match_pattern msg ->
                    let pos = Lexing.lexeme_start_p lexbuf in
                    make_located_error ~file:filename Ast.SyntaxError msg pos
-               | Ast.Invalid_type_declaration msg ->
-                   let pos = Lexing.lexeme_start_p lexbuf in
+               | Ast.Invalid_type_declaration (msg, pos_opt) ->
+                   let pos = match pos_opt with
+                     | Some p -> p
+                     | None -> Lexing.lexeme_start_p lexbuf
+                   in
                    make_located_error ~file:filename Ast.SyntaxError msg pos
                | Sys.Break ->
                    interrupt_error ())

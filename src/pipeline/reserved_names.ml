@@ -62,7 +62,7 @@ let builtin_functions =
     "ifelse"; "import_artifacts"; "index_of"; "inner_join"; "inspect_artifacts"; "inspect_log";
     "inspect_node"; "inspect_pipeline"; "intent_fields"; "intent_get"; "intersect"; "interval";
     "inv"; "iota"; "iqr"; "is_character"; "is_date"; "is_datetime";
-    "is_duration"; "is_empty"; "is_error"; "is_factor"; "is_interval"; "is_leap_year";
+    "is_duration"; "is_empty"; "is_error"; "is_failed"; "is_factor"; "is_interval"; "is_leap_year";
     "is_logical"; "is_na"; "is_numeric"; "isoweek"; "isoyear"; "is_period";
     "kron"; "kurtosis"; "lag"; "last_index_of"; "lead"; "left_join";
     "length"; "levels"; "list_files"; "list_logs"; "lm"; "log";
@@ -73,14 +73,14 @@ let builtin_functions =
     "mutate"; "mutate_node"; "n"; "na"; "na_bool"; "na_float";
     "na_int"; "nanoseconds"; "na_string"; "ncol"; "ndarray"; "ndarray_data";
     "n_distinct"; "nest"; "nesting"; "nobs"; "node_diff"; "node_fork";
-    "node_lens"; "node_meta_lens"; "node_when"; "normalize"; "now"; "nrow";
+    "node_lens"; "node_meta_lens"; "node_status"; "node_when"; "normalize"; "now"; "nrow";
     "ntile"; "ordered"; "over"; "package_info"; "packages"; "parallel";
     "parse_date"; "parse_datetime"; "patch"; "path_abs"; "path_basename"; "path_dirname";
     "path_ext"; "path_join"; "path_stem"; "pchisq"; "percent_rank"; "period_days";
     "period_hours"; "period_minutes"; "period_months"; "period_seconds"; "period_years"; "pf";
     "pipeline_assert"; "pipeline_cache_status"; "pipeline_config_to_frame"; "pipeline_copy"; "pipeline_cycles"; "pipeline_deps";
     "pipeline_depth"; "pipeline_diff"; "pipeline_edges"; "pipeline_gc"; "pipeline_leaves"; "pipeline_node";
-    "pipeline_node_options"; "pipeline_nodes"; "pipeline_overview"; "pipeline_print"; "pipeline_report"; "pipeline_roots";
+    "pipeline_node_options"; "pipeline_nodes"; "pipeline_overview"; "pipeline_overview_markdown"; "pipeline_print"; "pipeline_report"; "pipeline_roots";
     "pipeline_run"; "pipeline_status";
     "pipeline_to_dot"; "pipeline_to_drv"; "pipeline_to_frame"; "pipeline_to_ga"; "pipeline_to_mermaid"; "pipeline_to_store";
     "pipeline_validate"; "pivot_longer"; "pivot_wider"; "pm"; "pnorm"; "poly";
@@ -101,7 +101,7 @@ let builtin_functions =
     "set_pipeline_global_options"; "set_seed"; "shape"; "show_plot"; "sigma"; "sign";
     "signif"; "sin"; "sinh"; "skewness"; "slice"; "slice_max";
     "slice_min"; "slice_pattern"; "slice_sample"; "source"; "sqrt"; "standardize";
-    "starts_with"; "str_count"; "str_detect"; "str_extract"; "str_extract_all"; "str_flatten";
+    "starts_with"; "str_count"; "str_detect"; "str_extract"; "str_extract_all"; "str_flatten"; "str_to_title";
     "str_format"; "str_join"; "str_lines"; "str_nchar"; "str_pad"; "str_repeat";
     "str_replace"; "str_split"; "str_sprintf"; "str_squish"; "str_substring"; "str_trim"; "str_trunc";
     "str_words"; "subgraph"; "sum"; "summarize"; "summary"; "suppress_warnings";

@@ -531,3 +531,50 @@ end
         @test logs[1]["pipeline"] == "demo"
     end
 end
+
+@testset "pipeline_overview parity" begin
+    mktempdir() do tmp_dir
+        pipe = joinpath(tmp_dir, "_pipeline")
+        mkpath(pipe)
+        art = joinpath(tmp_dir, "a.txt"); write(art, "a")
+        verror = joinpath(tmp_dir, "err.json")
+        open(verror, "w") do io
+            JSON.print(io, Dict("type" => "VError", "code" => "RuntimeError",
+                "message" => "boom"))
+        end
+        _write_log(pipe, [
+            Dict("node" => "ok", "path" => art, "runtime" => "T",
+                "serializer" => "text", "dependencies" => String[],
+                "status" => "Completed", "class" => "String"),
+            Dict("node" => "bad", "path" => verror, "runtime" => "T",
+                "serializer" => "text", "dependencies" => String[],
+                "status" => "Completed", "class" => "VError"),
+            Dict("node" => "skip", "path" => art, "runtime" => "R",
+                "serializer" => "json", "dependencies" => String[],
+                "status" => "Skipped", "class" => "String"),
+            Dict("node" => "soft", "path" => art, "runtime" => "Python",
+                "serializer" => "csv", "dependencies" => String[],
+                "status" => "SoftFailed", "class" => "String",
+                "error_code" => "ValueError", "error_message" => "bad value"),
+        ], "build_log_20260108_000000_ovw.json")
+
+        rows = pipeline_overview(pipeline_dir=pipe, which_log="20260108")
+        @test [r["name"] for r in rows] == ["bad", "soft", "ok", "skip"]
+        @test [r["status"] for r in rows] == ["Errored", "Errored", "Built", "Skipped"]
+        @test [r["class"] for r in rows] == ["Error", "Error", "String", "String"]
+        @test [r["error_code"] for r in rows] ==
+            ["RuntimeError", "ValueError", nothing, nothing]
+        @test [r["error_message"] for r in rows] ==
+            ["boom", "bad value", nothing, nothing]
+        @test rows[1]["path"] === nothing
+
+        @test [r["name"] for r in pipeline_overview(pipeline_dir=pipe, which_log="20260108", only="failed")] ==
+            ["bad", "soft"]
+        @test [r["name"] for r in pipeline_overview(pipeline_dir=pipe, which_log="20260108", only="built")] ==
+            ["ok"]
+        @test [r["name"] for r in pipeline_overview(pipeline_dir=pipe, which_log="20260108", only="unbuilt")] ==
+            ["skip"]
+        @test length(pipeline_overview(pipeline_dir=pipe, which_log="20260108", only="all")) == 4
+        @test_throws ErrorException pipeline_overview(pipeline_dir=pipe, only="bad")
+    end
+end

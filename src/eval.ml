@@ -3764,6 +3764,29 @@ and eval_call env_ref fn_val raw_args =
               | None, _ | _, None -> true
               | Some x, Some y -> consistent x y
             in
+            (* True only when the two types differ by Int/Float widening at
+               corresponding positions. Inspects the ADT instead of the
+               formatted type names (so `Interval` is not "Int", and
+               `Dict[String, Int]` vs `List[Float]` is not a numeric
+               mismatch). *)
+            let rec widening a b =
+              match a, b with
+              | Ast.TInt, Ast.TFloat | Ast.TFloat, Ast.TInt -> true
+              | Ast.TList x, Ast.TList y -> opt_widening x y
+              | Ast.TDict (a1, a2), Ast.TDict (b1, b2) ->
+                  opt_widening a1 b1 || opt_widening a2 b2
+              | Ast.TTuple xs, Ast.TTuple ys ->
+                  List.length xs = List.length ys && List.exists2 widening xs ys
+              | Ast.TArrow (ps1, r1), Ast.TArrow (ps2, r2) ->
+                  (List.length ps1 = List.length ps2 && List.exists2 widening ps1 ps2)
+                  || widening r1 r2
+              | Ast.TUnion xs, t -> List.exists (fun x -> widening x t) xs
+              | t, Ast.TUnion ys -> List.exists (fun y -> widening t y) ys
+              | _ -> false
+            and opt_widening x y = match x, y with
+              | Some x, Some y -> widening x y
+              | _ -> false
+            in
             let typ_of_value v =
               match Symbol_table.value_to_semantic_type v with
               | Some st -> Semantic_type.to_ast_typ st
@@ -3812,9 +3835,16 @@ and eval_call env_ref fn_val raw_args =
                    if flexible got then ()
                    else if flexible prev then Hashtbl.replace bound name got
                    else if not (consistent prev got) then
+                     let ps = Ast.Utils.typ_to_string prev in
+                     let gs = Ast.Utils.typ_to_string got in
+                     let suffix =
+                       if widening prev got then
+                         ". Int is not widened to Float in generic T. Convert explicitly."
+                       else ""
+                     in
                      errors := Printf.sprintf
-                       "Type variable `%s` has inconsistent types: %s vs %s"
-                       name (Ast.Utils.typ_to_string prev) (Ast.Utils.typ_to_string got)
+                       "Type variable `%s` has inconsistent types: %s vs %s%s"
+                       name ps gs suffix
                        :: !errors)
             in
             let rec unify param_t value_t =
@@ -4323,8 +4353,11 @@ and eval_statement (env : environment) (stmt : stmt) : value * environment =
                  SyntaxError
                  msg,
                env)
-          | Ast.Invalid_type_declaration msg ->
-              let pos = Lexing.lexeme_start_p lexbuf in
+          | Ast.Invalid_type_declaration (msg, pos_opt) ->
+              let pos = match pos_opt with
+                | Some p -> p
+                | None -> Lexing.lexeme_start_p lexbuf
+              in
               (make_error
                  ~location:(source_location ~file:filename pos)
                  SyntaxError
@@ -4416,8 +4449,11 @@ and eval_statement (env : environment) (stmt : stmt) : value * environment =
                  SyntaxError
                  msg,
                env)
-          | Ast.Invalid_type_declaration msg ->
-              let pos = Lexing.lexeme_start_p lexbuf in
+          | Ast.Invalid_type_declaration (msg, pos_opt) ->
+              let pos = match pos_opt with
+                | Some p -> p
+                | None -> Lexing.lexeme_start_p lexbuf
+              in
               (make_error
                  ~location:(source_location ~file:filename pos)
                  SyntaxError

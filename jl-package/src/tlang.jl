@@ -3,7 +3,7 @@ module tlang
 using JSON
 using Serialization
 
-export read_node, read_node_tree, inspect_pipeline, inspect_node, lineage, show_code, error_msg, error_code, error_context, warning_msg, list_logs, build_log_to_frame, collect_exceptions, pipeline_nodes, diff_artifacts, diff_nodes, diff_objects
+export read_node, read_node_tree, inspect_pipeline, pipeline_overview, inspect_node, lineage, show_code, error_msg, error_code, error_context, warning_msg, list_logs, build_log_to_frame, collect_exceptions, pipeline_nodes, diff_artifacts, diff_nodes, diff_objects
 
 const FIXTURE_LOGS = ["build_log_ocaml_mock.json", "build_log_legacy_version.json"]
 
@@ -652,7 +652,9 @@ Return trimmed text or `nothing` for missing values.
 """
 function _inspect_text_or_nothing(value)
     if value isa String && !isempty(strip(value))
-        return strip(value)
+        # String(), not the SubString strip returns: callers test
+        # `isa String` on these values.
+        return String(strip(value))
     end
     return nothing
 end
@@ -778,7 +780,9 @@ string when present, else maps `success` (bool or "true"/"false" string) to
 function _frames_status_of(entry)
     status = get(entry, "status", nothing)
     if status isa String && !isempty(strip(status))
-        return strip(status)
+        # String(), not the SubString strip returns: pipeline_overview tests
+        # `isa String` to decide Built versus Unbuilt.
+        return String(strip(status))
     end
     success = get(entry, "success", nothing)
     if success isa Bool
@@ -1236,8 +1240,7 @@ end
     inspect_node(name::String; which_log=nothing, pipeline_dir="_pipeline")
 
 Inspect one node's metadata, lineage, error, and warnings. Returns a `Dict`
-with `name`, `runtime`, `serializer`, `dependencies`, `children` (direct
-dependents), `status`, `class`, `path`, `error`, and `warnings`.
+with `name`, `runtime`, `serializer`, `dependencies`, `children`, `status` (Built or Errored), `class`, `path`, `error`, `error_code`, `error_message`, and `warnings`.
 """
 function inspect_node(
     name::String;
@@ -1265,7 +1268,13 @@ function inspect_node(
     catch
         nothing
     end
-    status = _frames_status_of(entry)
+    err = _error_of_entry(entry, pipeline_dir)
+    raw_status = _frames_status_of(entry)
+    is_failed = err !== nothing || (raw_status isa String && raw_status in ("Errored", "SoftFailed"))
+    status = is_failed ? "Errored" : "Built"
+    klass = is_failed ? "Error" : _inspect_text_or_nothing(get(entry, "class", nothing))
+    err_code = err === nothing ? nothing : get(err, "code", nothing)
+    err_msg = err === nothing ? nothing : get(err, "message", nothing)
     return Dict{String, Any}(
         "name" => name,
         "runtime" => _inspect_text_or_nothing(get(entry, "runtime", nothing)),
@@ -1273,9 +1282,11 @@ function inspect_node(
         "dependencies" => unique(sort(clean)),
         "children" => children,
         "status" => status,
-        "class" => _inspect_text_or_nothing(get(entry, "class", nothing)),
-        "path" => artifact,
-        "error" => _error_of_entry(entry, pipeline_dir),
+        "class" => klass,
+        "path" => status == "Built" ? artifact : nothing,
+        "error" => err,
+        "error_code" => err_code,
+        "error_message" => err_msg,
         "warnings" => warnings,
     )
 end
@@ -1618,6 +1629,79 @@ function diff_nodes(
         context=context,
         deserializer=deserializer,
     )
+end
+
+"""
+    pipeline_overview(; pipeline_dir="_pipeline", which_log=nothing, only=nothing)
+
+Overview table, failed first. Mirrors T pipeline_overview.
+Returns a Vector of Dicts with name, runtime, serializer, dependencies,
+status, class, path, error_code, and error_message. Failed nodes carry
+status "Errored". Built nodes carry "Built"; unbuilt or skipped nodes keep
+their own status instead of being reported as built.
+Pass only="failed" for failures only.
+"""
+function pipeline_overview(; pipeline_dir::String="_pipeline", which_log::Union{String, Nothing}=nothing, only::Union{String, Nothing}=nothing)
+    only_norm = only === nothing ? nothing : lowercase(strip(only))
+    if only_norm !== nothing && !(only_norm in ("failed", "errored", "built", "completed", "unbuilt", "pending", "all"))
+        error("pipeline_overview: only must be failed, built, unbuilt, or all, but got \"$only\".")
+    end
+    rows = inspect_pipeline(pipeline_dir=pipeline_dir, which_log=which_log)
+    entries = Dict{String, Any}()
+    logs = _list_build_logs(pipeline_dir)
+    if !isempty(logs)
+        log_file = _select_build_log(logs, which_log, pipeline_dir)
+        build_log = JSON.parsefile(joinpath(pipeline_dir, log_file))
+        for entry in get(build_log, "nodes", Any[])
+            if entry isa AbstractDict
+                nm = get(entry, "node", nothing)
+                if nm isa String
+                    entries[nm] = entry
+                end
+            end
+        end
+    end
+    out = Dict{String, Any}[]
+    for r in rows
+        name = get(r, "node", nothing)
+        st = get(r, "status", nothing)
+        st_text = st isa String ? strip(st) : ""
+        entry = name isa String && haskey(entries, name) ? entries[name] : nothing
+        err = entry === nothing ? nothing : _error_of_entry(entry, pipeline_dir)
+        is_errored = st_text in ("Errored", "SoftFailed") || get(r, "class", nothing) == "Error" || err !== nothing
+        status = if is_errored
+            "Errored"
+        elseif st_text in ("Completed", "Built", "Cached")
+            "Built"
+        elseif isempty(st_text)
+            "Unbuilt"
+        else
+            st_text
+        end
+        push!(out, Dict{String, Any}(
+            "name" => name,
+            "runtime" => get(r, "runtime", nothing),
+            "serializer" => get(r, "serializer", nothing),
+            "dependencies" => get(r, "dependencies", String[]),
+            "status" => status,
+            "class" => is_errored ? "Error" : get(r, "class", nothing),
+            "path" => is_errored ? nothing : get(r, "path", nothing),
+            "error_code" => err isa AbstractDict ? get(err, "code", nothing) : nothing,
+            "error_message" => err isa AbstractDict ? get(err, "message", nothing) : nothing,
+        ))
+    end
+    failed = filter(x -> x["status"] == "Errored", out)
+    ok = filter(x -> x["status"] != "Errored", out)
+    ordered = vcat(failed, ok)
+    if only_norm === nothing || only_norm == "all"
+        return ordered
+    elseif only_norm in ("failed", "errored")
+        return failed
+    elseif only_norm in ("built", "completed")
+        return filter(x -> x["status"] == "Built", ordered)
+    else
+        return filter(x -> x["status"] in ("Unbuilt", "Pending", "Skipped", "NA"), ordered)
+    end
 end
 
 end # module

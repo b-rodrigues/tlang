@@ -127,3 +127,138 @@ inspect_pipeline <- function(
     stringsAsFactors = FALSE
   )
 }
+
+#' Index the selected build log's entries by node name
+#'
+#' @param pipeline_dir Path to the pipeline directory.
+#' @param which_log Optional log regex.
+#'
+#' @return Named list of node entries; empty when no build log exists or the
+#'   log cannot be read.
+#'
+#' @keywords internal
+overview_entries <- function(pipeline_dir, which_log) {
+  logs <- list_build_logs(pipeline_dir)
+  if (!length(logs)) {
+    return(list())
+  }
+  log_file <- select_build_log(logs, which_log, pipeline_dir)
+  build_log <- tryCatch(
+    read_build_log(file.path(pipeline_dir, log_file)),
+    error = function(err) NULL
+  )
+  if (is.null(build_log) || !is.list(build_log$nodes)) {
+    return(list())
+  }
+  out <- list()
+  for (entry in build_log$nodes) {
+    if (!is.list(entry) || is.null(entry$node)) {
+      next
+    }
+    nm <- as.character(entry$node)[[1L]]
+    if (is.na(nm) || !nzchar(nm)) {
+      next
+    }
+    out[[nm]] <- entry
+  }
+  out
+}
+
+#' Pipeline overview, failed first
+#'
+#' Mirrors T pipeline_overview. Returns one row per node, failed first.
+#' Failed nodes carry `status = "Errored"` and `class = "Error"`; completed
+#' nodes carry `"Built"`. Unbuilt and skipped nodes keep their own status
+#' instead of being reported as built.
+#'
+#' @param pipeline_dir Path to pipeline dir.
+#' @param which_log Optional log regex.
+#' @param only Optional filter: `"failed"`, `"built"`, `"unbuilt"`, or
+#'   `"all"`. Defaults to all rows, failed first.
+#' @return Data frame with columns `name`, `runtime`, `serializer`,
+#'   `dependencies`, `status`, `class`, `path`, `error_code`, and
+#'   `error_message`. Failed nodes carry the entry's error in `error_code` and
+#'   `error_message` (NA for healthy rows).
+#' @export
+pipeline_overview <- function(pipeline_dir = "_pipeline", which_log = NULL, only = NULL) {
+  key <- NULL
+  if (!is.null(only)) {
+    if (!is.character(only) || length(only) != 1L || is.na(only)) {
+      stop("only must be a single string.", call. = FALSE)
+    }
+    key <- tolower(trimws(only))
+    if (!key %in% c("failed", "errored", "built", "completed", "unbuilt", "pending", "all")) {
+      stop(sprintf("pipeline_overview: only must be failed, built, unbuilt, or all, but got \"%s\".", only), call. = FALSE)
+    }
+  }
+  rows <- inspect_pipeline(pipeline_dir = pipeline_dir, which_log = which_log)
+  if (nrow(rows) == 0L) {
+    return(data.frame(
+      name = character(0),
+      runtime = character(0),
+      serializer = character(0),
+      dependencies = I(list()),
+      status = character(0),
+      class = character(0),
+      path = character(0),
+      error_code = character(0),
+      error_message = character(0),
+      stringsAsFactors = FALSE
+    ))
+  }
+  entries <- overview_entries(pipeline_dir, which_log)
+  errs <- lapply(rows$node, function(nm) {
+    entry <- if (is.character(nm) && length(nm) == 1L && !is.na(nm) && nzchar(nm)) {
+      entries[[nm]]
+    } else {
+      NULL
+    }
+    if (is.null(entry)) {
+      return(NULL)
+    }
+    tryCatch(error_of_entry(entry, pipeline_dir), error = function(err) NULL)
+  })
+  err_field <- function(field) {
+    vapply(errs, function(err) {
+      if (is.null(err)) {
+        return(NA_character_)
+      }
+      value <- err[[field]]
+      if (is.character(value) && length(value) == 1L && !is.na(value)) {
+        value
+      } else {
+        NA_character_
+      }
+    }, character(1))
+  }
+  st <- tolower(ifelse(is.na(rows$status), "", rows$status))
+  cls <- tolower(ifelse(is.na(rows$class), "", rows$class))
+  has_error <- !vapply(errs, is.null, logical(1))
+  failed <- has_error | st %in% c("errored", "softfailed") | cls %in% c("error", "verror")
+  built <- st %in% c("completed", "built", "cached")
+  status <- ifelse(failed, "Errored",
+                   ifelse(built, "Built",
+                          ifelse(nzchar(st), rows$status, "Unbuilt")))
+  overview <- data.frame(
+    name = rows$node,
+    runtime = rows$runtime,
+    serializer = rows$serializer,
+    dependencies = I(rows$dependencies),
+    status = status,
+    class = ifelse(failed, "Error", rows$class),
+    path = ifelse(failed, NA_character_, rows$path),
+    error_code = err_field("code"),
+    error_message = err_field("message"),
+    stringsAsFactors = FALSE
+  )
+  ordered <- rbind(overview[overview$status == "Errored", , drop = FALSE],
+                   overview[overview$status != "Errored", , drop = FALSE])
+  if (is.null(key) || key == "all") return(ordered)
+  if (key %in% c("failed", "errored")) {
+    return(ordered[ordered$status == "Errored", , drop = FALSE])
+  }
+  if (key %in% c("built", "completed")) {
+    return(ordered[ordered$status == "Built", , drop = FALSE])
+  }
+  ordered[ordered$status %in% c("Unbuilt", "Pending", "Skipped", "NA"), , drop = FALSE]
+}

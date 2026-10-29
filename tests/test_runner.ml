@@ -295,6 +295,7 @@ let () =
   run "Test_misc_coverage" Test_misc_coverage.run_tests;
   run "Test_dataframe_diff" Test_dataframe_diff.run_tests;
   run "Test_model_diff" Test_model_diff.run_tests;
+  run_with_env "Test_562" Test_562.run_tests;
   run "Test_scalar_diff" Test_scalar_diff.run_tests;
   run "Test_generic_diff" Test_generic_diff.run_tests;
   run "Test_pipeline_diff" Test_pipeline_diff.run_tests;

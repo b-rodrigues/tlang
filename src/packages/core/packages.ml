@@ -130,7 +130,7 @@ let strcraft_package = {
   functions = ["str_nchar"; "is_empty"; "str_substring"; "slice"; "char_at"; "index_of"; "last_index_of"; "contains"; "starts_with"; "ends_with";
                "str_replace"; "replace_first"; "to_lower"; "to_upper"; "str_trim"; "trim_start"; "trim_end"; "str_squish"; "str_lines"; "str_words"; "str_repeat";
                "str_format"; "str_extract"; "str_extract_all"; "str_detect"; "str_pad"; "str_trunc"; "str_flatten";
-               "str_count"; "str_sprintf"; "str_join"; "str_split"];
+               "str_count"; "str_sprintf"; "str_join"; "str_split"; "str_to_title"];
 }
 
 let stats_package = {
@@ -204,7 +204,7 @@ let pipeline_package = {
                  "pipeline_cycles"; "pipeline_validate"; "pipeline_assert";
                   "pipeline_print"; "pipeline_to_dot"; "pipeline_to_mermaid";
                   "pipeline_to_ga";
-                   "t_check"; "t_diff"; "t_fix"];
+                   "t_check"; "t_diff"; "t_fix"; "pipeline_overview"; "pipeline_overview_markdown"; "pipeline_report"; "is_failed"; "node_status"; "inspect_node"; "rebuild_node"];
 }
 
 let explain_package = {

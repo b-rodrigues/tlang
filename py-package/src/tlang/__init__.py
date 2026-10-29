@@ -8,7 +8,7 @@ from .node_inspect import (
     show_code,
     warning_msg,
 )
-from .inspect_pipeline import inspect_pipeline
+from .inspect_pipeline import inspect_pipeline, pipeline_overview
 from .node_diff import diff_artifacts, diff_nodes, diff_objects
 from .pipeline_nodes import pipeline_nodes
 from .read_node import deserialize, read_node
@@ -19,6 +19,7 @@ __all__ = [
     "read_node",
     "read_node_tree",
     "inspect_pipeline",
+    "pipeline_overview",
     "pipeline_nodes",
     "build_log_to_frame",
     "collect_exceptions",
