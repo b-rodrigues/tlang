@@ -578,3 +578,27 @@ end
         @test_throws ErrorException pipeline_overview(pipeline_dir=pipe, only="bad")
     end
 end
+
+@testset "graph helpers" begin
+    mktempdir() do tmp_dir
+        pipe = joinpath(tmp_dir, "_pipeline")
+        mkpath(pipe)
+        dag = [
+            Dict("node_name" => "a", "depends" => String[]),
+            Dict("node_name" => "b", "depends" => ["a"]),
+            Dict("node_name" => "c", "depends" => ["a", "b"]),
+        ]
+        open(joinpath(pipe, "dag.json"), "w") do io
+            JSON.print(io, dag)
+        end
+        @test pipeline_edges(pipeline_dir=pipe) == [["a", "b"], ["a", "c"], ["b", "c"]]
+        @test "a" in pipeline_roots(pipeline_dir=pipe)
+        @test pipeline_leaves(pipeline_dir=pipe) == ["c"]
+        @test pipeline_depth(pipeline_dir=pipe) == 2
+        @test pipeline_node_depths(pipeline_dir=pipe) == Dict("a" => 0, "b" => 1, "c" => 2)
+        @test isempty(pipeline_cycles(pipeline_dir=pipe))
+        @test isempty(pipeline_validate(pipeline_dir=pipe))
+        @test occursin("digraph pipeline", pipeline_to_dot(pipeline_dir=pipe))
+        @test occursin("graph LR", pipeline_to_mermaid(pipeline_dir=pipe))
+    end
+end
