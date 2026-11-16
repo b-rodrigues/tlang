@@ -76,7 +76,17 @@ Frame helpers that mirror T's pipeline tools:
 logs = tlang.list_logs()  # build logs, newest first
 rows = tlang.build_log_to_frame()  # one row per node: name, status, duration, path
 errs = tlang.collect_exceptions()  # error and warning rows
+cfg = tlang.pipeline_to_frame()  # one row per node: name, runtime, serializer, deps, depth, command_type
+full = tlang.pipeline_config_to_frame()  # all T config columns; unknown provenance is None
 ```
+
+`pipeline_to_frame()` mirrors T's static config table. `deserializer` and
+`noop` are always `None` because build logs do not store them.
+`command_type` is `"script"` for `script =` nodes, `"command"` for inline
+nodes, else `None`. `pipeline_config_to_frame()` returns all T column
+names, but only `name`, `runtime`, `depth`, `command_type`, `serializer`,
+and `n_deps` come from files. Every `prov_*`, `shell`, `flake`, and other
+count column is `None` (unknown, not zero).
 
 Explore one node and read failures (same names as T):
 
