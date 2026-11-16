@@ -3,7 +3,7 @@ module tlang
 using JSON
 using Serialization
 
-export read_node, read_node_tree, inspect_pipeline, pipeline_overview, inspect_node, lineage, show_code, error_msg, error_code, error_context, warning_msg, list_logs, build_log_to_frame, collect_exceptions, pipeline_nodes, diff_artifacts, diff_nodes, diff_objects, pipeline_edges, pipeline_roots, pipeline_leaves, pipeline_node_depths, pipeline_depth, pipeline_cycles, pipeline_validate, pipeline_to_dot, pipeline_to_mermaid
+export read_node, read_node_tree, inspect_pipeline, pipeline_overview, inspect_node, lineage, show_code, error_msg, error_code, error_context, warning_msg, list_logs, build_log_to_frame, collect_exceptions, pipeline_nodes, diff_artifacts, diff_nodes, diff_objects, pipeline_edges, pipeline_roots, pipeline_leaves, pipeline_node_depths, pipeline_depth, pipeline_cycles, pipeline_validate, pipeline_to_dot, pipeline_to_mermaid, pipeline_to_frame, pipeline_config_to_frame
 
 const FIXTURE_LOGS = ["build_log_ocaml_mock.json", "build_log_legacy_version.json"]
 
@@ -1914,6 +1914,173 @@ function pipeline_to_mermaid(; pipeline_dir::String="_pipeline", which_log::Unio
         end
     end
     return join(lines, "\n") * "\n"
+end
+
+"""
+    _command_type_of(entry)
+
+Derive `script` vs `command` from build-log source fields, or `nothing`.
+"""
+function _command_type_of(entry)
+    if !(entry isa AbstractDict)
+        return nothing
+    end
+    script = get(entry, "script", nothing)
+    if script isa String && !isempty(strip(script))
+        return "script"
+    end
+    source = get(entry, "source", nothing)
+    if source isa String && !isempty(strip(source))
+        return "command"
+    end
+    return nothing
+end
+
+"""
+    _load_frame_data(pipeline_dir, which_log, dag_file)
+
+Return `(names, entries, deps_map)`. Uses the selected build log when logs
+exist, else the static DAG file. `names` preserves file order.
+"""
+function _load_frame_data(pipeline_dir::String, which_log, dag_file::String)
+    if !isdir(pipeline_dir)
+        error("Pipeline directory `$pipeline_dir` does not exist.")
+    end
+    logs = _list_build_logs(pipeline_dir)
+    if !isempty(logs)
+        log_file = _select_build_log(logs, which_log, pipeline_dir)
+        build_log = JSON.parsefile(joinpath(pipeline_dir, log_file))
+        if !haskey(build_log, "nodes") || !(build_log["nodes"] isa Vector)
+            error("Build log `$log_file` does not contain a `nodes` array.")
+        end
+        names = String[]
+        entries = Dict{String, Any}()
+        deps = Dict{String, Vector{String}}()
+        for entry in build_log["nodes"]
+            if !(entry isa AbstractDict)
+                continue
+            end
+            nm = get(entry, "node", nothing)
+            if !(nm isa String) || isempty(strip(nm))
+                continue
+            end
+            push!(names, nm)
+            entries[nm] = entry
+            raw = get(entry, "dependencies", String[])
+            clean = String[]
+            if raw isa Vector
+                for d in raw
+                    if d isa String && !isempty(strip(d))
+                        push!(clean, d)
+                    end
+                end
+            end
+            deps[nm] = unique(sort(clean))
+        end
+        return names, entries, deps
+    end
+    dag_path = joinpath(pipeline_dir, dag_file)
+    if !isfile(dag_path)
+        error("DAG file `$dag_path` does not exist.")
+    end
+    dag = try
+        JSON.parsefile(dag_path)
+    catch e
+        error("Failed to read DAG file `$dag_path`: $e")
+    end
+    if !(dag isa Vector)
+        error("DAG file `$dag_path` must decode to an array.")
+    end
+    names = String[]
+    deps = Dict{String, Vector{String}}()
+    for (idx, entry) in enumerate(dag)
+        (nm, ds) = _validate_node_entry(entry, idx, dag_path)
+        push!(names, nm)
+        deps[nm] = ds
+    end
+    return names, Dict{String, Any}(), deps
+end
+
+const _CONFIG_COLUMNS = String[
+    "name", "runtime", "depth", "command_type", "serializer",
+    "deserializer", "noop", "shell", "flake",
+    "prov_serializer", "prov_deserializer", "prov_noop", "prov_shell", "prov_flake",
+    "n_deps", "n_deps_global", "n_deps_node",
+    "n_funcs", "n_funcs_global", "n_funcs_node",
+    "n_incs", "n_incs_global", "n_incs_node",
+    "n_env_vars", "n_env_vars_global", "n_env_vars_node",
+    "n_args", "n_args_global", "n_args_node",
+    "n_shell_args", "n_shell_args_global", "n_shell_args_node",
+]
+
+"""
+    pipeline_to_frame(; pipeline_dir="_pipeline", which_log=nothing, dag_file="dag.json")
+
+Static per-node config table. Mirrors T `pipeline_to_frame`.
+One `Dict` per node with `name`, `runtime`, `serializer`, `deserializer`,
+`noop`, `deps`, `depth`, and `command_type`.
+
+File-based limits (explicit, not silent): build logs do not store
+`deserializer` or `noop`, so both are always `nothing`. `runtime` and
+`serializer` are `nothing` for unbuilt nodes from `dag.json`.
+`command_type` is `"script"` when the log entry has a `script` field,
+`"command"` when it has `source`, else `nothing`. `deps` is a sorted
+vector (T uses a comma-separated string).
+"""
+function pipeline_to_frame(;
+    pipeline_dir::String = "_pipeline",
+    which_log::Union{String, Nothing} = nothing,
+    dag_file::String = "dag.json"
+)
+    names, entries, deps = _load_frame_data(pipeline_dir, which_log, dag_file)
+    depths = pipeline_node_depths(pipeline_dir=pipeline_dir, which_log=which_log, dag_file=dag_file)
+    rows = Dict{String, Any}[]
+    for nm in names
+        entry = get(entries, nm, nothing)
+        push!(rows, Dict{String, Any}(
+            "name" => nm,
+            "runtime" => entry === nothing ? nothing : _inspect_text_or_nothing(get(entry, "runtime", nothing)),
+            "serializer" => entry === nothing ? nothing : _inspect_text_or_nothing(get(entry, "serializer", nothing)),
+            "deserializer" => nothing,
+            "noop" => nothing,
+            "deps" => get(deps, nm, String[]),
+            "depth" => get(depths, nm, 0),
+            "command_type" => _command_type_of(entry),
+        ))
+    end
+    return rows
+end
+
+"""
+    pipeline_config_to_frame(; pipeline_dir="_pipeline", which_log=nothing, dag_file="dag.json")
+
+Per-node config plus provenance counts. Mirrors T `pipeline_config_to_frame`.
+Returns all T column names. Only `name`, `runtime`, `depth`,
+`command_type`, `serializer`, and `n_deps` come from files. Every
+provenance column (`prov_*`), `shell`, `flake`, `deserializer`, `noop`,
+and every count except `n_deps` is `nothing` because build logs and
+`dag.json` do not store that data. `nothing` means unknown, not zero.
+"""
+function pipeline_config_to_frame(;
+    pipeline_dir::String = "_pipeline",
+    which_log::Union{String, Nothing} = nothing,
+    dag_file::String = "dag.json"
+)
+    names, entries, deps = _load_frame_data(pipeline_dir, which_log, dag_file)
+    depths = pipeline_node_depths(pipeline_dir=pipeline_dir, which_log=which_log, dag_file=dag_file)
+    rows = Dict{String, Any}[]
+    for nm in names
+        entry = get(entries, nm, nothing)
+        row = Dict{String, Any}(k => nothing for k in _CONFIG_COLUMNS)
+        row["name"] = nm
+        row["runtime"] = entry === nothing ? nothing : _inspect_text_or_nothing(get(entry, "runtime", nothing))
+        row["depth"] = get(depths, nm, 0)
+        row["command_type"] = _command_type_of(entry)
+        row["serializer"] = entry === nothing ? nothing : _inspect_text_or_nothing(get(entry, "serializer", nothing))
+        row["n_deps"] = length(get(deps, nm, String[]))
+        push!(rows, row)
+    end
+    return rows
 end
 
 end # module
