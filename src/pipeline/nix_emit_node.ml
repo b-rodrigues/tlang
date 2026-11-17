@@ -3852,6 +3852,76 @@ def py_save_meta(obj, path):
                 meta["n_edges"] = int(obj.number_of_edges())
             except Exception:
                 pass
+        elif mod.startswith("gensim"):
+            # gensim topic and embedding models.
+            meta["kind"] = "model"
+            try:
+                if cls.__name__ in ("LdaModel", "LdaMulticore", "LsiModel"):
+                    nt = getattr(obj, "num_topics", None)
+                    if nt is None:
+                        nt = getattr(obj, "num_topics_best", None)
+                    if nt is not None:
+                        meta["n_components"] = int(nt)
+                        meta["task"] = "dim_reduction"
+            except Exception:
+                pass
+            try:
+                if cls.__name__ == "Word2Vec":
+                    vs = getattr(obj, "vector_size", None)
+                    if vs is not None:
+                        meta.setdefault("metrics", {})["vector_size"] = int(vs)
+                    wv = getattr(obj, "wv", None)
+                    if wv is not None:
+                        meta.setdefault("metrics", {})["n_vocab"] = int(len(getattr(wv, "index_to_key", [])))
+            except Exception:
+                pass
+        elif mod.startswith("dask") and cls.__name__ == "DataFrame":
+            # dask lazy frames: schema only, plus partition count.
+            meta["kind"] = "dataframe"
+            try:
+                meta["features"] = [str(c) for c in list(obj.columns)]
+            except Exception:
+                pass
+            try:
+                meta.setdefault("metrics", {})["npartitions"] = int(obj.npartitions)
+            except Exception:
+                pass
+        elif mod.startswith("PIL"):
+            # PIL images: size and mode, not a matrix.
+            meta["kind"] = "image"
+            try:
+                sz = getattr(obj, "size", None)
+                if sz is not None and len(sz) == 2:
+                    meta["dimensions"] = [int(sz[0]), int(sz[1])]
+            except Exception:
+                pass
+            try:
+                md = getattr(obj, "mode", None)
+                if md:
+                    meta["dtype"] = str(md)
+            except Exception:
+                pass
+        elif mod.startswith("neuralprophet"):
+            # NeuralProphet forecasts; a torch model underneath.
+            meta["kind"] = "model"
+            meta["task"] = "time_series"
+            try:
+                inner = getattr(obj, "model", None)
+                if inner is not None:
+                    meta["n_params"] = int(sum(p.numel() for p in inner.parameters() if p.requires_grad))
+            except Exception:
+                pass
+        elif mod.startswith("tslearn"):
+            # tslearn time-series learners.
+            meta["kind"] = "model"
+            if "KMeans" in cls.__name__ or "KShape" in cls.__name__:
+                meta["task"] = "clustering"
+            try:
+                nc = getattr(obj, "n_clusters", None)
+                if nc is not None:
+                    meta["n_clusters"] = int(nc)
+            except Exception:
+                pass
         elif mod.startswith("statsmodels"):
             meta["kind"] = "model"
             order = None

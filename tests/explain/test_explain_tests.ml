@@ -1481,6 +1481,24 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
     ("neuralnet", "R", "nn",
      {|{"kind":"model","class":"nn","n_obs":100,"metrics":{"error":1.5,"steps":200}}|},
      "explain(p3v).foreign_meta.metrics.steps", "200");
+    ("gensim-lda", "Python", "LdaModel",
+     {|{"kind":"model","class":"LdaModel","task":"dim_reduction","n_components":10}|},
+     "explain(p3v).foreign_meta.n_components", "10");
+    ("gensim-w2v", "Python", "Word2Vec",
+     {|{"kind":"model","class":"Word2Vec","metrics":{"vector_size":50,"n_vocab":10000}}|},
+     "explain(p3v).foreign_meta.metrics.vector_size", "50");
+    ("dask", "Python", "DataFrame",
+     {|{"kind":"dataframe","class":"DataFrame","features":["a","b"],"metrics":{"npartitions":8}}|},
+     "explain(p3v).foreign_meta.metrics.npartitions", "8");
+    ("pil", "Python", "PngImageFile",
+     {|{"kind":"image","class":"PngImageFile","dimensions":[640,480],"dtype":"RGBA"}|},
+     "explain(p3v).foreign_meta.kind", {|"image"|});
+    ("neuralprophet", "Python", "NeuralProphet",
+     {|{"kind":"model","class":"NeuralProphet","task":"time_series","n_params":12000}|},
+     "explain(p3v).foreign_meta.n_params", "12000");
+    ("tslearn", "Python", "TimeSeriesKMeans",
+     {|{"kind":"model","class":"TimeSeriesKMeans","task":"clustering","n_clusters":3}|},
+     "explain(p3v).foreign_meta.n_clusters", "3");
   ] in
   List.iter (fun (dname, runtime, class_, meta, expr, expected) ->
     let dir = make_node_dir ("fake-p3-" ^ dname) in

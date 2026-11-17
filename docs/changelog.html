@@ -113,6 +113,13 @@ keras models via <code>count_params()</code>, torch modules via
 parameter sums. Seurat objects report <code>dataset</code> kind with
 cell, gene, and active-assay counts. <code>neuralnet</code> fits report
 error and step counts.</li>
+<li><strong><code>explain()</code> keeps the Python long tail</strong>:
+gensim <code>LdaModel</code> reports topic counts as components and
+<code>Word2Vec</code> reports vector size and vocabulary counts; dask
+frames report schema columns with partition counts; PIL images report
+the new <code>image</code> kind with dimensions and pixel mode;
+NeuralProphet reports parameter counts; tslearn clusterers report
+cluster counts.</li>
 </ul>
 <h2 id="section">[0.56.2] - 2026-10-29</h2>
 <h3 id="new-features">New features</h3>
