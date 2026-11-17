@@ -120,6 +120,18 @@ frames report schema columns with partition counts; PIL images report
 the new <code>image</code> kind with dimensions and pixel mode;
 NeuralProphet reports parameter counts; tslearn clusterers report
 cluster counts.</li>
+<li><strong><code>explain()</code> keeps the Julia long tail</strong>:
+Clustering.jl <code>CmeansResult</code>/<code>DbscanResult</code>
+report cluster facts; MultivariateStats
+<code>ICA</code>/<code>FactorAnalysis</code>/<code>PPCA</code>/
+<code>KernelPCA</code>/<code>MulticlassLDA</code> report
+<code>dim_reduction</code> with component and class counts; Graphs.jl
+networks report <code>graph</code> kind with node and edge counts;
+JuMP models report the new <code>optimization</code> kind with
+variable and constraint counts; SciML ODE problems and solutions
+report the new <code>ode</code> kind with time-span and return-code
+facts; GaussianMixtures <code>GMM</code> fits report
+<code>density</code> with component counts.</li>
 </ul>
 <h2 id="section">[0.56.2] - 2026-10-29</h2>
 <h3 id="new-features">New features</h3>

@@ -4991,6 +4991,207 @@ function jl_save_meta(obj, path)
                 catch
                 end
             end
+            iscmeans = try
+                hasproperty(obj, :centers) && hasproperty(obj, :weights) && !hasproperty(obj, :counts)
+            catch
+                false
+            end
+            if iscmeans
+                # Clustering.jl fuzzy c-means.
+                meta["kind"] = "model"
+                meta["task"] = "clustering"
+                try
+                    meta["n_clusters"] = Int(size(obj.centers, 2))
+                catch
+                end
+                try
+                    meta["n_features"] = Int(size(obj.centers, 1))
+                catch
+                end
+            end
+            isdbscan = try
+                hasproperty(obj, :clusters) && !(obj isa AbstractVector)
+            catch
+                false
+            end
+            if isdbscan
+                # Clustering.jl DBSCAN results.
+                meta["kind"] = "model"
+                meta["task"] = "clustering"
+                try
+                    meta["n_clusters"] = Int(length(obj.clusters))
+                catch
+                end
+                try
+                    total = 0
+                    for c in obj.clusters
+                        total += length(jl_lookup(c, :core_idxs)) + length(jl_lookup(c, :boundary_idxs))
+                    end
+                    meta["n_obs"] = Int(total)
+                catch
+                end
+            end
+            isica = try
+                hasproperty(obj, :k) && hasproperty(obj, :W)
+            catch
+                false
+            end
+            if isica
+                # MultivariateStats ICA.
+                meta["kind"] = "model"
+                meta["task"] = "dim_reduction"
+                try
+                    meta["n_components"] = Int(obj.k)
+                catch
+                end
+            end
+            isfa = try
+                hasproperty(obj, :B) && !hasproperty(obj, :k)
+            catch
+                false
+            end
+            if isfa
+                # MultivariateStats FactorAnalysis; B is d x k loadings.
+                meta["kind"] = "model"
+                meta["task"] = "dim_reduction"
+                try
+                    meta["n_components"] = Int(size(obj.B, 2))
+                catch
+                end
+            end
+            isppca = try
+                hasproperty(obj, :outdim) && !hasproperty(obj, :cdim)
+            catch
+                false
+            end
+            if isppca
+                # MultivariateStats PPCA.
+                meta["kind"] = "model"
+                meta["task"] = "dim_reduction"
+                try
+                    meta["n_components"] = Int(obj.outdim)
+                catch
+                end
+            end
+            iskpca = try
+                hasproperty(obj, :projection) && hasproperty(obj, :eigenvalues)
+            catch
+                false
+            end
+            if iskpca
+                # MultivariateStats KernelPCA.
+                meta["kind"] = "model"
+                meta["task"] = "dim_reduction"
+                try
+                    ev = obj.eigenvalues
+                    meta["n_components"] = Int(length(ev))
+                    s = sum(ev)
+                    if s != 0
+                        mm = haskey(meta, "metrics") ? meta["metrics"] : Dict{String, Any}()
+                        mm["var_first"] = Float64(ev[1] / s)
+                        meta["metrics"] = mm
+                    end
+                catch
+                end
+            end
+            ismlda = try
+                hasproperty(obj, :proj) && hasproperty(obj, :cdim)
+            catch
+                false
+            end
+            if ismlda
+                # MultivariateStats MulticlassLDA.
+                meta["kind"] = "model"
+                meta["task"] = "dim_reduction"
+                try
+                    meta["n_components"] = Int(size(obj.proj, 1))
+                catch
+                end
+                try
+                    mm = haskey(meta, "metrics") ? meta["metrics"] : Dict{String, Any}()
+                    mm["n_classes"] = Float64(obj.cdim)
+                    meta["metrics"] = mm
+                catch
+                end
+            end
+            isgraphsjl = try
+                jl_module_matches(string(parentmodule(typeof(obj))), "Graphs") && startswith(string(nameof(typeof(obj))), "Simple")
+            catch
+                false
+            end
+            if isgraphsjl
+                # Graphs.jl networks; nv/ne resolve from the loaded package.
+                meta["kind"] = "graph"
+                try
+                    meta["n_nodes"] = Int(nv(obj))
+                catch
+                end
+                try
+                    meta["n_edges"] = Int(ne(obj))
+                catch
+                end
+            end
+            isjumpmodel = try
+                jl_module_matches(string(parentmodule(typeof(obj))), "JuMP") && string(nameof(typeof(obj))) == "Model"
+            catch
+                false
+            end
+            if isjumpmodel
+                # JuMP optimization models.
+                meta["kind"] = "optimization"
+                try
+                    mm = haskey(meta, "metrics") ? meta["metrics"] : Dict{String, Any}()
+                    mm["n_variables"] = Float64(num_variables(obj))
+                    meta["metrics"] = mm
+                catch
+                end
+                try
+                    mm = haskey(meta, "metrics") ? meta["metrics"] : Dict{String, Any}()
+                    mm["n_constraints"] = Float64(num_constraints(obj))
+                    meta["metrics"] = mm
+                catch
+                end
+            end
+            issciml = try
+                jl_module_matches(string(parentmodule(typeof(obj))), "SciMLBase") &&
+                    (string(nameof(typeof(obj))) == "ODEProblem" || string(nameof(typeof(obj))) == "ODESolution")
+            catch
+                false
+            end
+            if issciml
+                # SciML differential equation problems and solutions.
+                meta["kind"] = "ode"
+                try
+                    ts = obj.tspan
+                    mm = haskey(meta, "metrics") ? meta["metrics"] : Dict{String, Any}()
+                    mm["tspan_start"] = Float64(ts[1])
+                    mm["tspan_end"] = Float64(ts[2])
+                    meta["metrics"] = mm
+                catch
+                end
+                try
+                    meta["n_obs"] = Int(length(obj.t))
+                catch
+                end
+                try
+                    meta["method"] = string(obj.retcode)
+                catch
+                end
+            end
+            isgmm = try
+                jl_module_matches(string(parentmodule(typeof(obj))), "GaussianMixtures") && occursin("GMM", string(nameof(typeof(obj))))
+            catch
+                false
+            end
+            if isgmm
+                # GaussianMixtures.jl fits.
+                meta["kind"] = "model"
+                meta["task"] = "density"
+                try
+                    meta["n_components"] = Int(obj.n)
+                catch
+                end
+            end
             try
                 meta["n_obs"] = Int(nobs(obj))
             catch

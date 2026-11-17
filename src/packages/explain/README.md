@@ -44,7 +44,7 @@ next to `artifact`/`class` (best effort — the build never fails for it):
 
 ```t
 e = explain(p.fit)
-e.foreign_meta.kind        -- value kind: "dataframe", "matrix", "vector", "array", "factor", "series", "table", "model", "test", "data", "transformer", "distribution", "forecast", "chain", "dist", "graph", "dataset", "image", "other", or "unknown"
+e.foreign_meta.kind        -- value kind: "dataframe", "matrix", "vector", "array", "factor", "series", "table", "model", "test", "data", "transformer", "distribution", "forecast", "chain", "dist", "graph", "dataset", "image", "optimization", "ode", "other", or "unknown"
 e.foreign_meta.class        -- runtime type name, e.g. "lm", "DataFrame", "ARIMA"
 e.foreign_meta.task         -- model task when known: "regression", "classification", "clustering", "time_series", "dim_reduction", "density", "anomaly_detection", "ranking", or "survival"
 e.foreign_meta.dimensions  -- shape as int list, e.g. [32, 11] for frames, [4, 3] for matrices, [3] for vectors
@@ -134,6 +134,11 @@ cell/gene/assay counts, and `neuralnet` fits report error/steps.
 Third-wave Python families: gensim `LdaModel`/`Word2Vec`, dask frames
 (`dataframe` kind with partition counts), PIL images (new `image`
 kind), NeuralProphet, and tslearn clusterers report family facts.
+Third-wave Julia families: Clustering.jl `CmeansResult`/`DbscanResult`,
+MultivariateStats `ICA`/`FactorAnalysis`/`PPCA`/`KernelPCA`/
+`MulticlassLDA` (`dim_reduction`), Graphs.jl networks (`graph` kind),
+JuMP models (new `optimization` kind), SciML ODE problems/solutions
+(new `ode` kind), and GaussianMixtures `GMM` fits (`density`).
 ```
 
 The tree display shows short `features_preview`/`formula_preview` forms;

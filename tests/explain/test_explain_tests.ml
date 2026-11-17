@@ -1499,6 +1499,39 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
     ("tslearn", "Python", "TimeSeriesKMeans",
      {|{"kind":"model","class":"TimeSeriesKMeans","task":"clustering","n_clusters":3}|},
      "explain(p3v).foreign_meta.n_clusters", "3");
+    ("jl-cmeans", "Julia", "CmeansResult{Float64}",
+     {|{"kind":"model","class":"CmeansResult{Float64}","task":"clustering","n_clusters":3,"n_features":4}|},
+     "explain(p3v).foreign_meta.n_clusters", "3");
+    ("jl-dbscan", "Julia", "DbscanResult",
+     {|{"kind":"model","class":"DbscanResult","task":"clustering","n_clusters":2,"n_obs":50}|},
+     "explain(p3v).foreign_meta.n_obs", "50");
+    ("jl-ica", "Julia", "ICA{Float64}",
+     {|{"kind":"model","class":"ICA{Float64}","task":"dim_reduction","n_components":3}|},
+     "explain(p3v).foreign_meta.n_components", "3");
+    ("jl-fa", "Julia", "FactorAnalysis{Float64}",
+     {|{"kind":"model","class":"FactorAnalysis{Float64}","task":"dim_reduction","n_components":2}|},
+     "explain(p3v).foreign_meta.n_components", "2");
+    ("jl-ppca", "Julia", "PPCA{Float64}",
+     {|{"kind":"model","class":"PPCA{Float64}","task":"dim_reduction","n_components":2}|},
+     "explain(p3v).foreign_meta.n_components", "2");
+    ("jl-kpca", "Julia", "KernelPCA{Float64}",
+     {|{"kind":"model","class":"KernelPCA{Float64}","task":"dim_reduction","n_components":3,"metrics":{"var_first":0.5}}|},
+     "explain(p3v).foreign_meta.metrics.var_first", "0.5");
+    ("jl-mlda", "Julia", "MulticlassLDA{Float64}",
+     {|{"kind":"model","class":"MulticlassLDA{Float64}","task":"dim_reduction","n_components":2,"metrics":{"n_classes":3}}|},
+     "explain(p3v).foreign_meta.metrics.n_classes", "3");
+    ("jl-graphs", "Julia", "SimpleGraph{Int64}",
+     {|{"kind":"graph","class":"SimpleGraph{Int64}","n_nodes":10,"n_edges":15}|},
+     "explain(p3v).foreign_meta.n_edges", "15");
+    ("jl-jump", "Julia", "Model",
+     {|{"kind":"optimization","class":"Model","metrics":{"n_variables":5,"n_constraints":2}}|},
+     "explain(p3v).foreign_meta.kind", {|"optimization"|});
+    ("jl-ode", "Julia", "ODESolution",
+     {|{"kind":"ode","class":"ODESolution","n_obs":100,"method":"Success","metrics":{"tspan_start":0.0,"tspan_end":1.0}}|},
+     "explain(p3v).foreign_meta.kind", {|"ode"|});
+    ("jl-gmm", "Julia", "GMM",
+     {|{"kind":"model","class":"GMM","task":"density","n_components":4}|},
+     "explain(p3v).foreign_meta.n_components", "4");
   ] in
   List.iter (fun (dname, runtime, class_, meta, expr, expected) ->
     let dir = make_node_dir ("fake-p3-" ^ dname) in
