@@ -1456,6 +1456,44 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
     in
     test_env env ("explain foreign meta p2 " ^ dname) expr expected
   ) p2_cases;
+  let p3_cases = [
+    ("fable", "R", "fable",
+     {|{"kind":"forecast","class":"fable","horizon":12,"method":"TSLM"}|},
+     "explain(p3v).foreign_meta.kind", {|"forecast"|});
+    ("mable", "R", "mdl_df",
+     {|{"kind":"model","class":"mdl_df","task":"time_series","method":"ARIMA, ETS","n_features":2,"features":["ARIMA","ETS"],"n_obs":1}|},
+     "explain(p3v).foreign_meta.method", {|"ARIMA, ETS"|});
+    ("smooth", "R", "smooth",
+     {|{"kind":"model","class":"smooth","task":"time_series","order":[1,1,0],"n_obs":144,"metrics":{"aic":300.5,"bic":320.5}}|},
+     "get(explain(p3v).foreign_meta.order, 2)", "0");
+    ("dlmfiltered", "R", "dlmFiltered",
+     {|{"kind":"model","class":"dlmFiltered","task":"time_series","n_obs":100}|},
+     "explain(p3v).foreign_meta.n_obs", "100");
+    ("rkeras", "R", "keras.engine.training.Model",
+     {|{"kind":"model","class":"keras.engine.training.Model","n_params":2592,"n_layers":4}|},
+     "explain(p3v).foreign_meta.n_params", "2592");
+    ("rtorch", "R", "nn_sequential_module",
+     {|{"kind":"model","class":"nn_sequential_module","n_params":146,"n_layers":3}|},
+     "explain(p3v).foreign_meta.n_layers", "3");
+    ("seurat", "R", "Seurat",
+     {|{"kind":"dataset","class":"Seurat","n_obs":2700,"n_features":32738,"method":"RNA"}|},
+     "explain(p3v).foreign_meta.n_obs", "2700");
+    ("neuralnet", "R", "nn",
+     {|{"kind":"model","class":"nn","n_obs":100,"metrics":{"error":1.5,"steps":200}}|},
+     "explain(p3v).foreign_meta.metrics.steps", "200");
+  ] in
+  List.iter (fun (dname, runtime, class_, meta, expr, expected) ->
+    let dir = make_node_dir ("fake-p3-" ^ dname) in
+    write_file (Filename.concat dir "artifact") "0123456789";
+    write_file (Filename.concat dir "meta") meta;
+    let env =
+      Ast.Env.add "p3v"
+        (Ast.VComputedNode (fake_cn ~name:("fake_p3_" ^ dname) ~runtime
+          ~path:(Filename.concat dir "artifact") ~class_))
+        (Packages.init_env ())
+    in
+    test_env env ("explain foreign meta p3 " ^ dname) expr expected
+  ) p3_cases;
   rm_rf meta_base;
   print_newline ();
 

@@ -1648,7 +1648,27 @@ r_save_meta <- function(object, path) {
     meta <- list()
     cls <- tryCatch(as.character(class(object)[1]), error = function(e) NULL)
     if (!is.null(cls) && length(cls) == 1 && !is.na(cls) && nzchar(cls)) meta$class <- cls
-    if (is.data.frame(object)) {
+    if (inherits(object, "fable")) {
+      # tidyverts forecast tables (fable): rows are future periods.
+      meta$kind <- "forecast"
+      h <- tryCatch(as.integer(nrow(object)), error = function(e) NULL)
+      if (!is.null(h) && length(h) == 1 && !is.na(h)) meta$horizon <- h
+      mth <- tryCatch(paste(unique(object$.model), collapse = ", "), error = function(e) NULL)
+      if (!is.null(mth) && length(mth) == 1 && !is.na(mth) && nzchar(mth)) meta$method <- mth
+    } else if (inherits(object, "mdl_df") || inherits(object, "model_df")) {
+      # tidyverts mables: one fitted model column per model type. These
+      # inherit data.frame, so they must run before the frame branch.
+      meta$kind <- "model"
+      meta$task <- "time_series"
+      mcols <- tryCatch(setdiff(setdiff(names(object), tsibble::key_vars(object)), tsibble::index_var(object)), error = function(e) NULL)
+      if (!is.null(mcols) && length(mcols) > 0) {
+        meta$method <- paste(mcols, collapse = ", ")
+        meta$n_features <- length(mcols)
+        meta$features <- as.list(mcols)
+      }
+      no <- tryCatch(as.integer(nrow(object)), error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- no
+    } else if (is.data.frame(object)) {
       meta$kind <- "dataframe"
       meta$dimensions <- list(nrow(object), ncol(object))
       nms <- tryCatch(names(object), error = function(e) NULL)
@@ -1836,6 +1856,15 @@ r_save_meta <- function(object, path) {
         if (is.factor(resp)) meta$task <- "classification"
         else meta$task <- "regression"
       }
+    } else if (inherits(object, "Seurat")) {
+      # Seurat single-cell data; S4.
+      meta$kind <- "dataset"
+      no <- tryCatch(as.integer(length(colnames(object@meta.data))), error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- no
+      nf <- tryCatch(as.integer(length(rownames(x = object))), error = function(e) NULL)
+      if (!is.null(nf) && length(nf) == 1 && !is.na(nf)) meta$n_features <- nf
+      aa <- tryCatch(as.character(object@active.assay), error = function(e) NULL)
+      if (!is.null(aa) && length(aa) == 1 && !is.na(aa) && nzchar(aa)) meta$method <- aa
     } else if (!is.null(dim(object)) && length(dim(object)) == 2) {
       meta$kind <- "matrix"
       meta$dimensions <- as.list(as.integer(dim(object)))
@@ -2945,6 +2974,51 @@ r_save_meta <- function(object, path) {
       if (!is.null(nn) && length(nn) == 1 && !is.na(nn)) meta$n_nodes <- nn
       ne <- tryCatch(as.integer(igraph::ecount(object)), error = function(e) NULL)
       if (!is.null(ne) && length(ne) == 1 && !is.na(ne)) meta$n_edges <- ne
+    } else if (inherits(object, "smooth")) {
+      # smooth package state-space models (es, ss, ces, ...).
+      meta$kind <- "model"
+      meta$task <- "time_series"
+      od <- tryCatch(as.integer(object$order), error = function(e) NULL)
+      if (!is.null(od) && length(od) > 0 && !any(is.na(od))) meta$order <- as.list(od)
+      no <- tryCatch(length(object$y), error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- as.integer(no)
+      metrics <- list()
+      for (nm in c("AIC", "BIC")) {
+        vv <- tryCatch(as.numeric(object$IC[[nm]]), error = function(e) NULL)
+        if (!is.null(vv) && length(vv) == 1 && !is.na(vv)) metrics[[tolower(nm)]] <- vv
+      }
+      if (length(metrics) > 0) meta$metrics <- metrics
+    } else if (inherits(object, "dlmFiltered")) {
+      # dlm package filtered state-space fits.
+      meta$kind <- "model"
+      meta$task <- "time_series"
+      no <- tryCatch(length(object$y), error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- as.integer(no)
+    } else if (inherits(object, "keras.engine.training.Model")) {
+      # keras for R models; R6 objects.
+      meta$kind <- "model"
+      np <- tryCatch(as.integer(object$count_params()), error = function(e) NULL)
+      if (!is.null(np) && length(np) == 1 && !is.na(np)) meta$n_params <- np
+      nl <- tryCatch(as.integer(length(object$layers)), error = function(e) NULL)
+      if (!is.null(nl) && length(nl) == 1 && !is.na(nl)) meta$n_layers <- nl
+    } else if (inherits(object, "nn_module") || inherits(object, "torch_module")) {
+      # torch for R models; R6 objects.
+      meta$kind <- "model"
+      np <- tryCatch(as.integer(sum(sapply(object$parameters, function(p) p$numel()))), error = function(e) NULL)
+      if (!is.null(np) && length(np) == 1 && !is.na(np)) meta$n_params <- np
+      nl <- tryCatch(as.integer(length(object$modules)), error = function(e) NULL)
+      if (!is.null(nl) && length(nl) == 1 && !is.na(nl)) meta$n_layers <- nl
+    } else if (inherits(object, "nn")) {
+      # neuralnet fits.
+      meta$kind <- "model"
+      no <- tryCatch(nrow(object$covariate), error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- as.integer(no)
+      metrics <- list()
+      for (nm in c("error", "steps")) {
+        vv <- tryCatch(as.numeric(object$result.matrix[nm, 1]), error = function(e) NULL)
+        if (!is.null(vv) && length(vv) == 1 && !is.na(vv)) metrics[[nm]] <- vv
+      }
+      if (length(metrics) > 0) meta$metrics <- metrics
     } else {
       meta$kind <- "other"
     }

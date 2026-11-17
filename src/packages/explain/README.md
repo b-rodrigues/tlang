@@ -124,6 +124,13 @@ adds imblearn parity, polars `LazyFrame` schemas, xarray `Dataset`
 pyspark.ml tasks, networkx graphs, and statsmodels VECM/Markov-regime
 facts. Julia adds `CategoricalArray` levels (`factor` kind), MLJ
 machines, XGBoost.jl boosters, and ARCHModels volatility specs.
+
+Third-wave R families: fable forecast tables report the `forecast`
+kind with horizon, mables (`mdl_df`/`model_df`) report model columns
+instead of plain dataframes, `smooth` and `dlmFiltered` report
+time-series facts, R6 keras and torch models report
+`n_params`/`n_layers`, Seurat objects report `dataset` kind with
+cell/gene/assay counts, and `neuralnet` fits report error/steps.
 ```
 
 The tree display shows short `features_preview`/`formula_preview` forms;
