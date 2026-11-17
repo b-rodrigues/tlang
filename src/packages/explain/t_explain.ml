@@ -231,6 +231,11 @@ let register ?(ensure_docs=ignore) env =
     (match assoc_int "n_clusters" pairs with Some n -> add "n_clusters" (VInt n) | None -> ());
     (match assoc_int "n_nodes" pairs with Some n -> add "n_nodes" (VInt n) | None -> ());
     (match assoc_int "n_levels" pairs with Some n -> add "n_levels" (VInt n) | None -> ());
+    (match assoc_int "n_params" pairs with Some n -> add "n_params" (VInt n) | None -> ());
+    (match assoc_int "n_layers" pairs with Some n -> add "n_layers" (VInt n) | None -> ());
+    (match assoc_int "n_chains" pairs with Some n -> add "n_chains" (VInt n) | None -> ());
+    (match assoc_int "n_draws" pairs with Some n -> add "n_draws" (VInt n) | None -> ());
+    (match assoc_int "n_lambda" pairs with Some n -> add "n_lambda" (VInt n) | None -> ());
     (match assoc_string_list "levels" pairs with
      | Some names ->
          add "levels" (VList (List.map (fun s -> (None, VString s)) names));
@@ -248,6 +253,12 @@ let register ?(ensure_docs=ignore) env =
     (match assoc_int_list "seasonal_order" pairs with
      | Some ns -> add "seasonal_order" (VList (List.map (fun n -> (None, VInt n)) ns))
      | None -> ());
+    (match assoc_int_list "seasonal_period" pairs with
+     | Some ns -> add "seasonal_period" (VList (List.map (fun n -> (None, VInt n)) ns))
+     | None -> ());
+    (match assoc_int "horizon" pairs with Some n -> add "horizon" (VInt n) | None -> ());
+    (match assoc_int "changepoints" pairs with Some n -> add "changepoints" (VInt n) | None -> ());
+    (match assoc_int "n_equations" pairs with Some n -> add "n_equations" (VInt n) | None -> ());
     (match assoc_string_list "features" pairs with
      | Some names ->
          add "features" (VList (List.map (fun s -> (None, VString s)) names));
@@ -290,8 +301,10 @@ let register ?(ensure_docs=ignore) env =
     | _ ->
         let display = ["kind"; "class"; "task"; "method"; "dimensions"; "n_obs"; "n_groups"; "groups"; "n_features";
                        "n_trees"; "n_rounds"; "n_clusters"; "n_nodes"; "n_components"; "n_levels";
+                       "n_params"; "n_layers"; "n_chains"; "n_draws"; "n_lambda";
                        "dtype";
-                       "target"; "order"; "seasonal_order"; "start"; "end";
+                       "target"; "order"; "seasonal_order"; "seasonal_period"; "horizon"; "changepoints"; "n_equations";
+                       "start"; "end";
                        "features_preview"; "levels_preview"; "formula_preview"; "metrics"; "artifact_size"] in
         let shown = List.filter (fun k -> List.mem_assoc k ordered) display in
         make_explain_dict ~display_keys:shown ordered)

@@ -4484,7 +4484,7 @@ node.descendants          -- all transitive dependents, nearest-first, de-duplic
 
 -- Computed pipeline nodes (R, Python, Julia) carry build-time metadata:
 node = explain(p.fit)
-node.foreign_meta.kind        -- value kind: "dataframe", "matrix", "vector", "array", "factor", "series", "table", "model", "test", "data", "transformer", "distribution", "other", or "unknown"
+node.foreign_meta.kind        -- value kind: "dataframe", "matrix", "vector", "array", "factor", "series", "table", "model", "test", "data", "transformer", "distribution", "forecast", "chain", "other", or "unknown"
 node.foreign_meta.class        -- runtime type name, e.g. "lm", "DataFrame", "ARIMA"
 node.foreign_meta.task         -- model task when known: "regression", "classification", "clustering", "time_series", "dim_reduction", "density", "anomaly_detection", "ranking", or "survival"
 node.foreign_meta.dimensions  -- shape as int list, e.g. [32, 11] for frames, [4, 3] for matrices, [3] for vectors
@@ -4497,20 +4497,31 @@ node.foreign_meta.n_rounds    -- boosting rounds (boosted trees, when known)
 node.foreign_meta.n_clusters  -- cluster count (clustering, when known)
 node.foreign_meta.n_nodes      -- tree node count (`rpart`, when known)
 node.foreign_meta.n_components -- component count (PCA, when known)
+node.foreign_meta.n_params     -- parameter count (torch/keras/Flux models, MCMC variables, GARCH estimates, when known)
+node.foreign_meta.n_layers    -- layer count (torch/keras/Flux models, when known)
+node.foreign_meta.n_chains    -- MCMC chain count (Julia `Chains`, when known)
+node.foreign_meta.n_draws     -- draws per chain (Julia `Chains`, when known)
+node.foreign_meta.n_lambda    -- lambda count (`glmnet` fits, when known)
+node.foreign_meta.n_equations -- endogenous series count (VAR/VECM, when known)
 node.foreign_meta.dtype        -- element type, e.g. "float64" (arrays, when known)
 node.foreign_meta.n_levels     -- level count with levels list (R factors)
-node.foreign_meta.start        -- series start, e.g. "1949-1" (R ts)
-node.foreign_meta.end          -- series end, e.g. "1960-12" (R ts)
-node.foreign_meta.method      -- algorithm variant: hclust linkage, or the test name for `htest` results
+node.foreign_meta.start        -- series start, e.g. "1949-1" (R ts, zoo/xts)
+node.foreign_meta.end          -- series end, e.g. "1960-12" (R ts, zoo/xts)
+node.foreign_meta.method      -- algorithm variant: hclust linkage, ETS letters, VAR/boosting loss names, or the test name for `htest` results
 node.foreign_meta.target      -- response name (models, when known)
 node.foreign_meta.formula     -- full model formula (R models, when known)
 node.foreign_meta.order       -- [p, d, q] (time-series models, when known)
 node.foreign_meta.seasonal_order -- [P, D, Q, m] (seasonal models, when known)
+node.foreign_meta.seasonal_period -- seasonal period list (`ets`, `bats`/`tbats`, `nnetar`, `prophet`, when known)
+node.foreign_meta.horizon     -- forecast horizon (forecast results, sktime/darts forecasters, when known)
+node.foreign_meta.changepoints -- changepoint count (prophet, when known)
 node.foreign_meta.features    -- full feature/column list (first 500 entries; `n_features` stays exact)
 node.foreign_meta.metrics     -- free numeric metrics (r_squared, aic, bic, ...); numbers only, other values are dropped
 node.foreign_meta.artifact_size -- artifact file size in bytes
 
 Time-series decompositions (`stl`) report component names as features and the seasonal period. Autocorrelation objects (`acf`) report the correlation type and series name; smoothing splines (`smooth.spline`) report penalty and degrees of freedom; empirical distributions (`ecdf`) report observation counts. Survival models (`coxph`) report event counts and concordance; Kaplan-Meier fits (`survfit`) report per-stratum counts. Trees (`rpart`) report node counts and split variables, with the task read from the fit method. Density estimates report bandwidth. `Logit`/`Probit` results report a classification task from the model class. Multinomial logits report predictor names (not outcome labels) and `PHReg` reports survival tasks. Rankers report boosting rounds. Frozen scipy distributions report the distribution name and moments; scipy test results report statistic and p-value. Contingency tables, `nnet` classifiers/regressors, `pam`/`agnes`/`diana` clusterings, `VAR` lag order, and Poisson/Gamma tasks report per-family facts. R factors report levels; R `ts` objects report series start/end. Pyarrow tables read as dataframes; native `DMatrix`/`Dataset` objects read as data inputs. Pure transformers report `transformer` kind (detected via sklearn ≥ 1.6 tags; older versions report `model`); calibrated and multioutput wrappers report inner-estimator facts; Julia time arrays report `series` kind with timestamps counted as observations. Boosting rounds count training rounds (`current_iteration`, falling back to trees per iteration); R `rpart` variables are de-duplicated split variables with the task read from the fit method.
+
+Time-series model families report task `time_series` with per-family facts: forecast-package `ets` (ETS letters, seasonal period, AIC/BIC/sigma2), `bats`/`tbats` (multiple seasonal periods), `nnetar` (hidden units, repeats), forecast result objects (new `forecast` kind with method, horizon, and first interval level), prophet models (changepoint count, seasonality names as features), tseries `garch` (GARCH order in `method`), rugarch `uGARCHfit` (variance-model name with order, estimated parameter count, log-likelihood/AIC/BIC), and vars `varest`/`vec2var` (lag order, equation count). `zoo`/`xts` objects read as `series` kind with start/end, not as matrices. `glmnet`/`cv.glmnet` fits report the task from the fit class, feature count, lambda count, deviance ratio, and `lambda_min`/`lambda_1se` for cross-validated fits. `ranger` forests report tree/feature/sample counts, the task from tree type, and OOB error; `catboost.Model` objects report the loss name, tree count, and feature count. Python torch/keras models report parameter and layer counts (keras also reports the optimizer class); pmdarima ARIMA reports order, seasonal order, and wrapped-result criteria; catboost estimators report task, trees, features, and best iteration; sktime/darts/statsforecast forecasters report the fitted horizon. Julia `Distributions` values report `distribution` kind with the distribution name and moments; MCMCChains `Chains` report the new `chain` kind with draws, variables, and chain counts; Flux models report layer and parameter counts.
 
 Julia note: fit-metric verbs (`nobs`, `coefnames`, `r2`, `aic`,
 `deviance`, `loglikelihood`) resolve from whatever the node session

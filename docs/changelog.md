@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### New features
+
+- **Richer `explain()` foreign metadata for time-series and ML models**: R nodes now report task `time_series` for `forecast`-package models (`ets` with ETS letters and seasonal period, `bats`/`tbats` with multiple periods, `nnetar` with hidden-unit and repeat counts) and for `prophet`, tseries `garch`, rugarch `uGARCHfit` (variance-model name, estimated parameter count, log-likelihood/AIC/BIC), and vars `varest`/`vec2var` (lag order and equation count). Objects from `forecast(...)` report the new `forecast` kind with method, horizon, and interval level. `zoo`/`xts` series read as `series` kind with start/end — previously misreported as matrices. `glmnet`/`cv.glmnet` report the task from the fit class plus feature count, lambda count, deviance ratio, and `lambda_min`/`lambda_1se`; `ranger` forests report tree/feature/sample counts with OOB error; `catboost.Model` objects report the loss name, tree count, and feature count. Python torch and keras models report parameter and layer counts (keras adds the optimizer class); pmdarima ARIMA reports order, seasonal order, and likelihood criteria; catboost estimators report task, trees, features, and best iteration; sktime/darts/statsforecast forecasters report the fitted horizon. Julia `Distributions` values report `distribution` kind with the distribution name and moments; MCMCChains `Chains` report the new `chain` kind with draws, variables, and chain counts; Flux models report layer and parameter counts. New sidecar keys: `n_params`, `n_layers`, `n_chains`, `n_draws`, `n_lambda`, `n_equations`, `seasonal_period`, `horizon`, `changepoints`.
+
 ## [0.56.2] - 2026-10-29
 
 ### New features

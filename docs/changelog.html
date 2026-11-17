@@ -34,6 +34,41 @@
 </nav>
 <div class="container">
 <h1 id="changelog">Changelog</h1>
+<h2 id="unreleased">Unreleased</h2>
+<h3 id="new-features-unreleased">New features</h3>
+<ul>
+<li><strong>Richer <code>explain()</code> foreign metadata for
+time-series and ML models</strong>: R nodes now report task
+<code>time_series</code> for <code>forecast</code>-package models
+(<code>ets</code> with ETS letters and seasonal period,
+<code>bats</code>/<code>tbats</code> with multiple periods,
+<code>nnetar</code> with hidden-unit and repeat counts) and for
+<code>prophet</code>, tseries <code>garch</code>, rugarch
+<code>uGARCHfit</code> (variance-model name, estimated parameter count,
+log-likelihood/AIC/BIC), and vars <code>varest</code>/<code>vec2var</code>
+(lag order and equation count). Objects from <code>forecast(...)</code>
+report the new <code>forecast</code> kind with method, horizon, and
+interval level. <code>zoo</code>/<code>xts</code> series read as
+<code>series</code> kind with start/end — previously misreported as
+matrices. <code>glmnet</code>/<code>cv.glmnet</code> report the task
+from the fit class plus feature count, lambda count, deviance ratio, and
+<code>lambda_min</code>/<code>lambda_1se</code>; <code>ranger</code>
+forests report tree/feature/sample counts with OOB error;
+<code>catboost.Model</code> objects report the loss name, tree count, and
+feature count. Python torch and keras models report parameter and layer
+counts (keras adds the optimizer class); pmdarima ARIMA reports order,
+seasonal order, and likelihood criteria; catboost estimators report task,
+trees, features, and best iteration; sktime/darts/statsforecast
+forecasters report the fitted horizon. Julia <code>Distributions</code>
+values report <code>distribution</code> kind with the distribution name
+and moments; MCMCChains <code>Chains</code> report the new
+<code>chain</code> kind with draws, variables, and chain counts; Flux
+models report layer and parameter counts. New sidecar keys:
+<code>n_params</code>, <code>n_layers</code>, <code>n_chains</code>,
+<code>n_draws</code>, <code>n_lambda</code>, <code>n_equations</code>,
+<code>seasonal_period</code>, <code>horizon</code>,
+<code>changepoints</code>.</li>
+</ul>
 <h2 id="section">[0.56.2] - 2026-10-29</h2>
 <h3 id="new-features">New features</h3>
 <ul>

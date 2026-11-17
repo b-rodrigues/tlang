@@ -1667,6 +1667,52 @@ r_save_meta <- function(object, path) {
         meta$n_clusters <- length(unique(cl))
         meta$n_obs <- as.integer(length(cl))
       }
+    } else if (inherits(object, "zoo")) {
+      # zoo covers xts (xts extends zoo). Both are index series, not
+      # matrices, even though they carry a 2-element dim.
+      meta$kind <- "series"
+      no <- tryCatch(as.integer(length(object)), error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- no
+      metrics <- list()
+      fr <- tryCatch(frequency(object), error = function(e) NULL)
+      if (!is.null(fr) && length(fr) == 1 && !is.na(fr) && fr > 1) metrics$period <- as.integer(fr)
+      st <- tryCatch(start(object), error = function(e) NULL)
+      if (!is.null(st) && length(st) > 0 && !any(is.na(st))) meta$start <- paste(as.character(st), collapse = "-")
+      en <- tryCatch(end(object), error = function(e) NULL)
+      if (!is.null(en) && length(en) > 0 && !any(is.na(en))) meta$end <- paste(as.character(en), collapse = "-")
+      if (length(metrics) > 0) meta$metrics <- metrics
+    } else if (inherits(object, "uGARCHfit")) {
+      # S4 object. This branch runs before the dim() checks so slot
+      # access stays local to one place.
+      meta$kind <- "model"
+      meta$task <- "time_series"
+      vm <- tryCatch(as.character(object@model$modeldesc$vmodel), error = function(e) NULL)
+      if (!is.null(vm) && length(vm) == 1 && !is.na(vm) && nzchar(vm)) {
+        mi <- tryCatch(as.integer(object@model$modelinc[8:9]), error = function(e) NULL)
+        if (!is.null(mi) && length(mi) == 2 && !any(is.na(mi))) {
+          meta$method <- paste0(vm, "(", mi[1], ",", mi[2], ")")
+        } else {
+          meta$method <- vm
+        }
+      }
+      no <- tryCatch(length(fitted(object)), error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- as.integer(no)
+      np <- tryCatch(sum(object@fit$ipars[, 4]), error = function(e) NULL)
+      if (!is.null(np) && length(np) == 1 && !is.na(np)) {
+        npar <- as.integer(np)
+        if (npar > 0) meta$n_params <- npar
+      }
+      metrics <- list()
+      ll <- tryCatch(as.numeric(likelihood(object)), error = function(e) NULL)
+      if (!is.null(ll) && length(ll) == 1 && !is.na(ll)) metrics$loglik <- ll
+      ic <- tryCatch(rugarch::infocriteria(object), error = function(e) NULL)
+      if (!is.null(ic)) {
+        aic <- tryCatch(as.numeric(ic["Akaike", 1]), error = function(e) NULL)
+        if (!is.null(aic) && length(aic) == 1 && !is.na(aic)) metrics$aic <- aic
+        bic <- tryCatch(as.numeric(ic["Bayes", 1]), error = function(e) NULL)
+        if (!is.null(bic) && length(bic) == 1 && !is.na(bic)) metrics$bic <- bic
+      }
+      if (length(metrics) > 0) meta$metrics <- metrics
     } else if (!is.null(dim(object)) && length(dim(object)) == 2) {
       meta$kind <- "matrix"
       meta$dimensions <- as.list(as.integer(dim(object)))
@@ -2207,6 +2253,169 @@ r_save_meta <- function(object, path) {
       bic <- tryCatch(stats::BIC(object), error = function(e) NULL)
       if (!is.null(bic) && length(bic) == 1 && !is.na(bic)) metrics$bic <- as.numeric(bic)
       if (length(metrics) > 0) meta$metrics <- metrics
+    } else if (inherits(object, "ets")) {
+      # forecast::ets — exponential smoothing state space model.
+      meta$kind <- "model"
+      meta$task <- "time_series"
+      m <- tryCatch(object$m, error = function(e) NULL)
+      if (!is.null(m) && length(m) == 1 && !is.na(m) && m > 1) meta$seasonal_period <- list(as.integer(m))
+      mth <- tryCatch(object$method, error = function(e) NULL)
+      if (!is.null(mth) && length(mth) == 1 && !is.na(mth) && nzchar(mth)) meta$method <- mth
+      no <- tryCatch(length(object$x), error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- as.integer(no)
+      metrics <- list()
+      for (nm in c("aic", "bic", "sigma2")) {
+        vv <- tryCatch(as.numeric(object[[nm]]), error = function(e) NULL)
+        if (!is.null(vv) && length(vv) == 1 && !is.na(vv)) metrics[[nm]] <- vv
+      }
+      if (length(metrics) > 0) meta$metrics <- metrics
+    } else if (inherits(object, "bats") || inherits(object, "tbats")) {
+      # forecast::bats / tbats — exponential smoothing for multiple seasonality.
+      meta$kind <- "model"
+      meta$task <- "time_series"
+      kk <- tryCatch(object$k, error = function(e) NULL)
+      if (!is.null(kk) && length(kk) > 0 && !any(is.na(kk))) {
+        per <- as.integer(kk[kk > 1])
+        if (length(per) > 0) meta$seasonal_period <- as.list(per)
+      }
+      no <- tryCatch(length(object$y), error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- as.integer(no)
+      metrics <- list()
+      for (nm in c("aic", "bic")) {
+        vv <- tryCatch(as.numeric(object[[nm]]), error = function(e) NULL)
+        if (!is.null(vv) && length(vv) == 1 && !is.na(vv)) metrics[[nm]] <- vv
+      }
+      if (length(metrics) > 0) meta$metrics <- metrics
+    } else if (inherits(object, "nnetar")) {
+      # forecast::nnetar — neural network autoregression.
+      meta$kind <- "model"
+      meta$task <- "time_series"
+      mth <- tryCatch(object$method, error = function(e) NULL)
+      if (!is.null(mth) && length(mth) == 1 && !is.na(mth) && nzchar(mth)) meta$method <- mth
+      m <- tryCatch(object$m, error = function(e) NULL)
+      if (!is.null(m) && length(m) == 1 && !is.na(m) && m > 1) meta$seasonal_period <- list(as.integer(m))
+      no <- tryCatch(length(object$x), error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- as.integer(no)
+      metrics <- list()
+      for (nm in c("size", "repeats")) {
+        vv <- tryCatch(as.numeric(object[[nm]]), error = function(e) NULL)
+        if (!is.null(vv) && length(vv) == 1 && !is.na(vv)) metrics[[nm]] <- vv
+      }
+      if (length(metrics) > 0) meta$metrics <- metrics
+    } else if (inherits(object, "forecast")) {
+      # forecast package result objects: naive, snaive, rwf, splinef, thetaf.
+      meta$kind <- "forecast"
+      mth <- tryCatch(object$method, error = function(e) NULL)
+      if (!is.null(mth) && length(mth) == 1 && !is.na(mth) && nzchar(mth)) meta$method <- mth
+      h <- tryCatch(length(object$mean), error = function(e) NULL)
+      if (!is.null(h) && length(h) == 1 && !is.na(h)) meta$horizon <- as.integer(h)
+      se <- tryCatch(object$series, error = function(e) NULL)
+      if (!is.null(se) && length(se) == 1 && !is.na(se) && nzchar(se)) meta$target <- se
+      no <- tryCatch(length(object$x), error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- as.integer(no)
+      metrics <- list()
+      lv <- tryCatch(object$level, error = function(e) NULL)
+      if (!is.null(lv) && length(lv) > 0 && !any(is.na(lv))) metrics$level <- as.numeric(lv[1])
+      if (length(metrics) > 0) meta$metrics <- metrics
+    } else if (inherits(object, "prophet")) {
+      # prophet (R) — additive regression with changepoints and seasonalities.
+      meta$kind <- "model"
+      meta$task <- "time_series"
+      nr <- tryCatch(nrow(object$history), error = function(e) NULL)
+      if (!is.null(nr) && length(nr) == 1 && !is.na(nr)) meta$n_obs <- as.integer(nr)
+      cp <- tryCatch(length(object$changepoints), error = function(e) NULL)
+      if (!is.null(cp) && length(cp) == 1 && !is.na(cp)) meta$changepoints <- as.integer(cp)
+      sn <- tryCatch(names(object$seasonalities), error = function(e) NULL)
+      if (!is.null(sn) && length(sn) > 0) meta$features <- as.list(as.character(sn))
+    } else if (inherits(object, "garch")) {
+      # tseries::garch — ARCH/GARCH volatility model.
+      meta$kind <- "model"
+      meta$task <- "time_series"
+      od <- tryCatch(object$order, error = function(e) NULL)
+      if (!is.null(od) && length(od) >= 2 && !any(is.na(od[1:2]))) {
+        meta$method <- paste0("GARCH(", as.integer(od[1]), ",", as.integer(od[2]), ")")
+      }
+      no <- tryCatch(length(object$residuals), error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- as.integer(no)
+      metrics <- list()
+      aic <- tryCatch(as.numeric(object$aic), error = function(e) NULL)
+      if (!is.null(aic) && length(aic) == 1 && !is.na(aic)) metrics$aic <- aic
+      if (length(metrics) > 0) meta$metrics <- metrics
+    } else if (inherits(object, "varest") || inherits(object, "vec2var")) {
+      # vars package: VAR (varest) and cointegrated VECM converted to VAR.
+      meta$kind <- "model"
+      meta$task <- "time_series"
+      pp <- tryCatch(object$p, error = function(e) NULL)
+      if (!is.null(pp) && length(pp) == 1 && !is.na(pp)) {
+        meta$order <- list(as.integer(pp))
+        meta$method <- paste0("VAR(", as.integer(pp), ")")
+      }
+      kk <- tryCatch(object$K, error = function(e) NULL)
+      if (!is.null(kk) && length(kk) == 1 && !is.na(kk)) meta$n_equations <- as.integer(kk)
+      no <- tryCatch(object$obs, error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- as.integer(no)
+    } else if (inherits(object, "cv.glmnet") || inherits(object, "glmnet")) {
+      # glmnet / cv.glmnet. Task comes from the fit class (lognet, multnet,
+      # coxnet); cv objects read their inner glmnet.fit for shape facts.
+      meta$kind <- "model"
+      target_obj <- object
+      if (inherits(object, "cv.glmnet")) {
+        gfit <- tryCatch(object$glmnet.fit, error = function(e) NULL)
+        if (!is.null(gfit)) target_obj <- gfit
+      }
+      cls_all <- tryCatch(paste(class(target_obj), collapse = " "), error = function(e) "")
+      if (grepl("lognet", cls_all) || grepl("multnet", cls_all)) meta$task <- "classification"
+      else if (grepl("coxnet", cls_all)) meta$task <- "survival"
+      else meta$task <- "regression"
+      dm <- tryCatch(as.integer(target_obj$dim[1]), error = function(e) NULL)
+      if (is.null(dm)) dm <- tryCatch(as.integer(nrow(stats::coef(target_obj))), error = function(e) NULL)
+      if (!is.null(dm) && length(dm) == 1 && !is.na(dm) && dm > 0) {
+        meta$n_features <- dm
+        nl <- tryCatch(length(target_obj$lambda), error = function(e) NULL)
+        if (!is.null(nl) && length(nl) == 1 && !is.na(nl)) meta$n_lambda <- as.integer(nl)
+      }
+      metrics <- list()
+      dr <- tryCatch(as.numeric(max(target_obj$dev.ratio)), error = function(e) NULL)
+      if (!is.null(dr) && length(dr) == 1 && !is.na(dr)) metrics$dev_ratio <- dr
+      if (inherits(object, "cv.glmnet")) {
+        lmin <- tryCatch(as.numeric(object$lambda.min), error = function(e) NULL)
+        if (!is.null(lmin) && length(lmin) == 1 && !is.na(lmin)) metrics$lambda_min <- lmin
+        l1se <- tryCatch(as.numeric(object$lambda.1se), error = function(e) NULL)
+        if (!is.null(l1se) && length(l1se) == 1 && !is.na(l1se)) metrics$lambda_1se <- l1se
+      }
+      if (length(metrics) > 0) meta$metrics <- metrics
+    } else if (inherits(object, "ranger")) {
+      meta$kind <- "model"
+      tt <- tryCatch(object$treetype, error = function(e) NULL)
+      if (!is.null(tt) && length(tt) == 1 && !is.na(tt) && nzchar(tt)) {
+        if (tt == "Regression") meta$task <- "regression"
+        else if (tt == "Classification" || tt == "Probability estimation") meta$task <- "classification"
+        else if (tt == "Survival") meta$task <- "survival"
+      }
+      nt <- tryCatch(as.integer(object$num.trees), error = function(e) NULL)
+      if (!is.null(nt) && length(nt) == 1 && !is.na(nt)) meta$n_trees <- nt
+      nf <- tryCatch(as.integer(object$num.independent.variables), error = function(e) NULL)
+      if (!is.null(nf) && length(nf) == 1 && !is.na(nf)) meta$n_features <- nf
+      no <- tryCatch(as.integer(object$num.samples), error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- no
+      fns <- tryCatch(as.character(object$forest$independent.variable.names), error = function(e) NULL)
+      if (!is.null(fns) && length(fns) > 0) meta$features <- as.list(fns)
+      metrics <- list()
+      pe <- tryCatch(as.numeric(object$prediction.error), error = function(e) NULL)
+      if (!is.null(pe) && length(pe) == 1 && !is.na(pe)) metrics$oob_error <- pe
+      rsq <- tryCatch(as.numeric(object$r.squared), error = function(e) NULL)
+      if (!is.null(rsq) && length(rsq) == 1 && !is.na(rsq)) metrics$r_squared <- rsq
+      if (length(metrics) > 0) meta$metrics <- metrics
+    } else if (inherits(object, "catboost.Model")) {
+      meta$kind <- "model"
+      lf <- tryCatch(catboost.get_plain_params(object)$loss_function, error = function(e) NULL)
+      if (!is.null(lf) && length(lf) == 1 && !is.na(lf) && nzchar(lf)) meta$method <- as.character(lf)
+      nt <- tryCatch(as.integer(object$tree_count), error = function(e) NULL)
+      if (!is.null(nt) && length(nt) == 1 && !is.na(nt)) meta$n_trees <- nt
+      nf <- tryCatch(as.integer(object$feature_count), error = function(e) NULL)
+      if (!is.null(nf) && length(nf) == 1 && !is.na(nf)) meta$n_features <- nf
+      fns <- tryCatch(rownames(object$feature_importances), error = function(e) NULL)
+      if (!is.null(fns) && length(fns) > 0) meta$features <- as.list(as.character(fns))
     } else {
       meta$kind <- "other"
     }
@@ -2430,6 +2639,49 @@ def _tlang_sanitize_json(v):
                 out.append(sx)
         return out
     return v
+
+def _tlang_dl_meta(obj):
+    """Best-effort facts for torch / keras models.
+
+    Returns None when the object belongs to neither framework. Only
+    called from the last-resort branch of py_save_meta, so torch is
+    never imported for frames or classical models."""
+    try:
+        import torch as _tlang_torch
+        if isinstance(obj, _tlang_torch.nn.Module):
+            out = {"kind": "model"}
+            try:
+                out["n_params"] = int(sum(p.numel() for p in obj.parameters() if p.requires_grad))
+            except Exception:
+                pass
+            try:
+                out["n_layers"] = int(len(list(obj.children())))
+            except Exception:
+                pass
+            return out
+    except Exception:
+        pass
+    try:
+        if callable(getattr(obj, "count_params", None)) and getattr(obj, "layers", None) is not None:
+            out = {"kind": "model"}
+            try:
+                out["n_params"] = int(obj.count_params())
+            except Exception:
+                pass
+            try:
+                out["n_layers"] = int(len(obj.layers))
+            except Exception:
+                pass
+            try:
+                opt = getattr(obj, "optimizer", None)
+                if opt is not None:
+                    out["method"] = type(opt).__name__
+            except Exception:
+                pass
+            return out
+    except Exception:
+        pass
+    return None
 
 def py_save_meta(obj, path):
     try:
@@ -2785,6 +3037,109 @@ def py_save_meta(obj, path):
                         meta["features"] = [str(f) for f in list(fnames)]
                 except Exception:
                     pass
+        elif mod.startswith("prophet"):
+            # prophet (Python) — additive regression with changepoints.
+            meta["kind"] = "model"
+            meta["task"] = "time_series"
+            try:
+                hist = getattr(obj, "history", None)
+                if hist is not None:
+                    meta["n_obs"] = int(len(hist))
+            except Exception:
+                pass
+            try:
+                cps = getattr(obj, "changepoints", None)
+                if cps is not None:
+                    meta["changepoints"] = int(len(list(cps)))
+            except Exception:
+                pass
+            try:
+                seas = getattr(obj, "seasonalities", None)
+                if isinstance(seas, dict) and seas:
+                    meta["features"] = [str(k) for k in list(seas.keys())]
+            except Exception:
+                pass
+        elif mod.startswith("pmdarima"):
+            # pmdarima.ARIMA wraps a statsmodels result under arima_res_.
+            meta["kind"] = "model"
+            meta["task"] = "time_series"
+            try:
+                o = getattr(obj, "order", None)
+                if o is not None:
+                    meta["order"] = [int(v) for v in list(o)]
+            except Exception:
+                pass
+            try:
+                so = getattr(obj, "seasonal_order", None)
+                if so is not None:
+                    so_list = [int(v) for v in list(so)]
+                    if len(so_list) == 4 and so_list[3] > 1 and any(v > 0 for v in so_list[:3]):
+                        meta["seasonal_order"] = so_list
+            except Exception:
+                pass
+            try:
+                res = getattr(obj, "arima_res_", None)
+                if res is not None:
+                    _n = getattr(res, "nobs", None)
+                    if _n is not None:
+                        meta["n_obs"] = int(_n)
+                    for _mk, _ma in (("aic", "aic"), ("bic", "bic")):
+                        _mv = getattr(res, _ma, None)
+                        if _mv is not None:
+                            meta.setdefault("metrics", {})[_mk] = float(_mv)
+            except Exception:
+                pass
+        elif mod.startswith(("sktime.forecasting", "darts.models", "statsforecast.models")):
+            # Forecasting libraries: class name carries the model; the
+            # fitted horizon comes from fh (sktime) or chunk lengths (darts).
+            meta["kind"] = "model"
+            meta["task"] = "time_series"
+            try:
+                fh = getattr(obj, "fh", None)
+                if fh is not None:
+                    meta["horizon"] = int(len(fh))
+            except Exception:
+                pass
+            try:
+                ocl = getattr(obj, "output_chunk_length", None)
+                if ocl is not None:
+                    meta["horizon"] = int(ocl)
+            except Exception:
+                pass
+            try:
+                icl = getattr(obj, "input_chunk_length", None)
+                if icl is not None:
+                    meta.setdefault("metrics", {})["input_chunk_length"] = int(icl)
+            except Exception:
+                pass
+        elif mod.startswith("catboost"):
+            meta["kind"] = "model"
+            if "Classifier" in cls.__name__:
+                meta["task"] = "classification"
+            elif "Regressor" in cls.__name__:
+                meta["task"] = "regression"
+            elif "Ranker" in cls.__name__:
+                meta["task"] = "ranking"
+            try:
+                meta["n_trees"] = int(obj.tree_count_)
+            except Exception:
+                pass
+            try:
+                fnames = obj.feature_names_
+                if fnames is not None:
+                    feats = [str(f) for f in list(fnames)]
+                    meta["features"] = feats
+                    meta["n_features"] = len(feats)
+            except Exception:
+                pass
+            try:
+                bi = getattr(obj, "best_iteration_", None)
+                if bi is None:
+                    bi = getattr(obj, "best_iteration", None)
+                if bi is not None:
+                    meta.setdefault("metrics", {})["best_iteration"] = int(bi)
+            except Exception:
+                pass
         elif mod.startswith("statsmodels"):
             meta["kind"] = "model"
             order = None
@@ -2999,7 +3354,18 @@ def py_save_meta(obj, path):
             except Exception:
                 pass
         else:
-            meta["kind"] = "other"
+            # No module or shape matched: try duck-typed deep-learning
+            # frameworks (torch / keras) before giving up.
+            _tlang_dl = None
+            try:
+                _tlang_dl = _tlang_dl_meta(obj)
+            except Exception:
+                _tlang_dl = None
+            if _tlang_dl is not None:
+                for _dk, _dv in _tlang_dl.items():
+                    meta[_dk] = _dv
+            else:
+                meta["kind"] = "other"
         try:
             _feats = meta.get("features")
             if isinstance(_feats, list) and len(_feats) > 500:
@@ -3678,6 +4044,71 @@ function jl_save_meta(obj, path)
                     mm = haskey(meta, "metrics") ? meta["metrics"] : Dict{String, Any}()
                     mm["loglik"] = Float64(loglike(obj))
                     meta["metrics"] = mm
+                catch
+                end
+            end
+            isdist = try
+                jl_module_matches(string(parentmodule(typeof(obj))), "Distributions")
+            catch
+                false
+            end
+            if isdist
+                # Distributions.jl values (Normal, Beta, truncated, ...).
+                # mean/std dispatch correctly because the package that
+                # produced the object is loaded in the node's script.
+                meta["kind"] = "distribution"
+                try
+                    meta["method"] = string(nameof(typeof(obj)))
+                catch
+                end
+                try
+                    mm = haskey(meta, "metrics") ? meta["metrics"] : Dict{String, Any}()
+                    mm["mean"] = Float64(mean(obj))
+                    meta["metrics"] = mm
+                catch
+                end
+                try
+                    mm = haskey(meta, "metrics") ? meta["metrics"] : Dict{String, Any}()
+                    mm["std"] = Float64(std(obj))
+                    meta["metrics"] = mm
+                catch
+                end
+            end
+            ischains = try
+                jl_module_matches(string(parentmodule(typeof(obj))), "MCMCChains") && string(nameof(typeof(obj))) == "Chains"
+            catch
+                false
+            end
+            if ischains
+                # MCMCChains.Chains — Turing / AbstractMCMC sampling output.
+                # size is (draws, variables, chains).
+                meta["kind"] = "chain"
+                try
+                    sz = size(obj)
+                    if length(sz) == 3
+                        meta["n_draws"] = Int(sz[1])
+                        meta["n_params"] = Int(sz[2])
+                        meta["n_chains"] = Int(sz[3])
+                    end
+                catch
+                end
+            end
+            isflux = try
+                jl_module_matches(string(parentmodule(typeof(obj))), "Flux")
+            catch
+                false
+            end
+            if isflux
+                # Flux.jl models (Chain and layers).
+                meta["kind"] = "model"
+                try
+                    if hasproperty(obj, :layers)
+                        meta["n_layers"] = Int(length(obj.layers))
+                    end
+                catch
+                end
+                try
+                    meta["n_params"] = Int(sum(length, Flux.params(obj)))
                 catch
                 end
             end
