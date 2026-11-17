@@ -44,7 +44,7 @@ next to `artifact`/`class` (best effort — the build never fails for it):
 
 ```t
 e = explain(p.fit)
-e.foreign_meta.kind        -- value kind: "dataframe", "matrix", "vector", "array", "factor", "series", "table", "model", "test", "data", "transformer", "distribution", "forecast", "chain", "other", or "unknown"
+e.foreign_meta.kind        -- value kind: "dataframe", "matrix", "vector", "array", "factor", "series", "table", "model", "test", "data", "transformer", "distribution", "forecast", "chain", "dist", "graph", "dataset", "other", or "unknown"
 e.foreign_meta.class        -- runtime type name, e.g. "lm", "DataFrame", "ARIMA"
 e.foreign_meta.task         -- model task when known: "regression", "classification", "clustering", "time_series", "dim_reduction", "density", "anomaly_detection", "ranking", or "survival"
 e.foreign_meta.dimensions  -- shape as int list, e.g. [32, 11] for frames, [4, 3] for matrices, [3] for vectors
@@ -56,6 +56,7 @@ e.foreign_meta.n_trees     -- tree count (forests, when known)
 e.foreign_meta.n_rounds    -- boosting rounds (boosted trees, when known)
 e.foreign_meta.n_clusters  -- cluster count (clustering, when known)
 e.foreign_meta.n_nodes      -- tree node count (`rpart`, when known)
+e.foreign_meta.n_edges      -- edge count (igraph / networkx graphs, when known)
 e.foreign_meta.n_components -- component count (PCA, when known)
 e.foreign_meta.n_params     -- parameter count (torch/keras/Flux models, MCMC variables, GARCH estimates, when known)
 e.foreign_meta.n_layers    -- layer count (torch/keras/Flux models, when known)
@@ -106,6 +107,23 @@ report `order`/`seasonal_order`/`horizon`/`best_iteration`. Julia
 `Distributions` values report `distribution` with moments; MCMCChains
 `Chains` report the `chain` kind with `n_draws`/`n_params`/`n_chains`;
 Flux models report `n_layers`/`n_params`.
+
+Second-wave families: R reports `mgcv::gam` with smooth metrics
+(`s(wt)` coefficient names stay visible), nlme `lme`/`gls` groups and
+metrics, `rq` tau, `survreg`, `betareg`, `zeroinfl`/`hurdle`, `plm`,
+`clm`/`clmm`, VGAM `vglm`, caret `train` (best resampling values),
+parsnip `model_fit`/`workflow` (engine, mode), e1071 `svm`/kernlab
+`ksvm`, `gbm`, `C5.0`, `earth`, pls `mvr`, partykit `BinaryTree`,
+`Mclust`, `dbscan`, `clara`/`fanny`, `mixEM`, FactoMineR
+`PCA`/`MCA`/`FAMD`/`CA`, psych `fa`/`principal`, urca `ur.df`/
+`ur.kpss`/`ca.jo` (`test` kind), coda `mcmc`/`mcmc.list` (`chain`
+kind), lavaan SEM fits, `dist` objects (`dist` kind), sparse Matrix
+objects (nnz), and igraph networks (`graph` kind, `n_edges`). Python
+adds imblearn parity, polars `LazyFrame` schemas, xarray `Dataset`
+(`dataset` kind), transformers parameter counts, tbats, skforecast,
+pyspark.ml tasks, networkx graphs, and statsmodels VECM/Markov-regime
+facts. Julia adds `CategoricalArray` levels (`factor` kind), MLJ
+machines, XGBoost.jl boosters, and ARCHModels volatility specs.
 ```
 
 The tree display shows short `features_preview`/`formula_preview` forms;

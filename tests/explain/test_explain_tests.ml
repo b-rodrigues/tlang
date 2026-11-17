@@ -1277,6 +1277,185 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
   test_env env_fm_flx "explain foreign meta flux params"
     "explain(fake_flux).foreign_meta.n_params"
     "146";
+  (* P2 wave: table-driven fake-meta fixtures. Each row binds one fake
+     foreign node and asserts one fact, so every new family has coverage
+     without repeating the boilerplate. *)
+  let p2_cases = [
+    ("gam", "R", "gam",
+     {|{"kind":"model","class":"gam","task":"regression","n_obs":32,"n_features":3,"features":["hp","s(wt).1","s(wt).2"],"formula":"mpg ~ s(wt) + hp","target":"mpg","metrics":{"edf":3.5,"r_squared":0.9,"smooths":1}}|},
+     "explain(p2v).foreign_meta.metrics.smooths", "1");
+    ("lme", "R", "lme",
+     {|{"kind":"model","class":"lme","task":"regression","n_groups":18,"groups":{"Subject":18},"formula":"distance ~ age","target":"distance"}|},
+     "explain(p2v).foreign_meta.groups.Subject", "18");
+    ("gls", "R", "gls",
+     {|{"kind":"model","class":"gls","task":"regression","formula":"distance ~ age","metrics":{"loglik":-200.5}}|},
+     "explain(p2v).foreign_meta.task", {|"regression"|});
+    ("rq", "R", "rq",
+     {|{"kind":"model","class":"rq","task":"regression","n_obs":32,"formula":"mpg ~ wt","target":"mpg","metrics":{"tau":0.5}}|},
+     "explain(p2v).foreign_meta.metrics.tau", "0.5");
+    ("survreg", "R", "survreg",
+     {|{"kind":"model","class":"survreg","task":"survival","method":"weibull","n_obs":100,"formula":"Surv(time, status) ~ age"}|},
+     "explain(p2v).foreign_meta.task", {|"survival"|});
+    ("zeroinfl", "R", "zeroinfl",
+     {|{"kind":"model","class":"zeroinfl","task":"regression","n_obs":200,"formula":"y ~ x","metrics":{"loglik":-100.5,"aic":210.0}}|},
+     "explain(p2v).foreign_meta.metrics.aic", "210");
+    ("clm", "R", "clm",
+     {|{"kind":"model","class":"clm","task":"classification","method":"logit","n_obs":100,"metrics":{"loglik":-120.0}}|},
+     "explain(p2v).foreign_meta.method", {|"logit"|});
+    ("betareg", "R", "betareg",
+     {|{"kind":"model","class":"betareg","task":"regression","n_obs":100,"formula":"y ~ x","metrics":{"phi":12.5,"pseudo_r_squared":0.3}}|},
+     "explain(p2v).foreign_meta.metrics.phi", "12.5");
+    ("plm", "R", "plm",
+     {|{"kind":"model","class":"plm","task":"regression","n_obs":50,"formula":"y ~ x"}|},
+     "explain(p2v).foreign_meta.n_obs", "50");
+    ("vglm", "R", "vglm",
+     {|{"kind":"model","class":"vglm","task":"classification","method":"binomialff","n_obs":100}|},
+     "explain(p2v).foreign_meta.method", {|"binomialff"|});
+    ("mclust", "R", "Mclust",
+     {|{"kind":"model","class":"Mclust","task":"clustering","n_clusters":3,"method":"VEE","n_obs":150,"metrics":{"bic":-450.0}}|},
+     "explain(p2v).foreign_meta.n_clusters", "3");
+    ("dbscan", "R", "dbscan",
+     {|{"kind":"model","class":"dbscan_fast","task":"clustering","n_clusters":2,"n_obs":50,"metrics":{"eps":0.5,"min_pts":5}}|},
+     "explain(p2v).foreign_meta.n_clusters", "2");
+    ("clara", "R", "clara",
+     {|{"kind":"model","class":"clara","task":"clustering","n_clusters":3,"n_obs":32,"metrics":{"silhouette":0.4}}|},
+     "explain(p2v).foreign_meta.metrics.silhouette", "0.4");
+    ("mixem", "R", "mixEM",
+     {|{"kind":"model","class":"mixEM","task":"density","n_components":2,"metrics":{"loglik":-80.0}}|},
+     "explain(p2v).foreign_meta.n_components", "2");
+    ("fmrinr-pca", "R", "PCA",
+     {|{"kind":"model","class":"PCA","task":"dim_reduction","n_obs":150,"n_components":5,"metrics":{"var_first":0.6}}|},
+     "explain(p2v).foreign_meta.metrics.var_first", "0.6");
+    ("fmrinr-ca", "R", "CA",
+     {|{"kind":"model","class":"CA","task":"dim_reduction","n_obs":20,"n_components":2,"metrics":{"var_first":0.9}}|},
+     "explain(p2v).foreign_meta.task", {|"dim_reduction"|});
+    ("psych-fa", "R", "fa",
+     {|{"kind":"model","class":"fa","task":"dim_reduction","n_components":2,"method":"promax","n_obs":300,"metrics":{"rmsea":0.02}}|},
+     "explain(p2v).foreign_meta.method", {|"promax"|});
+    ("lavaan", "R", "lavaan",
+     {|{"kind":"model","class":"lavaan","method":"SEM","n_params":25,"n_obs":300,"metrics":{"chisq":100.5,"pvalue":0.05,"cfi":0.95,"rmsea":0.03}}|},
+     "explain(p2v).foreign_meta.metrics.cfi", "0.95");
+    ("igraph", "R", "igraph",
+     {|{"kind":"graph","class":"igraph","n_nodes":10,"n_edges":20}|},
+     "explain(p2v).foreign_meta.n_edges", "20");
+    ("dist", "R", "dist",
+     {|{"kind":"dist","class":"dist","n_obs":32,"method":"euclidean"}|},
+     "explain(p2v).foreign_meta.kind", {|"dist"|});
+    ("urdf", "R", "ur.df",
+     {|{"kind":"test","class":"ur.df","method":"ur.df","metrics":{"statistic":-2.5}}|},
+     "explain(p2v).foreign_meta.kind", {|"test"|});
+    ("cajo", "R", "ca.jo",
+     {|{"kind":"test","class":"ca.jo","method":"Johansen-trace","metrics":{"statistic":85.4}}|},
+     "explain(p2v).foreign_meta.method", {|"Johansen-trace"|});
+    ("mcmc", "R", "mcmc",
+     {|{"kind":"chain","class":"mcmc","n_draws":100,"n_params":2}|},
+     "explain(p2v).foreign_meta.n_draws", "100");
+    ("mcmlist", "R", "mcmc.list",
+     {|{"kind":"chain","class":"mcmc.list","n_chains":4,"n_draws":100,"n_params":2}|},
+     "explain(p2v).foreign_meta.n_chains", "4");
+    ("mstl", "R", "mstl",
+     {|{"kind":"model","class":"mstl","task":"time_series","n_obs":144,"n_features":3,"features":["trend","Seasonal12","remainder"]}|},
+     "explain(p2v).foreign_meta.n_features", "3");
+    ("sparse-matrix", "R", "dgCMatrix",
+     {|{"kind":"matrix","class":"dgCMatrix","dimensions":[4,4],"metrics":{"nnz":2}}|},
+     "explain(p2v).foreign_meta.metrics.nnz", "2");
+    ("caret-train", "R", "train",
+     {|{"kind":"model","class":"train","task":"classification","method":"rf","metrics":{"accuracy":0.95,"kappa":0.9}}|},
+     "explain(p2v).foreign_meta.metrics.accuracy", "0.95");
+    ("parsnip", "R", "model_fit",
+     {|{"kind":"model","class":"model_fit","task":"regression","method":"lm"}|},
+     "explain(p2v).foreign_meta.method", {|"lm"|});
+    ("workflow", "R", "workflow",
+     {|{"kind":"model","class":"workflow","task":"classification","method":"ranger"}|},
+     "explain(p2v).foreign_meta.task", {|"classification"|});
+    ("svm", "R", "svm",
+     {|{"kind":"model","class":"svm.formula","task":"classification","method":"radial","n_features":4,"metrics":{"n_support_vectors":25}}|},
+     "explain(p2v).foreign_meta.metrics.n_support_vectors", "25");
+    ("ksvm", "R", "ksvm",
+     {|{"kind":"model","class":"ksvm","task":"classification","method":"C-svc","metrics":{"kernel":"rbfdot","n_support_vectors":20}}|},
+     "explain(p2v).foreign_meta.method", {|"C-svc"|});
+    ("gbm", "R", "gbm",
+     {|{"kind":"model","class":"gbm","task":"classification","method":"bernoulli","n_trees":100,"metrics":{"shrinkage":0.1}}|},
+     "explain(p2v).foreign_meta.n_trees", "100");
+    ("c50", "R", "C5.0",
+     {|{"kind":"model","class":"C5.0","task":"classification","metrics":{"trials":10}}|},
+     "explain(p2v).foreign_meta.metrics.trials", "10");
+    ("earth", "R", "earth",
+     {|{"kind":"model","class":"earth","task":"regression","n_obs":32,"metrics":{"rsq":0.85,"grsq":0.8}}|},
+     "explain(p2v).foreign_meta.metrics.grsq", "0.8");
+    ("mvr", "R", "mvr",
+     {|{"kind":"model","class":"mvr","task":"regression","n_components":3,"n_obs":32}|},
+     "explain(p2v).foreign_meta.n_components", "3");
+    ("marss", "R", "marssMLE",
+     {|{"kind":"model","class":"marssMLE","task":"time_series","n_obs":30,"n_params":5,"metrics":{"loglik":-100.5,"aic":211.0}}|},
+     "explain(p2v).foreign_meta.metrics.aic", "211");
+    ("bsts", "R", "bsts",
+     {|{"kind":"model","class":"bsts","task":"time_series"}|},
+     "explain(p2v).foreign_meta.task", {|"time_series"|});
+    ("seas", "R", "seas",
+     {|{"kind":"model","class":"seas","task":"time_series","method":"X-13-ARIMA-SEATS","n_obs":144}|},
+     "explain(p2v).foreign_meta.method", {|"X-13-ARIMA-SEATS"|});
+    ("arfima", "R", "arfima",
+     {|{"kind":"model","class":"arfima","task":"time_series","n_obs":144}|},
+     "explain(p2v).foreign_meta.n_obs", "144");
+    ("binarytree", "R", "BinaryTree",
+     {|{"kind":"model","class":"BinaryTree","task":"classification","n_obs":100,"n_nodes":5}|},
+     "explain(p2v).foreign_meta.n_nodes", "5");
+    ("transformers", "Python", "BertForMaskedLM",
+     {|{"kind":"model","class":"BertForMaskedLM","method":"bert","n_params":110000000}|},
+     "explain(p2v).foreign_meta.n_params", "110000000");
+    ("tbats", "Python", "TBATS",
+     {|{"kind":"model","class":"TBATS","task":"time_series","seasonal_period":[12],"metrics":{"aic":300.5}}|},
+     "get(explain(p2v).foreign_meta.seasonal_period, 0)", "12");
+    ("skforecast", "Python", "ForecasterAutoreg",
+     {|{"kind":"model","class":"ForecasterAutoreg","task":"time_series","order":[10]}|},
+     "get(explain(p2v).foreign_meta.order, 0)", "10");
+    ("pyspark", "Python", "LogisticRegressionModel",
+     {|{"kind":"model","class":"LogisticRegressionModel","task":"classification","metrics":{"n_stages":2}}|},
+     "explain(p2v).foreign_meta.task", {|"classification"|});
+    ("networkx", "Python", "Graph",
+     {|{"kind":"graph","class":"Graph","n_nodes":6,"n_edges":7}|},
+     "explain(p2v).foreign_meta.n_nodes", "6");
+    ("imblearn", "Python", "LogisticRegression",
+     {|{"kind":"model","class":"LogisticRegression","task":"classification","n_features":4}|},
+     "explain(p2v).foreign_meta.task", {|"classification"|});
+    ("lazyframe", "Python", "LazyFrame",
+     {|{"kind":"dataframe","class":"LazyFrame","features":["a","b","c"]}|},
+     "explain(p2v).foreign_meta.kind", {|"dataframe"|});
+    ("xarray", "Python", "Dataset",
+     {|{"kind":"dataset","class":"Dataset","features":["temp","salt"],"n_features":2,"metrics":{"n_coords":3}}|},
+     "explain(p2v).foreign_meta.kind", {|"dataset"|});
+    ("vecm", "Python", "VECMResults",
+     {|{"kind":"model","class":"VECMResults","task":"time_series","order":[2],"n_obs":100}|},
+     "explain(p2v).foreign_meta.task", {|"time_series"|});
+    ("markov", "Python", "MarkovRegressionResults",
+     {|{"kind":"model","class":"MarkovRegressionResults","task":"time_series","metrics":{"n_regimes":2}}|},
+     "explain(p2v).foreign_meta.metrics.n_regimes", "2");
+    ("mlj", "Julia", "Machine",
+     {|{"kind":"model","class":"Machine","task":"regression","method":"RandomForestRegressor"}|},
+     "explain(p2v).foreign_meta.method", {|"RandomForestRegressor"|});
+    ("xgboostjl", "Julia", "Booster",
+     {|{"kind":"model","class":"Booster","metrics":{"best_iteration":42}}|},
+     "explain(p2v).foreign_meta.kind", {|"model"|});
+    ("archmodels", "Julia", "GARCH",
+     {|{"kind":"model","class":"GARCH","task":"time_series","method":"GARCH"}|},
+     "explain(p2v).foreign_meta.task", {|"time_series"|});
+    ("categorical", "Julia", "CategoricalArray",
+     {|{"kind":"factor","class":"CategoricalArray{Int64,1}","n_levels":3,"n_obs":10,"levels":["a","b","c"]}|},
+     "explain(p2v).foreign_meta.n_levels", "3");
+  ] in
+  List.iter (fun (dname, runtime, class_, meta, expr, expected) ->
+    let dir = make_node_dir ("fake-p2-" ^ dname) in
+    write_file (Filename.concat dir "artifact") "0123456789";
+    write_file (Filename.concat dir "meta") meta;
+    let env =
+      Ast.Env.add "p2v"
+        (Ast.VComputedNode (fake_cn ~name:("fake_p2_" ^ dname) ~runtime
+          ~path:(Filename.concat dir "artifact") ~class_))
+        (Packages.init_env ())
+    in
+    test_env env ("explain foreign meta p2 " ^ dname) expr expected
+  ) p2_cases;
   rm_rf meta_base;
   print_newline ();
 
@@ -1521,8 +1700,8 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
                 (match json_number json2 "r_squared" with
                  | Some f -> abs_float (f -. 0.826785451882791) < 1e-6
                  | None -> false);
-              check_golden "R probe handles gam through the glm branch"
-                (contains json3 "regression" && contains json3 "s(wt)");
+              check_golden "R probe handles gam smooth terms"
+                (contains json3 "regression" && contains json3 "s(wt)" && contains json3 "smooths");
               check_golden "R probe handles rlm through the lm branch"
                 (contains json4 "regression" && contains json4 "n_obs");
               check_golden "R probe handles glm.nb through the glm branch"
@@ -1632,6 +1811,68 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
                    check_golden "R probe handles tbats models"
                      (contains json5 "time_series" && contains json5 "seasonal_period"))))
    | _ -> skip_golden "R probe forecast family" "no forecast/zoo");
+  (* R P2 families: needs nlme + cluster + quantreg + urca (Matrix ships
+     with every R). Skipped when absent. *)
+  (match shell_out "Rscript -e \"cat(requireNamespace(\\\"nlme\\\", quietly = TRUE) && requireNamespace(\\\"cluster\\\", quietly = TRUE) && requireNamespace(\\\"quantreg\\\", quietly = TRUE) && requireNamespace(\\\"urca\\\", quietly = TRUE))\" 2>/dev/null" with
+   | s when contains s "TRUE" ->
+       (match extract_fn "r_save_meta <- function(object, path) {" (fun l -> l = "}") with
+        | None -> check_golden "R probe source found" false
+        | Some src ->
+            let drv = src ^ "\n" ^
+              "library(nlme)\n" ^
+              "fm1 <- lme(distance ~ age, Orthodont, random = ~ 1 | Subject)\n" ^
+              "r_save_meta(fm1, Sys.getenv(\"T_GOLD_OUT\"))\n" ^
+              "gf1 <- gls(distance ~ age, Orthodont)\n" ^
+              "r_save_meta(gf1, Sys.getenv(\"T_GOLD_OUT2\"))\n" ^
+              "library(cluster)\n" ^
+              "cf1 <- clara(mtcars, 3)\n" ^
+              "r_save_meta(cf1, Sys.getenv(\"T_GOLD_OUT3\"))\n" ^
+              "library(quantreg)\n" ^
+              "rq1 <- rq(mpg ~ wt, data = mtcars, tau = 0.5)\n" ^
+              "r_save_meta(rq1, Sys.getenv(\"T_GOLD_OUT4\"))\n" ^
+              "library(urca)\n" ^
+              "ur1 <- ur.df(AirPassengers, type = \"drift\")\n" ^
+              "r_save_meta(ur1, Sys.getenv(\"T_GOLD_OUT5\"))\n" ^
+              "dd1 <- dist(mtcars)\n" ^
+              "r_save_meta(dd1, Sys.getenv(\"T_GOLD_OUT6\"))\n" ^
+              "sp1 <- Matrix::sparseMatrix(i = c(1, 3), j = c(2, 4), x = c(5, 7), dims = c(4, 4))\n" ^
+              "r_save_meta(sp1, Sys.getenv(\"T_GOLD_OUT7\"))\n"
+            in
+            (match write_temp "r-p2.R" drv with
+             | None -> check_golden "R probe p2 driver written" false
+             | Some drv_path ->
+                 let out = temp_path "rp2.json" in
+                 let out2 = temp_path "rp2b.json" in
+                 let out3 = temp_path "rp2c.json" in
+                 let out4 = temp_path "rp2d.json" in
+                 let out5 = temp_path "rp2e.json" in
+                 let out6 = temp_path "rp2f.json" in
+                 let out7 = temp_path "rp2g.json" in
+                 with_temp_files [drv_path; out; out2; out3; out4; out5; out6; out7] (fun () ->
+                   let _ = shell_out (Printf.sprintf "T_GOLD_OUT=%s T_GOLD_OUT2=%s T_GOLD_OUT3=%s T_GOLD_OUT4=%s T_GOLD_OUT5=%s T_GOLD_OUT6=%s T_GOLD_OUT7=%s Rscript %s 2>/dev/null"
+                     (Filename.quote out) (Filename.quote out2) (Filename.quote out3) (Filename.quote out4) (Filename.quote out5) (Filename.quote out6) (Filename.quote out7) (Filename.quote drv_path)) in
+                   let json = match read_file_opt out with Some s -> s | None -> "" in
+                   let json2 = match read_file_opt out2 with Some s -> s | None -> "" in
+                   let json3 = match read_file_opt out3 with Some s -> s | None -> "" in
+                   let json4 = match read_file_opt out4 with Some s -> s | None -> "" in
+                   let json5 = match read_file_opt out5 with Some s -> s | None -> "" in
+                   let json6 = match read_file_opt out6 with Some s -> s | None -> "" in
+                   let json7 = match read_file_opt out7 with Some s -> s | None -> "" in
+                   check_golden "R probe handles lme mixed models"
+                     (contains json "regression" && contains json "Subject");
+                   check_golden "R probe handles gls fits"
+                     (contains json2 "regression");
+                   check_golden "R probe handles clara clustering"
+                     (contains json3 "clustering" && contains json3 "n_clusters");
+                   check_golden "R probe handles quantile regression"
+                     (contains json4 "regression" && contains json4 "tau");
+                   check_golden "R probe handles ur.df unit-root tests"
+                     (contains json5 "\"test\"" && contains json5 "statistic");
+                   check_golden "R probe classifies dist objects"
+                     (contains json6 "\"dist\"" && contains json6 "n_obs");
+                   check_golden "R probe handles sparse Matrix objects"
+                     (contains json7 "\"matrix\"" && contains json7 "nnz"))))
+   | _ -> skip_golden "R probe p2 family" "no nlme/cluster/quantreg/urca");
   (* Python: array-API const excluded from features; NaN sanitized. *)
   (match extract_fn ~keep_end:false "def py_save_meta(obj, path):" (fun l -> l <> "" && l.[0] <> ' ' && l.[0] <> '\t') with
    | None -> check_golden "Python probe source found" false

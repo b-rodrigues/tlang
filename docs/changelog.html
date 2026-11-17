@@ -68,6 +68,40 @@ models report layer and parameter counts. New sidecar keys:
 <code>n_draws</code>, <code>n_lambda</code>, <code>n_equations</code>,
 <code>seasonal_period</code>, <code>horizon</code>,
 <code>changepoints</code>.</li>
+<li><strong><code>explain()</code> recognizes the wider modeling
+ecosystems</strong>: R smooth models keep their identity —
+<code>mgcv::gam</code> reports smooth-term counts and keeps
+<code>s(wt)</code> coefficient names visible instead of folding into the
+plain <code>glm</code> branch. Mixed, panel, and count models report
+their facts: nlme <code>lme</code>/<code>gls</code> group counts and fit
+criteria, <code>rq</code> quantile, <code>survreg</code> distribution,
+<code>betareg</code> precision, <code>zeroinfl</code>/<code>hurdle</code>,
+<code>plm</code>, ordinal <code>clm</code>/<code>clmm</code> links, VGAM
+<code>vglm</code> families. Tuned wrappers report resampling results:
+caret <code>train</code> (model name and best accuracy/RMSE), parsnip
+<code>model_fit</code> and workflows (engine and mode),
+<code>svm</code>/<code>ksvm</code> kernels and support vectors,
+<code>gbm</code> distributions and shrinkage, <code>C5.0</code>,
+<code>earth</code>, pls <code>mvr</code>, partykit
+<code>BinaryTree</code> node counts. Clustering and ordination report
+standard facts: <code>Mclust</code>, <code>dbscan</code> (noise
+excluded), <code>clara</code>/<code>fanny</code> silhouettes,
+<code>mixEM</code>, FactoMineR <code>PCA</code>/<code>MCA</code>/
+<code>FAMD</code>/<code>CA</code>, psych
+<code>fa</code>/<code>principal</code>. Statistical objects read as
+their own kinds: urca unit-root and cointegration tests as
+<code>test</code>, coda <code>mcmc</code> chains as <code>chain</code>,
+lavaan SEM fits with chi-square/CFI/RMSEA, <code>dist</code> objects as
+<code>dist</code>, sparse Matrix objects with nnz, igraph networks as
+<code>graph</code> with node and edge counts. Python: imbalanced-learn
+estimators report like sklearn, polars <code>LazyFrame</code> shows its
+schema, xarray <code>Dataset</code> reports the new <code>dataset</code>
+kind, HuggingFace transformers report model type and parameter counts,
+tbats/skforecast/pyspark.ml/networkx report family facts, and
+statsmodels VECM/Markov-regime results report <code>time_series</code>.
+Julia: <code>CategoricalArray</code> values report <code>factor</code>
+kind with levels like R factors, MLJ machines name their model, and
+XGBoost.jl/ARCHModels fits report their facts.</li>
 </ul>
 <h2 id="section">[0.56.2] - 2026-10-29</h2>
 <h3 id="new-features">New features</h3>

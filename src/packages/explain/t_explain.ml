@@ -230,6 +230,7 @@ let register ?(ensure_docs=ignore) env =
     (match assoc_int "n_rounds" pairs with Some n -> add "n_rounds" (VInt n) | None -> ());
     (match assoc_int "n_clusters" pairs with Some n -> add "n_clusters" (VInt n) | None -> ());
     (match assoc_int "n_nodes" pairs with Some n -> add "n_nodes" (VInt n) | None -> ());
+    (match assoc_int "n_edges" pairs with Some n -> add "n_edges" (VInt n) | None -> ());
     (match assoc_int "n_levels" pairs with Some n -> add "n_levels" (VInt n) | None -> ());
     (match assoc_int "n_params" pairs with Some n -> add "n_params" (VInt n) | None -> ());
     (match assoc_int "n_layers" pairs with Some n -> add "n_layers" (VInt n) | None -> ());
@@ -300,7 +301,7 @@ let register ?(ensure_docs=ignore) env =
     | [] -> VNA NAGeneric
     | _ ->
         let display = ["kind"; "class"; "task"; "method"; "dimensions"; "n_obs"; "n_groups"; "groups"; "n_features";
-                       "n_trees"; "n_rounds"; "n_clusters"; "n_nodes"; "n_components"; "n_levels";
+                       "n_trees"; "n_rounds"; "n_clusters"; "n_nodes"; "n_edges"; "n_components"; "n_levels";
                        "n_params"; "n_layers"; "n_chains"; "n_draws"; "n_lambda";
                        "dtype";
                        "target"; "order"; "seasonal_order"; "seasonal_period"; "horizon"; "changepoints"; "n_equations";
