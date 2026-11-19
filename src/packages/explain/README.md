@@ -79,6 +79,7 @@ e.foreign_meta.changepoints -- changepoint count (prophet, when known)
 e.foreign_meta.features    -- full feature/column list (first 500 entries; `n_features` stays exact)
 e.foreign_meta.metrics     -- free numeric metrics (r_squared, aic, bic, ...); numbers only, other values are dropped
 e.foreign_meta.artifact_size -- artifact size in bytes
+```
 
 `features`/`n_features` meaning varies by family: input variable names
 for frames, forests, and discriminant means; fitted coefficient names
@@ -139,7 +140,6 @@ MultivariateStats `ICA`/`FactorAnalysis`/`PPCA`/`KernelPCA`/
 `MulticlassLDA` (`dim_reduction`), Graphs.jl networks (`graph` kind),
 JuMP models (new `optimization` kind), SciML ODE problems/solutions
 (new `ode` kind), and GaussianMixtures `GMM` fits (`density`).
-```
 
 The tree display shows short `features_preview`/`formula_preview` forms;
 dot access on `features`/`formula` returns the full values. Unbuilt nodes
