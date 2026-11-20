@@ -431,6 +431,52 @@ Or use the REPL for interactive exploration:
 $ t repl
 ```
 
+### 5.1 Formatting T Code with `t fmt`
+
+T includes a canonical code formatter to ensure consistent code style across your project:
+
+```bash
+# Print formatted source to standard output
+$ t fmt src/pipeline.t
+
+# Check if a file is formatted (exits with 0 if clean, 1 if unformatted)
+$ t fmt --check src/pipeline.t
+
+# Format a file in place
+$ t fmt --write src/pipeline.t
+# or short flag:
+$ t fmt -w src/pipeline.t
+```
+
+The formatter enforces 2-space indentation, normalizes pipe chains (`|>`), arithmetic operators (`+`, `-`, `*`, `/`), and assignment/comparison operators (`=`, `==`, `!=`), while strictly preserving:
+- Comments (`#` and `--`)
+- Embedded foreign code blocks (`<{ ... }>`)
+- Multi-line strings
+- Existing newline styles (LF vs CRLF)
+
+Before writing any changes, `t fmt` verifies that the formatted code parses identically to the input to prevent accidental syntax alteration.
+
+### 5.2 Fast Pipeline Checking with `t check`
+
+During development, validate your pipeline without waiting for Nix builds:
+
+| Command | What it checks | Nix build required? |
+| --- | --- | --- |
+| `t check src/pipeline.t` | DAG structure, missing dependencies, cycles, syntax | No (instant) |
+| `t check --schema src/pipeline.t` | + Column references, Arrow data types, schema flow | No (instant) |
+| `t check --schema --hydrate-foreign src/pipeline.t` | + Hydrates foreign node output schemas from cached build logs | No (instant) |
+| `t check --env src/pipeline.t` | + `tproject.toml` package declarations and Nix eval | Yes (eval only) |
+
+#### Hydrating Foreign Schemas (`--hydrate-foreign`)
+
+Because foreign pipeline nodes (R, Python, Julia) execute dynamic code inside sandbox derivations, their exact output schemas are only known after execution. By default, `t check --schema` remains strictly static and hermetic.
+
+When you pass `--hydrate-foreign`, `t check` inspects cached build logs (`_pipeline/build_log_*.json`) and metadata sidecars from previous builds. It populates output column schemas for foreign nodes, allowing downstream T verbs (e.g. `filter($mpg > 20)`) to validate column names and types before running subsequent builds.
+
+```bash
+$ t check --schema --hydrate-foreign src/pipeline.t
+```
+
 ## 6. Running Tests
 
 You can add tests in `tests/` following the same conventions as packages:
@@ -522,6 +568,20 @@ $ t run src/pipeline.t
 ```
 
 The same T version, same package versions, same R packages, and same system libraries are used every time.
+
+### 7.1 Auditing Provenance with `t provenance`
+
+When sharing or publishing analyses, create offline reproducibility bundles containing pinned Nix inputs, build logs, and foreign model metadata:
+
+```bash
+# Generate Research Object Crate (RO-Crate 1.1 JSON-LD)
+$ t provenance --format ro-crate -o ro-crate-metadata.json
+
+# Generate Software Bill of Materials (CycloneDX 1.5 SBOM)
+$ t provenance --format sbom -o sbom.cdx.json
+```
+
+See the [Reproducibility Guide](reproducibility.md#offline-provenance-bundles-with-t-provenance) for details on supported formats and programmatic usage.
 
 ## 8. IDE Support & Autocompletion
 

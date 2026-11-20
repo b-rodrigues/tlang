@@ -903,6 +903,44 @@ show_plot("graph TD\n  Start --> Stop")
 
 When you pass a pipeline, meta-pipeline, or a string starting with a Mermaid keyword (like `graph` or `flowchart`) to `show_plot()`, T dynamically generates a temporary HTML file containing the Mermaid JS engine, renders the graph, and opens it using your configured system viewer/browser.
 
+### Model Metrics Leaderboard: `pipeline_metrics`
+
+In polyglot workflows, you frequently train and evaluate competing models across multiple runtimes—for example, fitting an exponential smoothing model (`forecast::ets`) in R, a gradient boosted regressor (`scikit-learn`) in Python, and a generalized linear model in Julia.
+
+`pipeline_metrics(p)` queries all built model nodes from the latest build log and merges their `foreign_meta` sidecars into a single comparison `DataFrame`:
+
+```t
+-- Compute a leaderboard across all model nodes
+metrics = pipeline_metrics(p)
+
+-- Filter by task and sort by a specific evaluation metric
+best_ts = pipeline_metrics(p, task = "time_series", sort_by = "aic")
+best_reg = pipeline_metrics(p, task = "regression", sort_by = "rmse")
+best_r2  = pipeline_metrics(p, task = "regression", sort_by = "r2", descending = true)
+```
+
+The resulting DataFrame contains:
+- **Base Columns**: `name`, `runtime`, `kind`, `task`, `method`, `n_obs`, `n_features`, `status`.
+- **Metric Columns**: One `Float` column per metric key reported by any model node (e.g., `aic`, `bic`, `rmse`, `r2`, `mae`), with `NA` for nodes that do not report that metric.
+- **Collision Protection**: If a metric key collides with a base column name (e.g., a metric named `n_obs`), it is automatically prefixed as `metric_n_obs`.
+
+### Markdown Leaderboard: `pipeline_metrics_markdown`
+
+For automated pipeline reports, Quarto documents, or CI summaries, render the leaderboard directly as a Markdown table:
+
+```t
+table_md = pipeline_metrics_markdown(p, task = "regression", sort_by = "rmse")
+print(table_md)
+```
+
+Produces:
+
+| name | runtime | kind | task | method | n_obs | status | aic | rmse | r2 |
+|---|---|---|---|---|---|---|---|---|---|
+| rf_model | Python | model | regression | RandomForestRegressor | 506 | Built | NA | 3.12 | 0.86 |
+| gbm_model | Python | model | regression | HistGradientBoostingRegressor | 506 | Built | NA | 2.89 | 0.89 |
+| lm_model | R | model | regression | lm | 506 | Built | 3021.4 | 4.67 | 0.73 |
+
 ---
 
 ## 29. Pipeline Validation

@@ -5766,6 +5766,74 @@ pipeline_overview_markdown(p, only = "failed")
 
 ---
 
+### `pipeline_metrics(p, task = NA, sort_by = NA, descending = false)`
+
+Collects build-time `foreign_meta` sidecars from model nodes across R, Python, and Julia into a single comparison DataFrame. Base columns (`name`, `runtime`, `kind`, `task`, `method`, `n_obs`, `n_features`, `status`) are followed by one `Float` column per metric key found across the selected nodes.
+
+**Parameters:**
+
+- `p` — The Pipeline object.
+- `task` (optional) — Filter by task (e.g. `"time_series"`, `"regression"`, `"classification"`).
+- `sort_by` (optional) — Sort by any metric column, `"n_obs"`, `"n_features"`, or `"name"`.
+- `descending` (optional) — Sort descending when `true` (default `false`).
+
+**Returns:**
+
+`DataFrame` — One row per model node with aligned metric columns.
+
+**Examples:**
+```t
+pipeline_metrics(p)
+pipeline_metrics(p, task = "time_series", sort_by = "aic")
+```
+
+---
+
+### `pipeline_metrics_markdown(p, task = NA, sort_by = NA, descending = false)`
+
+Same rows and filters as `pipeline_metrics`, rendered as a Markdown table.
+
+**Examples:**
+```t
+pipeline_metrics_markdown(p, sort_by = "aic")
+```
+
+---
+
+### `t_fmt(path, write = false, check = false)`
+
+Formats a `.t` source file using the canonical T formatter, preserving comments and `<{ ... }>` raw foreign code blocks.
+
+**Parameters:**
+
+- `path` — Path to the `.t` file.
+- `write` (optional) — Write formatted output back to `path` when `true`.
+- `check` (optional) — Return `Bool` (`true` if already formatted, `false` otherwise).
+
+**Returns:**
+
+`String | Bool` — Formatted source string, or `Bool` when `check = true`.
+
+---
+
+### `t_provenance(format = "ro-crate", output = NA, dir = ".", file = NA, include_meta = true)`
+
+Generates an offline reproducibility and audit bundle from `tproject.toml`, `flake.lock`, the latest `_pipeline/build_log_*.json` with `foreign_meta` sidecars, and `intent { ... }` blocks.
+
+**Parameters:**
+
+- `format` (optional) — `"ro-crate"` (RO-Crate 1.1 JSON-LD), `"sbom"` (CycloneDX 1.5 JSON), or `"json"`.
+- `output` (optional) — Optional output file path.
+- `dir` (optional) — Project root directory (default `"."`).
+- `file` (optional) — Target `.t` file to extract `intent` blocks from.
+- `include_meta` (optional) — Include `foreign_meta` sidecars in the manifest (default `true`).
+
+**Returns:**
+
+`String` — Formatted JSON manifest.
+
+---
+
 ### `is_failed(node)`
 
 Test if a node failed. Returns true for a failed node (`VError`), for a `read_node()` result whose value or diagnostics carry an error, or for an inspect result with status `Errored` or `SoftFailed`. Use after 0.56.1 instead of `is_error(inspect_node(x))`, which is always false. `NA` propagates as `NA`.
@@ -6185,7 +6253,7 @@ node.foreign_meta.n_features  -- input count (models)
 node.foreign_meta.n_trees     -- tree count (forests, when known)
 node.foreign_meta.n_rounds    -- boosting rounds (boosted trees, when known)
 node.foreign_meta.n_clusters  -- cluster count (clustering, when known)
-node.foreign_meta.n_nodes      -- tree node count (`rpart`, when known)
+node.foreign_meta.n_nodes      -- tree node count (`rpart`, `BinaryTree`, when known)
 node.foreign_meta.n_edges      -- edge count (igraph / networkx graphs, when known)
 node.foreign_meta.n_components -- component count (PCA, when known)
 node.foreign_meta.n_params     -- parameter count (torch/keras/Flux models, MCMC variables, GARCH estimates, when known)
@@ -8115,6 +8183,44 @@ show_plot("graph TD\n  Start --> Stop")
 
 When you pass a pipeline, meta-pipeline, or a string starting with a Mermaid keyword (like `graph` or `flowchart`) to `show_plot()`, T dynamically generates a temporary HTML file containing the Mermaid JS engine, renders the graph, and opens it using your configured system viewer/browser.
 
+### Model Metrics Leaderboard: `pipeline_metrics`
+
+In polyglot workflows, you frequently train and evaluate competing models across multiple runtimes—for example, fitting an exponential smoothing model (`forecast::ets`) in R, a gradient boosted regressor (`scikit-learn`) in Python, and a generalized linear model in Julia.
+
+`pipeline_metrics(p)` queries all built model nodes from the latest build log and merges their `foreign_meta` sidecars into a single comparison `DataFrame`:
+
+```t
+-- Compute a leaderboard across all model nodes
+metrics = pipeline_metrics(p)
+
+-- Filter by task and sort by a specific evaluation metric
+best_ts = pipeline_metrics(p, task = "time_series", sort_by = "aic")
+best_reg = pipeline_metrics(p, task = "regression", sort_by = "rmse")
+best_r2  = pipeline_metrics(p, task = "regression", sort_by = "r2", descending = true)
+```
+
+The resulting DataFrame contains:
+- **Base Columns**: `name`, `runtime`, `kind`, `task`, `method`, `n_obs`, `n_features`, `status`.
+- **Metric Columns**: One `Float` column per metric key reported by any model node (e.g., `aic`, `bic`, `rmse`, `r2`, `mae`), with `NA` for nodes that do not report that metric.
+- **Collision Protection**: If a metric key collides with a base column name (e.g., a metric named `n_obs`), it is automatically prefixed as `metric_n_obs`.
+
+### Markdown Leaderboard: `pipeline_metrics_markdown`
+
+For automated pipeline reports, Quarto documents, or CI summaries, render the leaderboard directly as a Markdown table:
+
+```t
+table_md = pipeline_metrics_markdown(p, task = "regression", sort_by = "rmse")
+print(table_md)
+```
+
+Produces:
+
+| name | runtime | kind | task | method | n_obs | status | aic | rmse | r2 |
+|---|---|---|---|---|---|---|---|---|---|
+| rf_model | Python | model | regression | RandomForestRegressor | 506 | Built | NA | 3.12 | 0.86 |
+| gbm_model | Python | model | regression | HistGradientBoostingRegressor | 506 | Built | NA | 2.89 | 0.89 |
+| lm_model | R | model | regression | lm | 506 | Built | 3021.4 | 4.67 | 0.73 |
+
 ---
 
 ## 29. Pipeline Validation
@@ -9763,6 +9869,33 @@ Now that you can work with numerical arrays, explore statistical modeling and re
 
 # Changelog
 
+## Unreleased
+
+### New features
+
+- **Cross-runtime model metrics leaderboard (`pipeline_metrics`, `pipeline_metrics_markdown`)**: `pipeline_metrics(p)` queries all model nodes across R, Python, and Julia from the latest `_pipeline/` build log and merges their `foreign_meta` sidecars into an aligned DataFrame. Base columns (`name`, `runtime`, `kind`, `task`, `method`, `n_obs`, `n_features`, `status`) are joined with one numeric column per metric key (such as `aic`, `bic`, `rmse`, `r2`, `mae`), sorted alphabetically with `NA` where a model does not report a metric. Metric keys colliding with base columns are safely prefixed (`metric_*`). Supports optional filtering by `task` (`"time_series"`, `"regression"`, `"classification"`) and sorting by `sort_by` (`"aic"`, `"n_obs"`, etc.) with `descending = true|false`. `pipeline_metrics_markdown(p)` renders the leaderboard as a GitHub-Flavored Markdown table for automated pipeline reports and documentation.
+- **T Language Server Protocol enhancements (`t-lsp`)**:
+  - **Quick-fixes (`textDocument/codeAction`)**: Real-time diagnostic suggestions (such as `Suggest_identifier`, `Rename_column`, `Rename_node`) now surface directly in LSP clients as one-click code actions (`Replace_text`). Supports `context.only = ["quickfix"]` filtering and marks high-confidence suggestions with `isPreferred = true`.
+  - **Live pipeline artifact hover (`textDocument/hover`)**: Hovering over member access expressions `p.node_name` displays a rich Markdown tooltip containing: runtime, output store path, execution duration, dimensions (rows × columns), column schema types, and full model metadata from the `meta` sidecar (task, method, metrics, parameters). Uses UTF-16 character offsets and caches build logs and sidecars by file modification time (`mtime`) for zero typing latency.
+- **Foreign schema hydration for `t check` (`--hydrate-foreign`)**: Static schema checking (`t check --schema`) now supports opt-in output schema hydration for foreign nodes (R, Python, Julia) via `--hydrate-foreign`. When passed, `t check` inspects cached `_pipeline/` build logs and metadata sidecars to infer downstream column types, detecting invalid column references before expensive builds while keeping default tier-2 checking completely hermetic and offline.
+- **Canonical T source code formatter (`t fmt`, `t_fmt`)**:
+  - CLI: `t fmt <file.t>` formats standard output, `t fmt --check <file.t>` validates formatting without modifications (exits 0 if clean, 1 if unformatted), and `t fmt --write <file.t>` (`-w`) formats files in place. Conflicting `--check` and `--write` flags or unknown options are rejected loudly.
+  - T Builtin: `t_fmt(path, write = false, check = false)` formats files programmatically.
+  - Formatter normalizes pipe chains (`|>`), binary arithmetic and equality operators, commas, and indentation to 2 spaces while preserving comments (`#`), raw multi-line code blocks (`<{ ... }>`), multi-line strings, and CRLF line endings. Includes a parse-preservation safety check ensuring the formatted code parses cleanly before modifying files.
+- **Offline reproducibility and provenance bundles (`t provenance`, `t_provenance`)**:
+  - CLI: `t provenance [--format ro-crate|sbom|json] [--output <path>] [--dir <dir>] [--file <file.t>] [--no-meta]`.
+  - T Builtin: `t_provenance(format = "ro-crate", output = NA, dir = ".", file = NA, include_meta = true)`.
+  - Exports deterministic provenance manifests from `tproject.toml`, locked Nix flake inputs (`flake.lock`), the latest build log (`_pipeline/build_log_*.json`), and `intent { ... }` blocks.
+  - Formats:
+    - **RO-Crate 1.1 JSON-LD** (`"ro-crate"`): Research Object Crate specification with dataset metadata (`datePublished`, `license`), node executions as `CreateAction` and `SoftwareApplication` entities, and stringified `foreignMeta`.
+    - **CycloneDX 1.5 SBOM** (`"sbom"`): Software Bill of Materials for software supply chain auditing. Converts Nix SRI SHA256 hashes to hex strings, emits pipeline nodes as `data` components to prevent dangling references, and generates package purls (`pkg:generic/julia`, `pkg:generic/nix`, `pkg:pypi/`, `pkg:cran/`).
+    - **T-Native JSON** (`"json"`): Structured JSON dump of the project provenance graph.
+- **Richer `explain()` foreign metadata for time-series and ML models**: R nodes now report task `time_series` for `forecast`-package models (`ets` with ETS letters and seasonal period, `bats`/`tbats` with multiple periods, `nnetar` with hidden-unit and repeat counts) and for `prophet`, tseries `garch`, rugarch `uGARCHfit` (variance-model name, estimated parameter count, log-likelihood/AIC/BIC), and vars `varest`/`vec2var` (lag order and equation count). Objects from `forecast(...)` report the new `forecast` kind with method, horizon, and interval level. `zoo`/`xts` series read as `series` kind with start/end — previously misreported as matrices. `glmnet`/`cv.glmnet` report the task from the fit class plus feature count, lambda count, deviance ratio, and `lambda_min`/`lambda_1se`; `ranger` forests report tree/feature/sample counts with OOB error; `catboost.Model` objects report the loss name, tree count, and feature count. Python torch and keras models report parameter and layer counts (keras adds the optimizer class); pmdarima ARIMA reports order, seasonal order, and likelihood criteria; catboost estimators report task, trees, features, and best iteration; sktime/darts/statsforecast forecasters report the fitted horizon. Julia `Distributions` values report `distribution` kind with the distribution name and moments; MCMCChains `Chains` report the new `chain` kind with draws, variables, and chain counts; Flux models report layer and parameter counts. New sidecar keys: `n_params`, `n_layers`, `n_chains`, `n_draws`, `n_lambda`, `n_equations`, `seasonal_period`, `horizon`, `changepoints`.
+- **`explain()` recognizes the wider modeling ecosystems**: R smooth models keep their identity — `mgcv::gam` reports smooth-term counts and keeps `s(wt)` coefficient names visible instead of folding into the plain `glm` branch. Mixed, panel, and count models report their facts: nlme `lme`/`gls` group counts and fit criteria, `rq` quantile, `survreg` distribution, `betareg` precision, `zeroinfl`/`hurdle`, `plm`, ordinal `clm`/`clmm` links, VGAM `vglm` families. Tuned wrappers report resampling results: caret `train` (model name and best accuracy/RMSE), parsnip `model_fit` and workflows (engine and mode), `svm`/`ksvm` kernels and support vectors, `gbm` distributions and shrinkage, `C5.0`, `earth`, pls `mvr`, partykit `BinaryTree` node counts. Clustering and ordination report standard facts: `Mclust`, `dbscan` (noise excluded), `clara`/`fanny` silhouettes, `mixEM`, FactoMineR `PCA`/`MCA`/`FAMD`/`CA`, psych `fa`/`principal`. Statistical objects read as their own kinds: urca unit-root and cointegration tests as `test`, coda `mcmc` chains as `chain`, lavaan SEM fits with chi-square/CFI/RMSEA, `dist` objects as `dist`, sparse Matrix objects with nnz, igraph networks as `graph` with node and edge counts. Python: imbalanced-learn estimators report like sklearn, polars `LazyFrame` shows its schema, xarray `Dataset` reports the new `dataset` kind, HuggingFace transformers report model type and parameter counts, tbats/skforecast/pyspark.ml/networkx report family facts, and statsmodels VECM/Markov-regime results report `time_series`. Julia: `CategoricalArray` values report `factor` kind with levels like R factors, MLJ machines name their model, and XGBoost.jl/ARCHModels fits report their facts.
+- **`explain()` keeps the R long tail**: tidyverts tables keep their identity — fable forecast tables report the `forecast` kind with horizon and model types, and mables (`mdl_df`/`model_df`) report model column names instead of reading as plain dataframes. The `smooth` package reports orders and AIC/BIC; `dlmFiltered` fits report observation counts. R6-based models report parameter and layer counts: keras models via `count_params()`, torch modules via parameter sums. Seurat objects report `dataset` kind with cell, gene, and active-assay counts. `neuralnet` fits report error and step counts.
+- **`explain()` keeps the Python long tail**: gensim `LdaModel` reports topic counts as components and `Word2Vec` reports vector size and vocabulary counts; dask frames report schema columns with partition counts; PIL images report the new `image` kind with dimensions and pixel mode; NeuralProphet reports parameter counts; tslearn clusterers report cluster counts.
+- **`explain()` keeps the Julia long tail**: Clustering.jl `CmeansResult`/`DbscanResult` report cluster facts; MultivariateStats `ICA`/`FactorAnalysis`/`PPCA`/`KernelPCA`/`MulticlassLDA` report `dim_reduction` with component and class counts; Graphs.jl networks report `graph` kind with node and edge counts; JuMP models report the new `optimization` kind with variable and constraint counts; SciML ODE problems and solutions report the new `ode` kind with time-span and return-code facts; GaussianMixtures `GMM` fits report `density` with component counts.
+
 ## [0.56.2] - 2026-10-29
 
 ### New features
@@ -11256,6 +11389,7 @@ Fix kinds: `rename_column`, `add_node_arg`, `rename_node`, `replace_text`, `sugg
 * `t diff --json`: `{ schema_version: "1", status, phase: "diff", build_a, build_b, summary, nodes }`. Nodes have `name`, `status`, `class_a`, `class_b`, `reasons`, `affected`, plus `hash` or `hash_a`/`hash_b`. Exit 0 = done. Exit 1 = no logs or compute error.
 * `t test --json`: `{ schema_version: "1", status: "passed"|"failed", total, passed, failed, duration_ms, results }`. Results have `file`, `status`, `duration_ms`, `error`. Exit 0 = all passed. Exit 1 = some failed.
 * `t run --json`: NDJSON. First event is `run_started` with `schema_version`. Then `node_completed`, `node_failed`, `node_skipped`. Last event is `run_finished` with `status`. Exit 0 = success. Exit 1 = build or runtime error.
+* `t provenance --format json`: `{ schema_version: "1.0", target, project, flake_inputs, pipeline }`. Project contains `name`, `version`, `authors`, `license`. Pipeline entries contain `name`, `runtime`, `serializer`, `status`, `duration_s`, `output_path`, `command_type`, `deps`, `meta`. Exit 0 = success. Exit 1 = error.
 
 ## Rules
 
@@ -14009,9 +14143,15 @@ T editor support has two separate pieces. You do **not** always need both.
 
 ## Language Server Protocol (LSP)
 
-The T language server provides advanced features like **Autocompletion** (context-aware suggestions), **Diagnostics** (real-time error checking), **Hover Information** (tooltips showing signatures/docs), and **Go to Definition**.
+The T language server (`t-lsp`) provides language intelligence features directly inside modern text editors and IDEs:
 
-The `t-lsp` server is implemented in OCaml. When you enter a T project via `nix develop`, the correctly versioned binary is put in your `PATH`.
+- **Autocompletion**: Context-aware suggestions for imported packages, builtins, local variables, and DataFrame column references (`$col`).
+- **Diagnostics**: Real-time syntax, type, schema, and DAG validation without manual checking.
+- **Code Actions (Quick-Fixes)**: One-click fixes (`textDocument/codeAction`) for actionable diagnostics such as typo corrections, column renames, and node renames.
+- **Live Pipeline Artifact Hover**: Rich tooltips (`textDocument/hover`) showing execution status, store paths, durations, schema shapes, and foreign model metrics when hovering over pipeline nodes (`p.node_name`).
+- **Go to Definition**: Jump directly to function definitions, imported package symbols, and pipeline nodes.
+
+The `t-lsp` server is implemented in OCaml. When you enter a T project via `nix develop`, the correctly versioned binary is placed in your `PATH`.
 
 > [!IMPORTANT]
 > **Launching the LSP**: For your editor to find the `t-lsp` binary, you must either launch your editor from **within** a `nix develop` shell, or use a tool like **[direnv](https://direnv.net/)** with `use flake` to automatically load the environment.
@@ -14024,6 +14164,28 @@ which t-lsp
 ```
 
 If `which t-lsp` prints nothing, your editor will not be able to start the T language server either.
+
+### LSP Quick-Fixes (Code Actions)
+
+When `t-lsp` detects actionable issues in your script (such as a misspelled identifier, a renamed DataFrame column, or a node name collision), it emits diagnostics with suggested fixes. In supported editors, these suggestions appear as interactive **Code Actions**:
+
+- **VS Code / Positron**: Place the cursor on the underlined warning or error and press `Ctrl+.` (or `Cmd+.` on macOS), or click the lightbulb icon to apply the suggested fix.
+- **Neovim**: Run `:lua vim.lsp.buf.code_action()` (or use your configured keymap, e.g. `<leader>ca`).
+- **Emacs (eglot)**: Run `M-x eglot-code-actions`.
+
+The language server filters code actions when requested with `context.only = ["quickfix"]` and marks high-confidence replacements with `isPreferred = true`.
+
+### Live Pipeline Artifact Hover
+
+When working with pipeline definitions in T scripts, you frequently reference nodes via member access expressions (e.g. `p.clean_data` or `p.model_forecast`). `t-lsp` inspects the project's cached build log (`_pipeline/build_log_*.json`) and metadata sidecars to give you instant feedback on hover:
+
+- **Execution status & duration**: Whether the node is built or errored, and how many seconds it took to build.
+- **Nix Store path**: The exact immutable `/nix/store/...` artifact path.
+- **Data shape**: Number of rows and columns for tabular artifacts.
+- **Schema & column types**: List of columns and Arrow types produced by the node.
+- **Model metadata & metrics**: For nodes producing machine learning models, time-series fits, or statistical estimates, the hover card displays the model family, task, method, and key training metrics (such as AIC, BIC, RMSE, $R^2$, or parameter count).
+
+Build logs and metadata sidecars are cached in memory and refreshed based on filesystem modification timestamps (`mtime`), ensuring that editor hover queries are instantaneous and non-blocking.
 
 ---
 
@@ -21212,6 +21374,12 @@ A consolidated index of all pipeline reading, inspecting, and build-log function
 | `suppress_warnings(val)` | `Any` | original value | Suppress console warnings for a node; still accessible via `warning_msg()` |
 | `debug_node(node)` | `ComputedNode` | `NA` | Interactive REPL subshell pre-configured with node environment |
 | `rebuild_node(node)` | `ComputedNode` | `ComputedNode` | Rebuild a single node and return updated artifact path |
+| `is_failed(node)` | `Any` | `Bool` \| `NA` | Test if a node, inspect result, or computed value represents a failure |
+| `node_status(node)` | `ComputedNode` \| `VError` | `String` | Return status string (`"Built"`, `"Errored"`, etc.); raises TypeError on non-nodes |
+| `pipeline_overview(p, only?)` | `Pipeline`, optional `String` | `DataFrame` | Unified table joining static DAG configuration with live build state |
+| `pipeline_overview_markdown(p, only?)` | `Pipeline`, optional `String` | `String` | Markdown table representation of `pipeline_overview` |
+| `pipeline_metrics(p, task?, sort_by?, descending?)` | `Pipeline`, optional `String`, `String`, `Bool` | `DataFrame` | Cross-runtime model metrics leaderboard from build sidecars |
+| `pipeline_metrics_markdown(p, task?, sort_by?, descending?)` | `Pipeline`, optional `String`, `String`, `Bool` | `String` | Markdown table representation of `pipeline_metrics` |
 
 ### Pipeline DAG Structure
 
@@ -21256,6 +21424,8 @@ A consolidated index of all pipeline reading, inspecting, and build-log function
 | `inspect_artifacts(archive)` | `String` | `DataFrame` | Preview archive contents without importing |
 | `pipeline_gc(p, dry_run?)` | `Pipeline`, optional `Bool` | `DataFrame` | GC pipeline store paths (dry_run=true previews) |
 | `t_gc()` | — | `String` | Global Nix garbage collection |
+| `t_provenance(format?, output?, dir?, file?, include_meta?)` | optional `String`, `String`, `String`, `String`, `Bool` | `String` | Generate offline provenance bundle (RO-Crate 1.1, CycloneDX 1.5, or JSON) |
+| `t_fmt(path, write?, check?)` | `String`, optional `Bool`, `Bool` | `String` \| `Bool` | Canonical T source code formatter |
 
 ### Global Options
 
@@ -23031,6 +23201,52 @@ Or use the REPL for interactive exploration:
 $ t repl
 ```
 
+### 5.1 Formatting T Code with `t fmt`
+
+T includes a canonical code formatter to ensure consistent code style across your project:
+
+```bash
+# Print formatted source to standard output
+$ t fmt src/pipeline.t
+
+# Check if a file is formatted (exits with 0 if clean, 1 if unformatted)
+$ t fmt --check src/pipeline.t
+
+# Format a file in place
+$ t fmt --write src/pipeline.t
+# or short flag:
+$ t fmt -w src/pipeline.t
+```
+
+The formatter enforces 2-space indentation, normalizes pipe chains (`|>`), arithmetic operators (`+`, `-`, `*`, `/`), and assignment/comparison operators (`=`, `==`, `!=`), while strictly preserving:
+- Comments (`#` and `--`)
+- Embedded foreign code blocks (`<{ ... }>`)
+- Multi-line strings
+- Existing newline styles (LF vs CRLF)
+
+Before writing any changes, `t fmt` verifies that the formatted code parses identically to the input to prevent accidental syntax alteration.
+
+### 5.2 Fast Pipeline Checking with `t check`
+
+During development, validate your pipeline without waiting for Nix builds:
+
+| Command | What it checks | Nix build required? |
+| --- | --- | --- |
+| `t check src/pipeline.t` | DAG structure, missing dependencies, cycles, syntax | No (instant) |
+| `t check --schema src/pipeline.t` | + Column references, Arrow data types, schema flow | No (instant) |
+| `t check --schema --hydrate-foreign src/pipeline.t` | + Hydrates foreign node output schemas from cached build logs | No (instant) |
+| `t check --env src/pipeline.t` | + `tproject.toml` package declarations and Nix eval | Yes (eval only) |
+
+#### Hydrating Foreign Schemas (`--hydrate-foreign`)
+
+Because foreign pipeline nodes (R, Python, Julia) execute dynamic code inside sandbox derivations, their exact output schemas are only known after execution. By default, `t check --schema` remains strictly static and hermetic.
+
+When you pass `--hydrate-foreign`, `t check` inspects cached build logs (`_pipeline/build_log_*.json`) and metadata sidecars from previous builds. It populates output column schemas for foreign nodes, allowing downstream T verbs (e.g. `filter($mpg > 20)`) to validate column names and types before running subsequent builds.
+
+```bash
+$ t check --schema --hydrate-foreign src/pipeline.t
+```
+
 ## 6. Running Tests
 
 You can add tests in `tests/` following the same conventions as packages:
@@ -23122,6 +23338,20 @@ $ t run src/pipeline.t
 ```
 
 The same T version, same package versions, same R packages, and same system libraries are used every time.
+
+### 7.1 Auditing Provenance with `t provenance`
+
+When sharing or publishing analyses, create offline reproducibility bundles containing pinned Nix inputs, build logs, and foreign model metadata:
+
+```bash
+# Generate Research Object Crate (RO-Crate 1.1 JSON-LD)
+$ t provenance --format ro-crate -o ro-crate-metadata.json
+
+# Generate Software Bill of Materials (CycloneDX 1.5 SBOM)
+$ t provenance --format sbom -o sbom.cdx.json
+```
+
+See the [Reproducibility Guide](reproducibility.md#offline-provenance-bundles-with-t-provenance) for details on supported formats and programmatic usage.
 
 ## 8. IDE Support & Autocompletion
 
@@ -30244,6 +30474,25 @@ Predicate helper for to_factor columns or to_factor vectors.
 
 
 
+# FILE: docs/reference/is_failed.md
+
+# is_failed
+
+Test if a node failed
+
+Returns true for a failed node (VError), for a `read_node()` result whose value or diagnostics carry an error, or for an inspect result with status Errored or SoftFailed. Use this after 0.56.1 instead of is_error(inspect_node(x)), which is always false. NA propagates as NA; a value that is not a node, read_node result, inspect result, or error is false.
+
+## Parameters
+
+- **node** (`Any`): A node value, read_node result, inspect result, or error.
+
+
+## Returns
+
+True when failed or Errored.
+
+
+
 # FILE: docs/reference/is_interval.md
 
 # is_interval
@@ -31953,6 +32202,25 @@ A lens for the specified metadata field.
 
 
 
+# FILE: docs/reference/node_status.md
+
+# node_status
+
+Node build status
+
+Returns Built for a computed node, Errored for a failed node or a `read_node()` result carrying an error, or the status field of an inspect result. NA propagates as NA.
+
+## Parameters
+
+- **node** (`Any`): A node value, read_node result, inspect result, or error.
+
+
+## Returns
+
+Built or Errored.
+
+
+
 # FILE: docs/reference/node_when.md
 
 # node_when
@@ -32960,6 +33228,79 @@ pipeline_leaves(p)
 
 
 
+# FILE: docs/reference/pipeline_metrics_markdown.md
+
+# pipeline_metrics_markdown
+
+Markdown Model Metrics Leaderboard
+
+Renders model metadata and metrics (`name`, `runtime`, `kind`, `task`, `method`, `n_obs`, `status`, plus all metric columns) as a Markdown table for reports and workflow summaries.
+
+## Parameters
+
+- **pipeline** (`Pipeline`): The pipeline to compare.
+
+- **task** (`String`): = NA Optional task filter.
+
+- **sort_by** (`String`): = NA Optional column to sort by.
+
+- **descending** (`Bool`): = false Sort descending when true.
+
+
+## Returns
+
+Markdown table of model metadata and metrics.
+
+## Examples
+
+```t
+pipeline_metrics_markdown(p)
+pipeline_metrics_markdown(p, sort_by = "aic")
+```
+
+## See Also
+
+[pipeline_report](pipeline_report.html), [pipeline_overview_markdown](pipeline_overview_markdown.html), [pipeline_metrics](pipeline_metrics.html)
+
+
+
+# FILE: docs/reference/pipeline_metrics.md
+
+# pipeline_metrics
+
+Cross-Runtime Model Metrics Leaderboard
+
+Collects build-time `foreign_meta` sidecars from model nodes across R, Python, and Julia into a single comparison DataFrame. Includes every built node whose `meta` sidecar reports `kind = "model"` or non-empty `metrics`. Base columns (`name`, `runtime`, `kind`, `task`, `method`, `n_obs`, `n_features`, `status`) are followed by one Float column per metric key found across the selected nodes (sorted alphabetically, NA where a node does not report that metric). Metric keys that collide with a base column name are prefixed with `metric_`. Non-finite metrics (NaN/Inf) are recorded as NA, and nodes with missing or unreadable `meta` sidecars are skipped.
+
+## Parameters
+
+- **pipeline** (`Pipeline`): The pipeline to compare.
+
+- **task** (`String`): = NA Optional task filter (e.g. "regression", "classification", "time_series").
+
+- **sort_by** (`String`): = NA Optional column to sort by (any metric column, "n_obs", "n_features", or "name").
+
+- **descending** (`Bool`): = false Sort descending when true (default false, lowest metric first).
+
+
+## Returns
+
+One row per model node with aligned metric columns.
+
+## Examples
+
+```t
+pipeline_metrics(p)
+pipeline_metrics(p, task = "time_series", sort_by = "aic")
+pipeline_metrics(p, sort_by = "r2", descending = true)
+```
+
+## See Also
+
+[explain](explain.html), [pipeline_overview](pipeline_overview.html), [pipeline_metrics_markdown](pipeline_metrics_markdown.html)
+
+
+
 # FILE: docs/reference/pipeline_node.md
 
 # pipeline_node
@@ -33058,6 +33399,70 @@ The node names.
 ## See Also
 
 [pipeline_deps](pipeline_deps.html), [pipeline_node](pipeline_node.html)
+
+
+
+# FILE: docs/reference/pipeline_overview_markdown.md
+
+# pipeline_overview_markdown
+
+Unified pipeline overview table
+
+One call joins pipeline structure with the latest build log into a single per-node table: the columns of `pipeline_to_frame` plus the live build state of `pipeline_status`. 
+
+It is not a superset of the other frames. `pipeline_config_to_frame` also reports `shell`, `flake`, the `prov_*` provenance columns and the `n_*` count columns. None of these are repeated here; call that function when you need them. Node diagnostics live in `pipeline_node_options` (and as `$diagnostics` in `filter_node` predicates), not in this table nor in `pipeline_to_frame`. 
+
+Column names match the source frames so filters copy over unchanged. Failed nodes sort first so the root cause is visible without extra calls. 
+
+Columns: 
+
+- `name` — node name (String) 
+- `runtime` — e.g. "T", "R", "Python" (String) 
+- `serializer` — e.g. "default", "^csv" (String) 
+- `deserializer` — e.g. "default", "^csv" (String) 
+- `noop` — whether the node is a no-op (Bool) 
+- `deps` — names of nodes this node depends on (String, comma-separated) 
+- `depth` — topological depth in the DAG (Int); roots are depth 0 
+- `command_type` — one of "command" or "script" (String) 
+- `status` — build status from the latest matching log, or NA 
+- `duration` — node build duration in seconds (Float), or NA 
+- `path` — Nix store path of the node output, or NA 
+- `error` — `code: message` for failed nodes, or NA
+
+## Parameters
+
+- **pipeline** (`Pipeline`): The pipeline to summarize.
+
+- **only** (`String`): = NA Filter rows: failed, built, unbuilt, or all. Default shows all, failed first.
+
+- **pipeline** (`Pipeline`): The pipeline to summarize.
+
+- **only** (`String`): = NA Same filter as pipeline_overview.
+
+
+## Returns
+
+Markdown table with name, runtime, status, depth, error.
+
+## Examples
+
+```t
+pipeline_overview(p)
+pipeline_overview(p, only = "failed")
+pipeline_overview(p) |> filter($status == "Errored")
+
+Markdown overview table
+
+Same rows as pipeline_overview, rendered as a Markdown table
+for reports and workflow summaries.
+
+pipeline_overview_markdown(p)
+pipeline_overview_markdown(p, only = "failed")
+```
+
+## See Also
+
+[pipeline_overview_markdown](pipeline_overview_markdown.html), [pipeline_config_to_frame](pipeline_config_to_frame.html), [pipeline_status](pipeline_status.html), [pipeline_to_frame](pipeline_to_frame.html), [pipeline_report](pipeline_report.html), [pipeline_overview](pipeline_overview.html)
 
 
 
@@ -37252,6 +37657,31 @@ The extracted substring.
 
 
 
+# FILE: docs/reference/str_to_title.md
+
+# str_to_title
+
+Title case
+
+Capitalizes each word. Words split on space.
+
+## Parameters
+
+- **s** (`String | List | Vector`): The input string(s).
+
+
+## Returns
+
+Title-cased string.
+
+## Examples
+
+```t
+str_to_title("hello world")
+```
+
+
+
 # FILE: docs/reference/str_trim.md
 
 # str_trim
@@ -37713,6 +38143,41 @@ Summary of fixes applied (or would be applied).
 
 
 
+# FILE: docs/reference/t_fmt.md
+
+# t_fmt
+
+Format T Source File
+
+Formats a `.t` file using the canonical T formatter, preserving comments and `<{ ... }>` raw foreign code blocks. By default returns the formatted source string without modifying the file; pass `write = true` to update the file in place, or `check = true` to return a Bool indicating whether the file is already formatted.
+
+## Parameters
+
+- **path** (`String`): Path to the `.t` file to format.
+
+- **write** (`Bool`): = false When true, write formatted output back to `path`.
+
+- **check** (`Bool`): = false When true, return `true` if already formatted, `false` otherwise.
+
+
+## Returns
+
+Formatted source string, or Bool when `check = true`.
+
+## Examples
+
+```t
+t_fmt("src/pipeline.t")
+t_fmt("src/pipeline.t", write = true)
+t_fmt("src/pipeline.t", check = true)
+```
+
+## See Also
+
+[t_fix](t_fix.html), [t_check](t_check.html)
+
+
+
 # FILE: docs/reference/t_gc.md
 
 # t_gc
@@ -38153,6 +38618,45 @@ Converts all characters in the string to uppercase, using the Unicode character 
 ## Returns
 
 The uppercase string.
+
+
+
+# FILE: docs/reference/t_provenance.md
+
+# t_provenance
+
+Generate Reproducibility & Audit Provenance Bundle
+
+Collects local project metadata (`tproject.toml`), locked Nix flake inputs (`flake.lock`), the latest `_pipeline/build_log_*.json` with `foreign_meta` sidecars, and `intent { ... }` blocks into an offline, deterministic provenance manifest. Supports RO-Crate 1.1 JSON-LD (`"ro-crate"`), CycloneDX 1.5 SBOM (`"sbom"`), and T-native JSON (`"json"`).
+
+## Parameters
+
+- **format** (`String`): = "ro-crate" Output format: "ro-crate", "sbom", or "json".
+
+- **output** (`String`): = NA Optional file path to write the manifest to.
+
+- **dir** (`String`): = "." Optional project root directory.
+
+- **file** (`String`): = NA Optional `.t` file to extract `intent` blocks from.
+
+- **include_meta** (`Bool`): = true Include `foreign_meta` sidecars in the manifest.
+
+
+## Returns
+
+The formatted JSON provenance manifest.
+
+## Examples
+
+```t
+t_provenance()
+t_provenance(format = "sbom", output = "sbom.cdx.json")
+t_provenance(format = "ro-crate", output = "ro-crate-metadata.json", include_meta = false)
+```
+
+## See Also
+
+[pipeline_metrics](pipeline_metrics.html), [pipeline_overview](pipeline_overview.html), [pipeline_report](pipeline_report.html)
 
 
 
@@ -39756,6 +40260,94 @@ dvc add data/sales.csv
 git add data/sales.csv.dvc
 
 # Data is versioned alongside code
+```
+
+---
+
+## Offline Provenance Bundles with `t provenance`
+
+Reproducibility requires not only bit-for-bit rebuilds, but also transparent audit trails for scientific peer review, regulatory compliance, and software supply chain security.
+
+T provides the `t provenance` CLI command and the `t_provenance()` standard library function to generate self-contained, offline provenance bundles directly from your project's local state without requiring network access.
+
+### Sources of Provenance Data
+
+A provenance bundle aggregates metadata from four authoritative local sources:
+
+1. **`tproject.toml`**: Project identity, authors, license, minimum language version, and declared runtime dependencies (R, Python, Julia).
+2. **`flake.lock`**: Exact commit hashes, revisions, and content hashes (`narHash`) for all Nix inputs.
+3. **`_pipeline/build_log_*.json`**: Execution timestamps, durations, Nix store paths, output artifact formats, and `meta` / `foreign_meta` sidecars (metrics, schemas, and model kinds).
+4. **`intent { ... }` blocks**: High-level computational assumptions, data invariants, and modeling intentions declared in `.t` source scripts.
+
+### Supported Standards
+
+T exports provenance in three distinct formats:
+
+#### 1. Research Object Crate (RO-Crate 1.1 JSON-LD)
+
+[RO-Crate](https://www.researchobject.org/ro-crate/) is a community-driven specification for packaging research artifacts and their execution metadata as Linked Data (`ro-crate-metadata.json`).
+
+- Conforms to the RO-Crate 1.1 specification and Workflow Run Crate profiles.
+- Emits root dataset entities with mandatory `datePublished`, `license`, and descriptive metadata.
+- Represents pipeline nodes as `CreateAction` (execution events) and `SoftwareApplication` (computational steps) entities.
+- Preserves polyglot model metadata and metrics under stringified `foreignMeta` properties.
+
+```bash
+# Generate RO-Crate metadata to standard output
+t provenance --format ro-crate
+
+# Save directly to a file
+t provenance --format ro-crate -o ro-crate-metadata.json
+```
+
+#### 2. Software Bill of Materials (CycloneDX 1.5 SBOM)
+
+[CycloneDX](https://cyclonedx.org/) is a lightweight, widely adopted standard for Software Bill of Materials (SBOM) used in cybersecurity and software supply chain compliance.
+
+- Formatted according to the CycloneDX 1.5 JSON specification.
+- Translates Nix SRI content hashes (`sha256-<base64>`) to hexadecimal hashes (`SHA-256`) required by the CycloneDX schema.
+- Emits declared packages with Package URLs (`purl`), including PyPI (`pkg:pypi/`), CRAN (`pkg:cran/`), and generic purls (`pkg:generic/julia`, `pkg:generic/nix`).
+- Declares pipeline nodes as components with type `"data"` to ensure valid dependency graph references without dangling references.
+
+```bash
+# Generate CycloneDX 1.5 SBOM
+t provenance --format sbom -o bom.cdx.json
+```
+
+#### 3. T-Native JSON
+
+A direct, structured JSON serialization of the pipeline provenance graph, suitable for custom scripts and analysis:
+
+```bash
+t provenance --format json -o provenance.json
+```
+
+### CLI Command Options
+
+```text
+Usage: t provenance [options]
+
+Options:
+  --format <fmt>   Output format: 'ro-crate' (default), 'sbom', or 'json'
+  --output, -o <s> Output file path (defaults to stdout)
+  --dir <s>        Project root directory (defaults to current working directory)
+  --file <s>       Target .t script to extract intent blocks from
+  --no-meta        Exclude foreign metadata sidecars from the bundle
+```
+
+### Programmatic Usage
+
+You can also generate provenance manifests inside T scripts or in the REPL using `t_provenance()`:
+
+```t
+-- Generate RO-Crate metadata
+crate = t_provenance(format = "ro-crate")
+
+-- Write CycloneDX SBOM directly to file
+t_provenance(format = "sbom", output = "sbom.cdx.json")
+
+-- Generate provenance excluding foreign metadata sidecars
+t_provenance(format = "ro-crate", output = "ro-crate.json", include_meta = false)
 ```
 
 ---

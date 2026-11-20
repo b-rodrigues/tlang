@@ -103,6 +103,14 @@ Results have <code>file</code>, <code>status</code>,
 <code>node_skipped</code>. Last event is <code>run_finished</code> with
 <code>status</code>. Exit 0 = success. Exit 1 = build or runtime
 error.</li>
+<li><code>t provenance --format json</code>:
+<code>{ schema_version: "1.0", target, project, flake_inputs, pipeline }</code>.
+Project contains <code>name</code>, <code>version</code>,
+<code>authors</code>, <code>license</code>. Pipeline entries contain
+<code>name</code>, <code>runtime</code>, <code>serializer</code>,
+<code>status</code>, <code>duration_s</code>, <code>output_path</code>,
+<code>command_type</code>, <code>deps</code>, <code>meta</code>. Exit 0
+= success. Exit 1 = error.</li>
 </ul>
 <h2 id="rules">Rules</h2>
 <ul>

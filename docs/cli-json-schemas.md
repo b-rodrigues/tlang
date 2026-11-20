@@ -43,6 +43,7 @@ Fix kinds: `rename_column`, `add_node_arg`, `rename_node`, `replace_text`, `sugg
 * `t diff --json`: `{ schema_version: "1", status, phase: "diff", build_a, build_b, summary, nodes }`. Nodes have `name`, `status`, `class_a`, `class_b`, `reasons`, `affected`, plus `hash` or `hash_a`/`hash_b`. Exit 0 = done. Exit 1 = no logs or compute error.
 * `t test --json`: `{ schema_version: "1", status: "passed"|"failed", total, passed, failed, duration_ms, results }`. Results have `file`, `status`, `duration_ms`, `error`. Exit 0 = all passed. Exit 1 = some failed.
 * `t run --json`: NDJSON. First event is `run_started` with `schema_version`. Then `node_completed`, `node_failed`, `node_skipped`. Last event is `run_finished` with `status`. Exit 0 = success. Exit 1 = build or runtime error.
+* `t provenance --format json`: `{ schema_version: "1.0", target, project, flake_inputs, pipeline }`. Project contains `name`, `version`, `authors`, `license`. Pipeline entries contain `name`, `runtime`, `serializer`, `status`, `duration_s`, `output_path`, `command_type`, `deps`, `meta`. Exit 0 = success. Exit 1 = error.
 
 ## Rules
 

@@ -4126,7 +4126,7 @@ Formats a `.t` source file using the canonical T formatter, preserving comments 
 
 ---
 
-### `t_provenance(format = "ro-crate", output = NA, dir = ".")`
+### `t_provenance(format = "ro-crate", output = NA, dir = ".", file = NA, include_meta = true)`
 
 Generates an offline reproducibility and audit bundle from `tproject.toml`, `flake.lock`, the latest `_pipeline/build_log_*.json` with `foreign_meta` sidecars, and `intent { ... }` blocks.
 
@@ -4135,6 +4135,8 @@ Generates an offline reproducibility and audit bundle from `tproject.toml`, `fla
 - `format` (optional) — `"ro-crate"` (RO-Crate 1.1 JSON-LD), `"sbom"` (CycloneDX 1.5 JSON), or `"json"`.
 - `output` (optional) — Optional output file path.
 - `dir` (optional) — Project root directory (default `"."`).
+- `file` (optional) — Target `.t` file to extract `intent` blocks from.
+- `include_meta` (optional) — Include `foreign_meta` sidecars in the manifest (default `true`).
 
 **Returns:**
 

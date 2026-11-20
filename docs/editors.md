@@ -23,9 +23,15 @@ T editor support has two separate pieces. You do **not** always need both.
 
 ## Language Server Protocol (LSP)
 
-The T language server provides advanced features like **Autocompletion** (context-aware suggestions), **Diagnostics** (real-time error checking), **Hover Information** (tooltips showing signatures/docs), and **Go to Definition**.
+The T language server (`t-lsp`) provides language intelligence features directly inside modern text editors and IDEs:
 
-The `t-lsp` server is implemented in OCaml. When you enter a T project via `nix develop`, the correctly versioned binary is put in your `PATH`.
+- **Autocompletion**: Context-aware suggestions for imported packages, builtins, local variables, and DataFrame column references (`$col`).
+- **Diagnostics**: Real-time syntax, type, schema, and DAG validation without manual checking.
+- **Code Actions (Quick-Fixes)**: One-click fixes (`textDocument/codeAction`) for actionable diagnostics such as typo corrections, column renames, and node renames.
+- **Live Pipeline Artifact Hover**: Rich tooltips (`textDocument/hover`) showing execution status, store paths, durations, schema shapes, and foreign model metrics when hovering over pipeline nodes (`p.node_name`).
+- **Go to Definition**: Jump directly to function definitions, imported package symbols, and pipeline nodes.
+
+The `t-lsp` server is implemented in OCaml. When you enter a T project via `nix develop`, the correctly versioned binary is placed in your `PATH`.
 
 > [!IMPORTANT]
 > **Launching the LSP**: For your editor to find the `t-lsp` binary, you must either launch your editor from **within** a `nix develop` shell, or use a tool like **[direnv](https://direnv.net/)** with `use flake` to automatically load the environment.
@@ -38,6 +44,28 @@ which t-lsp
 ```
 
 If `which t-lsp` prints nothing, your editor will not be able to start the T language server either.
+
+### LSP Quick-Fixes (Code Actions)
+
+When `t-lsp` detects actionable issues in your script (such as a misspelled identifier, a renamed DataFrame column, or a node name collision), it emits diagnostics with suggested fixes. In supported editors, these suggestions appear as interactive **Code Actions**:
+
+- **VS Code / Positron**: Place the cursor on the underlined warning or error and press `Ctrl+.` (or `Cmd+.` on macOS), or click the lightbulb icon to apply the suggested fix.
+- **Neovim**: Run `:lua vim.lsp.buf.code_action()` (or use your configured keymap, e.g. `<leader>ca`).
+- **Emacs (eglot)**: Run `M-x eglot-code-actions`.
+
+The language server filters code actions when requested with `context.only = ["quickfix"]` and marks high-confidence replacements with `isPreferred = true`.
+
+### Live Pipeline Artifact Hover
+
+When working with pipeline definitions in T scripts, you frequently reference nodes via member access expressions (e.g. `p.clean_data` or `p.model_forecast`). `t-lsp` inspects the project's cached build log (`_pipeline/build_log_*.json`) and metadata sidecars to give you instant feedback on hover:
+
+- **Execution status & duration**: Whether the node is built or errored, and how many seconds it took to build.
+- **Nix Store path**: The exact immutable `/nix/store/...` artifact path.
+- **Data shape**: Number of rows and columns for tabular artifacts.
+- **Schema & column types**: List of columns and Arrow types produced by the node.
+- **Model metadata & metrics**: For nodes producing machine learning models, time-series fits, or statistical estimates, the hover card displays the model family, task, method, and key training metrics (such as AIC, BIC, RMSE, $R^2$, or parameter count).
+
+Build logs and metadata sidecars are cached in memory and refreshed based on filesystem modification timestamps (`mtime`), ensuring that editor hover queries are instantaneous and non-blocking.
 
 ---
 

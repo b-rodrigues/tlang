@@ -145,6 +145,12 @@ A consolidated index of all pipeline reading, inspecting, and build-log function
 | `suppress_warnings(val)` | `Any` | original value | Suppress console warnings for a node; still accessible via `warning_msg()` |
 | `debug_node(node)` | `ComputedNode` | `NA` | Interactive REPL subshell pre-configured with node environment |
 | `rebuild_node(node)` | `ComputedNode` | `ComputedNode` | Rebuild a single node and return updated artifact path |
+| `is_failed(node)` | `Any` | `Bool` \| `NA` | Test if a node, inspect result, or computed value represents a failure |
+| `node_status(node)` | `ComputedNode` \| `VError` | `String` | Return status string (`"Built"`, `"Errored"`, etc.); raises TypeError on non-nodes |
+| `pipeline_overview(p, only?)` | `Pipeline`, optional `String` | `DataFrame` | Unified table joining static DAG configuration with live build state |
+| `pipeline_overview_markdown(p, only?)` | `Pipeline`, optional `String` | `String` | Markdown table representation of `pipeline_overview` |
+| `pipeline_metrics(p, task?, sort_by?, descending?)` | `Pipeline`, optional `String`, `String`, `Bool` | `DataFrame` | Cross-runtime model metrics leaderboard from build sidecars |
+| `pipeline_metrics_markdown(p, task?, sort_by?, descending?)` | `Pipeline`, optional `String`, `String`, `Bool` | `String` | Markdown table representation of `pipeline_metrics` |
 
 ### Pipeline DAG Structure
 
@@ -189,6 +195,8 @@ A consolidated index of all pipeline reading, inspecting, and build-log function
 | `inspect_artifacts(archive)` | `String` | `DataFrame` | Preview archive contents without importing |
 | `pipeline_gc(p, dry_run?)` | `Pipeline`, optional `Bool` | `DataFrame` | GC pipeline store paths (dry_run=true previews) |
 | `t_gc()` | — | `String` | Global Nix garbage collection |
+| `t_provenance(format?, output?, dir?, file?, include_meta?)` | optional `String`, `String`, `String`, `String`, `Bool` | `String` | Generate offline provenance bundle (RO-Crate 1.1, CycloneDX 1.5, or JSON) |
+| `t_fmt(path, write?, check?)` | `String`, optional `Bool`, `Bool` | `String` \| `Bool` | Canonical T source code formatter |
 
 ### Global Options
 
