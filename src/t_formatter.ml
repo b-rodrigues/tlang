@@ -1,4 +1,4 @@
-(* src/fmt.ml *)
+(* src/t_formatter.ml *)
 (* Canonical, comment-preserving, raw-block-preserving formatter for T source files. *)
 
 type line_segment =
@@ -12,8 +12,9 @@ let is_ident_char = function
   | 'a'..'z' | 'A'..'Z' | '0'..'9' | '_' -> true
   | _ -> false
 
-(* Split a single non-raw line into code, string, backtick, inline raw-block,
-   and comment segments. Returns (segments, opens_multiline_raw). *)
+(* Split a single non-raw, non-multiline-string line into code, string,
+   backtick, inline raw-block, and comment segments.
+   Returns (segments, opens_multiline_raw, opens_multiline_str). *)
 let split_line_segments line =
   let n = String.length line in
   let segs = ref [] in
@@ -25,6 +26,7 @@ let split_line_segments line =
     end
   in
   let opens_raw = ref false in
+  let opens_str = ref false in
   let i = ref 0 in
   while !i < n do
     let c = line.[!i] in
@@ -57,7 +59,8 @@ let split_line_segments line =
           closed := true
         end else incr i
       done;
-      segs := SegString (String.sub line start (!i - start)) :: !segs
+      segs := SegString (String.sub line start (!i - start)) :: !segs;
+      if not !closed then opens_str := true
     end else if c = '`' then begin
       flush_code ();
       let start = !i in
@@ -76,23 +79,38 @@ let split_line_segments line =
     end
   done;
   flush_code ();
-  (List.rev !segs, !opens_raw)
+  (List.rev !segs, !opens_raw, !opens_str)
 
-(* Normalize spacing within a pure T-code segment (never touches strings,
-   comments, or raw blocks). *)
-let format_code_segment s =
+let trim_trailing_space buf =
+  let len = ref (Buffer.length buf) in
+  while !len > 0 && Buffer.nth buf (!len - 1) = ' ' do
+    decr len
+  done;
+  Buffer.truncate buf !len
+
+let is_operand_end = function
+  | Some c -> is_ident_char c || c = ')' || c = ']' || c = '"' || c = '`' || c = '>'
+  | None -> false
+
+(* Normalize spacing within a pure T-code segment.
+   [prev] is the last character emitted before this segment (e.g. a quote or
+   closing angle bracket from an adjacent string or raw block); [has_next] is
+   true when another non-comment code/literal segment follows on the same line. *)
+let format_code_segment ~prev ~has_next s =
   let n = String.length s in
   let buf = Buffer.create (n + 8) in
   let last_char () =
     let len = Buffer.length buf in
-    if len = 0 then None else Some (Buffer.nth buf (len - 1))
+    if len = 0 then prev else Some (Buffer.nth buf (len - 1))
   in
-  let trim_trailing_space () =
-    while Buffer.length buf > 0 && Buffer.nth buf (Buffer.length buf - 1) = ' ' do
-      let cur = Buffer.contents buf in
-      Buffer.clear buf;
-      Buffer.add_string buf (String.sub cur 0 (String.length cur - 1))
-    done
+  let last_non_space () =
+    let len = Buffer.length buf in
+    let rec scan k =
+      if k < 0 then prev
+      else if Buffer.nth buf k = ' ' then scan (k - 1)
+      else Some (Buffer.nth buf k)
+    in
+    scan (len - 1)
   in
   let ensure_space () =
     match last_char () with
@@ -108,9 +126,9 @@ let format_code_segment s =
        | Some _ -> Buffer.add_char buf ' ');
       while !i < n && (s.[!i] = ' ' || s.[!i] = '\t') do incr i done
     end else if c = ',' then begin
-      trim_trailing_space ();
+      trim_trailing_space buf;
       Buffer.add_char buf ',';
-      if !i + 1 < n then Buffer.add_char buf ' ';
+      if !i + 1 < n || has_next then Buffer.add_char buf ' ';
       incr i;
       while !i < n && (s.[!i] = ' ' || s.[!i] = '\t') do incr i done
     end else if c = '(' || c = '[' then begin
@@ -118,13 +136,13 @@ let format_code_segment s =
       incr i;
       while !i < n && (s.[!i] = ' ' || s.[!i] = '\t') do incr i done
     end else if c = ')' || c = ']' then begin
-      trim_trailing_space ();
+      trim_trailing_space buf;
       Buffer.add_char buf c;
       incr i
     end else if c = '?' && !i + 2 < n && s.[!i + 1] = '|' && s.[!i + 2] = '>' then begin
       ensure_space ();
       Buffer.add_string buf "?|>";
-      if !i + 3 < n then Buffer.add_char buf ' ';
+      if !i + 3 < n || has_next then Buffer.add_char buf ' ';
       i := !i + 3;
       while !i < n && (s.[!i] = ' ' || s.[!i] = '\t') do incr i done
     end else if (c = '|' && !i + 1 < n && s.[!i + 1] = '>')
@@ -139,15 +157,33 @@ let format_code_segment s =
       let op = String.sub s !i 2 in
       ensure_space ();
       Buffer.add_string buf op;
-      if !i + 2 < n then Buffer.add_char buf ' ';
+      if !i + 2 < n || has_next then Buffer.add_char buf ' ';
       i := !i + 2;
       while !i < n && (s.[!i] = ' ' || s.[!i] = '\t') do incr i done
     end else if c = '=' then begin
       ensure_space ();
       Buffer.add_char buf '=';
-      if !i + 1 < n then Buffer.add_char buf ' ';
+      if !i + 1 < n || has_next then Buffer.add_char buf ' ';
       incr i;
       while !i < n && (s.[!i] = ' ' || s.[!i] = '\t') do incr i done
+    end else if (c = '+' || c = '*' || c = '/')
+             || (c = '-' && is_operand_end (last_non_space ())) then begin
+      (* Skip scientific notation like 1e-5 or 1e+5 *)
+      let is_sci =
+        (c = '-' || c = '+')
+        && !i > 0 && (s.[!i - 1] = 'e' || s.[!i - 1] = 'E')
+        && !i >= 2 && s.[!i - 2] >= '0' && s.[!i - 2] <= '9'
+      in
+      if is_sci then begin
+        Buffer.add_char buf c;
+        incr i
+      end else begin
+        ensure_space ();
+        Buffer.add_char buf c;
+        if !i + 1 < n || has_next then Buffer.add_char buf ' ';
+        incr i;
+        while !i < n && (s.[!i] = ' ' || s.[!i] = '\t') do incr i done
+      end
     end else if c = '{' then begin
       (match last_char () with
        | Some ch when is_ident_char ch || ch = ')' || ch = ']' -> Buffer.add_char buf ' '
@@ -169,30 +205,40 @@ let trim_right s =
   done;
   String.sub s 0 (!i + 1)
 
+let has_non_comment_next = function
+  | [] | [SegComment _] -> false
+  | SegComment _ :: _ -> false
+  | _ -> true
+
 let format_segments segs =
   let buf = Buffer.create 128 in
   let last_char () =
     let len = Buffer.length buf in
     if len = 0 then None else Some (Buffer.nth buf (len - 1))
   in
-  List.iter (function
-    | SegCode c ->
-        let fc = format_code_segment c in
-        if fc <> "" then begin
-          (match last_char (), fc.[0] with
-           | Some ' ', ' ' ->
-               Buffer.add_string buf (String.sub fc 1 (String.length fc - 1))
-           | _ -> Buffer.add_string buf fc)
-        end
-    | SegString s | SegBacktick s | SegRaw s ->
-        Buffer.add_string buf s
-    | SegComment c ->
-        let trimmed_so_far = trim_right (Buffer.contents buf) in
-        Buffer.clear buf;
-        Buffer.add_string buf trimmed_so_far;
-        if trimmed_so_far <> "" then Buffer.add_char buf ' ';
-        Buffer.add_string buf (trim_right c)
-  ) segs;
+  let rec loop = function
+    | [] -> ()
+    | seg :: rest ->
+        (match seg with
+         | SegCode c ->
+             let prev = last_char () in
+             let has_next = has_non_comment_next rest in
+             let fc = format_code_segment ~prev ~has_next c in
+             if fc <> "" then begin
+               (match last_char (), fc.[0] with
+                | Some ' ', ' ' ->
+                    Buffer.add_string buf (String.sub fc 1 (String.length fc - 1))
+                | _ -> Buffer.add_string buf fc)
+             end
+         | SegString s | SegBacktick s | SegRaw s ->
+             Buffer.add_string buf s
+         | SegComment c ->
+             trim_trailing_space buf;
+             if Buffer.length buf > 0 then Buffer.add_char buf ' ';
+             Buffer.add_string buf (trim_right c));
+        loop rest
+  in
+  loop segs;
   String.trim (Buffer.contents buf)
 
 (* Count leading closing delimiters and net bracket delta in code segments. *)
@@ -229,6 +275,16 @@ let line_closes_raw line =
   in
   find 0
 
+let line_closes_string line =
+  let n = String.length line in
+  let rec find i =
+    if i >= n then None
+    else if line.[i] = '\\' && i + 1 < n then find (i + 2)
+    else if line.[i] = '"' then Some (i + 1)
+    else find (i + 1)
+  in
+  find 0
+
 let can_parse text =
   try
     let lexbuf = Lexing.from_string text in
@@ -236,12 +292,24 @@ let can_parse text =
     true
   with _ -> false
 
+let detect_eol input =
+  let n = String.length input in
+  let rec find i =
+    if i >= n then "\n"
+    else if input.[i] = '\n' then
+      if i > 0 && input.[i - 1] = '\r' then "\r\n" else "\n"
+    else find (i + 1)
+  in
+  find 0
+
 let format_string ?(indent_width=2) (input : string) : (string, string) result =
+  let eol = detect_eol input in
   let input_parses = can_parse input in
   let raw_lines = String.split_on_char '\n' input in
   let out_lines = ref [] in
   let depth = ref 0 in
   let in_raw = ref false in
+  let in_str = ref false in
   let prev_blank = ref true in
   List.iter (fun raw_line ->
     let line =
@@ -257,10 +325,25 @@ let format_string ?(indent_width=2) (input : string) : (string, string) result =
        | Some after_idx ->
            in_raw := false;
            let rest = String.sub line after_idx (String.length line - after_idx) in
-           let segs, opens_again = split_line_segments rest in
+           let segs, opens_again, opens_s = split_line_segments rest in
            let _, delta = bracket_counts segs in
            depth := max 0 (!depth + delta);
-           if opens_again then in_raw := true
+           if opens_again then in_raw := true;
+           if opens_s then in_str := true
+       | None -> ())
+    end else if !in_str then begin
+      (* Preserve lines inside a multi-line string literal verbatim. *)
+      out_lines := line :: !out_lines;
+      prev_blank := false;
+      (match line_closes_string line with
+       | Some after_idx ->
+           in_str := false;
+           let rest = String.sub line after_idx (String.length line - after_idx) in
+           let segs, opens_r, opens_again = split_line_segments rest in
+           let _, delta = bracket_counts segs in
+           depth := max 0 (!depth + delta);
+           if opens_r then in_raw := true;
+           if opens_again then in_str := true
        | None -> ())
     end else if String.trim line = "" then begin
       if not !prev_blank then begin
@@ -268,7 +351,7 @@ let format_string ?(indent_width=2) (input : string) : (string, string) result =
         prev_blank := true
       end
     end else begin
-      let segs, opens_raw = split_line_segments line in
+      let segs, opens_raw, opens_str = split_line_segments line in
       let leading_close, delta = bracket_counts segs in
       let formatted = format_segments segs in
       let is_pipe_cont =
@@ -283,7 +366,8 @@ let format_string ?(indent_width=2) (input : string) : (string, string) result =
       out_lines := (indent ^ formatted) :: !out_lines;
       prev_blank := false;
       depth := max 0 (!depth + delta);
-      if opens_raw then in_raw := true
+      if opens_raw then in_raw := true;
+      if opens_str then in_str := true
     end
   ) raw_lines;
   (* Drop trailing blank lines *)
@@ -295,7 +379,7 @@ let format_string ?(indent_width=2) (input : string) : (string, string) result =
   let formatted =
     match final_lines with
     | [] -> ""
-    | _ -> String.concat "\n" final_lines ^ "\n"
+    | _ -> String.concat eol final_lines ^ eol
   in
   if input_parses && not (can_parse formatted) then
     Error "Formatter aborted: formatted output did not parse cleanly."

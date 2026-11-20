@@ -1309,7 +1309,7 @@ let parse_program_string content filename =
   | Sys.Break -> raise Sys.Break
   | _ -> None
 
-let run_check ?(schema=false) ?(env_check=false) ?(offline=false) mode filename env =
+let run_check ?(schema=false) ?(hydrate_foreign=false) ?(env_check=false) ?(offline=false) mode filename env =
   (* Read once: evaluation and the dangling-read walk share the text. *)
   let content =
     try
@@ -1352,7 +1352,7 @@ let run_check ?(schema=false) ?(env_check=false) ?(offline=false) mode filename 
           @ Diagnostics.of_pipeline_validation ~file:filename p
         in
         let schema_diags =
-          if schema then Schema_check.check_pipeline_schemas ~file:filename p
+          if schema then Schema_check.check_pipeline_schemas ~hydrate_foreign ~file:filename p
           else []
         in
         let env_diags =

@@ -54,7 +54,7 @@ let t_fmt_fn named_args _env =
            (match get_bool "write", get_bool "check" with
             | Error e, _ | _, Error e -> e
             | Ok write, Ok check ->
-                (match Fmt.format_file ~check ~write path with
+                (match T_formatter.format_file ~check ~write path with
                  | Error msg -> Error.make_error FileError (Printf.sprintf "t_fmt: %s" msg)
                  | Ok (changed, formatted) ->
                      if check then VBool (not changed)

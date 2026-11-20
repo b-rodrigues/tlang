@@ -51,6 +51,7 @@ module Server = struct
     mutable scope : Symbol_table.scope;
     mutable diagnostics : Diagnostic.t list;
     mutable t_diagnostics : Diagnostics.diagnostic list;
+    mutable pipeline_names : string list;
     mutable definitions : Ast.source_location Analyzer.Definition_map.t;
   }
 
@@ -168,6 +169,7 @@ module Server = struct
 
     let diagnostics = ref [] in
     let t_diagnostics = ref [] in
+    let pipeline_names = ref [] in
     let definitions = ref Analyzer.Definition_map.empty in
     let filename = Lsp_support.uri_to_file_path (DocumentUri.to_string uri) in
     let lexbuf = Lexing.from_string text in
@@ -175,7 +177,8 @@ module Server = struct
        let program = Parser.program Lexer.token lexbuf in
        let analysis = Analyzer.analyze program scope in
        definitions := analysis.definitions;
-       let static_diags = Lsp_support.static_diagnostics_of_text ~filename text in
+       pipeline_names := Lsp_support.pipeline_bindings_of_program program;
+       let static_diags = Lsp_support.static_diagnostics_of_program ~filename program in
        t_diagnostics := static_diags;
        diagnostics :=
          List.map (fun (d : Diagnostics.diagnostic) ->
@@ -192,6 +195,7 @@ module Server = struct
                ~end_:(Position.create ~line ~character))
              ~message:(`String d.diag_message)
              ~severity
+             ~source:"tlang"
              ()
          ) static_diags
        with
@@ -202,11 +206,9 @@ module Server = struct
         | Ast.Invalid_match_pattern msg ->
            diagnostics := [ diagnostic_at_lexeme lexbuf msg ]
         | Ast.Invalid_type_declaration (msg, pos_opt) ->
-           t_diagnostics := Lsp_support.static_diagnostics_of_text ~filename text;
-           diagnostics :=
-             [ (match pos_opt with
-                | Some pos -> diagnostic_at_position pos msg
-                | None -> diagnostic_at_lexeme lexbuf msg) ]
+           let pos = match pos_opt with Some p -> p | None -> Lexing.lexeme_start_p lexbuf in
+           t_diagnostics := [ Lsp_support.diagnostic_of_invalid_type_decl ~filename msg pos ];
+           diagnostics := [ diagnostic_at_position pos msg ]
       | Lexer.SyntaxError msg ->
           diagnostics :=
             [ diagnostic_at_lexeme lexbuf (Printf.sprintf "Lexer error: %s" msg) ]
@@ -216,7 +218,7 @@ module Server = struct
             [ diagnostic_at_lexeme lexbuf "Internal analysis error" ]);
     let doc =
       let lines = Array.of_list (String.split_on_char '\n' text) in
-      { uri; text; lines; scope; diagnostics = !diagnostics; t_diagnostics = !t_diagnostics; definitions = !definitions }
+      { uri; text; lines; scope; diagnostics = !diagnostics; t_diagnostics = !t_diagnostics; pipeline_names = !pipeline_names; definitions = !definitions }
     in
     Hashtbl.replace server.documents uri doc;
     send_diagnostics uri !diagnostics;
@@ -276,9 +278,9 @@ module Server = struct
           let file_path = Lsp_support.uri_to_file_path (DocumentUri.to_string uri) in
           let live_artifact_hover =
             match Lsp_support.extract_dot_member line_text character with
-            | Some (_target, node_name) ->
+            | Some (target, node_name) when List.mem target doc.pipeline_names ->
                 Lsp_support.artifact_hover_markdown ~file_path ~node_name
-            | None -> None
+            | _ -> None
           in
           match live_artifact_hover with
           | Some md ->
@@ -359,6 +361,19 @@ module Server = struct
 
   let handle_code_action server (params : CodeActionParams.t) : Yojson.Safe.t =
     let uri = params.textDocument.uri in
+    let wants_quickfix =
+      match params.context.only with
+      | None -> true
+      | Some [] -> true
+      | Some kinds ->
+          List.exists (function
+            | CodeActionKind.QuickFix -> true
+            | CodeActionKind.Other s -> String.starts_with ~prefix:"quickfix" s
+            | _ -> false
+          ) kinds
+    in
+    if not wants_quickfix then `List []
+    else
     match Hashtbl.find_opt server.documents uri with
     | None -> `List []
     | Some doc ->
@@ -388,6 +403,7 @@ module Server = struct
             `Assoc [
               ("title", `String qf.qf_title);
               ("kind", `String "quickfix");
+              ("isPreferred", `Bool true);
               ("edit", `Assoc [
                 ("changes", `Assoc [(uri_str, `List edits_json)]);
               ]);

@@ -171,12 +171,11 @@ let read_csv_schema path =
 
 let normalize_foreign_dtype raw =
   let s = String.lowercase_ascii (String.trim raw) in
-  if s = "" then None
-  else if s = "int" || s = "integer" || s = "int64" || s = "int32" || s = "int16" || s = "int8" then Some "int"
+  if s = "int" || s = "integer" || s = "int64" || s = "int32" || s = "int16" || s = "int8" then Some "int"
   else if s = "double" || s = "numeric" || s = "float" || s = "float64" || s = "float32" then Some "double"
   else if s = "character" || s = "string" || s = "str" || s = "object" || s = "utf8" || s = "factor" then Some "string"
   else if s = "logical" || s = "bool" || s = "boolean" then Some "bool"
-  else Some s
+  else None
 
 let schema_of_meta_json (json_str : string) : schema option =
   try
@@ -220,70 +219,14 @@ let schema_of_meta_json (json_str : string) : schema option =
     | _ -> None
   with Yojson.Json_error _ -> None
 
-let read_small_meta_file path =
-  try
-    let ch = open_in_bin path in
-    Fun.protect ~finally:(fun () -> close_in_noerr ch) (fun () ->
-      let n = in_channel_length ch in
-      if n > 1048576 then None
-      else Some (really_input_string ch n))
-  with Sys_error _ -> None
-
-let latest_build_log_in_dir pipeline_dir =
-  try
-    if not (Sys.file_exists pipeline_dir && Sys.is_directory pipeline_dir) then None
-    else
-      let entries = Array.to_list (Sys.readdir pipeline_dir) in
-      let logs =
-        List.filter (fun f ->
-          String.starts_with ~prefix:"build_log_" f
-          && String.ends_with ~suffix:".json" f
-        ) entries
-        |> List.sort (fun a b -> String.compare b a)
-      in
-      match logs with
-      | latest :: _ -> Some (Filename.concat pipeline_dir latest)
-      | [] -> None
-  with Sys_error _ -> None
-
-let artifact_path_in_build_log ~log_path ~node_name =
-  match read_small_meta_file log_path with
-  | None -> None
-  | Some raw ->
-      (try
-         match Yojson.Safe.from_string raw with
-         | `Assoc pairs ->
-             (match List.assoc_opt "nodes" pairs with
-              | Some (`List nodes) ->
-                  List.find_map (function
-                    | `Assoc n ->
-                        (match List.assoc_opt "node" n, List.assoc_opt "path" n with
-                         | Some (`String nm), Some (`String p) when nm = node_name && p <> "" ->
-                             Some p
-                         | _ -> None)
-                    | _ -> None
-                  ) nodes
-              | _ -> None)
-         | _ -> None
-       with Yojson.Json_error _ -> None)
-
 let schema_of_artifact_path artifact_path =
-  let meta_candidates =
-    try
-      if Sys.file_exists artifact_path && Sys.is_directory artifact_path then
-        [Filename.concat artifact_path "meta"]
-      else
-        [Filename.concat (Filename.dirname artifact_path) "meta"]
-    with Sys_error _ -> []
-  in
   let from_meta =
-    List.find_map (fun mp ->
-      if Sys.file_exists mp then
-        match read_small_meta_file mp with
-        | Some raw -> schema_of_meta_json raw
-        | None -> None
-      else None
-    ) meta_candidates
+    match Artifact_meta.meta_path_of_artifact artifact_path with
+    | None -> None
+    | Some mp ->
+        (match Artifact_meta.read_small_file ~max_bytes:1048576 mp with
+         | Some raw -> schema_of_meta_json raw
+         | None -> None)
   in
   match from_meta with
   | Some _ -> from_meta
@@ -297,19 +240,16 @@ let read_foreign_node_schema ~file ~node_name : schema option =
   let candidate_dirs =
     let dir = Filename.dirname file in
     let base = [Filename.concat dir "_pipeline"; "_pipeline"] in
-    let with_proj =
-      try
-        let root = Builder_utils.get_project_root () in
-        Filename.concat root "_pipeline" :: base
-      with _ -> base
-    in
-    with_proj
+    try
+      let root = Builder_utils.get_project_root () in
+      Filename.concat root "_pipeline" :: base
+    with _ -> base
   in
   List.find_map (fun pdir ->
-    match latest_build_log_in_dir pdir with
+    match Artifact_meta.find_node_entry_in_dir ~pipeline_dir:pdir ~node_name with
     | None -> None
-    | Some log_path ->
-        (match artifact_path_in_build_log ~log_path ~node_name with
+    | Some entry ->
+        (match Artifact_meta.assoc_str "path" entry with
          | None -> None
          | Some art_path -> schema_of_artifact_path art_path)
   ) candidate_dirs
@@ -551,8 +491,11 @@ let validate_col_refs ~node_name ~(file : string option) ~schema ?(rename_mappin
 
 (* ---------- Main entry point ---------- *)
 
-(* Check schemas for a pipeline. Returns Schema-phase diagnostics. *)
-let check_pipeline_schemas ~(file : string) (p : pipeline_result) : Diagnostics.diagnostic list =
+(* Check schemas for a pipeline. Returns Schema-phase diagnostics.
+   [hydrate_foreign] (default false) opts into reading cached _pipeline/ meta
+   sidecars for non-T (R/Python/Julia) nodes so default `t check --schema`
+   remains strictly static and reproducible across dev and CI. *)
+let check_pipeline_schemas ?(hydrate_foreign=false) ~(file : string) (p : pipeline_result) : Diagnostics.diagnostic list =
   let p_exprs = p.p_exprs in
   let p_deps = p.p_deps in
   let p_noops = p.p_noops in
@@ -659,14 +602,23 @@ let check_pipeline_schemas ~(file : string) (p : pipeline_result) : Diagnostics.
             else
               infer_output_schema input_schema expr
       in
+      let node_runtime =
+        match List.assoc_opt name p.p_runtimes with
+        | Some r -> r
+        | None -> "T"
+      in
+      let is_foreign_runtime =
+        node_runtime = "R" || node_runtime = "Python" || node_runtime = "Julia"
+      in
       let output_schema =
         if inferred_schema <> [] then inferred_schema
-        else
+        else if hydrate_foreign && is_foreign_runtime then
           match read_foreign_node_schema ~file ~node_name:name with
           | Some foreign_cols ->
               Hashtbl.replace broken_nodes name false;
               foreign_cols
           | None -> []
+        else []
       in
 
       (* Store the schema *)
