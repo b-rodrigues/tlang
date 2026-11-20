@@ -168,10 +168,12 @@ let source_recording_enabled root =
   else
     let content =
       try
-        let ch = open_in tproject_path in
-        Some (Fun.protect
-          ~finally:(fun () -> close_in_noerr ch)
-          (fun () -> really_input_string ch (in_channel_length ch)))
+        if Sys.is_directory tproject_path then None
+        else
+          let ch = open_in tproject_path in
+          Some (Fun.protect
+            ~finally:(fun () -> close_in_noerr ch)
+            (fun () -> really_input_string ch (in_channel_length ch)))
       with _ -> None
     in
     match content with
