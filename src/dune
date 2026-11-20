@@ -50,7 +50,7 @@
    arrow_table arrow_ffi arrow_bridge arrow_io arrow_compute arrow_column
    arrow_owl_bridge
     ; core language
-        ast lexer parser eval typecheck error serialization serialization_registry pmml_utils semantic_type symbol_table completion analyzer stats import_registry value_hash cli_args diff rng diagnostics schema_check env_check fix check_utils demo lineage
+        ast lexer parser eval typecheck error serialization serialization_registry pmml_utils semantic_type symbol_table completion analyzer stats import_registry value_hash cli_args diff rng diagnostics schema_check env_check fix fmt check_utils lsp_support demo lineage
     ; pipeline compiler
     nix_utils nix_unparse nix_emit_node nix_emit_pipeline nix_emitter pipeline_script
     builder_utils pipeline_dependency_requirements pipeline_validation reserved_names builder_write_dag builder_nix_store builder_logs ndjson_stream builder_internal builder_populate builder_inspect builder_read_node builder_copy builder_artifacts builder_diff builder
@@ -66,8 +66,8 @@
    t_read_csv t_read_parquet t_write_csv t_read_ipc t_write_ipc t_write_parquet t_dataframe colnames nrow ncol clean_colnames glimpse
        ; packages/pipeline
         pipeline_utils pipeline_args pipeline_nodes pipeline_deps pipeline_node pipeline_run build_pipeline populate_pipeline inspect_pipeline trace_nodes read_node read_past_node pipeline_copy pipeline_builder_post
-        pipeline_to_frame pipeline_config_to_frame pipeline_status pipeline_overview filter_node which_nodes mutate_node rename_node select_node arrange_node pipeline_to_drv
-          pipeline_set_ops pipeline_dag_ops pipeline_composition pipeline_expand pipeline_inspect2 pipeline_to_ga t_make_mod build_log pipeline_diff diff_summary pipeline_report t_check t_diff t_fix set_pipeline_global_options pipeline_node_options
+        pipeline_to_frame pipeline_config_to_frame pipeline_status pipeline_overview pipeline_metrics filter_node which_nodes mutate_node rename_node select_node arrange_node pipeline_to_drv
+          pipeline_set_ops pipeline_dag_ops pipeline_composition pipeline_expand pipeline_inspect2 pipeline_to_ga t_make_mod build_log pipeline_diff diff_summary pipeline_report t_check t_diff t_fix t_fmt t_provenance set_pipeline_global_options pipeline_node_options
       pipeline_to_store set_nix_defaults pipeline_cache_status pipeline_gc export_artifacts import_artifacts inspect_artifacts
       node_docs rn_docs pyn_docs jln_docs qn_docs shn_docs
     ; packages/colcraft
@@ -87,7 +87,7 @@
     ; packages/propcraft
     propcraft_utils t_prop_gen t_prop_show_spec t_prop_for_all
    ; package_manager
-   version nixpkgs_date uv2nix_commit package_types toml_parser template_engine scaffold nix_generator renv_resolver r_description_resolver test_discovery package_doctor release_manager documentation_manager update_manager package_loader
+   version nixpkgs_date uv2nix_commit package_types toml_parser template_engine scaffold nix_generator renv_resolver r_description_resolver test_discovery package_doctor provenance release_manager documentation_manager update_manager package_loader
    ; tdoc
    tdoc_types tdoc_parser tdoc_registry tdoc_markdown tdoc_json
  )

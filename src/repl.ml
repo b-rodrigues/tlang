@@ -2105,6 +2105,54 @@ let () =
               List.iter (fun note -> Printf.printf "  - %s\n" note) result.Fix.skip_notes
             end;
             exit fix_exit)
+  | _ :: "fmt" :: [] ->
+      Printf.eprintf "Usage: t fmt [--check] [--write|-w] <file.t>\n";
+      exit 1
+  | _ :: "fmt" :: rest ->
+      let check_only = List.mem "--check" rest in
+      let write_in_place = List.mem "--write" rest || List.mem "-w" rest in
+      let filename = List.find_opt (fun s -> not (String.length s > 0 && s.[0] = '-')) rest in
+      (match filename with
+       | None ->
+           Printf.eprintf "Usage: t fmt [--check] [--write|-w] <file.t>\n";
+           exit 1
+       | Some f ->
+           (match Fmt.format_file ~check:check_only ~write:write_in_place f with
+            | Error msg ->
+                Printf.eprintf "t fmt error: %s\n" msg;
+                exit 1
+            | Ok (changed, formatted) ->
+                if check_only then begin
+                  if changed then begin
+                    Printf.eprintf "%s needs formatting\n" f;
+                    exit 1
+                  end else exit 0
+                end else if write_in_place then begin
+                  if changed then Printf.printf "Formatted %s\n" f;
+                  exit 0
+                end else begin
+                  print_string formatted;
+                  exit 0
+                end))
+  | _ :: "provenance" :: rest ->
+      let rec parse_opts fmt out dir file = function
+        | [] -> (fmt, out, dir, file)
+        | "--format" :: v :: tl -> parse_opts v out dir file tl
+        | ("--output" | "-o") :: v :: tl -> parse_opts fmt (Some v) dir file tl
+        | "--dir" :: v :: tl -> parse_opts fmt out v file tl
+        | "--file" :: v :: tl -> parse_opts fmt out dir (Some v) tl
+        | _ :: tl -> parse_opts fmt out dir file tl
+      in
+      let (format, output, dir, file) = parse_opts "ro-crate" None "." None rest in
+      (match Provenance.write_bundle ~dir ?file ?output ~format () with
+       | Error msg ->
+           Printf.eprintf "t provenance error: %s\n" msg;
+           exit 1
+       | Ok payload ->
+           (match output with
+            | Some p -> Printf.printf "Wrote provenance bundle (%s) to %s\n" format p
+            | None -> print_string payload);
+           exit 0)
   | _ :: "repl" :: _ -> cmd_repl ~failfast mode_parse.mode env
   | _ :: "demo" :: rest ->
       let headless = List.mem "--headless" rest in

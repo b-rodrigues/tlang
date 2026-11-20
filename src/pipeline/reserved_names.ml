@@ -79,7 +79,7 @@ let builtin_functions =
     "path_ext"; "path_join"; "path_stem"; "pchisq"; "percent_rank"; "period_days";
     "period_hours"; "period_minutes"; "period_months"; "period_seconds"; "period_years"; "pf";
     "pipeline_assert"; "pipeline_cache_status"; "pipeline_config_to_frame"; "pipeline_copy"; "pipeline_cycles"; "pipeline_deps";
-    "pipeline_depth"; "pipeline_diff"; "pipeline_edges"; "pipeline_gc"; "pipeline_leaves"; "pipeline_node";
+    "pipeline_depth"; "pipeline_diff"; "pipeline_edges"; "pipeline_gc"; "pipeline_leaves"; "pipeline_metrics"; "pipeline_metrics_markdown"; "pipeline_node";
     "pipeline_node_options"; "pipeline_nodes"; "pipeline_overview"; "pipeline_overview_markdown"; "pipeline_print"; "pipeline_report"; "pipeline_roots";
     "pipeline_run"; "pipeline_status";
     "pipeline_to_dot"; "pipeline_to_drv"; "pipeline_to_frame"; "pipeline_to_ga"; "pipeline_to_mermaid"; "pipeline_to_store";
@@ -106,10 +106,10 @@ let builtin_functions =
     "str_replace"; "str_split"; "str_sprintf"; "str_squish"; "str_substring"; "str_trim"; "str_trunc";
     "str_words"; "subgraph"; "sum"; "summarize"; "summary"; "suppress_warnings";
     "swap"; "tail"; "tail_pattern"; "tan"; "tanh"; "t_check";
-    "t_diff"; "t_fix"; "t_gc"; "t_make"; "to_array"; "to_bool";
+    "t_diff"; "t_fix"; "t_fmt"; "t_gc"; "t_make"; "to_array"; "to_bool";
     "to_dataframe"; "to_date"; "to_datetime"; "to_dict"; "today"; "to_expr"; "to_exprs";
     "to_factor"; "to_float"; "to_integer"; "to_lower"; "to_string"; "to_symbol";
-    "to_upper"; "trace_nodes"; "transpose"; "t_read_json"; "t_read_onnx"; "t_read_pmml";
+    "to_upper"; "t_provenance"; "trace_nodes"; "transpose"; "t_read_json"; "t_read_onnx"; "t_read_pmml";
     "trim_end"; "trimmed_mean"; "trim_start"; "trunc"; "t_score_pmml"; "t_write_json";
     "t_write_onnx"; "t_write_pmml"; "type"; "tz"; "uncount"; "ungroup";
     "union"; "unite"; "unnest"; "upstream_of"; "var"; "vcov";

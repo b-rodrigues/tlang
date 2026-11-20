@@ -4076,6 +4076,72 @@ pipeline_overview_markdown(p, only = "failed")
 
 ---
 
+### `pipeline_metrics(p, task = NA, sort_by = NA, descending = false)`
+
+Collects build-time `foreign_meta` sidecars from model nodes across R, Python, and Julia into a single comparison DataFrame. Base columns (`name`, `runtime`, `kind`, `task`, `method`, `n_obs`, `n_features`, `status`) are followed by one `Float` column per metric key found across the selected nodes.
+
+**Parameters:**
+
+- `p` — The Pipeline object.
+- `task` (optional) — Filter by task (e.g. `"time_series"`, `"regression"`, `"classification"`).
+- `sort_by` (optional) — Sort by any metric column, `"n_obs"`, `"n_features"`, or `"name"`.
+- `descending` (optional) — Sort descending when `true` (default `false`).
+
+**Returns:**
+
+`DataFrame` — One row per model node with aligned metric columns.
+
+**Examples:**
+```t
+pipeline_metrics(p)
+pipeline_metrics(p, task = "time_series", sort_by = "aic")
+```
+
+---
+
+### `pipeline_metrics_markdown(p, task = NA, sort_by = NA, descending = false)`
+
+Same rows and filters as `pipeline_metrics`, rendered as a Markdown table.
+
+**Examples:**
+```t
+pipeline_metrics_markdown(p, sort_by = "aic")
+```
+
+---
+
+### `t_fmt(path, write = false, check = false)`
+
+Formats a `.t` source file using the canonical T formatter, preserving comments and `<{ ... }>` raw foreign code blocks.
+
+**Parameters:**
+
+- `path` — Path to the `.t` file.
+- `write` (optional) — Write formatted output back to `path` when `true`.
+- `check` (optional) — Return `Bool` (`true` if already formatted, `false` otherwise).
+
+**Returns:**
+
+`String | Bool` — Formatted source string, or `Bool` when `check = true`.
+
+---
+
+### `t_provenance(format = "ro-crate", output = NA, dir = ".")`
+
+Generates an offline reproducibility and audit bundle from `tproject.toml`, `flake.lock`, the latest `_pipeline/build_log_*.json` with `foreign_meta` sidecars, and `intent { ... }` blocks.
+
+**Parameters:**
+
+- `format` (optional) — `"ro-crate"` (RO-Crate 1.1 JSON-LD), `"sbom"` (CycloneDX 1.5 JSON), or `"json"`.
+- `output` (optional) — Optional output file path.
+- `dir` (optional) — Project root directory (default `"."`).
+
+**Returns:**
+
+`String` — Formatted JSON manifest.
+
+---
+
 ### `is_failed(node)`
 
 Test if a node failed. Returns true for a failed node (`VError`), for a `read_node()` result whose value or diagnostics carry an error, or for an inspect result with status `Errored` or `SoftFailed`. Use after 0.56.1 instead of `is_error(inspect_node(x))`, which is always false. `NA` propagates as `NA`.

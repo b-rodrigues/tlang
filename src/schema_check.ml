@@ -167,6 +167,153 @@ let read_csv_schema path =
     )
   with _ -> None
 
+(* ---------- Foreign node schema hydration from _pipeline/ meta sidecars ---------- *)
+
+let normalize_foreign_dtype raw =
+  let s = String.lowercase_ascii (String.trim raw) in
+  if s = "" then None
+  else if s = "int" || s = "integer" || s = "int64" || s = "int32" || s = "int16" || s = "int8" then Some "int"
+  else if s = "double" || s = "numeric" || s = "float" || s = "float64" || s = "float32" then Some "double"
+  else if s = "character" || s = "string" || s = "str" || s = "object" || s = "utf8" || s = "factor" then Some "string"
+  else if s = "logical" || s = "bool" || s = "boolean" then Some "bool"
+  else Some s
+
+let schema_of_meta_json (json_str : string) : schema option =
+  try
+    match Yojson.Safe.from_string json_str with
+    | `Assoc pairs ->
+        let dtypes =
+          match List.assoc_opt "dtypes" pairs with
+          | Some (`Assoc dt) ->
+              List.filter_map (fun (k, v) ->
+                match v with
+                | `String t ->
+                    (match normalize_foreign_dtype t with
+                     | Some nt -> Some (k, nt)
+                     | None -> None)
+                | _ -> None
+              ) dt
+          | _ -> []
+        in
+        (match List.assoc_opt "columns" pairs with
+         | Some (`List items) ->
+             let cols =
+               List.filter_map (function
+                 | `String c when String.trim c <> "" ->
+                     let name = String.trim c in
+                     Some { sc_name = name; sc_type = List.assoc_opt name dtypes }
+                 | _ -> None
+               ) items
+             in
+             if cols <> [] then Some cols else None
+         | _ ->
+             (match List.assoc_opt "schema" pairs with
+              | Some (`Assoc fields) ->
+                  let cols =
+                    List.filter_map (fun (k, v) ->
+                      let ty = match v with `String t -> normalize_foreign_dtype t | _ -> None in
+                      if String.trim k <> "" then Some { sc_name = String.trim k; sc_type = ty } else None
+                    ) fields
+                  in
+                  if cols <> [] then Some cols else None
+              | _ -> None))
+    | _ -> None
+  with Yojson.Json_error _ -> None
+
+let read_small_meta_file path =
+  try
+    let ch = open_in_bin path in
+    Fun.protect ~finally:(fun () -> close_in_noerr ch) (fun () ->
+      let n = in_channel_length ch in
+      if n > 1048576 then None
+      else Some (really_input_string ch n))
+  with Sys_error _ -> None
+
+let latest_build_log_in_dir pipeline_dir =
+  try
+    if not (Sys.file_exists pipeline_dir && Sys.is_directory pipeline_dir) then None
+    else
+      let entries = Array.to_list (Sys.readdir pipeline_dir) in
+      let logs =
+        List.filter (fun f ->
+          String.starts_with ~prefix:"build_log_" f
+          && String.ends_with ~suffix:".json" f
+        ) entries
+        |> List.sort (fun a b -> String.compare b a)
+      in
+      match logs with
+      | latest :: _ -> Some (Filename.concat pipeline_dir latest)
+      | [] -> None
+  with Sys_error _ -> None
+
+let artifact_path_in_build_log ~log_path ~node_name =
+  match read_small_meta_file log_path with
+  | None -> None
+  | Some raw ->
+      (try
+         match Yojson.Safe.from_string raw with
+         | `Assoc pairs ->
+             (match List.assoc_opt "nodes" pairs with
+              | Some (`List nodes) ->
+                  List.find_map (function
+                    | `Assoc n ->
+                        (match List.assoc_opt "node" n, List.assoc_opt "path" n with
+                         | Some (`String nm), Some (`String p) when nm = node_name && p <> "" ->
+                             Some p
+                         | _ -> None)
+                    | _ -> None
+                  ) nodes
+              | _ -> None)
+         | _ -> None
+       with Yojson.Json_error _ -> None)
+
+let schema_of_artifact_path artifact_path =
+  let meta_candidates =
+    try
+      if Sys.file_exists artifact_path && Sys.is_directory artifact_path then
+        [Filename.concat artifact_path "meta"]
+      else
+        [Filename.concat (Filename.dirname artifact_path) "meta"]
+    with Sys_error _ -> []
+  in
+  let from_meta =
+    List.find_map (fun mp ->
+      if Sys.file_exists mp then
+        match read_small_meta_file mp with
+        | Some raw -> schema_of_meta_json raw
+        | None -> None
+      else None
+    ) meta_candidates
+  in
+  match from_meta with
+  | Some _ -> from_meta
+  | None ->
+      if String.ends_with ~suffix:".csv" (String.lowercase_ascii artifact_path)
+         && (try Sys.file_exists artifact_path with Sys_error _ -> false) then
+        read_csv_schema artifact_path
+      else None
+
+let read_foreign_node_schema ~file ~node_name : schema option =
+  let candidate_dirs =
+    let dir = Filename.dirname file in
+    let base = [Filename.concat dir "_pipeline"; "_pipeline"] in
+    let with_proj =
+      try
+        let root = Builder_utils.get_project_root () in
+        Filename.concat root "_pipeline" :: base
+      with _ -> base
+    in
+    with_proj
+  in
+  List.find_map (fun pdir ->
+    match latest_build_log_in_dir pdir with
+    | None -> None
+    | Some log_path ->
+        (match artifact_path_in_build_log ~log_path ~node_name with
+         | None -> None
+         | Some art_path -> schema_of_artifact_path art_path)
+  ) candidate_dirs
+
 (* ---------- Schema inference for colcraft verbs ---------- *)
 
 (* Determine the colcraft function being called in a pipe's right side *)
@@ -501,14 +648,25 @@ let check_pipeline_schemas ~(file : string) (p : pipeline_result) : Diagnostics.
             (* Use the schema of the primary dependency (the piped-from node) *)
             (try Hashtbl.find schemas primary with Not_found -> [])
       in
-      (* Infer output schema *)
-      let output_schema = match root_schema with
+      (* Infer output schema; when static inference yields empty (e.g. a foreign
+         R/Python/Julia node or custom verb), hydrate from _pipeline/ build-log
+         meta sidecar so downstream T nodes still get column checks. *)
+      let inferred_schema = match root_schema with
         | Some cols -> cols
         | None ->
             if List.length ops > 1 then
               List.fold_left apply_pipe_op input_schema ops
             else
               infer_output_schema input_schema expr
+      in
+      let output_schema =
+        if inferred_schema <> [] then inferred_schema
+        else
+          match read_foreign_node_schema ~file ~node_name:name with
+          | Some foreign_cols ->
+              Hashtbl.replace broken_nodes name false;
+              foreign_cols
+          | None -> []
       in
 
       (* Store the schema *)
