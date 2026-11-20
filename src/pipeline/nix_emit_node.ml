@@ -2485,18 +2485,20 @@ r_save_meta <- function(object, path) {
       # forecast::bats / tbats — exponential smoothing for multiple seasonality.
       meta$kind <- "model"
       meta$task <- "time_series"
-      kk <- tryCatch(object$k, error = function(e) NULL)
-      if (!is.null(kk) && length(kk) > 0 && !any(is.na(kk))) {
-        per <- as.integer(kk[kk > 1])
+      sp <- tryCatch(object$seasonal.periods, error = function(e) NULL)
+      if (is.null(sp)) sp <- tryCatch(object$k, error = function(e) NULL)
+      if (!is.null(sp) && length(sp) > 0 && !any(is.na(sp))) {
+        per <- as.integer(sp[sp > 1])
         if (length(per) > 0) meta$seasonal_period <- as.list(per)
       }
       no <- tryCatch(length(object$y), error = function(e) NULL)
       if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- as.integer(no)
       metrics <- list()
-      for (nm in c("aic", "bic")) {
-        vv <- tryCatch(as.numeric(object[[nm]]), error = function(e) NULL)
-        if (!is.null(vv) && length(vv) == 1 && !is.na(vv)) metrics[[nm]] <- vv
-      }
+      # forecast::bats/tbats store uppercase AIC (unlike ets/Arima lowercase aic).
+      aic <- tryCatch(as.numeric(if (!is.null(object$AIC)) object$AIC else object$aic), error = function(e) NULL)
+      if (!is.null(aic) && length(aic) == 1 && !is.na(aic)) metrics$aic <- aic
+      bic <- tryCatch(as.numeric(if (!is.null(object$BIC)) object$BIC else object$bic), error = function(e) NULL)
+      if (!is.null(bic) && length(bic) == 1 && !is.na(bic)) metrics$bic <- bic
       if (length(metrics) > 0) meta$metrics <- metrics
     } else if (inherits(object, "nnetar")) {
       # forecast::nnetar — neural network autoregression.

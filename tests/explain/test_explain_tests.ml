@@ -1898,7 +1898,7 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
                    check_golden "R probe handles nnetar models"
                      (contains json4 "time_series" && contains json4 "size");
                    check_golden "R probe handles tbats models"
-                     (contains json5 "time_series" && contains json5 "seasonal_period"))))
+                     (contains json5 "time_series" && contains json5 "seasonal_period" && contains json5 "\"aic\""))))
    | _ -> skip_golden "R probe forecast family" "no forecast/zoo");
   (* R P2 families: needs nlme + cluster + quantreg + urca (Matrix ships
      with every R). Skipped when absent. *)
