@@ -452,19 +452,28 @@ inspect_node <- function(name, which_log = NULL, pipeline_dir = "_pipeline") {
   warn_rows <- frames_warning_rows(name, entry, pipeline_dir)
   warnings <- lapply(warn_rows, function(row) list(code = row$code, message = row$message))
 
+  err <- error_of_entry(entry, pipeline_dir)
+  raw_status <- frames_status_of(entry)
+  is_failed <- !is.null(err) || (!is.na(raw_status) && raw_status %in% c("Errored", "SoftFailed"))
+  status <- if (is_failed) "Errored" else "Built"
+  klass <- if (is_failed) "Error" else inspect_text_or_na(entry$class)
+  err_code <- if (!is.null(err)) err$code else NA_character_
+  err_msg <- if (!is.null(err)) err$message else NA_character_
   list(
     name = name,
     runtime = inspect_text_or_na(entry$runtime),
     serializer = inspect_text_or_na(entry$serializer),
     dependencies = deps,
     children = children,
-    status = frames_status_of(entry),
-    class = inspect_text_or_na(entry$class),
-    path = tryCatch(
+    status = status,
+    class = klass,
+    path = if (status == "Built") tryCatch(
       resolve_artifact_path(entry$path, pipeline_dir),
       error = function(err) NA_character_
-    ),
-    error = error_of_entry(entry, pipeline_dir),
+    ) else NA_character_,
+    error = err,
+    error_code = err_code,
+    error_message = err_msg,
     warnings = warnings
   )
 }

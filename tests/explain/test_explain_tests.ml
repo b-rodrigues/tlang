@@ -975,6 +975,576 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
   test_env env_fm_t "explain foreign meta gated on foreign runtimes"
     "type(explain(fake_tnode).foreign_meta)"
     {|"NA"|};
+  (* P1 wave: new R families — forecast package, prophet, rugarch, vars,
+     glmnet, ranger, catboost, and the zoo/xts series fix. *)
+  let ets_dir = make_node_dir "fake-ets" in
+  write_file (Filename.concat ets_dir "artifact") "0123456789";
+  write_file (Filename.concat ets_dir "meta")
+    {|{"kind":"model","class":"ets","task":"time_series","method":"ETS(M,A,M)","seasonal_period":[12],"n_obs":36,"metrics":{"aic":100.5,"sigma2":0.01}}|};
+  let env_fm_ets =
+    Ast.Env.add "fake_ets"
+      (Ast.VComputedNode (fake_cn ~name:"fake_ets_foreign_meta_test" ~runtime:"R"
+        ~path:(Filename.concat ets_dir "artifact") ~class_:"ets"))
+      (Packages.init_env ())
+  in
+  test_env env_fm_ets "explain foreign meta ets task"
+    "explain(fake_ets).foreign_meta.task"
+    {|"time_series"|};
+  test_env env_fm_ets "explain foreign meta ets seasonal period"
+    "get(explain(fake_ets).foreign_meta.seasonal_period, 0)"
+    "12";
+  test_env env_fm_ets "explain foreign meta ets metric aic"
+    "explain(fake_ets).foreign_meta.metrics.aic"
+    "100.5";
+  let fc_dir = make_node_dir "fake-fc" in
+  write_file (Filename.concat fc_dir "artifact") "0123456789";
+  write_file (Filename.concat fc_dir "meta")
+    {|{"kind":"forecast","class":"forecast","method":"ARIMA(2,1,1)(0,1,1)[12]","horizon":12,"target":"y","n_obs":36,"metrics":{"level":95}}|};
+  let env_fm_fc =
+    Ast.Env.add "fake_fc"
+      (Ast.VComputedNode (fake_cn ~name:"fake_fc_foreign_meta_test" ~runtime:"R"
+        ~path:(Filename.concat fc_dir "artifact") ~class_:"forecast"))
+      (Packages.init_env ())
+  in
+  test_env env_fm_fc "explain foreign meta forecast kind"
+    "explain(fake_fc).foreign_meta.kind"
+    {|"forecast"|};
+  test_env env_fm_fc "explain foreign meta forecast horizon"
+    "explain(fake_fc).foreign_meta.horizon"
+    "12";
+  test_env env_fm_fc "explain foreign meta forecast level metric"
+    "explain(fake_fc).foreign_meta.metrics.level"
+    "95";
+  let xts_dir = make_node_dir "fake-xts" in
+  write_file (Filename.concat xts_dir "artifact") "0123456789";
+  write_file (Filename.concat xts_dir "meta")
+    {|{"kind":"series","class":"xts","n_obs":100,"start":"2010-01-01","end":"2010-04-10","metrics":{"period":7}}|};
+  let env_fm_xts =
+    Ast.Env.add "fake_xts"
+      (Ast.VComputedNode (fake_cn ~name:"fake_xts_foreign_meta_test" ~runtime:"R"
+        ~path:(Filename.concat xts_dir "artifact") ~class_:"xts"))
+      (Packages.init_env ())
+  in
+  test_env env_fm_xts "explain foreign meta xts is a series not a matrix"
+    "explain(fake_xts).foreign_meta.kind"
+    {|"series"|};
+  test_env env_fm_xts "explain foreign meta xts start"
+    "explain(fake_xts).foreign_meta.start"
+    {|"2010-01-01"|};
+  let ug_dir = make_node_dir "fake-ugarch" in
+  write_file (Filename.concat ug_dir "artifact") "0123456789";
+  write_file (Filename.concat ug_dir "meta")
+    {|{"kind":"model","class":"uGARCHfit","task":"time_series","method":"sGARCH(1,1)","n_obs":1000,"n_params":4,"metrics":{"aic":3.2,"bic":3.3}}|};
+  let env_fm_ug =
+    Ast.Env.add "fake_ugarch"
+      (Ast.VComputedNode (fake_cn ~name:"fake_ugarch_foreign_meta_test" ~runtime:"R"
+        ~path:(Filename.concat ug_dir "artifact") ~class_:"uGARCHfit"))
+      (Packages.init_env ())
+  in
+  test_env env_fm_ug "explain foreign meta ugarch method"
+    "explain(fake_ugarch).foreign_meta.method"
+    {|"sGARCH(1,1)"|};
+  test_env env_fm_ug "explain foreign meta ugarch param count"
+    "explain(fake_ugarch).foreign_meta.n_params"
+    "4";
+  let var_dir = make_node_dir "fake-varest" in
+  write_file (Filename.concat var_dir "artifact") "0123456789";
+  write_file (Filename.concat var_dir "meta")
+    {|{"kind":"model","class":"varest","task":"time_series","method":"VAR(2)","order":[2],"n_equations":3,"n_obs":97}|};
+  let env_fm_var =
+    Ast.Env.add "fake_varest"
+      (Ast.VComputedNode (fake_cn ~name:"fake_varest_foreign_meta_test" ~runtime:"R"
+        ~path:(Filename.concat var_dir "artifact") ~class_:"varest"))
+      (Packages.init_env ())
+  in
+  test_env env_fm_var "explain foreign meta varest lag order"
+    "get(explain(fake_varest).foreign_meta.order, 0)"
+    "2";
+  test_env env_fm_var "explain foreign meta varest equations"
+    "explain(fake_varest).foreign_meta.n_equations"
+    "3";
+  let gl_dir = make_node_dir "fake-glmnet" in
+  write_file (Filename.concat gl_dir "artifact") "0123456789";
+  write_file (Filename.concat gl_dir "meta")
+    {|{"kind":"model","class":"cv.glmnet","task":"classification","n_features":10,"n_lambda":100,"metrics":{"lambda_min":0.05,"lambda_1se":0.2,"dev_ratio":0.4}}|};
+  let env_fm_gl =
+    Ast.Env.add "fake_glmnet"
+      (Ast.VComputedNode (fake_cn ~name:"fake_glmnet_foreign_meta_test" ~runtime:"R"
+        ~path:(Filename.concat gl_dir "artifact") ~class_:"cv.glmnet"))
+      (Packages.init_env ())
+  in
+  test_env env_fm_gl "explain foreign meta glmnet task"
+    "explain(fake_glmnet).foreign_meta.task"
+    {|"classification"|};
+  test_env env_fm_gl "explain foreign meta glmnet lambda count"
+    "explain(fake_glmnet).foreign_meta.n_lambda"
+    "100";
+  test_env env_fm_gl "explain foreign meta glmnet lambda_min"
+    "explain(fake_glmnet).foreign_meta.metrics.lambda_min"
+    "0.05";
+  let rg_dir = make_node_dir "fake-ranger" in
+  write_file (Filename.concat rg_dir "artifact") "0123456789";
+  write_file (Filename.concat rg_dir "meta")
+    {|{"kind":"model","class":"ranger","task":"classification","n_trees":500,"n_features":20,"n_obs":700,"metrics":{"oob_error":0.25}}|};
+  let env_fm_rg =
+    Ast.Env.add "fake_ranger"
+      (Ast.VComputedNode (fake_cn ~name:"fake_ranger_foreign_meta_test" ~runtime:"R"
+        ~path:(Filename.concat rg_dir "artifact") ~class_:"ranger"))
+      (Packages.init_env ())
+  in
+  test_env env_fm_rg "explain foreign meta ranger task"
+    "explain(fake_ranger).foreign_meta.task"
+    {|"classification"|};
+  test_env env_fm_rg "explain foreign meta ranger trees"
+    "explain(fake_ranger).foreign_meta.n_trees"
+    "500";
+  let cb_dir = make_node_dir "fake-catboost" in
+  write_file (Filename.concat cb_dir "artifact") "0123456789";
+  write_file (Filename.concat cb_dir "meta")
+    {|{"kind":"model","class":"catboost.Model","method":"Logloss","n_trees":100,"n_features":10,"features":["age","income"]}|};
+  let env_fm_cb =
+    Ast.Env.add "fake_catboost"
+      (Ast.VComputedNode (fake_cn ~name:"fake_catboost_foreign_meta_test" ~runtime:"R"
+        ~path:(Filename.concat cb_dir "artifact") ~class_:"catboost.Model"))
+      (Packages.init_env ())
+  in
+  test_env env_fm_cb "explain foreign meta catboost loss"
+    "explain(fake_catboost).foreign_meta.method"
+    {|"Logloss"|};
+  test_env env_fm_cb "explain foreign meta catboost trees"
+    "explain(fake_catboost).foreign_meta.n_trees"
+    "100";
+  let ph_dir = make_node_dir "fake-rprophet" in
+  write_file (Filename.concat ph_dir "artifact") "0123456789";
+  write_file (Filename.concat ph_dir "meta")
+    {|{"kind":"model","class":"prophet","task":"time_series","changepoints":25,"n_obs":290,"features":["weekly","yearly"]}|};
+  let env_fm_ph =
+    Ast.Env.add "fake_rprophet"
+      (Ast.VComputedNode (fake_cn ~name:"fake_rprophet_foreign_meta_test" ~runtime:"R"
+        ~path:(Filename.concat ph_dir "artifact") ~class_:"prophet"))
+      (Packages.init_env ())
+  in
+  test_env env_fm_ph "explain foreign meta prophet changepoints"
+    "explain(fake_rprophet).foreign_meta.changepoints"
+    "25";
+  test_env env_fm_ph "explain foreign meta prophet seasonalities"
+    "get(explain(fake_rprophet).foreign_meta.features, 1)"
+    {|"yearly"|};
+  (* P1 wave: new Python families — torch, keras, prophet, pmdarima,
+     catboost, sktime/darts forecasters. *)
+  let th_dir = make_node_dir "fake-torch" in
+  write_file (Filename.concat th_dir "artifact") "0123456789";
+  write_file (Filename.concat th_dir "meta")
+    {|{"kind":"model","class":"Net","n_params":25000,"n_layers":3}|};
+  let env_fm_th =
+    Ast.Env.add "fake_torch"
+      (Ast.VComputedNode (fake_cn ~name:"fake_torch_foreign_meta_test" ~runtime:"Python"
+        ~path:(Filename.concat th_dir "artifact") ~class_:"Net"))
+      (Packages.init_env ())
+  in
+  test_env env_fm_th "explain foreign meta torch params"
+    "explain(fake_torch).foreign_meta.n_params"
+    "25000";
+  test_env env_fm_th "explain foreign meta torch layers"
+    "explain(fake_torch).foreign_meta.n_layers"
+    "3";
+  let ks_dir = make_node_dir "fake-keras" in
+  write_file (Filename.concat ks_dir "artifact") "0123456789";
+  write_file (Filename.concat ks_dir "meta")
+    {|{"kind":"model","class":"Sequential","n_params":8965,"n_layers":4,"method":"Adam"}|};
+  let env_fm_ks =
+    Ast.Env.add "fake_keras"
+      (Ast.VComputedNode (fake_cn ~name:"fake_keras_foreign_meta_test" ~runtime:"Python"
+        ~path:(Filename.concat ks_dir "artifact") ~class_:"Sequential"))
+      (Packages.init_env ())
+  in
+  test_env env_fm_ks "explain foreign meta keras params"
+    "explain(fake_keras).foreign_meta.n_params"
+    "8965";
+  test_env env_fm_ks "explain foreign meta keras optimizer"
+    "explain(fake_keras).foreign_meta.method"
+    {|"Adam"|};
+  let pyph_dir = make_node_dir "fake-pyprophet" in
+  write_file (Filename.concat pyph_dir "artifact") "0123456789";
+  write_file (Filename.concat pyph_dir "meta")
+    {|{"kind":"model","class":"Prophet","task":"time_series","changepoints":25,"n_obs":290,"features":["weekly","yearly"]}|};
+  let env_fm_pyph =
+    Ast.Env.add "fake_pyprophet"
+      (Ast.VComputedNode (fake_cn ~name:"fake_pyprophet_foreign_meta_test" ~runtime:"Python"
+        ~path:(Filename.concat pyph_dir "artifact") ~class_:"Prophet"))
+      (Packages.init_env ())
+  in
+  test_env env_fm_pyph "explain foreign meta py prophet task"
+    "explain(fake_pyprophet).foreign_meta.task"
+    {|"time_series"|};
+  test_env env_fm_pyph "explain foreign meta py prophet changepoints"
+    "explain(fake_pyprophet).foreign_meta.changepoints"
+    "25";
+  let pmd_dir = make_node_dir "fake-pmdarima" in
+  write_file (Filename.concat pmd_dir "artifact") "0123456789";
+  write_file (Filename.concat pmd_dir "meta")
+    {|{"kind":"model","class":"ARIMA","task":"time_series","order":[2,1,1],"seasonal_order":[0,1,1,12],"n_obs":144,"metrics":{"aic":300.2}}|};
+  let env_fm_pmd =
+    Ast.Env.add "fake_pmdarima"
+      (Ast.VComputedNode (fake_cn ~name:"fake_pmdarima_foreign_meta_test" ~runtime:"Python"
+        ~path:(Filename.concat pmd_dir "artifact") ~class_:"ARIMA"))
+      (Packages.init_env ())
+  in
+  test_env env_fm_pmd "explain foreign meta pmdarima order d"
+    "get(explain(fake_pmdarima).foreign_meta.order, 1)"
+    "1";
+  test_env env_fm_pmd "explain foreign meta pmdarima seasonal period"
+    "get(explain(fake_pmdarima).foreign_meta.seasonal_order, 3)"
+    "12";
+  let pycb_dir = make_node_dir "fake-pycatboost" in
+  write_file (Filename.concat pycb_dir "artifact") "0123456789";
+  write_file (Filename.concat pycb_dir "meta")
+    {|{"kind":"model","class":"CatBoostClassifier","task":"classification","n_trees":100,"n_features":10,"metrics":{"best_iteration":42}}|};
+  let env_fm_pycb =
+    Ast.Env.add "fake_pycatboost"
+      (Ast.VComputedNode (fake_cn ~name:"fake_pycatboost_foreign_meta_test" ~runtime:"Python"
+        ~path:(Filename.concat pycb_dir "artifact") ~class_:"CatBoostClassifier"))
+      (Packages.init_env ())
+  in
+  test_env env_fm_pycb "explain foreign meta py catboost task"
+    "explain(fake_pycatboost).foreign_meta.task"
+    {|"classification"|};
+  test_env env_fm_pycb "explain foreign meta py catboost best iteration"
+    "explain(fake_pycatboost).foreign_meta.metrics.best_iteration"
+    "42";
+  let skt_dir = make_node_dir "fake-sktime" in
+  write_file (Filename.concat skt_dir "artifact") "0123456789";
+  write_file (Filename.concat skt_dir "meta")
+    {|{"kind":"model","class":"TrendForecaster","task":"time_series","horizon":24,"metrics":{"input_chunk_length":12}}|};
+  let env_fm_skt =
+    Ast.Env.add "fake_sktime"
+      (Ast.VComputedNode (fake_cn ~name:"fake_sktime_foreign_meta_test" ~runtime:"Python"
+        ~path:(Filename.concat skt_dir "artifact") ~class_:"TrendForecaster"))
+      (Packages.init_env ())
+  in
+  test_env env_fm_skt "explain foreign meta sktime horizon"
+    "explain(fake_sktime).foreign_meta.horizon"
+    "24";
+  (* P1 wave: new Julia families — Distributions, MCMCChains, Flux. *)
+  let jl_dir = make_node_dir "fake-jldist" in
+  write_file (Filename.concat jl_dir "artifact") "0123456789";
+  write_file (Filename.concat jl_dir "meta")
+    {|{"kind":"distribution","class":"Normal{Float64}","method":"Normal","metrics":{"mean":0.0,"std":1.0}}|};
+  let env_fm_jl =
+    Ast.Env.add "fake_jldist"
+      (Ast.VComputedNode (fake_cn ~name:"fake_jldist_foreign_meta_test" ~runtime:"Julia"
+        ~path:(Filename.concat jl_dir "artifact") ~class_:"Normal{Float64}"))
+      (Packages.init_env ())
+  in
+  test_env env_fm_jl "explain foreign meta julia distribution kind"
+    "explain(fake_jldist).foreign_meta.kind"
+    {|"distribution"|};
+  test_env env_fm_jl "explain foreign meta julia distribution mean"
+    "explain(fake_jldist).foreign_meta.metrics.mean"
+    "0";
+  let chn_dir = make_node_dir "fake-chn" in
+  write_file (Filename.concat chn_dir "artifact") "0123456789";
+  write_file (Filename.concat chn_dir "meta")
+    {|{"kind":"chain","class":"Chains","n_draws":500,"n_params":2,"n_chains":3}|};
+  let env_fm_chn =
+    Ast.Env.add "fake_chn"
+      (Ast.VComputedNode (fake_cn ~name:"fake_chn_foreign_meta_test" ~runtime:"Julia"
+        ~path:(Filename.concat chn_dir "artifact") ~class_:"Chains"))
+      (Packages.init_env ())
+  in
+  test_env env_fm_chn "explain foreign meta chains kind"
+    "explain(fake_chn).foreign_meta.kind"
+    {|"chain"|};
+  test_env env_fm_chn "explain foreign meta chains draw count"
+    "explain(fake_chn).foreign_meta.n_draws"
+    "500";
+  test_env env_fm_chn "explain foreign meta chains chain count"
+    "explain(fake_chn).foreign_meta.n_chains"
+    "3";
+  let flx_dir = make_node_dir "fake-flux" in
+  write_file (Filename.concat flx_dir "artifact") "0123456789";
+  write_file (Filename.concat flx_dir "meta")
+    {|{"kind":"model","class":"Chain","n_layers":3,"n_params":146}|};
+  let env_fm_flx =
+    Ast.Env.add "fake_flux"
+      (Ast.VComputedNode (fake_cn ~name:"fake_flux_foreign_meta_test" ~runtime:"Julia"
+        ~path:(Filename.concat flx_dir "artifact") ~class_:"Chain"))
+      (Packages.init_env ())
+  in
+  test_env env_fm_flx "explain foreign meta flux layers"
+    "explain(fake_flux).foreign_meta.n_layers"
+    "3";
+  test_env env_fm_flx "explain foreign meta flux params"
+    "explain(fake_flux).foreign_meta.n_params"
+    "146";
+  (* P2 wave: table-driven fake-meta fixtures. Each row binds one fake
+     foreign node and asserts one fact, so every new family has coverage
+     without repeating the boilerplate. *)
+  let p2_cases = [
+    ("gam", "R", "gam",
+     {|{"kind":"model","class":"gam","task":"regression","n_obs":32,"n_features":3,"features":["hp","s(wt).1","s(wt).2"],"formula":"mpg ~ s(wt) + hp","target":"mpg","metrics":{"edf":3.5,"r_squared":0.9,"smooths":1}}|},
+     "explain(p2v).foreign_meta.metrics.smooths", "1");
+    ("lme", "R", "lme",
+     {|{"kind":"model","class":"lme","task":"regression","n_groups":18,"groups":{"Subject":18},"formula":"distance ~ age","target":"distance"}|},
+     "explain(p2v).foreign_meta.groups.Subject", "18");
+    ("gls", "R", "gls",
+     {|{"kind":"model","class":"gls","task":"regression","formula":"distance ~ age","metrics":{"loglik":-200.5}}|},
+     "explain(p2v).foreign_meta.task", {|"regression"|});
+    ("rq", "R", "rq",
+     {|{"kind":"model","class":"rq","task":"regression","n_obs":32,"formula":"mpg ~ wt","target":"mpg","metrics":{"tau":0.5}}|},
+     "explain(p2v).foreign_meta.metrics.tau", "0.5");
+    ("survreg", "R", "survreg",
+     {|{"kind":"model","class":"survreg","task":"survival","method":"weibull","n_obs":100,"formula":"Surv(time, status) ~ age"}|},
+     "explain(p2v).foreign_meta.task", {|"survival"|});
+    ("zeroinfl", "R", "zeroinfl",
+     {|{"kind":"model","class":"zeroinfl","task":"regression","n_obs":200,"formula":"y ~ x","metrics":{"loglik":-100.5,"aic":210.0}}|},
+     "explain(p2v).foreign_meta.metrics.aic", "210");
+    ("clm", "R", "clm",
+     {|{"kind":"model","class":"clm","task":"classification","method":"logit","n_obs":100,"metrics":{"loglik":-120.0}}|},
+     "explain(p2v).foreign_meta.method", {|"logit"|});
+    ("betareg", "R", "betareg",
+     {|{"kind":"model","class":"betareg","task":"regression","n_obs":100,"formula":"y ~ x","metrics":{"phi":12.5,"pseudo_r_squared":0.3}}|},
+     "explain(p2v).foreign_meta.metrics.phi", "12.5");
+    ("plm", "R", "plm",
+     {|{"kind":"model","class":"plm","task":"regression","n_obs":50,"formula":"y ~ x"}|},
+     "explain(p2v).foreign_meta.n_obs", "50");
+    ("vglm", "R", "vglm",
+     {|{"kind":"model","class":"vglm","task":"classification","method":"binomialff","n_obs":100}|},
+     "explain(p2v).foreign_meta.method", {|"binomialff"|});
+    ("mclust", "R", "Mclust",
+     {|{"kind":"model","class":"Mclust","task":"clustering","n_clusters":3,"method":"VEE","n_obs":150,"metrics":{"bic":-450.0}}|},
+     "explain(p2v).foreign_meta.n_clusters", "3");
+    ("dbscan", "R", "dbscan",
+     {|{"kind":"model","class":"dbscan_fast","task":"clustering","n_clusters":2,"n_obs":50,"metrics":{"eps":0.5,"min_pts":5}}|},
+     "explain(p2v).foreign_meta.n_clusters", "2");
+    ("clara", "R", "clara",
+     {|{"kind":"model","class":"clara","task":"clustering","n_clusters":3,"n_obs":32,"metrics":{"silhouette":0.4}}|},
+     "explain(p2v).foreign_meta.metrics.silhouette", "0.4");
+    ("mixem", "R", "mixEM",
+     {|{"kind":"model","class":"mixEM","task":"density","n_components":2,"metrics":{"loglik":-80.0}}|},
+     "explain(p2v).foreign_meta.n_components", "2");
+    ("fmrinr-pca", "R", "PCA",
+     {|{"kind":"model","class":"PCA","task":"dim_reduction","n_obs":150,"n_components":5,"metrics":{"var_first":0.6}}|},
+     "explain(p2v).foreign_meta.metrics.var_first", "0.6");
+    ("fmrinr-ca", "R", "CA",
+     {|{"kind":"model","class":"CA","task":"dim_reduction","n_obs":20,"n_components":2,"metrics":{"var_first":0.9}}|},
+     "explain(p2v).foreign_meta.task", {|"dim_reduction"|});
+    ("psych-fa", "R", "fa",
+     {|{"kind":"model","class":"fa","task":"dim_reduction","n_components":2,"method":"promax","n_obs":300,"metrics":{"rmsea":0.02}}|},
+     "explain(p2v).foreign_meta.method", {|"promax"|});
+    ("lavaan", "R", "lavaan",
+     {|{"kind":"model","class":"lavaan","method":"SEM","n_params":25,"n_obs":300,"metrics":{"chisq":100.5,"pvalue":0.05,"cfi":0.95,"rmsea":0.03}}|},
+     "explain(p2v).foreign_meta.metrics.cfi", "0.95");
+    ("igraph", "R", "igraph",
+     {|{"kind":"graph","class":"igraph","n_nodes":10,"n_edges":20}|},
+     "explain(p2v).foreign_meta.n_edges", "20");
+    ("dist", "R", "dist",
+     {|{"kind":"dist","class":"dist","n_obs":32,"method":"euclidean"}|},
+     "explain(p2v).foreign_meta.kind", {|"dist"|});
+    ("urdf", "R", "ur.df",
+     {|{"kind":"test","class":"ur.df","method":"ur.df","metrics":{"statistic":-2.5}}|},
+     "explain(p2v).foreign_meta.kind", {|"test"|});
+    ("cajo", "R", "ca.jo",
+     {|{"kind":"test","class":"ca.jo","method":"Johansen-trace","metrics":{"statistic":85.4}}|},
+     "explain(p2v).foreign_meta.method", {|"Johansen-trace"|});
+    ("mcmc", "R", "mcmc",
+     {|{"kind":"chain","class":"mcmc","n_draws":100,"n_params":2}|},
+     "explain(p2v).foreign_meta.n_draws", "100");
+    ("mcmlist", "R", "mcmc.list",
+     {|{"kind":"chain","class":"mcmc.list","n_chains":4,"n_draws":100,"n_params":2}|},
+     "explain(p2v).foreign_meta.n_chains", "4");
+    ("mstl", "R", "mstl",
+     {|{"kind":"model","class":"mstl","task":"time_series","n_obs":144,"n_features":3,"features":["trend","Seasonal12","remainder"]}|},
+     "explain(p2v).foreign_meta.n_features", "3");
+    ("sparse-matrix", "R", "dgCMatrix",
+     {|{"kind":"matrix","class":"dgCMatrix","dimensions":[4,4],"metrics":{"nnz":2}}|},
+     "explain(p2v).foreign_meta.metrics.nnz", "2");
+    ("caret-train", "R", "train",
+     {|{"kind":"model","class":"train","task":"classification","method":"rf","metrics":{"accuracy":0.95,"kappa":0.9}}|},
+     "explain(p2v).foreign_meta.metrics.accuracy", "0.95");
+    ("parsnip", "R", "model_fit",
+     {|{"kind":"model","class":"model_fit","task":"regression","method":"lm"}|},
+     "explain(p2v).foreign_meta.method", {|"lm"|});
+    ("workflow", "R", "workflow",
+     {|{"kind":"model","class":"workflow","task":"classification","method":"ranger"}|},
+     "explain(p2v).foreign_meta.task", {|"classification"|});
+    ("svm", "R", "svm",
+     {|{"kind":"model","class":"svm.formula","task":"classification","method":"radial","n_features":4,"metrics":{"n_support_vectors":25}}|},
+     "explain(p2v).foreign_meta.metrics.n_support_vectors", "25");
+    ("ksvm", "R", "ksvm",
+     {|{"kind":"model","class":"ksvm","task":"classification","method":"C-svc (rbfdot)","metrics":{"n_support_vectors":20}}|},
+     "explain(p2v).foreign_meta.method", {|"C-svc (rbfdot)"|});
+    ("gbm", "R", "gbm",
+     {|{"kind":"model","class":"gbm","task":"classification","method":"bernoulli","n_trees":100,"metrics":{"shrinkage":0.1}}|},
+     "explain(p2v).foreign_meta.n_trees", "100");
+    ("c50", "R", "C5.0",
+     {|{"kind":"model","class":"C5.0","task":"classification","metrics":{"trials":10}}|},
+     "explain(p2v).foreign_meta.metrics.trials", "10");
+    ("earth", "R", "earth",
+     {|{"kind":"model","class":"earth","task":"regression","n_obs":32,"metrics":{"rsq":0.85,"grsq":0.8}}|},
+     "explain(p2v).foreign_meta.metrics.grsq", "0.8");
+    ("mvr", "R", "mvr",
+     {|{"kind":"model","class":"mvr","task":"regression","n_components":3,"n_obs":32}|},
+     "explain(p2v).foreign_meta.n_components", "3");
+    ("marss", "R", "marssMLE",
+     {|{"kind":"model","class":"marssMLE","task":"time_series","n_obs":30,"n_params":5,"metrics":{"loglik":-100.5,"aic":211.0}}|},
+     "explain(p2v).foreign_meta.metrics.aic", "211");
+    ("bsts", "R", "bsts",
+     {|{"kind":"model","class":"bsts","task":"time_series"}|},
+     "explain(p2v).foreign_meta.task", {|"time_series"|});
+    ("seas", "R", "seas",
+     {|{"kind":"model","class":"seas","task":"time_series","method":"X-13-ARIMA-SEATS","n_obs":144}|},
+     "explain(p2v).foreign_meta.method", {|"X-13-ARIMA-SEATS"|});
+    ("arfima", "R", "arfima",
+     {|{"kind":"model","class":"arfima","task":"time_series","n_obs":144}|},
+     "explain(p2v).foreign_meta.n_obs", "144");
+    ("binarytree", "R", "BinaryTree",
+     {|{"kind":"model","class":"BinaryTree","task":"classification","n_obs":100,"n_nodes":5}|},
+     "explain(p2v).foreign_meta.n_nodes", "5");
+    ("transformers", "Python", "BertForMaskedLM",
+     {|{"kind":"model","class":"BertForMaskedLM","method":"bert","n_params":110000000}|},
+     "explain(p2v).foreign_meta.n_params", "110000000");
+    ("tbats", "Python", "TBATS",
+     {|{"kind":"model","class":"TBATS","task":"time_series","seasonal_period":[7,365.25],"metrics":{"aic":300.5}}|},
+     "get(explain(p2v).foreign_meta.seasonal_period, 1)", "365.25");
+    ("skforecast", "Python", "ForecasterAutoreg",
+     {|{"kind":"model","class":"ForecasterAutoreg","task":"time_series","order":[10]}|},
+     "get(explain(p2v).foreign_meta.order, 0)", "10");
+    ("pyspark", "Python", "LogisticRegressionModel",
+     {|{"kind":"model","class":"LogisticRegressionModel","task":"classification","metrics":{"n_stages":2}}|},
+     "explain(p2v).foreign_meta.task", {|"classification"|});
+    ("networkx", "Python", "Graph",
+     {|{"kind":"graph","class":"Graph","n_nodes":6,"n_edges":7}|},
+     "explain(p2v).foreign_meta.n_nodes", "6");
+    ("imblearn", "Python", "LogisticRegression",
+     {|{"kind":"model","class":"LogisticRegression","task":"classification","n_features":4}|},
+     "explain(p2v).foreign_meta.task", {|"classification"|});
+    ("lazyframe", "Python", "LazyFrame",
+     {|{"kind":"dataframe","class":"LazyFrame","features":["a","b","c"]}|},
+     "explain(p2v).foreign_meta.kind", {|"dataframe"|});
+    ("xarray", "Python", "Dataset",
+     {|{"kind":"dataset","class":"Dataset","features":["temp","salt"],"n_features":2,"metrics":{"n_coords":3}}|},
+     "explain(p2v).foreign_meta.kind", {|"dataset"|});
+    ("vecm", "Python", "VECMResults",
+     {|{"kind":"model","class":"VECMResults","task":"time_series","order":[2],"n_obs":100}|},
+     "explain(p2v).foreign_meta.task", {|"time_series"|});
+    ("markov", "Python", "MarkovRegressionResults",
+     {|{"kind":"model","class":"MarkovRegressionResults","task":"time_series","metrics":{"n_regimes":2}}|},
+     "explain(p2v).foreign_meta.metrics.n_regimes", "2");
+    ("mlj", "Julia", "Machine",
+     {|{"kind":"model","class":"Machine","task":"regression","method":"RandomForestRegressor"}|},
+     "explain(p2v).foreign_meta.method", {|"RandomForestRegressor"|});
+    ("xgboostjl", "Julia", "Booster",
+     {|{"kind":"model","class":"Booster","metrics":{"best_iteration":42}}|},
+     "explain(p2v).foreign_meta.kind", {|"model"|});
+    ("archmodels", "Julia", "GARCH",
+     {|{"kind":"model","class":"GARCH","task":"time_series","method":"GARCH"}|},
+     "explain(p2v).foreign_meta.task", {|"time_series"|});
+    ("categorical", "Julia", "CategoricalArray",
+     {|{"kind":"factor","class":"CategoricalArray{Int64,1}","n_levels":3,"n_obs":10,"levels":["a","b","c"]}|},
+     "explain(p2v).foreign_meta.n_levels", "3");
+  ] in
+  List.iter (fun (dname, runtime, class_, meta, expr, expected) ->
+    let dir = make_node_dir ("fake-p2-" ^ dname) in
+    write_file (Filename.concat dir "artifact") "0123456789";
+    write_file (Filename.concat dir "meta") meta;
+    let env =
+      Ast.Env.add "p2v"
+        (Ast.VComputedNode (fake_cn ~name:("fake_p2_" ^ dname) ~runtime
+          ~path:(Filename.concat dir "artifact") ~class_))
+        (Packages.init_env ())
+    in
+    test_env env ("explain foreign meta p2 " ^ dname) expr expected
+  ) p2_cases;
+  let p3_cases = [
+    ("fable", "R", "fable",
+     {|{"kind":"forecast","class":"fable","horizon":12,"method":"TSLM"}|},
+     "explain(p3v).foreign_meta.kind", {|"forecast"|});
+    ("mable", "R", "mdl_df",
+     {|{"kind":"model","class":"mdl_df","task":"time_series","method":"ARIMA, ETS","n_features":2,"features":["ARIMA","ETS"],"n_obs":1}|},
+     "explain(p3v).foreign_meta.method", {|"ARIMA, ETS"|});
+    ("smooth", "R", "smooth",
+     {|{"kind":"model","class":"smooth","task":"time_series","order":[1,1,0],"n_obs":144,"metrics":{"aic":300.5,"bic":320.5}}|},
+     "get(explain(p3v).foreign_meta.order, 2)", "0");
+    ("dlmfiltered", "R", "dlmFiltered",
+     {|{"kind":"model","class":"dlmFiltered","task":"time_series","n_obs":100}|},
+     "explain(p3v).foreign_meta.n_obs", "100");
+    ("rkeras", "R", "keras.engine.training.Model",
+     {|{"kind":"model","class":"keras.engine.training.Model","n_params":2592,"n_layers":4}|},
+     "explain(p3v).foreign_meta.n_params", "2592");
+    ("rtorch", "R", "nn_sequential_module",
+     {|{"kind":"model","class":"nn_sequential_module","n_params":146,"n_layers":3}|},
+     "explain(p3v).foreign_meta.n_layers", "3");
+    ("seurat", "R", "Seurat",
+     {|{"kind":"dataset","class":"Seurat","n_obs":2700,"n_features":32738,"method":"RNA"}|},
+     "explain(p3v).foreign_meta.n_obs", "2700");
+    ("neuralnet", "R", "nn",
+     {|{"kind":"model","class":"nn","n_obs":100,"metrics":{"error":1.5,"steps":200}}|},
+     "explain(p3v).foreign_meta.metrics.steps", "200");
+    ("gensim-lda", "Python", "LdaModel",
+     {|{"kind":"model","class":"LdaModel","task":"dim_reduction","n_components":10}|},
+     "explain(p3v).foreign_meta.n_components", "10");
+    ("gensim-w2v", "Python", "Word2Vec",
+     {|{"kind":"model","class":"Word2Vec","metrics":{"vector_size":50,"n_vocab":10000}}|},
+     "explain(p3v).foreign_meta.metrics.vector_size", "50");
+    ("dask", "Python", "DataFrame",
+     {|{"kind":"dataframe","class":"DataFrame","features":["a","b"],"metrics":{"npartitions":8}}|},
+     "explain(p3v).foreign_meta.metrics.npartitions", "8");
+    ("pil", "Python", "PngImageFile",
+     {|{"kind":"image","class":"PngImageFile","dimensions":[640,480],"dtype":"RGBA"}|},
+     "explain(p3v).foreign_meta.kind", {|"image"|});
+    ("neuralprophet", "Python", "NeuralProphet",
+     {|{"kind":"model","class":"NeuralProphet","task":"time_series","n_params":12000}|},
+     "explain(p3v).foreign_meta.n_params", "12000");
+    ("tslearn", "Python", "TimeSeriesKMeans",
+     {|{"kind":"model","class":"TimeSeriesKMeans","task":"clustering","n_clusters":3}|},
+     "explain(p3v).foreign_meta.n_clusters", "3");
+    ("jl-cmeans", "Julia", "CmeansResult{Float64}",
+     {|{"kind":"model","class":"CmeansResult{Float64}","task":"clustering","n_clusters":3,"n_features":4}|},
+     "explain(p3v).foreign_meta.n_clusters", "3");
+    ("jl-dbscan", "Julia", "DbscanResult",
+     {|{"kind":"model","class":"DbscanResult","task":"clustering","n_clusters":2,"n_obs":50}|},
+     "explain(p3v).foreign_meta.n_obs", "50");
+    ("jl-ica", "Julia", "ICA{Float64}",
+     {|{"kind":"model","class":"ICA{Float64}","task":"dim_reduction","n_components":3}|},
+     "explain(p3v).foreign_meta.n_components", "3");
+    ("jl-fa", "Julia", "FactorAnalysis{Float64}",
+     {|{"kind":"model","class":"FactorAnalysis{Float64}","task":"dim_reduction","n_components":2}|},
+     "explain(p3v).foreign_meta.n_components", "2");
+    ("jl-ppca", "Julia", "PPCA{Float64}",
+     {|{"kind":"model","class":"PPCA{Float64}","task":"dim_reduction","n_components":2}|},
+     "explain(p3v).foreign_meta.n_components", "2");
+    ("jl-kpca", "Julia", "KernelPCA{Float64}",
+     {|{"kind":"model","class":"KernelPCA{Float64}","task":"dim_reduction","n_components":3,"metrics":{"var_first":0.5}}|},
+     "explain(p3v).foreign_meta.metrics.var_first", "0.5");
+    ("jl-mlda", "Julia", "MulticlassLDA{Float64}",
+     {|{"kind":"model","class":"MulticlassLDA{Float64}","task":"dim_reduction","n_components":2,"metrics":{"n_classes":3}}|},
+     "explain(p3v).foreign_meta.metrics.n_classes", "3");
+    ("jl-graphs", "Julia", "SimpleGraph{Int64}",
+     {|{"kind":"graph","class":"SimpleGraph{Int64}","n_nodes":10,"n_edges":15}|},
+     "explain(p3v).foreign_meta.n_edges", "15");
+    ("jl-jump", "Julia", "Model",
+     {|{"kind":"optimization","class":"Model","metrics":{"n_variables":5,"n_constraints":2}}|},
+     "explain(p3v).foreign_meta.kind", {|"optimization"|});
+    ("jl-ode", "Julia", "ODESolution",
+     {|{"kind":"ode","class":"ODESolution","n_obs":100,"method":"Success","metrics":{"tspan_start":0.0,"tspan_end":1.0}}|},
+     "explain(p3v).foreign_meta.kind", {|"ode"|});
+    ("jl-gmm", "Julia", "GMM",
+     {|{"kind":"model","class":"GMM","task":"density","n_components":4}|},
+     "explain(p3v).foreign_meta.n_components", "4");
+  ] in
+  List.iter (fun (dname, runtime, class_, meta, expr, expected) ->
+    let dir = make_node_dir ("fake-p3-" ^ dname) in
+    write_file (Filename.concat dir "artifact") "0123456789";
+    write_file (Filename.concat dir "meta") meta;
+    let env =
+      Ast.Env.add "p3v"
+        (Ast.VComputedNode (fake_cn ~name:("fake_p3_" ^ dname) ~runtime
+          ~path:(Filename.concat dir "artifact") ~class_))
+        (Packages.init_env ())
+    in
+    test_env env ("explain foreign meta p3 " ^ dname) expr expected
+  ) p3_cases;
   rm_rf meta_base;
   print_newline ();
 
@@ -1219,8 +1789,8 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
                 (match json_number json2 "r_squared" with
                  | Some f -> abs_float (f -. 0.826785451882791) < 1e-6
                  | None -> false);
-              check_golden "R probe handles gam through the glm branch"
-                (contains json3 "regression" && contains json3 "s(wt)");
+              check_golden "R probe handles gam smooth terms"
+                (contains json3 "regression" && contains json3 "s(wt)" && contains json3 "smooths");
               check_golden "R probe handles rlm through the lm branch"
                 (contains json4 "regression" && contains json4 "n_obs");
               check_golden "R probe handles glm.nb through the glm branch"
@@ -1281,6 +1851,117 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
                    check_golden "R probe handles merMod"
                      (contains json "regression" && contains json "Subject"))))
    | _ -> skip_golden "R probe merMod" "no lme4");
+  (* R forecast/zoo families: ets, forecast results, nnetar, tbats, and
+     the zoo series classification. Needs forecast + zoo, skipped when
+     absent. *)
+  (match shell_out "Rscript -e \"cat(requireNamespace(\\\"forecast\\\", quietly = TRUE) && requireNamespace(\\\"zoo\\\", quietly = TRUE))\" 2>/dev/null" with
+   | s when contains s "TRUE" ->
+       (match extract_fn "r_save_meta <- function(object, path) {" (fun l -> l = "}") with
+        | None -> check_golden "R probe source found" false
+        | Some src ->
+            let drv = src ^ "\n" ^
+              "library(forecast)\n" ^
+              "library(zoo)\n" ^
+              "e1 <- ets(AirPassengers, model = \"AAA\")\n" ^
+              "r_save_meta(e1, Sys.getenv(\"T_GOLD_OUT\"))\n" ^
+              "f1 <- forecast::forecast(forecast::auto.arima(AirPassengers), h = 12)\n" ^
+              "r_save_meta(f1, Sys.getenv(\"T_GOLD_OUT2\"))\n" ^
+              "z1 <- zoo(1:10, as.Date(\"2010-01-01\") + 0:9)\n" ^
+              "r_save_meta(z1, Sys.getenv(\"T_GOLD_OUT3\"))\n" ^
+              "n1 <- nnetar(AirPassengers, repeats = 2)\n" ^
+              "r_save_meta(n1, Sys.getenv(\"T_GOLD_OUT4\"))\n" ^
+              "b1 <- tbats(AirPassengers)\n" ^
+              "r_save_meta(b1, Sys.getenv(\"T_GOLD_OUT5\"))\n"
+            in
+            (match write_temp "r-forecast.R" drv with
+             | None -> check_golden "R probe forecast driver written" false
+             | Some drv_path ->
+                 let out = temp_path "rfc.json" in
+                 let out2 = temp_path "rfc2.json" in
+                 let out3 = temp_path "rfc3.json" in
+                 let out4 = temp_path "rfc4.json" in
+                 let out5 = temp_path "rfc5.json" in
+                 with_temp_files [drv_path; out; out2; out3; out4; out5] (fun () ->
+                   let _ = shell_out (Printf.sprintf "T_GOLD_OUT=%s T_GOLD_OUT2=%s T_GOLD_OUT3=%s T_GOLD_OUT4=%s T_GOLD_OUT5=%s Rscript %s 2>/dev/null"
+                     (Filename.quote out) (Filename.quote out2) (Filename.quote out3) (Filename.quote out4) (Filename.quote out5) (Filename.quote drv_path)) in
+                   let json = match read_file_opt out with Some s -> s | None -> "" in
+                   let json2 = match read_file_opt out2 with Some s -> s | None -> "" in
+                   let json3 = match read_file_opt out3 with Some s -> s | None -> "" in
+                   let json4 = match read_file_opt out4 with Some s -> s | None -> "" in
+                   let json5 = match read_file_opt out5 with Some s -> s | None -> "" in
+                   check_golden "R probe handles ets models"
+                     (contains json "time_series" && contains json "seasonal_period" && contains json "ETS(A,A,A)");
+                   check_golden "R probe handles forecast result objects"
+                     (contains json2 "\"forecast\"" && contains json2 "horizon" && contains json2 "level");
+                   check_golden "R probe classifies zoo series"
+                     (contains json3 "\"series\"" && contains json3 "2010-01-01");
+                   check_golden "R probe handles nnetar models"
+                     (contains json4 "time_series" && contains json4 "size");
+                   check_golden "R probe handles tbats models"
+                     (contains json5 "time_series" && contains json5 "seasonal_period" && contains json5 "\"aic\""))))
+   | _ -> skip_golden "R probe forecast family" "no forecast/zoo");
+  (* R P2 families: needs nlme + cluster + quantreg + urca (Matrix ships
+     with every R). Skipped when absent. *)
+  (match shell_out "Rscript -e \"cat(requireNamespace(\\\"nlme\\\", quietly = TRUE) && requireNamespace(\\\"cluster\\\", quietly = TRUE) && requireNamespace(\\\"quantreg\\\", quietly = TRUE) && requireNamespace(\\\"urca\\\", quietly = TRUE))\" 2>/dev/null" with
+   | s when contains s "TRUE" ->
+       (match extract_fn "r_save_meta <- function(object, path) {" (fun l -> l = "}") with
+        | None -> check_golden "R probe source found" false
+        | Some src ->
+            let drv = src ^ "\n" ^
+              "library(nlme)\n" ^
+              "fm1 <- lme(distance ~ age, Orthodont, random = ~ 1 | Subject)\n" ^
+              "r_save_meta(fm1, Sys.getenv(\"T_GOLD_OUT\"))\n" ^
+              "gf1 <- gls(distance ~ age, Orthodont)\n" ^
+              "r_save_meta(gf1, Sys.getenv(\"T_GOLD_OUT2\"))\n" ^
+              "library(cluster)\n" ^
+              "cf1 <- clara(mtcars, 3)\n" ^
+              "r_save_meta(cf1, Sys.getenv(\"T_GOLD_OUT3\"))\n" ^
+              "library(quantreg)\n" ^
+              "rq1 <- rq(mpg ~ wt, data = mtcars, tau = 0.5)\n" ^
+              "r_save_meta(rq1, Sys.getenv(\"T_GOLD_OUT4\"))\n" ^
+              "library(urca)\n" ^
+              "ur1 <- ur.df(AirPassengers, type = \"drift\")\n" ^
+              "r_save_meta(ur1, Sys.getenv(\"T_GOLD_OUT5\"))\n" ^
+              "dd1 <- dist(mtcars)\n" ^
+              "r_save_meta(dd1, Sys.getenv(\"T_GOLD_OUT6\"))\n" ^
+              "sp1 <- Matrix::sparseMatrix(i = c(1, 3), j = c(2, 4), x = c(5, 7), dims = c(4, 4))\n" ^
+              "r_save_meta(sp1, Sys.getenv(\"T_GOLD_OUT7\"))\n"
+            in
+            (match write_temp "r-p2.R" drv with
+             | None -> check_golden "R probe p2 driver written" false
+             | Some drv_path ->
+                 let out = temp_path "rp2.json" in
+                 let out2 = temp_path "rp2b.json" in
+                 let out3 = temp_path "rp2c.json" in
+                 let out4 = temp_path "rp2d.json" in
+                 let out5 = temp_path "rp2e.json" in
+                 let out6 = temp_path "rp2f.json" in
+                 let out7 = temp_path "rp2g.json" in
+                 with_temp_files [drv_path; out; out2; out3; out4; out5; out6; out7] (fun () ->
+                   let _ = shell_out (Printf.sprintf "T_GOLD_OUT=%s T_GOLD_OUT2=%s T_GOLD_OUT3=%s T_GOLD_OUT4=%s T_GOLD_OUT5=%s T_GOLD_OUT6=%s T_GOLD_OUT7=%s Rscript %s 2>/dev/null"
+                     (Filename.quote out) (Filename.quote out2) (Filename.quote out3) (Filename.quote out4) (Filename.quote out5) (Filename.quote out6) (Filename.quote out7) (Filename.quote drv_path)) in
+                   let json = match read_file_opt out with Some s -> s | None -> "" in
+                   let json2 = match read_file_opt out2 with Some s -> s | None -> "" in
+                   let json3 = match read_file_opt out3 with Some s -> s | None -> "" in
+                   let json4 = match read_file_opt out4 with Some s -> s | None -> "" in
+                   let json5 = match read_file_opt out5 with Some s -> s | None -> "" in
+                   let json6 = match read_file_opt out6 with Some s -> s | None -> "" in
+                   let json7 = match read_file_opt out7 with Some s -> s | None -> "" in
+                   check_golden "R probe handles lme mixed models"
+                     (contains json "regression" && contains json "Subject");
+                   check_golden "R probe handles gls fits"
+                     (contains json2 "regression");
+                   check_golden "R probe handles clara clustering"
+                     (contains json3 "clustering" && contains json3 "n_clusters");
+                   check_golden "R probe handles quantile regression"
+                     (contains json4 "regression" && contains json4 "tau");
+                   check_golden "R probe handles ur.df unit-root tests"
+                     (contains json5 "\"test\"" && contains json5 "statistic");
+                   check_golden "R probe classifies dist objects"
+                     (contains json6 "\"dist\"" && contains json6 "n_obs");
+                   check_golden "R probe handles sparse Matrix objects"
+                     (contains json7 "\"matrix\"" && contains json7 "nnz"))))
+   | _ -> skip_golden "R probe p2 family" "no nlme/cluster/quantreg/urca");
   (* Python: array-API const excluded from features; NaN sanitized. *)
   (match extract_fn ~keep_end:false "def py_save_meta(obj, path):" (fun l -> l <> "" && l.[0] <> ' ' && l.[0] <> '\t') with
    | None -> check_golden "Python probe source found" false
@@ -1504,6 +2185,47 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
                    let json = match read_file_opt out with Some s -> s | None -> "" in
                    check_golden "Julia probe handles GLM fits"
                      (contains json "classification" && contains json "deviance")))));
+  (* Julia Distributions / MCMCChains / Flux: needs all three packages,
+     skipped when absent. jl_module_matches is extracted with the probe
+     because the new module checks call it. *)
+  (match shell_out "julia -e 'using Distributions, MCMCChains, Flux' 2>/dev/null && echo IMPORT-OK" with
+   | pre when not (contains pre "IMPORT-OK") -> skip_golden "Julia Distributions/Chains/Flux golden" "no Distributions/MCMCChains/Flux"
+   | _ ->
+       (match extract_fn "function jl_module_matches(module_name, expected)" (fun l -> l = "end") with
+        | None -> check_golden "Julia module_matches source found" false
+        | Some mod_src ->
+            (match extract_fn "function jl_save_meta(obj, path)" (fun l -> l = "end") with
+             | None -> check_golden "Julia probe source found" false
+             | Some probe ->
+                 let drv = mod_src ^ "\n" ^ probe ^ "\n" ^
+                   "module JSON\n" ^
+                   "print(io::IO, d) = Base.print(io, d)\n" ^
+                   "end\n" ^
+                   "using Distributions, MCMCChains, Flux\n" ^
+                   "jl_save_meta(Normal(), ENV[\"T_GOLD_OUT\"])\n" ^
+                   "chn = Chains(rand(100, 2, 3), [:a, :b])\n" ^
+                   "jl_save_meta(chn, ENV[\"T_GOLD_OUT2\"])\n" ^
+                   "m = Chain(Dense(2, 4, σ), Dense(4, 1))\n" ^
+                   "jl_save_meta(m, ENV[\"T_GOLD_OUT3\"])\n"
+                 in
+                 (match write_temp "jlp1.jl" drv with
+                  | None -> check_golden "Julia Distributions/Chains/Flux driver written" false
+                  | Some drv_path ->
+                      let out = temp_path "jlp1.json" in
+                      let out2 = temp_path "jlp2.json" in
+                      let out3 = temp_path "jlp3.json" in
+                      with_temp_files [drv_path; out; out2; out3] (fun () ->
+                        let _ = shell_out (Printf.sprintf "T_GOLD_OUT=%s T_GOLD_OUT2=%s T_GOLD_OUT3=%s julia %s 2>/dev/null"
+                          (Filename.quote out) (Filename.quote out2) (Filename.quote out3) (Filename.quote drv_path)) in
+                        let json = match read_file_opt out with Some s -> s | None -> "" in
+                        let json2 = match read_file_opt out2 with Some s -> s | None -> "" in
+                        let json3 = match read_file_opt out3 with Some s -> s | None -> "" in
+                        check_golden "Julia probe handles Distributions values"
+                          (contains json "distribution" && contains json "Normal");
+                        check_golden "Julia probe handles MCMCChains"
+                          (contains json2 "chain" && contains json2 "n_draws");
+                        check_golden "Julia probe handles Flux models"
+                          (contains json3 "n_params" && contains json3 "n_layers"))))));
   (* Skips are environmental (missing runtime), never code regressions:
      extraction breakage fails loudly above. They are reported loudly
      but do not fail, so cross-platform CI (e.g. macOS images without a

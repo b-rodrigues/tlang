@@ -1648,7 +1648,44 @@ r_save_meta <- function(object, path) {
     meta <- list()
     cls <- tryCatch(as.character(class(object)[1]), error = function(e) NULL)
     if (!is.null(cls) && length(cls) == 1 && !is.na(cls) && nzchar(cls)) meta$class <- cls
-    if (is.data.frame(object)) {
+    if (inherits(object, "fable")) {
+      # tidyverts forecast tables (fable): horizon is the count of unique
+      # forecast time-index steps (not nrow, which scales with keys * models).
+      meta$kind <- "forecast"
+      h <- tryCatch({
+        idx <- attr(object, "index")
+        if (!is.null(idx)) {
+          idx_col <- as.character(idx)[1]
+          as.integer(length(unique(object[[idx_col]])))
+        } else {
+          iv <- tsibble::index_var(object)
+          as.integer(length(unique(object[[iv]])))
+        }
+      }, error = function(e) NULL)
+      if (is.null(h) || length(h) != 1 || is.na(h)) {
+        h <- tryCatch(as.integer(nrow(object)), error = function(e) NULL)
+      }
+      if (!is.null(h) && length(h) == 1 && !is.na(h)) meta$horizon <- h
+      mth <- tryCatch(paste(unique(object$.model), collapse = ", "), error = function(e) NULL)
+      if (!is.null(mth) && length(mth) == 1 && !is.na(mth) && nzchar(mth)) meta$method <- mth
+    } else if (inherits(object, "mdl_df") || inherits(object, "model_df")) {
+      # tidyverts mables: one fitted model column per model type. These
+      # inherit data.frame, so they must run before the frame branch.
+      meta$kind <- "model"
+      meta$task <- "time_series"
+      mcols <- tryCatch({
+        mc <- names(object)[vapply(object, inherits, logical(1), "lst_mdl")]
+        if (length(mc) == 0) mc <- setdiff(names(object), fabletools::key_vars(object))
+        mc
+      }, error = function(e) NULL)
+      if (!is.null(mcols) && length(mcols) > 0) {
+        meta$method <- paste(mcols, collapse = ", ")
+        meta$n_features <- length(mcols)
+        meta$features <- as.list(mcols)
+      }
+      no <- tryCatch(as.integer(nrow(object)), error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- no
+    } else if (is.data.frame(object)) {
       meta$kind <- "dataframe"
       meta$dimensions <- list(nrow(object), ncol(object))
       nms <- tryCatch(names(object), error = function(e) NULL)
@@ -1667,6 +1704,215 @@ r_save_meta <- function(object, path) {
         meta$n_clusters <- length(unique(cl))
         meta$n_obs <- as.integer(length(cl))
       }
+    } else if (inherits(object, "zoo")) {
+      # zoo covers xts (xts extends zoo). Both are index series, not
+      # matrices, even though they carry a 2-element dim.
+      meta$kind <- "series"
+      no <- tryCatch(as.integer(NROW(object)), error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- no
+      cns <- tryCatch(colnames(object), error = function(e) NULL)
+      if (!is.null(cns) && length(cns) > 0) {
+        meta$n_features <- length(cns)
+        meta$features <- as.list(as.character(cns))
+      } else {
+        nc <- tryCatch(as.integer(NCOL(object)), error = function(e) NULL)
+        if (!is.null(nc) && length(nc) == 1 && !is.na(nc) && nc > 1) meta$n_features <- nc
+      }
+      metrics <- list()
+      fr <- tryCatch(frequency(object), error = function(e) NULL)
+      if (!is.null(fr) && length(fr) == 1 && !is.na(fr) && fr > 1) metrics$period <- as.integer(fr)
+      st <- tryCatch(start(object), error = function(e) NULL)
+      if (!is.null(st) && length(st) > 0 && !any(is.na(st))) meta$start <- paste(as.character(st), collapse = "-")
+      en <- tryCatch(end(object), error = function(e) NULL)
+      if (!is.null(en) && length(en) > 0 && !any(is.na(en))) meta$end <- paste(as.character(en), collapse = "-")
+      if (length(metrics) > 0) meta$metrics <- metrics
+    } else if (inherits(object, "uGARCHfit")) {
+      # S4 object. This branch runs before the dim() checks so slot
+      # access stays local to one place.
+      meta$kind <- "model"
+      meta$task <- "time_series"
+      vm <- tryCatch(as.character(object@model$modeldesc$vmodel), error = function(e) NULL)
+      if (!is.null(vm) && length(vm) == 1 && !is.na(vm) && nzchar(vm)) {
+        mi <- tryCatch(as.integer(object@model$modelinc[8:9]), error = function(e) NULL)
+        if (!is.null(mi) && length(mi) == 2 && !any(is.na(mi))) {
+          meta$method <- paste0(vm, "(", mi[1], ",", mi[2], ")")
+        } else {
+          meta$method <- vm
+        }
+      }
+      no <- tryCatch(length(stats::fitted(object)), error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- as.integer(no)
+      np <- tryCatch(sum(object@fit$ipars[, 4]), error = function(e) NULL)
+      if (!is.null(np) && length(np) == 1 && !is.na(np)) {
+        npar <- as.integer(np)
+        if (npar > 0) meta$n_params <- npar
+      }
+      metrics <- list()
+      ll <- tryCatch(as.numeric(rugarch::likelihood(object)), error = function(e) NULL)
+      if (!is.null(ll) && length(ll) == 1 && !is.na(ll)) metrics$loglik <- ll
+      ic <- tryCatch(rugarch::infocriteria(object), error = function(e) NULL)
+      if (!is.null(ic)) {
+        aic <- tryCatch(as.numeric(ic["Akaike", 1]), error = function(e) NULL)
+        if (!is.null(aic) && length(aic) == 1 && !is.na(aic)) metrics$aic <- aic
+        bic <- tryCatch(as.numeric(ic["Bayes", 1]), error = function(e) NULL)
+        if (!is.null(bic) && length(bic) == 1 && !is.na(bic)) metrics$bic <- bic
+      }
+      if (length(metrics) > 0) meta$metrics <- metrics
+    } else if (inherits(object, "mcmc")) {
+      # coda::mcmc — a draws x parameters matrix; a chain, not a matrix.
+      meta$kind <- "chain"
+      nr <- tryCatch(nrow(object), error = function(e) NULL)
+      if (!is.null(nr) && length(nr) == 1 && !is.na(nr)) meta$n_draws <- as.integer(nr)
+      nc <- tryCatch(ncol(object), error = function(e) NULL)
+      if (!is.null(nc) && length(nc) == 1 && !is.na(nc)) meta$n_params <- as.integer(nc)
+    } else if (inherits(object, "mcmc.list")) {
+      # coda::mcmc.list — a list of mcmc chains.
+      meta$kind <- "chain"
+      nch <- tryCatch(length(object), error = function(e) NULL)
+      if (!is.null(nch) && length(nch) == 1 && !is.na(nch)) meta$n_chains <- as.integer(nch)
+      if (!is.null(nch) && nch > 0) {
+        first <- tryCatch(object[[1]], error = function(e) NULL)
+        if (!is.null(first)) {
+          nr <- tryCatch(nrow(first), error = function(e) NULL)
+          if (!is.null(nr) && length(nr) == 1 && !is.na(nr)) meta$n_draws <- as.integer(nr)
+          nc <- tryCatch(ncol(first), error = function(e) NULL)
+          if (!is.null(nc) && length(nc) == 1 && !is.na(nc)) meta$n_params <- as.integer(nc)
+        }
+      }
+    } else if (inherits(object, "mstl")) {
+      # forecast::mstl — multiple seasonal decomposition; matrix-like, so
+      # this branch runs before the generic matrix check.
+      meta$kind <- "model"
+      meta$task <- "time_series"
+      nr <- tryCatch(nrow(object), error = function(e) NULL)
+      if (!is.null(nr) && length(nr) == 1 && !is.na(nr)) meta$n_obs <- as.integer(nr)
+      vn <- tryCatch(colnames(object), error = function(e) NULL)
+      if (!is.null(vn) && length(vn) > 0) {
+        meta$n_features <- length(vn)
+        meta$features <- as.list(as.character(vn))
+      }
+    } else if (inherits(object, "dist")) {
+      # stats::dist — a compressed distance object, not a plain vector.
+      meta$kind <- "dist"
+      sz <- tryCatch(as.integer(attr(object, "Size")), error = function(e) NULL)
+      if (!is.null(sz) && length(sz) == 1 && !is.na(sz)) meta$n_obs <- sz
+      md <- tryCatch(attr(object, "method"), error = function(e) NULL)
+      if (!is.null(md) && length(md) == 1 && !is.na(md) && nzchar(md)) meta$method <- md
+    } else if (tryCatch(is(object, "Matrix"), error = function(e) FALSE)) {
+      # Matrix package sparse matrices; S4 with a dim method.
+      meta$kind <- "matrix"
+      dm <- tryCatch(as.integer(dim(object)), error = function(e) NULL)
+      if (!is.null(dm) && length(dm) == 2 && !any(is.na(dm))) meta$dimensions <- as.list(dm)
+      metrics <- list()
+      nzv <- tryCatch(as.integer(Matrix::nnzero(object)), error = function(e) NULL)
+      if (!is.null(nzv) && length(nzv) == 1 && !is.na(nzv)) metrics$nnz <- nzv
+      if (length(metrics) > 0) meta$metrics <- metrics
+    } else if (inherits(object, "lavaan")) {
+      # lavaan SEM/CFA fits; S4. fitMeasures carries the standard indices.
+      meta$kind <- "model"
+      meta$method <- "SEM"
+      fm <- tryCatch(lavaan::fitMeasures(object), error = function(e) NULL)
+      if (!is.null(fm)) {
+        npar <- tryCatch(as.numeric(fm["npar"]), error = function(e) NULL)
+        if (!is.null(npar) && length(npar) == 1 && !is.na(npar)) meta$n_params <- as.integer(npar)
+        ntot <- tryCatch(as.numeric(fm["ntotal"]), error = function(e) NULL)
+        if (!is.null(ntot) && length(ntot) == 1 && !is.na(ntot)) meta$n_obs <- as.integer(ntot)
+        metrics <- list()
+        for (nm in c("chisq", "pvalue", "cfi", "rmsea")) {
+          vv <- tryCatch(as.numeric(fm[[nm]]), error = function(e) NULL)
+          if (!is.null(vv) && length(vv) == 1 && !is.na(vv)) metrics[[nm]] <- vv
+        }
+        if (length(metrics) > 0) meta$metrics <- metrics
+      }
+    } else if (inherits(object, "ca.jo")) {
+      # urca::ca.jo — Johansen cointegration test; S4.
+      meta$kind <- "test"
+      tp <- tryCatch(as.character(object@type), error = function(e) NULL)
+      if (!is.null(tp) && length(tp) == 1 && !is.na(tp) && nzchar(tp)) meta$method <- paste0("Johansen-", tp)
+      metrics <- list()
+      ts <- tryCatch(as.numeric(object@teststat[1]), error = function(e) NULL)
+      if (!is.null(ts) && length(ts) == 1 && !is.na(ts)) metrics$statistic <- ts
+      if (length(metrics) > 0) meta$metrics <- metrics
+    } else if (inherits(object, "ur.df") || inherits(object, "ur.kpss")) {
+      # urca unit-root tests; S4.
+      meta$kind <- "test"
+      md <- tryCatch(class(object)[1], error = function(e) NULL)
+      if (!is.null(md) && length(md) == 1 && !is.na(md) && nzchar(md)) meta$method <- md
+      metrics <- list()
+      ts <- tryCatch(as.numeric(object@teststat[1]), error = function(e) NULL)
+      if (!is.null(ts) && length(ts) == 1 && !is.na(ts)) metrics$statistic <- ts
+      if (length(metrics) > 0) meta$metrics <- metrics
+    } else if (inherits(object, "vglm")) {
+      # VGAM vector generalized linear models; S4.
+      meta$kind <- "model"
+      vf <- tryCatch(as.character(object@family@vfamily)[1], error = function(e) NULL)
+      if (!is.null(vf) && length(vf) == 1 && !is.na(vf) && nzchar(vf)) {
+        meta$method <- vf
+        if (grepl("binomial|multinomial|cumulative", vf)) meta$task <- "classification"
+        else meta$task <- "regression"
+      }
+      no <- tryCatch(as.integer(stats::nobs(object)), error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- no
+    } else if (inherits(object, "ksvm")) {
+      # kernlab::ksvm; S4.
+      meta$kind <- "model"
+      tp <- tryCatch(paste(as.character(object@type), collapse = ""), error = function(e) NULL)
+      if (!is.null(tp) && length(tp) == 1 && !is.na(tp) && nzchar(tp)) {
+        meta$method <- tp
+        if (grepl("svc", tp)) meta$task <- "classification"
+        else if (grepl("svr", tp)) meta$task <- "regression"
+      }
+      kl <- tryCatch(paste(as.character(class(object@kernelf)[1]), collapse = ""), error = function(e) NULL)
+      if (!is.null(kl) && length(kl) == 1 && !is.na(kl) && nzchar(kl)) {
+        meta$method <- if (!is.null(meta$method)) paste0(meta$method, " (", kl, ")") else kl
+      }
+      metrics <- list()
+      nsv <- tryCatch(sum(as.numeric(object@nSV)), error = function(e) NULL)
+      if (!is.null(nsv) && length(nsv) == 1 && !is.na(nsv)) metrics$n_support_vectors <- nsv
+      if (length(metrics) > 0) meta$metrics <- metrics
+    } else if (inherits(object, "BinaryTree")) {
+      # party::ctree (S4 class BinaryTree).
+      meta$kind <- "model"
+      no <- tryCatch(as.integer(length(party::where(object))), error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- no
+      nn <- tryCatch({
+        cnt <- function(nd) {
+          if (is.null(nd)) return(0L)
+          if (isTRUE(nd$terminal)) return(1L)
+          1L + cnt(nd$left) + cnt(nd$right)
+        }
+        cnt(object@tree)
+      }, error = function(e) NULL)
+      if (!is.null(nn) && length(nn) == 1 && !is.na(nn) && nn > 0L) meta$n_nodes <- as.integer(nn)
+      resp <- tryCatch(object@responses@variables[[1]], error = function(e) NULL)
+      if (!is.null(resp)) {
+        if (is.factor(resp)) meta$task <- "classification"
+        else meta$task <- "regression"
+      }
+    } else if (inherits(object, "party")) {
+      # partykit::ctree (S3 class "constparty" / "party").
+      meta$kind <- "model"
+      info <- tryCatch(object$info, error = function(e) NULL)
+      no <- tryCatch(as.integer(info$nobs), error = function(e) NULL)
+      if (is.null(no) || length(no) == 0 || is.na(no)) no <- tryCatch(as.integer(nrow(object$data)), error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- no
+      nn <- tryCatch(length(partykit::nodeids(object)), error = function(e) NULL)
+      if (!is.null(nn) && length(nn) == 1 && !is.na(nn)) meta$n_nodes <- nn
+      resp <- tryCatch(object$fitted[["(response)"]], error = function(e) NULL)
+      if (!is.null(resp)) {
+        if (is.factor(resp)) meta$task <- "classification"
+        else meta$task <- "regression"
+      }
+    } else if (inherits(object, "Seurat")) {
+      # Seurat single-cell data; S4.
+      meta$kind <- "dataset"
+      no <- tryCatch(as.integer(nrow(object@meta.data)), error = function(e) NULL)
+      if (is.null(no) || length(no) == 0 || is.na(no)) no <- tryCatch(as.integer(ncol(object)), error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- no
+      nf <- tryCatch(as.integer(length(rownames(x = object))), error = function(e) NULL)
+      if (!is.null(nf) && length(nf) == 1 && !is.na(nf)) meta$n_features <- nf
+      aa <- tryCatch(as.character(object@active.assay), error = function(e) NULL)
+      if (!is.null(aa) && length(aa) == 1 && !is.na(aa) && nzchar(aa)) meta$method <- aa
     } else if (!is.null(dim(object)) && length(dim(object)) == 2) {
       meta$kind <- "matrix"
       meta$dimensions <- as.list(as.integer(dim(object)))
@@ -1704,6 +1950,48 @@ r_save_meta <- function(object, path) {
       if (inherits(object, "Date")) tp <- "date"
       else if (inherits(object, "POSIXt")) tp <- "datetime"
       if (!is.null(tp) && length(tp) == 1 && !is.na(tp) && nzchar(tp)) meta$dtype <- tp
+    } else if (inherits(object, "gam")) {
+      # mgcv::gam — smooth terms. Placed before the lm/glm branch because
+      # gam inherits glm; coefficient names stay visible, so smooth terms
+      # like s(wt) survive as features.
+      meta$kind <- "model"
+      fam <- tryCatch(object$family$family, error = function(e) NULL)
+      if (is.null(fam)) fam <- tryCatch(stats::family(object)$family, error = function(e) NULL)
+      if (!is.null(fam) && length(fam) == 1 && !is.na(fam) && fam == "binomial") {
+        meta$task <- "classification"
+      } else {
+        meta$task <- "regression"
+      }
+      no <- tryCatch(as.integer(stats::nobs(object)), error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- no
+      cf <- tryCatch(stats::coef(object), error = function(e) NULL)
+      if (!is.null(cf)) {
+        nms <- names(cf)
+        if (!is.null(nms)) {
+          feats <- nms[!is.na(nms) & nms != "(Intercept)"]
+          meta$n_features <- length(feats)
+          meta$features <- as.list(feats)
+        } else {
+          meta$n_features <- length(cf)
+        }
+      }
+      fm <- tryCatch(stats::formula(object), error = function(e) NULL)
+      if (!is.null(fm)) {
+        meta$formula <- paste(deparse(fm), collapse = " ")
+        fch <- tryCatch(as.character(fm), error = function(e) NULL)
+        if (!is.null(fch) && length(fch) == 3 && !is.na(fch[2]) && nzchar(fch[2])) meta$target <- fch[2]
+      }
+      s <- tryCatch(summary(object), error = function(e) NULL)
+      metrics <- list()
+      if (!is.null(s)) {
+        edf <- tryCatch(as.numeric(s$edf), error = function(e) NULL)
+        if (!is.null(edf) && length(edf) >= 1 && !any(is.na(edf))) metrics$edf <- sum(edf)
+        rsq <- tryCatch(as.numeric(s$r.sq), error = function(e) NULL)
+        if (!is.null(rsq) && length(rsq) == 1 && !is.na(rsq)) metrics$r_squared <- rsq
+      }
+      sm <- tryCatch(length(object$smooth), error = function(e) NULL)
+      if (!is.null(sm) && length(sm) == 1 && !is.na(sm)) metrics$smooths <- as.integer(sm)
+      if (length(metrics) > 0) meta$metrics <- metrics
     } else if (inherits(object, "lm") || inherits(object, "glm")) {
       meta$kind <- "model"
       fam <- tryCatch(object$family$family, error = function(e) NULL)
@@ -2207,6 +2495,638 @@ r_save_meta <- function(object, path) {
       bic <- tryCatch(stats::BIC(object), error = function(e) NULL)
       if (!is.null(bic) && length(bic) == 1 && !is.na(bic)) metrics$bic <- as.numeric(bic)
       if (length(metrics) > 0) meta$metrics <- metrics
+    } else if (inherits(object, "ets")) {
+      # forecast::ets — exponential smoothing state space model.
+      meta$kind <- "model"
+      meta$task <- "time_series"
+      m <- tryCatch(object$m, error = function(e) NULL)
+      if (!is.null(m) && length(m) == 1 && !is.na(m) && m > 1) meta$seasonal_period <- list(as.integer(m))
+      mth <- tryCatch(object$method, error = function(e) NULL)
+      if (!is.null(mth) && length(mth) == 1 && !is.na(mth) && nzchar(mth)) meta$method <- mth
+      no <- tryCatch(length(object$x), error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- as.integer(no)
+      metrics <- list()
+      for (nm in c("aic", "bic", "sigma2")) {
+        vv <- tryCatch(as.numeric(object[[nm]]), error = function(e) NULL)
+        if (!is.null(vv) && length(vv) == 1 && !is.na(vv)) metrics[[nm]] <- vv
+      }
+      if (length(metrics) > 0) meta$metrics <- metrics
+    } else if (inherits(object, "bats") || inherits(object, "tbats")) {
+      # forecast::bats / tbats — exponential smoothing for multiple seasonality.
+      meta$kind <- "model"
+      meta$task <- "time_series"
+      sp <- tryCatch(object$seasonal.periods, error = function(e) NULL)
+      if (is.null(sp)) sp <- tryCatch(object$k, error = function(e) NULL)
+      if (!is.null(sp) && length(sp) > 0 && !any(is.na(sp))) {
+        per <- as.numeric(sp[sp > 1])
+        if (length(per) > 0) {
+          meta$seasonal_period <- lapply(per, function(v) if (v == floor(v)) as.integer(v) else v)
+        }
+      }
+      no <- tryCatch(length(object$y), error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- as.integer(no)
+      metrics <- list()
+      # forecast::bats/tbats store uppercase AIC (unlike ets/Arima lowercase aic).
+      aic <- tryCatch(as.numeric(if (!is.null(object$AIC)) object$AIC else object$aic), error = function(e) NULL)
+      if (!is.null(aic) && length(aic) == 1 && !is.na(aic)) metrics$aic <- aic
+      bic <- tryCatch(as.numeric(if (!is.null(object$BIC)) object$BIC else object$bic), error = function(e) NULL)
+      if (!is.null(bic) && length(bic) == 1 && !is.na(bic)) metrics$bic <- bic
+      if (length(metrics) > 0) meta$metrics <- metrics
+    } else if (inherits(object, "nnetar")) {
+      # forecast::nnetar — neural network autoregression.
+      meta$kind <- "model"
+      meta$task <- "time_series"
+      mth <- tryCatch(object$method, error = function(e) NULL)
+      if (!is.null(mth) && length(mth) == 1 && !is.na(mth) && nzchar(mth)) meta$method <- mth
+      m <- tryCatch(object$m, error = function(e) NULL)
+      if (!is.null(m) && length(m) == 1 && !is.na(m) && m > 1) meta$seasonal_period <- list(as.integer(m))
+      no <- tryCatch(length(object$x), error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- as.integer(no)
+      metrics <- list()
+      for (nm in c("size", "repeats")) {
+        vv <- tryCatch(as.numeric(object[[nm]]), error = function(e) NULL)
+        if (!is.null(vv) && length(vv) == 1 && !is.na(vv)) metrics[[nm]] <- vv
+      }
+      if (length(metrics) > 0) meta$metrics <- metrics
+    } else if (inherits(object, "forecast")) {
+      # forecast package result objects: naive, snaive, rwf, splinef, thetaf.
+      meta$kind <- "forecast"
+      mth <- tryCatch(object$method, error = function(e) NULL)
+      if (!is.null(mth) && length(mth) == 1 && !is.na(mth) && nzchar(mth)) meta$method <- mth
+      h <- tryCatch(length(object$mean), error = function(e) NULL)
+      if (!is.null(h) && length(h) == 1 && !is.na(h)) meta$horizon <- as.integer(h)
+      se <- tryCatch(object$series, error = function(e) NULL)
+      if (!is.null(se) && length(se) == 1 && !is.na(se) && nzchar(se)) meta$target <- se
+      no <- tryCatch(length(object$x), error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- as.integer(no)
+      metrics <- list()
+      lv <- tryCatch(object$level, error = function(e) NULL)
+      if (!is.null(lv) && length(lv) > 0 && !any(is.na(lv))) metrics$level <- as.numeric(lv[1])
+      if (length(metrics) > 0) meta$metrics <- metrics
+    } else if (inherits(object, "prophet")) {
+      # prophet (R) — additive regression with changepoints and seasonalities.
+      meta$kind <- "model"
+      meta$task <- "time_series"
+      nr <- tryCatch(nrow(object$history), error = function(e) NULL)
+      if (!is.null(nr) && length(nr) == 1 && !is.na(nr)) meta$n_obs <- as.integer(nr)
+      cp <- tryCatch(length(object$changepoints), error = function(e) NULL)
+      if (!is.null(cp) && length(cp) == 1 && !is.na(cp)) meta$changepoints <- as.integer(cp)
+      sn <- tryCatch(names(object$seasonalities), error = function(e) NULL)
+      if (!is.null(sn) && length(sn) > 0) meta$features <- as.list(as.character(sn))
+    } else if (inherits(object, "garch")) {
+      # tseries::garch — ARCH/GARCH volatility model.
+      meta$kind <- "model"
+      meta$task <- "time_series"
+      od <- tryCatch(object$order, error = function(e) NULL)
+      if (!is.null(od) && length(od) >= 2 && !any(is.na(od[1:2]))) {
+        meta$method <- paste0("GARCH(", as.integer(od[1]), ",", as.integer(od[2]), ")")
+      }
+      no <- tryCatch(length(object$residuals), error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- as.integer(no)
+      metrics <- list()
+      aic <- tryCatch(as.numeric(object$aic), error = function(e) NULL)
+      if (!is.null(aic) && length(aic) == 1 && !is.na(aic)) metrics$aic <- aic
+      if (length(metrics) > 0) meta$metrics <- metrics
+    } else if (inherits(object, "varest") || inherits(object, "vec2var")) {
+      # vars package: VAR (varest) and cointegrated VECM converted to VAR.
+      meta$kind <- "model"
+      meta$task <- "time_series"
+      pp <- tryCatch(object$p, error = function(e) NULL)
+      if (!is.null(pp) && length(pp) == 1 && !is.na(pp)) {
+        meta$order <- list(as.integer(pp))
+        meta$method <- paste0("VAR(", as.integer(pp), ")")
+      }
+      kk <- tryCatch(object$K, error = function(e) NULL)
+      if (!is.null(kk) && length(kk) == 1 && !is.na(kk)) meta$n_equations <- as.integer(kk)
+      no <- tryCatch(object$obs, error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- as.integer(no)
+    } else if (inherits(object, "cv.glmnet") || inherits(object, "glmnet")) {
+      # glmnet / cv.glmnet. Task comes from the fit class (lognet, multnet,
+      # coxnet); cv objects read their inner glmnet.fit for shape facts.
+      meta$kind <- "model"
+      target_obj <- object
+      if (inherits(object, "cv.glmnet")) {
+        gfit <- tryCatch(object$glmnet.fit, error = function(e) NULL)
+        if (!is.null(gfit)) target_obj <- gfit
+      }
+      cls_all <- tryCatch(paste(class(target_obj), collapse = " "), error = function(e) "")
+      if (grepl("lognet", cls_all) || grepl("multnet", cls_all)) meta$task <- "classification"
+      else if (grepl("coxnet", cls_all)) meta$task <- "survival"
+      else meta$task <- "regression"
+      dm <- tryCatch(as.integer(target_obj$dim[1]), error = function(e) NULL)
+      if (is.null(dm) || length(dm) == 0 || is.na(dm[1])) dm <- tryCatch(as.integer(nrow(stats::coef(target_obj))), error = function(e) NULL)
+      if (!is.null(dm) && length(dm) == 1 && !is.na(dm) && dm > 0) {
+        meta$n_features <- dm
+        nl <- tryCatch(length(target_obj$lambda), error = function(e) NULL)
+        if (!is.null(nl) && length(nl) == 1 && !is.na(nl)) meta$n_lambda <- as.integer(nl)
+      }
+      metrics <- list()
+      dr <- tryCatch(as.numeric(max(target_obj$dev.ratio)), error = function(e) NULL)
+      if (!is.null(dr) && length(dr) == 1 && !is.na(dr)) metrics$dev_ratio <- dr
+      if (inherits(object, "cv.glmnet")) {
+        lmin <- tryCatch(as.numeric(object$lambda.min), error = function(e) NULL)
+        if (!is.null(lmin) && length(lmin) == 1 && !is.na(lmin)) metrics$lambda_min <- lmin
+        l1se <- tryCatch(as.numeric(object$lambda.1se), error = function(e) NULL)
+        if (!is.null(l1se) && length(l1se) == 1 && !is.na(l1se)) metrics$lambda_1se <- l1se
+      }
+      if (length(metrics) > 0) meta$metrics <- metrics
+    } else if (inherits(object, "ranger")) {
+      meta$kind <- "model"
+      tt <- tryCatch(object$treetype, error = function(e) NULL)
+      if (!is.null(tt) && length(tt) == 1 && !is.na(tt) && nzchar(tt)) {
+        if (tt == "Regression") meta$task <- "regression"
+        else if (tt == "Classification" || tt == "Probability estimation") meta$task <- "classification"
+        else if (tt == "Survival") meta$task <- "survival"
+      }
+      nt <- tryCatch(as.integer(object$num.trees), error = function(e) NULL)
+      if (!is.null(nt) && length(nt) == 1 && !is.na(nt)) meta$n_trees <- nt
+      nf <- tryCatch(as.integer(object$num.independent.variables), error = function(e) NULL)
+      if (!is.null(nf) && length(nf) == 1 && !is.na(nf)) meta$n_features <- nf
+      no <- tryCatch(as.integer(object$num.samples), error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- no
+      fns <- tryCatch(as.character(object$forest$independent.variable.names), error = function(e) NULL)
+      if (!is.null(fns) && length(fns) > 0) meta$features <- as.list(fns)
+      metrics <- list()
+      pe <- tryCatch(as.numeric(object$prediction.error), error = function(e) NULL)
+      if (!is.null(pe) && length(pe) == 1 && !is.na(pe)) metrics$oob_error <- pe
+      rsq <- tryCatch(as.numeric(object$r.squared), error = function(e) NULL)
+      if (!is.null(rsq) && length(rsq) == 1 && !is.na(rsq)) metrics$r_squared <- rsq
+      if (length(metrics) > 0) meta$metrics <- metrics
+    } else if (inherits(object, "catboost.Model")) {
+      meta$kind <- "model"
+      lf <- tryCatch(catboost.get_plain_params(object)$loss_function, error = function(e) NULL)
+      if (!is.null(lf) && length(lf) == 1 && !is.na(lf) && nzchar(lf)) meta$method <- as.character(lf)
+      nt <- tryCatch(as.integer(object$tree_count), error = function(e) NULL)
+      if (!is.null(nt) && length(nt) == 1 && !is.na(nt)) meta$n_trees <- nt
+      nf <- tryCatch(as.integer(object$feature_count), error = function(e) NULL)
+      if (!is.null(nf) && length(nf) == 1 && !is.na(nf)) meta$n_features <- nf
+      fns <- tryCatch(rownames(object$feature_importances), error = function(e) NULL)
+      if (!is.null(fns) && length(fns) > 0) meta$features <- as.list(as.character(fns))
+    } else if (inherits(object, "arfima")) {
+      # forecast::arfima — fractionally differenced ARIMA.
+      meta$kind <- "model"
+      meta$task <- "time_series"
+      no <- tryCatch(length(object$x), error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- as.integer(no)
+    } else if (inherits(object, "seas")) {
+      # seasonal::seas — X-13-ARIMA-SEATS adjustments.
+      meta$kind <- "model"
+      meta$task <- "time_series"
+      meta$method <- "X-13-ARIMA-SEATS"
+      no <- tryCatch(length(object$x), error = function(e) NULL)
+      if (is.null(no) || length(no) == 0 || no == 0) no <- tryCatch(nrow(object$data), error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no) && no > 0) meta$n_obs <- as.integer(no)
+    } else if (inherits(object, "marssMLE")) {
+      # MARSS package fits.
+      meta$kind <- "model"
+      meta$task <- "time_series"
+      ll <- tryCatch(stats::logLik(object), error = function(e) NULL)
+      no <- tryCatch(as.integer(attr(ll, "nobs")), error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- no
+      np <- tryCatch(as.integer(object$num.params), error = function(e) NULL)
+      if (!is.null(np) && length(np) == 1 && !is.na(np)) meta$n_params <- np
+      metrics <- list()
+      llv <- tryCatch(as.numeric(ll), error = function(e) NULL)
+      if (!is.null(llv) && length(llv) == 1 && !is.na(llv)) metrics$loglik <- llv
+      aic <- tryCatch(as.numeric(object$AIC), error = function(e) NULL)
+      if (!is.null(aic) && length(aic) == 1 && !is.na(aic)) metrics$aic <- aic
+      if (length(metrics) > 0) meta$metrics <- metrics
+    } else if (inherits(object, "bsts")) {
+      # bsts Bayesian structural time series. Field access stays minimal
+      # because posterior draws differ across versions.
+      meta$kind <- "model"
+      meta$task <- "time_series"
+    } else if (inherits(object, "train")) {
+      # caret::train — resampling-tuned model wrapper.
+      meta$kind <- "model"
+      mth <- tryCatch(as.character(object$method), error = function(e) NULL)
+      if (!is.null(mth) && length(mth) == 1 && !is.na(mth) && nzchar(mth)) meta$method <- mth
+      res <- tryCatch(object$results, error = function(e) NULL)
+      if (!is.null(res)) {
+        rn <- tryCatch(names(res), error = function(e) NULL)
+        if (!is.null(rn)) {
+          if ("Accuracy" %in% rn || "Kappa" %in% rn) meta$task <- "classification"
+          else if ("RMSE" %in% rn || "Rsquared" %in% rn) meta$task <- "regression"
+        }
+      }
+      perf <- tryCatch(caret::getTrainPerf(object), error = function(e) NULL)
+      metrics <- list()
+      if (!is.null(perf)) {
+        for (nm in c("TrainAccuracy", "TrainKappa", "TrainRMSE", "TrainRsquared")) {
+          vv <- tryCatch(as.numeric(perf[[nm]]), error = function(e) NULL)
+          if (!is.null(vv) && length(vv) == 1 && !is.na(vv)) {
+            key <- if (nm == "TrainRsquared") "r_squared" else tolower(sub("^Train", "", nm))
+            metrics[[key]] <- vv
+          }
+        }
+      }
+      if (length(metrics) > 0) meta$metrics <- metrics
+    } else if (inherits(object, "model_fit") || inherits(object, "workflow")) {
+      # parsnip model_fit and tidymodels workflows; both hold a spec with
+      # engine and mode.
+      meta$kind <- "model"
+      target_spec <- NULL
+      if (inherits(object, "model_fit")) {
+        target_spec <- tryCatch(object$spec, error = function(e) NULL)
+      } else {
+        target_spec <- tryCatch(object$fit$fit$spec, error = function(e) NULL)
+        if (is.null(target_spec)) target_spec <- tryCatch(object$fit$actions$model$spec, error = function(e) NULL)
+        if (is.null(target_spec)) target_spec <- tryCatch(object$fit$spec, error = function(e) NULL)
+      }
+      if (!is.null(target_spec)) {
+        eng <- tryCatch(as.character(target_spec$engine), error = function(e) NULL)
+        if (!is.null(eng) && length(eng) == 1 && !is.na(eng) && nzchar(eng)) meta$method <- eng
+        mod <- tryCatch(as.character(target_spec$mode), error = function(e) NULL)
+        if (!is.null(mod) && length(mod) == 1 && !is.na(mod) && nzchar(mod)) meta$task <- mod
+      }
+      no <- tryCatch({
+        if (inherits(object, "workflow") && !is.null(object$pre$mold$outcomes)) {
+          as.integer(nrow(object$pre$mold$outcomes))
+        } else NULL
+      }, error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- no
+    } else if (inherits(object, "svm")) {
+      # e1071::svm (type/kernel are integer codes: type 0,1=class, 2=one-class, 3,4=reg; kernel 0=linear, 1=polynomial, 2=radial, 3=sigmoid).
+      meta$kind <- "model"
+      tp <- tryCatch(object$type, error = function(e) NULL)
+      if (!is.null(tp) && length(tp) == 1 && !is.na(tp)) {
+        if (is.numeric(tp)) {
+          if (tp %in% c(0, 1)) meta$task <- "classification"
+          else if (tp %in% c(3, 4)) meta$task <- "regression"
+          else if (tp == 2) meta$task <- "anomaly_detection"
+        } else {
+          tp_s <- as.character(tp)
+          if (grepl("classification", tp_s)) meta$task <- "classification"
+          else if (grepl("regression", tp_s)) meta$task <- "regression"
+        }
+      }
+      kl <- tryCatch(object$kernel, error = function(e) NULL)
+      if (!is.null(kl) && length(kl) == 1 && !is.na(kl)) {
+        if (is.numeric(kl)) {
+          knames <- c("linear", "polynomial", "radial", "sigmoid")
+          ki <- as.integer(kl) + 1L
+          if (ki >= 1L && ki <= length(knames)) meta$method <- knames[ki]
+        } else if (nzchar(as.character(kl))) {
+          meta$method <- as.character(kl)
+        }
+      }
+      nf <- tryCatch(ncol(object$SV), error = function(e) NULL)
+      if (!is.null(nf) && length(nf) == 1 && !is.na(nf)) meta$n_features <- as.integer(nf)
+      metrics <- list()
+      nsv <- tryCatch(sum(as.numeric(object$nSV)), error = function(e) NULL)
+      if (!is.null(nsv) && length(nsv) == 1 && !is.na(nsv)) metrics$n_support_vectors <- nsv
+      if (length(metrics) > 0) meta$metrics <- metrics
+    } else if (inherits(object, "gbm")) {
+      # gbm boosted trees.
+      meta$kind <- "model"
+      dst <- tryCatch({
+        dd <- object$distribution
+        if (is.list(dd)) as.character(dd$name) else as.character(dd)
+      }, error = function(e) NULL)
+      if (!is.null(dst) && length(dst) == 1 && !is.na(dst) && nzchar(dst)) {
+        meta$method <- dst
+        if (dst %in% c("bernoulli", "adaboost", "AdaBoost.R2", "multinomial")) meta$task <- "classification"
+        else if (dst == "coxph") meta$task <- "survival"
+        else if (dst == "pairwise") meta$task <- "ranking"
+        else meta$task <- "regression"
+      }
+      nt <- tryCatch(as.integer(object$n.trees), error = function(e) NULL)
+      if (!is.null(nt) && length(nt) == 1 && !is.na(nt)) meta$n_trees <- nt
+      metrics <- list()
+      sh <- tryCatch(as.numeric(object$shrinkage), error = function(e) NULL)
+      if (!is.null(sh) && length(sh) == 1 && !is.na(sh)) metrics$shrinkage <- sh
+      cv <- tryCatch(as.numeric(utils::tail(object$cv.error, 1)), error = function(e) NULL)
+      if (!is.null(cv) && length(cv) == 1 && !is.na(cv)) metrics$cv_error <- cv
+      if (length(metrics) > 0) meta$metrics <- metrics
+    } else if (inherits(object, "C5.0")) {
+      # C50::C5.0 rule-based trees.
+      meta$kind <- "model"
+      meta$task <- "classification"
+      metrics <- list()
+      tr <- tryCatch(object$trials, error = function(e) NULL)
+      if (!is.null(tr) && length(tr) >= 1) {
+        tv <- if ("Actual" %in% names(tr)) as.integer(tr[["Actual"]]) else as.integer(tr[1])
+        if (length(tv) == 1 && !is.na(tv)) metrics$trials <- tv
+      }
+      if (length(metrics) > 0) meta$metrics <- metrics
+    } else if (inherits(object, "earth")) {
+      # earth MARS regression.
+      meta$kind <- "model"
+      meta$task <- "regression"
+      no <- tryCatch(length(object$residuals), error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- as.integer(no)
+      metrics <- list()
+      rsq <- tryCatch(as.numeric(utils::tail(object$rsq, 1)), error = function(e) NULL)
+      if (!is.null(rsq) && length(rsq) == 1 && !is.na(rsq)) metrics$rsq <- rsq
+      grsq <- tryCatch(as.numeric(utils::tail(object$grsq, 1)), error = function(e) NULL)
+      if (!is.null(grsq) && length(grsq) == 1 && !is.na(grsq)) metrics$grsq <- grsq
+      if (length(metrics) > 0) meta$metrics <- metrics
+    } else if (inherits(object, "mvr")) {
+      # pls partial least squares.
+      meta$kind <- "model"
+      meta$task <- "regression"
+      nc <- tryCatch(as.integer(object$ncomp), error = function(e) NULL)
+      if (!is.null(nc) && length(nc) == 1 && !is.na(nc)) meta$n_components <- nc
+      no <- tryCatch(as.integer(object$nobs), error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- no
+    } else if (inherits(object, "rq")) {
+      # quantreg quantile regression.
+      meta$kind <- "model"
+      meta$task <- "regression"
+      fm <- tryCatch(stats::formula(object), error = function(e) NULL)
+      if (!is.null(fm)) {
+        meta$formula <- paste(deparse(fm), collapse = " ")
+        fch <- tryCatch(as.character(fm), error = function(e) NULL)
+        if (!is.null(fch) && length(fch) == 3 && !is.na(fch[2]) && nzchar(fch[2])) meta$target <- fch[2]
+      }
+      no <- tryCatch(length(object$residuals), error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- as.integer(no)
+      metrics <- list()
+      tau <- tryCatch(as.numeric(object$tau), error = function(e) NULL)
+      if (!is.null(tau) && length(tau) == 1 && !is.na(tau)) metrics$tau <- tau
+      if (length(metrics) > 0) meta$metrics <- metrics
+    } else if (inherits(object, "survreg")) {
+      # survival parametric regression.
+      meta$kind <- "model"
+      meta$task <- "survival"
+      dst <- tryCatch({
+        dd <- object$dist
+        if (is.list(dd)) as.character(dd$name) else as.character(dd)
+      }, error = function(e) NULL)
+      if (!is.null(dst) && length(dst) == 1 && !is.na(dst) && nzchar(dst)) meta$method <- dst
+      no <- tryCatch(as.integer(object$n), error = function(e) NULL)
+      if (is.null(no) || length(no) == 0 || is.na(no[1])) no <- tryCatch(as.integer(stats::nobs(object)), error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- no
+      fm <- tryCatch(stats::formula(object), error = function(e) NULL)
+      if (!is.null(fm)) {
+        meta$formula <- paste(deparse(fm), collapse = " ")
+        fch <- tryCatch(as.character(fm), error = function(e) NULL)
+        if (!is.null(fch) && length(fch) == 3 && !is.na(fch[2]) && nzchar(fch[2])) meta$target <- fch[2]
+      }
+      metrics <- list()
+      ll <- tryCatch(as.numeric(stats::logLik(object)), error = function(e) NULL)
+      if (!is.null(ll) && length(ll) == 1 && !is.na(ll)) metrics$loglik <- ll
+      if (length(metrics) > 0) meta$metrics <- metrics
+    } else if (inherits(object, "lme") || inherits(object, "gls")) {
+      # nlme linear mixed / generalized least squares models.
+      meta$kind <- "model"
+      meta$task <- "regression"
+      no <- tryCatch(as.integer(object$dims$N), error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- no
+      q <- tryCatch(as.integer(object$dims$Q), error = function(e) NULL)
+      ng <- tryCatch(object$dims$ngrps, error = function(e) NULL)
+      if (!is.null(ng) && !is.null(q) && length(q) == 1 && !is.na(q) && q > 0 && length(ng) >= q) {
+        ng <- ng[seq_len(q)]
+        if (!any(is.na(ng))) {
+          meta$n_groups <- as.integer(sum(ng))
+          gnm <- names(ng)
+          if (is.null(gnm)) gnm <- paste0("group", seq_along(ng))
+          meta$groups <- as.list(setNames(as.integer(ng), gnm))
+        }
+      }
+      fm <- tryCatch(as.formula(object$call$fixed), error = function(e) NULL)
+      if (is.null(fm)) fm <- tryCatch(as.formula(object$call$model), error = function(e) NULL)
+      if (!is.null(fm)) {
+        meta$formula <- paste(deparse(fm), collapse = " ")
+        fch <- tryCatch(as.character(fm), error = function(e) NULL)
+        if (!is.null(fch) && length(fch) == 3 && !is.na(fch[2]) && nzchar(fch[2])) meta$target <- fch[2]
+      }
+      metrics <- list()
+      ll <- tryCatch(as.numeric(stats::logLik(object)), error = function(e) NULL)
+      if (!is.null(ll) && length(ll) == 1 && !is.na(ll)) metrics$loglik <- ll
+      aic <- tryCatch(as.numeric(stats::AIC(object)), error = function(e) NULL)
+      if (!is.null(aic) && length(aic) == 1 && !is.na(aic)) metrics$aic <- aic
+      bic <- tryCatch(as.numeric(stats::BIC(object)), error = function(e) NULL)
+      if (!is.null(bic) && length(bic) == 1 && !is.na(bic)) metrics$bic <- bic
+      if (length(metrics) > 0) meta$metrics <- metrics
+    } else if (inherits(object, "clm") || inherits(object, "clmm")) {
+      # ordinal cumulative link models.
+      meta$kind <- "model"
+      meta$task <- "classification"
+      lk <- tryCatch(as.character(object$link), error = function(e) NULL)
+      if (!is.null(lk) && length(lk) == 1 && !is.na(lk) && nzchar(lk)) meta$method <- lk
+      no <- tryCatch(as.integer(stats::nobs(object)), error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- no
+      metrics <- list()
+      ll <- tryCatch(as.numeric(stats::logLik(object)), error = function(e) NULL)
+      if (!is.null(ll) && length(ll) == 1 && !is.na(ll)) metrics$loglik <- ll
+      aic <- tryCatch(as.numeric(stats::AIC(object)), error = function(e) NULL)
+      if (!is.null(aic) && length(aic) == 1 && !is.na(aic)) metrics$aic <- aic
+      if (length(metrics) > 0) meta$metrics <- metrics
+    } else if (inherits(object, "betareg")) {
+      # betareg beta regression.
+      meta$kind <- "model"
+      meta$task <- "regression"
+      fm <- tryCatch(stats::formula(object), error = function(e) NULL)
+      if (!is.null(fm)) {
+        meta$formula <- paste(deparse(fm), collapse = " ")
+        fch <- tryCatch(as.character(fm), error = function(e) NULL)
+        if (!is.null(fch) && length(fch) == 3 && !is.na(fch[2]) && nzchar(fch[2])) meta$target <- fch[2]
+      }
+      no <- tryCatch(as.integer(object$n), error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- no
+      metrics <- list()
+      # In betareg, object$phi is a logical flag; the scalar precision estimate
+      # lives under object$coefficients$precision (unless numeric phi is supplied).
+      phi <- tryCatch({
+        pr <- object$coefficients$precision
+        if (!is.null(pr) && is.numeric(pr) && length(pr) == 1 && !is.na(pr)) {
+          as.numeric(pr[[1]])
+        } else if (is.numeric(object$phi) && length(object$phi) == 1 && !is.na(object$phi)) {
+          as.numeric(object$phi)
+        } else NULL
+      }, error = function(e) NULL)
+      if (!is.null(phi) && length(phi) == 1 && !is.na(phi)) metrics$phi <- phi
+      pr2 <- tryCatch(as.numeric(object$pseudo.r.squared), error = function(e) NULL)
+      if (!is.null(pr2) && length(pr2) == 1 && !is.na(pr2)) metrics$pseudo_r_squared <- pr2
+      if (length(metrics) > 0) meta$metrics <- metrics
+    } else if (inherits(object, "zeroinfl") || inherits(object, "hurdle")) {
+      # pscl count models with excess zeros.
+      meta$kind <- "model"
+      meta$task <- "regression"
+      fm <- tryCatch(stats::formula(object), error = function(e) NULL)
+      if (!is.null(fm)) {
+        meta$formula <- paste(deparse(fm), collapse = " ")
+        fch <- tryCatch(as.character(fm), error = function(e) NULL)
+        if (!is.null(fch) && length(fch) == 3 && !is.na(fch[2]) && nzchar(fch[2])) meta$target <- fch[2]
+      }
+      no <- tryCatch(as.integer(object$n), error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- no
+      metrics <- list()
+      ll <- tryCatch(as.numeric(object$loglik), error = function(e) NULL)
+      if (!is.null(ll) && length(ll) == 1 && !is.na(ll)) metrics$loglik <- ll
+      aic <- tryCatch(as.numeric(stats::AIC(object)), error = function(e) NULL)
+      if (!is.null(aic) && length(aic) == 1 && !is.na(aic)) metrics$aic <- aic
+      if (length(metrics) > 0) meta$metrics <- metrics
+    } else if (inherits(object, "plm")) {
+      # plm panel linear models.
+      meta$kind <- "model"
+      meta$task <- "regression"
+      fm <- tryCatch(stats::formula(object), error = function(e) NULL)
+      if (!is.null(fm)) {
+        meta$formula <- paste(deparse(fm), collapse = " ")
+        fch <- tryCatch(as.character(fm), error = function(e) NULL)
+        if (!is.null(fch) && length(fch) == 3 && !is.na(fch[2]) && nzchar(fch[2])) meta$target <- fch[2]
+      }
+      no <- tryCatch(nrow(object$model), error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- as.integer(no)
+    } else if (inherits(object, "Mclust")) {
+      # mclust model-based clustering.
+      meta$kind <- "model"
+      meta$task <- "clustering"
+      g <- tryCatch(as.integer(object$G), error = function(e) NULL)
+      if (!is.null(g) && length(g) == 1 && !is.na(g)) meta$n_clusters <- g
+      mn <- tryCatch(as.character(object$modelName), error = function(e) NULL)
+      if (!is.null(mn) && length(mn) == 1 && !is.na(mn) && nzchar(mn)) meta$method <- mn
+      no <- tryCatch(as.integer(object$n), error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- no
+      metrics <- list()
+      bic <- tryCatch(as.numeric(object$bic), error = function(e) NULL)
+      if (!is.null(bic) && length(bic) == 1 && !is.na(bic)) metrics$bic <- bic
+      if (length(metrics) > 0) meta$metrics <- metrics
+    } else if (inherits(object, "dbscan")) {
+      # dbscan / fpc density clustering.
+      meta$kind <- "model"
+      meta$task <- "clustering"
+      cl <- tryCatch(object$cluster, error = function(e) NULL)
+      if (!is.null(cl) && length(cl) > 0) {
+        uc <- unique(cl)
+        ncl <- length(uc[uc != 0])
+        meta$n_clusters <- as.integer(ncl)
+        meta$n_obs <- as.integer(length(cl))
+      }
+      metrics <- list()
+      ep <- tryCatch(as.numeric(object$eps), error = function(e) NULL)
+      if (!is.null(ep) && length(ep) == 1 && !is.na(ep)) metrics$eps <- ep
+      mp <- tryCatch(as.numeric(object$minPts), error = function(e) NULL)
+      if (is.null(mp) || length(mp) == 0 || is.na(mp[1])) mp <- tryCatch(as.numeric(object$MinPts), error = function(e) NULL)
+      if (!is.null(mp) && length(mp) == 1 && !is.na(mp)) metrics$min_pts <- mp
+      if (length(metrics) > 0) meta$metrics <- metrics
+    } else if (inherits(object, "clara") || inherits(object, "fanny")) {
+      # cluster package partitioning with silhouettes.
+      meta$kind <- "model"
+      meta$task <- "clustering"
+      ci <- tryCatch(object$clusinfo, error = function(e) NULL)
+      if (!is.null(ci) && nrow(ci) > 0) {
+        meta$n_clusters <- as.integer(nrow(ci))
+        meta$n_obs <- as.integer(sum(ci[, "size"]))
+      } else {
+        cl <- tryCatch(object$clustering, error = function(e) NULL)
+        if (!is.null(cl) && length(cl) > 0) {
+          meta$n_clusters <- as.integer(length(unique(cl[!is.na(cl)])))
+          meta$n_obs <- as.integer(length(cl))
+        }
+      }
+      metrics <- list()
+      sw <- tryCatch(as.numeric(object$silinfo$avg.width), error = function(e) NULL)
+      if (!is.null(sw) && length(sw) == 1 && !is.na(sw)) metrics$silhouette <- sw
+      if (length(metrics) > 0) meta$metrics <- metrics
+    } else if (inherits(object, "mixEM")) {
+      # mixtools finite mixture fits.
+      meta$kind <- "model"
+      meta$task <- "density"
+      nk <- tryCatch(length(object$lambda), error = function(e) NULL)
+      if (!is.null(nk) && length(nk) == 1 && !is.na(nk)) meta$n_components <- as.integer(nk)
+      metrics <- list()
+      ll <- tryCatch(as.numeric(utils::tail(object$loglik, 1)), error = function(e) NULL)
+      if (!is.null(ll) && length(ll) == 1 && !is.na(ll)) metrics$loglik <- ll
+      if (length(metrics) > 0) meta$metrics <- metrics
+    } else if (inherits(object, "PCA") || inherits(object, "MCA") || inherits(object, "FAMD")) {
+      # FactoMineR multivariate analyses.
+      meta$kind <- "model"
+      meta$task <- "dim_reduction"
+      ind <- tryCatch(object$ind$coord, error = function(e) NULL)
+      if (!is.null(ind)) {
+        nr <- tryCatch(nrow(ind), error = function(e) NULL)
+        if (!is.null(nr) && length(nr) == 1 && !is.na(nr)) meta$n_obs <- as.integer(nr)
+        nc <- tryCatch(ncol(ind), error = function(e) NULL)
+        if (!is.null(nc) && length(nc) == 1 && !is.na(nc)) meta$n_components <- as.integer(nc)
+      }
+      metrics <- list()
+      vf <- tryCatch(as.numeric(object$eig[1, 2]) / 100, error = function(e) NULL)
+      if (!is.null(vf) && length(vf) == 1 && !is.na(vf)) metrics$var_first <- vf
+      if (length(metrics) > 0) meta$metrics <- metrics
+    } else if (inherits(object, "CA")) {
+      # FactoMineR correspondence analysis; rows live under $row.
+      meta$kind <- "model"
+      meta$task <- "dim_reduction"
+      rw <- tryCatch(object$row$coord, error = function(e) NULL)
+      if (!is.null(rw)) {
+        nr <- tryCatch(nrow(rw), error = function(e) NULL)
+        if (!is.null(nr) && length(nr) == 1 && !is.na(nr)) meta$n_obs <- as.integer(nr)
+        nc <- tryCatch(ncol(rw), error = function(e) NULL)
+        if (!is.null(nc) && length(nc) == 1 && !is.na(nc)) meta$n_components <- as.integer(nc)
+      }
+      metrics <- list()
+      vf <- tryCatch(as.numeric(object$eig[1, 2]) / 100, error = function(e) NULL)
+      if (!is.null(vf) && length(vf) == 1 && !is.na(vf)) metrics$var_first <- vf
+      if (length(metrics) > 0) meta$metrics <- metrics
+    } else if (inherits(object, "fa") || inherits(object, "principal")) {
+      # psych factor analysis and principal components.
+      meta$kind <- "model"
+      meta$task <- "dim_reduction"
+      nf <- tryCatch(as.integer(object$factors), error = function(e) NULL)
+      if (!is.null(nf) && length(nf) == 1 && !is.na(nf)) meta$n_components <- nf
+      rt <- tryCatch(as.character(object$rotation), error = function(e) NULL)
+      if (!is.null(rt) && length(rt) == 1 && !is.na(rt) && nzchar(rt)) meta$method <- rt
+      no <- tryCatch(as.integer(object$n.obs), error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- no
+      metrics <- list()
+      rmsea <- tryCatch(as.numeric(object$RMSEA[1]), error = function(e) NULL)
+      if (!is.null(rmsea) && length(rmsea) == 1 && !is.na(rmsea)) metrics$rmsea <- rmsea
+      if (length(metrics) > 0) meta$metrics <- metrics
+    } else if (inherits(object, "igraph")) {
+      # igraph networks.
+      meta$kind <- "graph"
+      nn <- tryCatch(as.integer(igraph::vcount(object)), error = function(e) NULL)
+      if (!is.null(nn) && length(nn) == 1 && !is.na(nn)) meta$n_nodes <- nn
+      ne <- tryCatch(as.integer(igraph::ecount(object)), error = function(e) NULL)
+      if (!is.null(ne) && length(ne) == 1 && !is.na(ne)) meta$n_edges <- ne
+    } else if (inherits(object, "smooth")) {
+      # smooth package state-space models (es, ss, ces, ...).
+      meta$kind <- "model"
+      meta$task <- "time_series"
+      od <- tryCatch(as.integer(object$order), error = function(e) NULL)
+      if (!is.null(od) && length(od) > 0 && !any(is.na(od))) meta$order <- as.list(od)
+      no <- tryCatch(length(object$y), error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- as.integer(no)
+      metrics <- list()
+      for (nm in c("AIC", "BIC")) {
+        vv <- tryCatch(as.numeric(object$IC[[nm]]), error = function(e) NULL)
+        if (!is.null(vv) && length(vv) == 1 && !is.na(vv)) metrics[[tolower(nm)]] <- vv
+      }
+      if (length(metrics) > 0) meta$metrics <- metrics
+    } else if (inherits(object, "dlmFiltered")) {
+      # dlm package filtered state-space fits.
+      meta$kind <- "model"
+      meta$task <- "time_series"
+      no <- tryCatch(length(object$y), error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- as.integer(no)
+    } else if (inherits(object, "keras.engine.training.Model")) {
+      # keras for R models; R6 objects.
+      meta$kind <- "model"
+      np <- tryCatch(as.integer(object$count_params()), error = function(e) NULL)
+      if (!is.null(np) && length(np) == 1 && !is.na(np)) meta$n_params <- np
+      nl <- tryCatch(as.integer(length(object$layers)), error = function(e) NULL)
+      if (!is.null(nl) && length(nl) == 1 && !is.na(nl)) meta$n_layers <- nl
+    } else if (inherits(object, "nn_module") || inherits(object, "torch_module")) {
+      # torch for R models; R6 objects.
+      meta$kind <- "model"
+      np <- tryCatch(as.integer(sum(sapply(object$parameters, function(p) p$numel()))), error = function(e) NULL)
+      if (!is.null(np) && length(np) == 1 && !is.na(np)) meta$n_params <- np
+      nl <- tryCatch(as.integer(length(object$modules)), error = function(e) NULL)
+      if (!is.null(nl) && length(nl) == 1 && !is.na(nl)) meta$n_layers <- nl
+    } else if (inherits(object, "nn")) {
+      # neuralnet fits.
+      meta$kind <- "model"
+      no <- tryCatch(nrow(object$covariate), error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- as.integer(no)
+      metrics <- list()
+      for (nm in c("error", "steps")) {
+        vv <- tryCatch(as.numeric(object$result.matrix[nm, 1]), error = function(e) NULL)
+        if (!is.null(vv) && length(vv) == 1 && !is.na(vv)) metrics[[nm]] <- vv
+      }
+      if (length(metrics) > 0) meta$metrics <- metrics
     } else {
       meta$kind <- "other"
     }
@@ -2431,6 +3351,49 @@ def _tlang_sanitize_json(v):
         return out
     return v
 
+def _tlang_dl_meta(obj):
+    """Best-effort facts for torch / keras models.
+
+    Returns None when the object belongs to neither framework. Checks
+    sys.modules so torch is never imported when not already loaded."""
+    try:
+        import sys as _tlang_sys
+        _tlang_torch = _tlang_sys.modules.get("torch")
+        if _tlang_torch is not None and isinstance(obj, _tlang_torch.nn.Module):
+            out = {"kind": "model"}
+            try:
+                out["n_params"] = int(sum(p.numel() for p in obj.parameters()))
+            except Exception:
+                pass
+            try:
+                out["n_layers"] = int(sum(1 for m in obj.modules() if len(list(m.children())) == 0))
+            except Exception:
+                pass
+            return out
+    except Exception:
+        pass
+    try:
+        if callable(getattr(obj, "count_params", None)) and getattr(obj, "layers", None) is not None:
+            out = {"kind": "model"}
+            try:
+                out["n_params"] = int(obj.count_params())
+            except Exception:
+                pass
+            try:
+                out["n_layers"] = int(len(obj.layers))
+            except Exception:
+                pass
+            try:
+                opt = getattr(obj, "optimizer", None)
+                if opt is not None:
+                    out["method"] = type(opt).__name__
+            except Exception:
+                pass
+            return out
+    except Exception:
+        pass
+    return None
+
 def py_save_meta(obj, path):
     try:
         import json as _tlang_json
@@ -2441,7 +3404,7 @@ def py_save_meta(obj, path):
         shape = getattr(obj, "shape", None)
         frame_2d = False
         try:
-            frame_2d = (mod.startswith("pandas") or mod.startswith("polars")) and shape is not None and len(shape) == 2
+            frame_2d = (mod.startswith(("pandas", "polars", "geopandas"))) and shape is not None and len(shape) == 2
         except Exception:
             frame_2d = False
         if frame_2d:
@@ -2461,7 +3424,35 @@ def py_save_meta(obj, path):
                 meta["features"] = [str(c) for c in list(obj.column_names)]
             except Exception:
                 pass
-        elif mod.startswith("sklearn") or (mod.startswith("lightgbm") and cls.__name__ not in ("Booster", "Dataset")):
+        elif mod.startswith("polars") and cls.__name__ == "LazyFrame":
+            # Lazy frames carry no row count until collected; report the
+            # schema only.
+            meta["kind"] = "dataframe"
+            try:
+                names = None
+                try:
+                    names = obj.collect_schema().names()
+                except Exception:
+                    names = None
+                if names is None:
+                    names = obj.columns
+                if names:
+                    meta["features"] = [str(c) for c in list(names)]
+            except Exception:
+                pass
+        elif mod.startswith("xarray") and cls.__name__ == "Dataset":
+            # xarray datasets: variables plus coordinates, no single shape.
+            meta["kind"] = "dataset"
+            try:
+                meta["features"] = [str(v) for v in list(obj.data_vars.keys())]
+                meta["n_features"] = len(meta["features"])
+            except Exception:
+                pass
+            try:
+                meta.setdefault("metrics", {})["n_coords"] = int(len(list(obj.coords.keys())))
+            except Exception:
+                pass
+        elif mod.startswith(("sklearn", "imblearn")) or (mod.startswith("lightgbm") and cls.__name__ not in ("Booster", "Dataset")):
             meta["kind"] = "model"
             est_type = None
             try:
@@ -2785,6 +3776,280 @@ def py_save_meta(obj, path):
                         meta["features"] = [str(f) for f in list(fnames)]
                 except Exception:
                     pass
+        elif mod.startswith("prophet"):
+            # prophet (Python) — additive regression with changepoints.
+            meta["kind"] = "model"
+            meta["task"] = "time_series"
+            try:
+                hist = getattr(obj, "history", None)
+                if hist is not None:
+                    meta["n_obs"] = int(len(hist))
+            except Exception:
+                pass
+            try:
+                cps = getattr(obj, "changepoints", None)
+                if cps is not None:
+                    meta["changepoints"] = int(len(list(cps)))
+            except Exception:
+                pass
+            try:
+                seas = getattr(obj, "seasonalities", None)
+                if isinstance(seas, dict) and seas:
+                    meta["features"] = [str(k) for k in list(seas.keys())]
+            except Exception:
+                pass
+        elif mod.startswith("pmdarima"):
+            # pmdarima.ARIMA wraps a statsmodels result under arima_res_.
+            meta["kind"] = "model"
+            meta["task"] = "time_series"
+            try:
+                o = getattr(obj, "order", None)
+                if o is not None:
+                    meta["order"] = [int(v) for v in list(o)]
+            except Exception:
+                pass
+            try:
+                so = getattr(obj, "seasonal_order", None)
+                if so is not None:
+                    so_list = [int(v) for v in list(so)]
+                    if len(so_list) == 4 and so_list[3] > 1 and any(v > 0 for v in so_list[:3]):
+                        meta["seasonal_order"] = so_list
+            except Exception:
+                pass
+            try:
+                res = getattr(obj, "arima_res_", None)
+                if res is not None:
+                    _n = getattr(res, "nobs", None)
+                    if _n is not None:
+                        meta["n_obs"] = int(_n)
+                    for _mk, _ma in (("aic", "aic"), ("bic", "bic")):
+                        _mv = getattr(res, _ma, None)
+                        if _mv is not None:
+                            meta.setdefault("metrics", {})[_mk] = float(_mv)
+            except Exception:
+                pass
+        elif mod.startswith(("sktime.forecasting", "darts.models", "statsforecast.models")):
+            # Forecasting libraries: class name carries the model; the
+            # fitted horizon comes from fh (sktime), while darts chunk
+            # lengths are training hyperparameters stored in metrics.
+            meta["kind"] = "model"
+            meta["task"] = "time_series"
+            try:
+                fh = getattr(obj, "fh", None)
+                if fh is not None:
+                    meta["horizon"] = int(len(fh))
+            except Exception:
+                pass
+            try:
+                ocl = getattr(obj, "output_chunk_length", None)
+                if ocl is not None:
+                    meta.setdefault("metrics", {})["output_chunk_length"] = int(ocl)
+            except Exception:
+                pass
+            try:
+                icl = getattr(obj, "input_chunk_length", None)
+                if icl is not None:
+                    meta.setdefault("metrics", {})["input_chunk_length"] = int(icl)
+            except Exception:
+                pass
+        elif mod.startswith("catboost"):
+            meta["kind"] = "model"
+            if "Classifier" in cls.__name__:
+                meta["task"] = "classification"
+            elif "Regressor" in cls.__name__:
+                meta["task"] = "regression"
+            elif "Ranker" in cls.__name__:
+                meta["task"] = "ranking"
+            try:
+                meta["n_trees"] = int(obj.tree_count_)
+            except Exception:
+                pass
+            try:
+                fnames = obj.feature_names_
+                if fnames is not None:
+                    feats = [str(f) for f in list(fnames)]
+                    meta["features"] = feats
+                    meta["n_features"] = len(feats)
+            except Exception:
+                pass
+            try:
+                bi = getattr(obj, "best_iteration_", None)
+                if bi is None:
+                    bi = getattr(obj, "best_iteration", None)
+                if bi is not None:
+                    meta.setdefault("metrics", {})["best_iteration"] = int(bi)
+            except Exception:
+                pass
+        elif mod.startswith("transformers"):
+            # HuggingFace transformers: distinguish tokenizers/pipelines from models.
+            if "Tokenizer" in cls.__name__ or mod.startswith("transformers.tokenization"):
+                meta["kind"] = "transformer"
+                try:
+                    vs = getattr(obj, "vocab_size", None)
+                    if vs is not None:
+                        meta.setdefault("metrics", {})["vocab_size"] = int(vs)
+                except Exception:
+                    pass
+            elif "Pipeline" in cls.__name__ or mod.startswith("transformers.pipelines"):
+                meta["kind"] = "transformer"
+                try:
+                    ptask = getattr(obj, "task", None)
+                    if ptask:
+                        meta["method"] = str(ptask)
+                except Exception:
+                    pass
+            else:
+                meta["kind"] = "model"
+                try:
+                    cfg = getattr(obj, "config", None)
+                    mt = getattr(cfg, "model_type", None)
+                    if mt:
+                        meta["method"] = str(mt)
+                except Exception:
+                    pass
+                try:
+                    np_fn = getattr(obj, "num_parameters", None)
+                    if callable(np_fn):
+                        meta["n_params"] = int(np_fn())
+                except Exception:
+                    pass
+        elif mod.startswith("tbats"):
+            # tbats package — exponential smoothing for multiple seasonality.
+            meta["kind"] = "model"
+            meta["task"] = "time_series"
+            try:
+                sp = getattr(obj, "seasonal_periods", None)
+                if sp is None:
+                    sp = getattr(getattr(getattr(obj, "params", None), "components", None), "seasonal_periods", None)
+                if sp is not None:
+                    per = [int(float(v)) if float(v).is_integer() else float(v) for v in list(sp) if float(v) > 1]
+                    if per:
+                        meta["seasonal_period"] = per
+            except Exception:
+                pass
+            try:
+                for _mn, _cands in (("aic", ("aic_", "aic")), ("bic", ("bic_", "bic"))):
+                    for _c in _cands:
+                        _v = getattr(obj, _c, None)
+                        if _v is None:
+                            continue
+                        try:
+                            val = _v() if callable(_v) else _v
+                            meta.setdefault("metrics", {})[_mn] = float(val)
+                        except Exception:
+                            pass
+                        break
+            except Exception:
+                pass
+        elif mod.startswith("skforecast"):
+            # skforecast autoregressive forecasters.
+            meta["kind"] = "model"
+            meta["task"] = "time_series"
+            try:
+                lags = getattr(obj, "lags", None)
+                if lags is not None:
+                    meta["order"] = [int(len(list(lags)))]
+            except Exception:
+                pass
+        elif mod.startswith("pyspark.ml"):
+            # PySpark ML models and pipelines.
+            meta["kind"] = "model"
+            try:
+                if mod.endswith("classification"):
+                    meta["task"] = "classification"
+                elif mod.endswith("regression"):
+                    meta["task"] = "regression"
+                elif mod.endswith("clustering"):
+                    meta["task"] = "clustering"
+            except Exception:
+                pass
+            try:
+                stages = getattr(obj, "stages", None)
+                if stages is not None:
+                    meta.setdefault("metrics", {})["n_stages"] = int(len(list(stages)))
+            except Exception:
+                pass
+        elif mod.startswith("networkx"):
+            # networkx graphs.
+            meta["kind"] = "graph"
+            try:
+                meta["n_nodes"] = int(obj.number_of_nodes())
+            except Exception:
+                pass
+            try:
+                meta["n_edges"] = int(obj.number_of_edges())
+            except Exception:
+                pass
+        elif mod.startswith("gensim"):
+            # gensim topic and embedding models.
+            meta["kind"] = "model"
+            try:
+                if cls.__name__ in ("LdaModel", "LdaMulticore", "LsiModel"):
+                    nt = getattr(obj, "num_topics", None)
+                    if nt is None:
+                        nt = getattr(obj, "num_topics_best", None)
+                    if nt is not None:
+                        meta["n_components"] = int(nt)
+                        meta["task"] = "dim_reduction"
+            except Exception:
+                pass
+            try:
+                if cls.__name__ == "Word2Vec":
+                    vs = getattr(obj, "vector_size", None)
+                    if vs is not None:
+                        meta.setdefault("metrics", {})["vector_size"] = int(vs)
+                    wv = getattr(obj, "wv", None)
+                    if wv is not None:
+                        meta.setdefault("metrics", {})["n_vocab"] = int(len(getattr(wv, "index_to_key", [])))
+            except Exception:
+                pass
+        elif mod.startswith("dask") and cls.__name__ == "DataFrame":
+            # dask lazy frames: schema only, plus partition count.
+            meta["kind"] = "dataframe"
+            try:
+                meta["features"] = [str(c) for c in list(obj.columns)]
+            except Exception:
+                pass
+            try:
+                meta.setdefault("metrics", {})["npartitions"] = int(obj.npartitions)
+            except Exception:
+                pass
+        elif mod.startswith("PIL"):
+            # PIL images: size and mode, not a matrix.
+            meta["kind"] = "image"
+            try:
+                sz = getattr(obj, "size", None)
+                if sz is not None and len(sz) == 2:
+                    meta["dimensions"] = [int(sz[0]), int(sz[1])]
+            except Exception:
+                pass
+            try:
+                md = getattr(obj, "mode", None)
+                if md:
+                    meta["dtype"] = str(md)
+            except Exception:
+                pass
+        elif mod.startswith("neuralprophet"):
+            # NeuralProphet forecasts; a torch model underneath.
+            meta["kind"] = "model"
+            meta["task"] = "time_series"
+            try:
+                inner = getattr(obj, "model", None)
+                if inner is not None:
+                    meta["n_params"] = int(sum(p.numel() for p in inner.parameters()))
+            except Exception:
+                pass
+        elif mod.startswith("tslearn"):
+            # tslearn time-series learners.
+            meta["kind"] = "model"
+            if "KMeans" in cls.__name__ or "KShape" in cls.__name__:
+                meta["task"] = "clustering"
+            try:
+                nc = getattr(obj, "n_clusters", None)
+                if nc is not None:
+                    meta["n_clusters"] = int(nc)
+            except Exception:
+                pass
         elif mod.startswith("statsmodels"):
             meta["kind"] = "model"
             order = None
@@ -2805,6 +4070,12 @@ def py_save_meta(obj, path):
                         so_list = [int(v) for v in list(so)]
                         if len(so_list) == 4 and so_list[3] > 1 and any(v > 0 for v in so_list[:3]):
                             meta["seasonal_order"] = so_list
+                except Exception:
+                    pass
+            if "task" not in meta:
+                try:
+                    if "MarkovRegression" in cls.__name__ or "MarkovAutoregression" in cls.__name__:
+                        meta["task"] = "time_series"
                 except Exception:
                     pass
             if "task" not in meta:
@@ -2837,6 +4108,24 @@ def py_save_meta(obj, path):
                         meta["task"] = "time_series"
                 except Exception:
                     pass
+            if "task" not in meta:
+                try:
+                    if "VECM" in cls.__name__:
+                        meta["task"] = "time_series"
+                except Exception:
+                    pass
+            try:
+                kf = getattr(getattr(obj, "model", None), "k_factors", None)
+                if kf is not None:
+                    meta["n_components"] = int(kf)
+            except Exception:
+                pass
+            try:
+                kr = getattr(getattr(obj, "model", None), "k_regimes", None)
+                if kr is not None:
+                    meta.setdefault("metrics", {})["n_regimes"] = int(kr)
+            except Exception:
+                pass
             try:
                 kar = getattr(getattr(obj, "model", None), "k_ar", None)
                 if kar is not None and "order" not in meta:
@@ -2999,7 +4288,18 @@ def py_save_meta(obj, path):
             except Exception:
                 pass
         else:
-            meta["kind"] = "other"
+            # No module or shape matched: try duck-typed deep-learning
+            # frameworks (torch / keras) before giving up.
+            _tlang_dl = None
+            try:
+                _tlang_dl = _tlang_dl_meta(obj)
+            except Exception:
+                _tlang_dl = None
+            if _tlang_dl is not None:
+                for _dk, _dv in _tlang_dl.items():
+                    meta[_dk] = _dv
+            else:
+                meta["kind"] = "other"
         try:
             _feats = meta.get("features")
             if isinstance(_feats, list) and len(_feats) > 500:
@@ -3111,7 +4411,37 @@ function jl_type_parts(obj)
 end
 
 function jl_module_matches(module_name, expected)
-    module_name == expected || endswith(module_name, "." * expected)
+    module_name == expected ||
+        startswith(module_name, expected * ".") ||
+        endswith(module_name, "." * expected) ||
+        occursin("." * expected * ".", module_name)
+end
+
+function jl_find_module(name::AbstractString)
+    for (_, mod) in Base.loaded_modules
+        if string(nameof(mod)) == name
+            return mod
+        end
+    end
+    nothing
+end
+
+function jl_resolve_fn(obj, mod_names, fn_sym::Symbol)
+    pm = parentmodule(typeof(obj))
+    if isdefined(pm, fn_sym)
+        return getfield(pm, fn_sym)
+    end
+    names_list = mod_names isa AbstractString ? (mod_names,) : mod_names
+    for name in names_list
+        m = jl_find_module(name)
+        if m !== nothing && isdefined(m, fn_sym)
+            return getfield(m, fn_sym)
+        end
+    end
+    if isdefined(Main, fn_sym)
+        return getfield(Main, fn_sym)
+    end
+    nothing
 end
 
 function jl_first_string(container, keys)
@@ -3463,6 +4793,17 @@ function jl_save_meta(obj, path)
             cls = cls[1:prevind(cls, 201)] * "..."
         end
         meta["class"] = cls
+        iscat = obj isa AbstractArray && try
+            occursin("Categorical", string(eltype(obj)))
+        catch
+            false
+        end
+        issciml = try
+            jl_module_matches(string(parentmodule(typeof(obj))), "SciMLBase") &&
+                (string(nameof(typeof(obj))) == "ODEProblem" || string(nameof(typeof(obj))) == "ODESolution")
+        catch
+            false
+        end
         if obj isa AbstractDataFrame
             meta["kind"] = "dataframe"
             try
@@ -3471,6 +4812,43 @@ function jl_save_meta(obj, path)
             end
             try
                 meta["features"] = string.(names(obj))
+            catch
+            end
+        elseif iscat
+            # CategoricalArrays.jl values — mirrors R factors. Resolve levels()
+            # via the package module so `import CategoricalArrays: categorical` works.
+            meta["kind"] = "factor"
+            try
+                levels_fn = jl_resolve_fn(obj, ("CategoricalArrays", "DataAPI"), :levels)
+                if levels_fn !== nothing
+                    lvs = levels_fn(obj)
+                    meta["n_levels"] = Int(length(lvs))
+                    meta["levels"] = string.(lvs)
+                end
+            catch
+            end
+            try
+                meta["n_obs"] = Int(length(obj))
+            catch
+            end
+        elseif issciml
+            # SciML differential equation problems and solutions (ODESolution
+            # subtypes AbstractArray, so this must run before AbstractArray).
+            meta["kind"] = "ode"
+            try
+                ts = hasproperty(obj, :tspan) ? obj.tspan : obj.prob.tspan
+                mm = haskey(meta, "metrics") ? meta["metrics"] : Dict{String, Any}()
+                mm["tspan_start"] = Float64(ts[1])
+                mm["tspan_end"] = Float64(ts[2])
+                meta["metrics"] = mm
+            catch
+            end
+            try
+                meta["n_obs"] = Int(length(obj.t))
+            catch
+            end
+            try
+                meta["method"] = string(obj.retcode)
             catch
             end
         elseif obj isa AbstractArray
@@ -3675,14 +5053,328 @@ function jl_save_meta(obj, path)
                 catch
                 end
                 try
-                    mm = haskey(meta, "metrics") ? meta["metrics"] : Dict{String, Any}()
-                    mm["loglik"] = Float64(loglike(obj))
-                    meta["metrics"] = mm
+                    ll_fn = jl_resolve_fn(obj, ("StateSpaceModels",), :loglike)
+                    if ll_fn !== nothing
+                        mm = haskey(meta, "metrics") ? meta["metrics"] : Dict{String, Any}()
+                        mm["loglik"] = Float64(ll_fn(obj))
+                        meta["metrics"] = mm
+                    end
+                catch
+                end
+            end
+            isdist = try
+                jl_module_matches(string(parentmodule(typeof(obj))), "Distributions")
+            catch
+                false
+            end
+            if isdist
+                # Distributions.jl values (Normal, Beta, truncated, ...).
+                meta["kind"] = "distribution"
+                try
+                    meta["method"] = string(nameof(typeof(obj)))
+                catch
+                end
+                try
+                    mean_fn = jl_resolve_fn(obj, ("Distributions", "Statistics"), :mean)
+                    if mean_fn !== nothing
+                        mm = haskey(meta, "metrics") ? meta["metrics"] : Dict{String, Any}()
+                        mm["mean"] = Float64(mean_fn(obj))
+                        meta["metrics"] = mm
+                    end
+                catch
+                end
+                try
+                    std_fn = jl_resolve_fn(obj, ("Distributions", "Statistics"), :std)
+                    if std_fn !== nothing
+                        mm = haskey(meta, "metrics") ? meta["metrics"] : Dict{String, Any}()
+                        mm["std"] = Float64(std_fn(obj))
+                        meta["metrics"] = mm
+                    end
+                catch
+                end
+            end
+            ischains = try
+                jl_module_matches(string(parentmodule(typeof(obj))), "MCMCChains") && string(nameof(typeof(obj))) == "Chains"
+            catch
+                false
+            end
+            if ischains
+                # MCMCChains.Chains — Turing / AbstractMCMC sampling output.
+                # size is (draws, variables, chains).
+                meta["kind"] = "chain"
+                try
+                    sz = size(obj)
+                    if length(sz) == 3
+                        meta["n_draws"] = Int(sz[1])
+                        meta["n_params"] = Int(sz[2])
+                        meta["n_chains"] = Int(sz[3])
+                    end
+                catch
+                end
+            end
+            isflux = try
+                jl_module_matches(string(parentmodule(typeof(obj))), "Flux")
+            catch
+                false
+            end
+            if isflux
+                # Flux.jl models (Chain and layers). Prefer Flux.trainables (Flux >= 0.14)
+                # to avoid deprecation warnings from Flux.params.
+                meta["kind"] = "model"
+                try
+                    if hasproperty(obj, :layers)
+                        meta["n_layers"] = Int(length(obj.layers))
+                    end
+                catch
+                end
+                try
+                    flux_mod = jl_find_module("Flux")
+                    if flux_mod === nothing
+                        flux_mod = parentmodule(typeof(obj))
+                    end
+                    if isdefined(flux_mod, :trainables)
+                        ps = getfield(flux_mod, :trainables)(obj)
+                        meta["n_params"] = Int(sum(length, ps; init = 0))
+                    elseif isdefined(flux_mod, :params)
+                        ps = getfield(flux_mod, :params)(obj)
+                        meta["n_params"] = Int(sum(length, ps; init = 0))
+                    end
+                catch
+                end
+            end
+            ismljmachine = try
+                jl_module_matches(string(parentmodule(typeof(obj))), "MLJBase") && string(nameof(typeof(obj))) == "Machine"
+            catch
+                false
+            end
+            if ismljmachine
+                # MLJ.jl fitted machines; the model field names the algorithm.
+                meta["kind"] = "model"
+                try
+                    mdl = jl_lookup(obj, :model)
+                    if mdl !== nothing
+                        mname = string(nameof(typeof(mdl)))
+                        meta["method"] = mname
+                        if occursin("Classifier", mname)
+                            meta["task"] = "classification"
+                        elseif occursin("Regressor", mname)
+                            meta["task"] = "regression"
+                        end
+                    end
+                catch
+                end
+            end
+            isxgboostbooster = try
+                jl_module_matches(string(parentmodule(typeof(obj))), "XGBoost") && string(nameof(typeof(obj))) == "Booster"
+            catch
+                false
+            end
+            if isxgboostbooster
+                # XGBoost.jl boosters.
+                meta["kind"] = "model"
+                try
+                    bi = jl_lookup(obj, :best_iteration)
+                    if bi !== nothing
+                        mm = haskey(meta, "metrics") ? meta["metrics"] : Dict{String, Any}()
+                        mm["best_iteration"] = Float64(bi)
+                        meta["metrics"] = mm
+                    end
+                catch
+                end
+            end
+            isarch = try
+                jl_module_matches(string(parentmodule(typeof(obj))), "ARCHModels")
+            catch
+                false
+            end
+            if isarch
+                # ARCHModels.jl volatility fits.
+                meta["kind"] = "model"
+                meta["task"] = "time_series"
+                try
+                    meta["method"] = string(nameof(typeof(obj)))
+                catch
+                end
+            end
+            iscmeans = try
+                jl_module_matches(string(parentmodule(typeof(obj))), "Clustering") &&
+                    hasproperty(obj, :centers) && hasproperty(obj, :weights) && !hasproperty(obj, :counts)
+            catch
+                false
+            end
+            if iscmeans
+                # Clustering.jl fuzzy c-means.
+                meta["kind"] = "model"
+                meta["task"] = "clustering"
+                try
+                    meta["n_clusters"] = Int(size(obj.centers, 2))
+                catch
+                end
+                try
+                    meta["n_features"] = Int(size(obj.centers, 1))
+                catch
+                end
+            end
+            isdbscan = try
+                jl_module_matches(string(parentmodule(typeof(obj))), "Clustering") &&
+                    hasproperty(obj, :clusters) && !(obj isa AbstractVector)
+            catch
+                false
+            end
+            if isdbscan
+                # Clustering.jl DBSCAN results. Use assignments length (includes noise,
+                # matching R's dbscan) when available, falling back to core+boundary.
+                meta["kind"] = "model"
+                meta["task"] = "clustering"
+                try
+                    meta["n_clusters"] = Int(length(obj.clusters))
+                catch
+                end
+                try
+                    if hasproperty(obj, :assignments)
+                        meta["n_obs"] = Int(length(obj.assignments))
+                    else
+                        total = 0
+                        for c in obj.clusters
+                            ci = jl_lookup(c, :core_indices)
+                            if ci === nothing; ci = jl_lookup(c, :core_idxs); end
+                            bi = jl_lookup(c, :boundary_indices)
+                            if bi === nothing; bi = jl_lookup(c, :boundary_idxs); end
+                            total += (ci === nothing ? 0 : length(ci)) + (bi === nothing ? 0 : length(bi))
+                        end
+                        meta["n_obs"] = Int(total)
+                    end
+                catch
+                end
+            end
+            ismvs = try
+                jl_module_matches(string(parentmodule(typeof(obj))), "MultivariateStats")
+            catch
+                false
+            end
+            if ismvs
+                mvs_name = try
+                    string(nameof(typeof(obj)))
+                catch
+                    ""
+                end
+                if mvs_name in ("ICA", "FactorAnalysis", "PPCA")
+                    meta["kind"] = "model"
+                    meta["task"] = "dim_reduction"
+                    try
+                        meta["n_components"] = Int(size(obj.W, 2))
+                    catch
+                        try
+                            outdim_fn = jl_resolve_fn(obj, ("MultivariateStats",), :outdim)
+                            if outdim_fn !== nothing
+                                meta["n_components"] = Int(outdim_fn(obj))
+                            end
+                        catch
+                        end
+                    end
+                elseif mvs_name == "KernelPCA"
+                    meta["kind"] = "model"
+                    meta["task"] = "dim_reduction"
+                    try
+                        ev = obj.λ
+                        meta["n_components"] = Int(length(ev))
+                        s = sum(ev)
+                        if s != 0
+                            mm = haskey(meta, "metrics") ? meta["metrics"] : Dict{String, Any}()
+                            mm["var_first"] = Float64(ev[1] / s)
+                            meta["metrics"] = mm
+                        end
+                    catch
+                    end
+                elseif mvs_name == "MulticlassLDA"
+                    meta["kind"] = "model"
+                    meta["task"] = "dim_reduction"
+                    try
+                        meta["n_components"] = Int(size(obj.proj, 2))
+                    catch
+                    end
+                    try
+                        mm = haskey(meta, "metrics") ? meta["metrics"] : Dict{String, Any}()
+                        mm["n_classes"] = Float64(size(obj.pmeans, 2))
+                        meta["metrics"] = mm
+                    catch
+                    end
+                end
+            end
+            isgraphsjl = try
+                jl_module_matches(string(parentmodule(typeof(obj))), "Graphs") && startswith(string(nameof(typeof(obj))), "Simple")
+            catch
+                false
+            end
+            if isgraphsjl
+                # Graphs.jl networks; resolve nv/ne via package module.
+                meta["kind"] = "graph"
+                try
+                    nv_fn = jl_resolve_fn(obj, ("Graphs",), :nv)
+                    if nv_fn !== nothing
+                        meta["n_nodes"] = Int(nv_fn(obj))
+                    end
+                catch
+                end
+                try
+                    ne_fn = jl_resolve_fn(obj, ("Graphs",), :ne)
+                    if ne_fn !== nothing
+                        meta["n_edges"] = Int(ne_fn(obj))
+                    end
+                catch
+                end
+            end
+            isjumpmodel = try
+                jl_module_matches(string(parentmodule(typeof(obj))), "JuMP") && string(nameof(typeof(obj))) == "Model"
+            catch
+                false
+            end
+            if isjumpmodel
+                # JuMP optimization models; resolve num_variables/num_constraints via JuMP.
+                meta["kind"] = "optimization"
+                try
+                    nv_fn = jl_resolve_fn(obj, ("JuMP",), :num_variables)
+                    if nv_fn !== nothing
+                        mm = haskey(meta, "metrics") ? meta["metrics"] : Dict{String, Any}()
+                        mm["n_variables"] = Float64(nv_fn(obj))
+                        meta["metrics"] = mm
+                    end
+                catch
+                end
+                try
+                    nc_fn = jl_resolve_fn(obj, ("JuMP",), :num_constraints)
+                    if nc_fn !== nothing
+                        nc_val = try
+                            nc_fn(obj; count_variable_in_set_constraints = false)
+                        catch
+                            nc_fn(obj)
+                        end
+                        mm = haskey(meta, "metrics") ? meta["metrics"] : Dict{String, Any}()
+                        mm["n_constraints"] = Float64(nc_val)
+                        meta["metrics"] = mm
+                    end
+                catch
+                end
+            end
+            isgmm = try
+                jl_module_matches(string(parentmodule(typeof(obj))), "GaussianMixtures") && occursin("GMM", string(nameof(typeof(obj))))
+            catch
+                false
+            end
+            if isgmm
+                # GaussianMixtures.jl fits.
+                meta["kind"] = "model"
+                meta["task"] = "density"
+                try
+                    meta["n_components"] = Int(obj.n)
                 catch
                 end
             end
             try
-                meta["n_obs"] = Int(nobs(obj))
+                nobs_fn = jl_resolve_fn(obj, ("StatsAPI", "StatsBase", "GLM"), :nobs)
+                if nobs_fn !== nothing
+                    meta["n_obs"] = Int(nobs_fn(obj))
+                end
             catch
             end
             try
@@ -3722,31 +5414,27 @@ function jl_save_meta(obj, path)
             catch
             end
             try
-                cn = coefnames(obj)
-                feats = filter(x -> x != "(Intercept)", string.(cn))
-                if !isempty(feats)
-                    meta["n_features"] = length(feats)
-                    meta["features"] = feats
+                cn_fn = jl_resolve_fn(obj, ("StatsAPI", "StatsBase", "GLM"), :coefnames)
+                if cn_fn !== nothing
+                    cn = cn_fn(obj)
+                    feats = filter(x -> x != "(Intercept)", string.(cn))
+                    if !isempty(feats)
+                        meta["n_features"] = length(feats)
+                        meta["features"] = feats
+                    end
                 end
             catch
             end
             try
                 metrics = haskey(meta, "metrics") ? meta["metrics"] : Dict{String, Any}()
-                try
-                    metrics["r_squared"] = Float64(r2(obj))
-                catch
-                end
-                try
-                    metrics["aic"] = Float64(aic(obj))
-                catch
-                end
-                try
-                    metrics["deviance"] = Float64(deviance(obj))
-                catch
-                end
-                try
-                    metrics["loglik"] = Float64(loglikelihood(obj))
-                catch
+                for (mkey, fsym) in (("r_squared", :r2), ("aic", :aic), ("deviance", :deviance), ("loglik", :loglikelihood))
+                    try
+                        mfn = jl_resolve_fn(obj, ("StatsAPI", "StatsBase", "GLM"), fsym)
+                        if mfn !== nothing
+                            metrics[mkey] = Float64(mfn(obj))
+                        end
+                    catch
+                    end
                 end
                 if !isempty(metrics)
                     meta["metrics"] = metrics

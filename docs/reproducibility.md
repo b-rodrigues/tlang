@@ -48,7 +48,7 @@ Every T project is a **Nix flake**:
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
-    tlang.url = "github:b-rodrigues/tlang/v0.56.1";
+    tlang.url = "github:b-rodrigues/tlang/v0.56.2";
   };
 
   outputs = { self, nixpkgs, tlang }: {
@@ -173,7 +173,7 @@ intent {
   ],
   
   environment: {
-    t_version: "0.56.1",
+    t_version: "0.56.2",
     nix_revision: "abc123",
     run_date: "2024-01-15"
   }
@@ -217,7 +217,7 @@ my-analysis/
   
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
-    tlang.url = "github:b-rodrigues/tlang/v0.56.1";
+    tlang.url = "github:b-rodrigues/tlang/v0.56.2";
   };
   
   outputs = { self, nixpkgs, tlang }: {
@@ -373,6 +373,94 @@ dvc add data/sales.csv
 git add data/sales.csv.dvc
 
 # Data is versioned alongside code
+```
+
+---
+
+## Offline Provenance Bundles with `t provenance`
+
+Reproducibility requires not only bit-for-bit rebuilds, but also transparent audit trails for scientific peer review, regulatory compliance, and software supply chain security.
+
+T provides the `t provenance` CLI command and the `t_provenance()` standard library function to generate self-contained, offline provenance bundles directly from your project's local state without requiring network access.
+
+### Sources of Provenance Data
+
+A provenance bundle aggregates metadata from four authoritative local sources:
+
+1. **`tproject.toml`**: Project identity, authors, license, minimum language version, and declared runtime dependencies (R, Python, Julia).
+2. **`flake.lock`**: Exact commit hashes, revisions, and content hashes (`narHash`) for all Nix inputs.
+3. **`_pipeline/build_log_*.json`**: Execution timestamps, durations, Nix store paths, output artifact formats, and `meta` / `foreign_meta` sidecars (metrics, schemas, and model kinds).
+4. **`intent { ... }` blocks**: High-level computational assumptions, data invariants, and modeling intentions declared in `.t` source scripts.
+
+### Supported Standards
+
+T exports provenance in three distinct formats:
+
+#### 1. Research Object Crate (RO-Crate 1.1 JSON-LD)
+
+[RO-Crate](https://www.researchobject.org/ro-crate/) is a community-driven specification for packaging research artifacts and their execution metadata as Linked Data (`ro-crate-metadata.json`).
+
+- Conforms to the RO-Crate 1.1 specification and Workflow Run Crate profiles.
+- Emits root dataset entities with mandatory `datePublished`, `license`, and descriptive metadata.
+- Represents pipeline nodes as `CreateAction` (execution events) and `SoftwareApplication` (computational steps) entities.
+- Preserves polyglot model metadata and metrics under stringified `foreignMeta` properties.
+
+```bash
+# Generate RO-Crate metadata to standard output
+t provenance --format ro-crate
+
+# Save directly to a file
+t provenance --format ro-crate -o ro-crate-metadata.json
+```
+
+#### 2. Software Bill of Materials (CycloneDX 1.5 SBOM)
+
+[CycloneDX](https://cyclonedx.org/) is a lightweight, widely adopted standard for Software Bill of Materials (SBOM) used in cybersecurity and software supply chain compliance.
+
+- Formatted according to the CycloneDX 1.5 JSON specification.
+- Translates Nix SRI content hashes (`sha256-<base64>`) to hexadecimal hashes (`SHA-256`) required by the CycloneDX schema.
+- Emits declared packages with Package URLs (`purl`), including PyPI (`pkg:pypi/`), CRAN (`pkg:cran/`), and generic purls (`pkg:generic/julia`, `pkg:generic/nix`).
+- Declares pipeline nodes as components with type `"data"` to ensure valid dependency graph references without dangling references.
+
+```bash
+# Generate CycloneDX 1.5 SBOM
+t provenance --format sbom -o bom.cdx.json
+```
+
+#### 3. T-Native JSON
+
+A direct, structured JSON serialization of the pipeline provenance graph, suitable for custom scripts and analysis:
+
+```bash
+t provenance --format json -o provenance.json
+```
+
+### CLI Command Options
+
+```text
+Usage: t provenance [options]
+
+Options:
+  --format <fmt>   Output format: 'ro-crate' (default), 'sbom', or 'json'
+  --output, -o <s> Output file path (defaults to stdout)
+  --dir <s>        Project root directory (defaults to current working directory)
+  --file <s>       Target .t script to extract intent blocks from
+  --no-meta        Exclude foreign metadata sidecars from the bundle
+```
+
+### Programmatic Usage
+
+You can also generate provenance manifests inside T scripts or in the REPL using `t_provenance()`:
+
+```t
+-- Generate RO-Crate metadata
+crate = t_provenance(format = "ro-crate")
+
+-- Write CycloneDX SBOM directly to file
+t_provenance(format = "sbom", output = "sbom.cdx.json")
+
+-- Generate provenance excluding foreign metadata sidecars
+t_provenance(format = "ro-crate", output = "ro-crate.json", include_meta = false)
 ```
 
 ---

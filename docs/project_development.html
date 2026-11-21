@@ -173,7 +173,7 @@ class="sourceCode toml"><code class="sourceCode toml"><span id="cb3-1"><a href="
 <span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="dt">data_utils</span> <span class="op">=</span> <span class="op">{ </span><span class="dt">git</span><span class="op"> =</span> <span class="st">&quot;https://github.com/user/data-utils&quot;</span><span class="op">, </span><span class="dt">tag</span><span class="op"> =</span> <span class="st">&quot;v0.2.0&quot;</span><span class="op"> }</span></span>
 <span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="kw">[t]</span></span>
-<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="dt">min_version</span> <span class="op">=</span> <span class="st">&quot;0.56.1&quot;</span></span></code></pre></div>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="dt">min_version</span> <span class="op">=</span> <span class="st">&quot;0.56.2&quot;</span></span></code></pre></div>
 <blockquote>
 <p><strong>Important</strong>: <code>[dependencies]</code> entries
 <strong>must</strong> be <code>{ git, tag }</code> inline tables
@@ -543,6 +543,86 @@ class="sourceCode bash"><code class="sourceCode bash"><span id="cb32-1"><a href=
 <p>Or use the REPL for interactive exploration:</p>
 <div class="sourceCode" id="cb33"><pre
 class="sourceCode bash"><code class="sourceCode bash"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t repl</span></code></pre></div>
+<h3 id="formatting-t-code-with-t-fmt">5.1 Formatting T Code with
+<code>t fmt</code></h3>
+<p>T includes a canonical code formatter to ensure consistent code style
+across your project:</p>
+<div class="sourceCode" id="cb34"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Print formatted source to standard output</span></span>
+<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t fmt src/pipeline.t</span>
+<span id="cb34-3"><a href="#cb34-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb34-4"><a href="#cb34-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Check if a file is formatted (exits with 0 if clean, 1 if unformatted)</span></span>
+<span id="cb34-5"><a href="#cb34-5" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t fmt <span class="at">--check</span> src/pipeline.t</span>
+<span id="cb34-6"><a href="#cb34-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb34-7"><a href="#cb34-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Format a file in place</span></span>
+<span id="cb34-8"><a href="#cb34-8" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t fmt <span class="at">--write</span> src/pipeline.t</span>
+<span id="cb34-9"><a href="#cb34-9" aria-hidden="true" tabindex="-1"></a><span class="co"># or short flag:</span></span>
+<span id="cb34-10"><a href="#cb34-10" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t fmt <span class="at">-w</span> src/pipeline.t</span></code></pre></div>
+<p>The formatter enforces 2-space indentation, normalizes pipe chains
+(<code>|&gt;</code>), arithmetic operators (<code>+</code>,
+<code>-</code>, <code>*</code>, <code>/</code>), and
+assignment/comparison operators (<code>=</code>, <code>==</code>,
+<code>!=</code>), while strictly preserving: - Comments (<code>#</code>
+and <code>--</code>) - Embedded foreign code blocks
+(<code>&lt;{ ... }&gt;</code>) - Multi-line strings - Existing newline
+styles (LF vs CRLF)</p>
+<p>Before writing any changes, <code>t fmt</code> verifies that the
+formatted code parses identically to the input to prevent accidental
+syntax alteration.</p>
+<h3 id="fast-pipeline-checking-with-t-check">5.2 Fast Pipeline Checking
+with <code>t check</code></h3>
+<p>During development, validate your pipeline without waiting for Nix
+builds:</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr>
+<th>Command</th>
+<th>What it checks</th>
+<th>Nix build required?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>t check src/pipeline.t</code></td>
+<td>DAG structure, missing dependencies, cycles, syntax</td>
+<td>No (instant)</td>
+</tr>
+<tr>
+<td><code>t check --schema src/pipeline.t</code></td>
+<td>+ Column references, Arrow data types, schema flow</td>
+<td>No (instant)</td>
+</tr>
+<tr>
+<td><code>t check --schema --hydrate-foreign src/pipeline.t</code></td>
+<td>+ Hydrates foreign node output schemas from cached build logs</td>
+<td>No (instant)</td>
+</tr>
+<tr>
+<td><code>t check --env src/pipeline.t</code></td>
+<td>+ <code>tproject.toml</code> package declarations and Nix eval</td>
+<td>Yes (eval only)</td>
+</tr>
+</tbody>
+</table>
+<h4 id="hydrating-foreign-schemas---hydrate-foreign">Hydrating Foreign
+Schemas (<code>--hydrate-foreign</code>)</h4>
+<p>Because foreign pipeline nodes (R, Python, Julia) execute dynamic
+code inside sandbox derivations, their exact output schemas are only
+known after execution. By default, <code>t check --schema</code> remains
+strictly static and hermetic.</p>
+<p>When you pass <code>--hydrate-foreign</code>, <code>t check</code>
+inspects cached build logs (<code>_pipeline/build_log_*.json</code>) and
+metadata sidecars from previous builds. It populates output column
+schemas for foreign nodes, allowing downstream T verbs
+(e.g. <code>filter($mpg &gt; 20)</code>) to validate column names and
+types before running subsequent builds.</p>
+<div class="sourceCode" id="cb35"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t check <span class="at">--schema</span> <span class="at">--hydrate-foreign</span> src/pipeline.t</span></code></pre></div>
 <h2 id="running-tests">6. Running Tests</h2>
 <p>You can add tests in <code>tests/</code> following the same
 conventions as packages:</p>
@@ -552,8 +632,8 @@ import my_stats
 result = weighted_mean([1, 2, 3], [0.5, 0.3, 0.2])
 assert(result == 1.7)</code></pre>
 <p>Run them with:</p>
-<div class="sourceCode" id="cb35"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t test</span></code></pre></div>
+<div class="sourceCode" id="cb37"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t test</span></code></pre></div>
 <h3 id="pipeline-verification-nodes-assertion-dictionaries">6.1 Pipeline
 Verification Nodes &amp; Assertion Dictionaries</h3>
 <p>When testing pipeline workflows, separate data transformation nodes
@@ -623,13 +703,27 @@ inputs</li>
 source of truth for dependencies</li>
 </ul>
 <p>Anyone can reproduce your environment:</p>
-<div class="sourceCode" id="cb38"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> git clone https://github.com/user/housing-analysis</span>
-<span id="cb38-2"><a href="#cb38-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> cd housing-analysis</span>
-<span id="cb38-3"><a href="#cb38-3" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> nix develop</span>
-<span id="cb38-4"><a href="#cb38-4" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run src/pipeline.t</span></code></pre></div>
+<div class="sourceCode" id="cb40"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> git clone https://github.com/user/housing-analysis</span>
+<span id="cb40-2"><a href="#cb40-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> cd housing-analysis</span>
+<span id="cb40-3"><a href="#cb40-3" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> nix develop</span>
+<span id="cb40-4"><a href="#cb40-4" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t run src/pipeline.t</span></code></pre></div>
 <p>The same T version, same package versions, same R packages, and same
 system libraries are used every time.</p>
+<h3 id="auditing-provenance-with-t-provenance">7.1 Auditing Provenance
+with <code>t provenance</code></h3>
+<p>When sharing or publishing analyses, create offline reproducibility
+bundles containing pinned Nix inputs, build logs, and foreign model
+metadata:</p>
+<div class="sourceCode" id="cb41"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Generate Research Object Crate (RO-Crate 1.1 JSON-LD)</span></span>
+<span id="cb41-2"><a href="#cb41-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t provenance <span class="at">--format</span> ro-crate <span class="at">-o</span> ro-crate-metadata.json</span>
+<span id="cb41-3"><a href="#cb41-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb41-4"><a href="#cb41-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Generate Software Bill of Materials (CycloneDX 1.5 SBOM)</span></span>
+<span id="cb41-5"><a href="#cb41-5" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t provenance <span class="at">--format</span> sbom <span class="at">-o</span> sbom.cdx.json</span></code></pre></div>
+<p>See the <a
+href="reproducibility.md#offline-provenance-bundles-with-t-provenance">Reproducibility
+Guide</a> for details on supported formats and programmatic usage.</p>
 <h2 id="ide-support-autocompletion">8. IDE Support &amp;
 Autocompletion</h2>
 <p>T projects are designed to work seamlessly with modern editors via

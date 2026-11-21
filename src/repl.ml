@@ -543,8 +543,11 @@ let parse_program_from_file filename =
     | Ast.Invalid_match_pattern msg ->
         let pos = Lexing.lexeme_start_p lexbuf in
         Error (make_located_error ~file:filename Ast.SyntaxError msg pos)
-    | Ast.Invalid_type_declaration msg ->
-        let pos = Lexing.lexeme_start_p lexbuf in
+    | Ast.Invalid_type_declaration (msg, pos_opt) ->
+        let pos = match pos_opt with
+          | Some p -> p
+          | None -> Lexing.lexeme_start_p lexbuf
+        in
         Error (make_located_error ~file:filename Ast.SyntaxError msg pos)
     | Sys.Break ->
         Error (interrupt_error ())
@@ -740,16 +743,17 @@ let check_type_annotations filename =
   | Lexer.SyntaxError _ ->
     (* Parse/syntax errors are already reported by check_utils normal flow. *)
     []
-  | Parser.Error | Ast.Mixed_bracket_form ->
+  | Parser.Error | Ast.Mixed_bracket_form | Ast.Invalid_type_declaration _ ->
+    (* Parse/type-declaration errors are already reported by the normal flow. *)
     []
   | exn ->
     Printf.eprintf "Warning: type annotation check unexpected exception: %s\n" (Printexc.to_string exn);
     []
 
-let run_check ?(schema=false) ?(env_check=false) ?(offline=false) mode filename env =
+let run_check ?(schema=false) ?(hydrate_foreign=false) ?(env_check=false) ?(offline=false) mode filename env =
   Packages.ensure_docs_loaded ();
   ensure_file_path filename;
-  Check_utils.run_check ~schema ~env_check ~offline mode filename env
+  Check_utils.run_check ~schema ~hydrate_foreign ~env_check ~offline mode filename env
 
 let print_check_result ?(json=false) check_result =
   let output = Check_utils.format_check_result ~json check_result in
@@ -758,12 +762,12 @@ let print_check_result ?(json=false) check_result =
   else
     Printf.eprintf "%s" output
 
-let cmd_check ?(json=false) ?(schema=false) ?(env_check=false) ?(offline=false) mode filename env =
-  let check_result = run_check ~schema ~env_check ~offline mode filename env in
+let cmd_check ?(json=false) ?(schema=false) ?(hydrate_foreign=false) ?(env_check=false) ?(offline=false) mode filename env =
+  let check_result = run_check ~schema ~hydrate_foreign ~env_check ~offline mode filename env in
   print_check_result ~json check_result;
   exit (Diagnostics.exit_code_of_diagnostics (Diagnostics.check_result_entries check_result))
 
-let cmd_check_watch ?(json=false) ?(schema=false) ?(env_check=false) ?(offline=false) mode filename env =
+let cmd_check_watch ?(json=false) ?(schema=false) ?(hydrate_foreign=false) ?(env_check=false) ?(offline=false) mode filename env =
   let get_mtime path =
     try (Unix.stat path).Unix.st_mtime with Unix.Unix_error _ -> 0.0
   in
@@ -772,7 +776,7 @@ let cmd_check_watch ?(json=false) ?(schema=false) ?(env_check=false) ?(offline=f
   let last_exit_code = ref 0 in
   Printf.eprintf "Watching %s for changes (Ctrl+C to stop)...\n%!" filename;
   (* Initial run *)
-  let check_result = run_check ~schema ~env_check ~offline mode filename env in
+  let check_result = run_check ~schema ~hydrate_foreign ~env_check ~offline mode filename env in
   print_check_result ~json check_result;
   last_exit_code := Diagnostics.exit_code_of_diagnostics (Diagnostics.check_result_entries check_result);
   let forever = ref true in
@@ -1756,8 +1760,11 @@ let () =
                | Ast.Invalid_match_pattern msg ->
                    let pos = Lexing.lexeme_start_p lexbuf in
                    make_located_error ~file:filename Ast.SyntaxError msg pos
-               | Ast.Invalid_type_declaration msg ->
-                   let pos = Lexing.lexeme_start_p lexbuf in
+               | Ast.Invalid_type_declaration (msg, pos_opt) ->
+                   let pos = match pos_opt with
+                     | Some p -> p
+                     | None -> Lexing.lexeme_start_p lexbuf
+                   in
                    make_located_error ~file:filename Ast.SyntaxError msg pos
                | Sys.Break ->
                    interrupt_error ())
@@ -2014,11 +2021,12 @@ let () =
       Printf.eprintf "Unexpected arguments after `t run <file.t>`.\n";
       exit 1
   | _ :: "check" :: [] ->
-      Printf.eprintf "Usage: t check [--json] [--schema] [--env] [--offline] [--watch] <file.t>\n";
+      Printf.eprintf "Usage: t check [--json] [--schema] [--hydrate-foreign] [--env] [--offline] [--watch] <file.t>\n";
       exit 1
   | _ :: "check" :: rest ->
       let json = List.mem "--json" rest in
-      let schema = List.mem "--schema" rest in
+      let hydrate_foreign = List.mem "--hydrate-foreign" rest in
+      let schema = List.mem "--schema" rest || hydrate_foreign in
       let check_env = List.mem "--env" rest in
       let offline = List.mem "--offline" rest in
       let watch = List.mem "--watch" rest in
@@ -2026,13 +2034,13 @@ let () =
       let script_mode = if mode_parse.mode = Typecheck.Repl && not mode_parse.mode_flag then Typecheck.Strict else mode_parse.mode in
       (match filename with
        | None ->
-           Printf.eprintf "Usage: t check [--json] [--schema] [--env] [--offline] [--watch] <file.t>\n";
+           Printf.eprintf "Usage: t check [--json] [--schema] [--hydrate-foreign] [--env] [--offline] [--watch] <file.t>\n";
            exit 1
        | Some f ->
            if watch then
-             cmd_check_watch ~json ~schema ~env_check:check_env ~offline script_mode f env
+             cmd_check_watch ~json ~schema ~hydrate_foreign ~env_check:check_env ~offline script_mode f env
            else
-             cmd_check ~json ~schema ~env_check:check_env ~offline script_mode f env)
+             cmd_check ~json ~schema ~hydrate_foreign ~env_check:check_env ~offline script_mode f env)
   | _ :: "diff" :: [] ->
       Printf.eprintf "Usage: t diff [--json] [--log-a <n>] [--log-b <n>] <file.t>\n";
       exit 1
@@ -2098,6 +2106,76 @@ let () =
               List.iter (fun note -> Printf.printf "  - %s\n" note) result.Fix.skip_notes
             end;
             exit fix_exit)
+  | _ :: "fmt" :: [] ->
+      Printf.eprintf "Usage: t fmt [--check] [--write|-w] <file.t>\n";
+      exit 1
+  | _ :: "fmt" :: rest ->
+      let rec parse_fmt check_only write_in_place files = function
+        | [] -> Ok (check_only, write_in_place, List.rev files)
+        | "--check" :: tl -> parse_fmt true write_in_place files tl
+        | ("--write" | "-w") :: tl -> parse_fmt check_only true files tl
+        | flag :: _ when String.length flag > 0 && flag.[0] = '-' ->
+            Error (Printf.sprintf "Unknown flag `%s` for `t fmt`." flag)
+        | f :: tl -> parse_fmt check_only write_in_place (f :: files) tl
+      in
+      (match parse_fmt false false [] rest with
+       | Error msg ->
+           Printf.eprintf "t fmt error: %s\nUsage: t fmt [--check] [--write|-w] <file.t>\n" msg;
+           exit 1
+       | Ok (true, true, _) ->
+           Printf.eprintf "t fmt error: --check and --write cannot be used together.\n";
+           exit 1
+       | Ok (_, _, []) ->
+           Printf.eprintf "Usage: t fmt [--check] [--write|-w] <file.t>\n";
+           exit 1
+       | Ok (_, _, _ :: _ :: _) ->
+           Printf.eprintf "t fmt error: expected a single file path.\n";
+           exit 1
+       | Ok (check_only, write_in_place, [f]) ->
+           (match T_formatter.format_file ~check:check_only ~write:write_in_place f with
+            | Error msg ->
+                Printf.eprintf "t fmt error: %s\n" msg;
+                exit 1
+            | Ok (changed, formatted) ->
+                if check_only then begin
+                  if changed then begin
+                    Printf.eprintf "%s needs formatting\n" f;
+                    exit 1
+                  end else exit 0
+                end else if write_in_place then begin
+                  if changed then Printf.printf "Formatted %s\n" f;
+                  exit 0
+                end else begin
+                  print_string formatted;
+                  exit 0
+                end))
+  | _ :: "provenance" :: rest ->
+      let rec parse_opts fmt out dir file include_meta = function
+        | [] -> Ok (fmt, out, dir, file, include_meta)
+        | "--format" :: v :: tl -> parse_opts v out dir file include_meta tl
+        | ("--output" | "-o") :: v :: tl -> parse_opts fmt (Some v) dir file include_meta tl
+        | "--dir" :: v :: tl -> parse_opts fmt out v file include_meta tl
+        | "--file" :: v :: tl -> parse_opts fmt out dir (Some v) include_meta tl
+        | "--no-meta" :: tl -> parse_opts fmt out dir file false tl
+        | (("--format" | "--output" | "-o" | "--dir" | "--file") as flag) :: [] ->
+            Error (Printf.sprintf "Flag `%s` requires a value." flag)
+        | arg :: _ ->
+            Error (Printf.sprintf "Unknown argument `%s` for `t provenance`." arg)
+      in
+      (match parse_opts "ro-crate" None "." None true rest with
+       | Error msg ->
+           Printf.eprintf "t provenance error: %s\nUsage: t provenance [--format ro-crate|sbom|json] [--output|-o <path>] [--dir <dir>] [--file <file.t>] [--no-meta]\n" msg;
+           exit 1
+       | Ok (format, output, dir, file, include_meta) ->
+           (match Provenance.write_bundle ~dir ?file ?output ~include_meta ~format () with
+            | Error msg ->
+                Printf.eprintf "t provenance error: %s\n" msg;
+                exit 1
+            | Ok payload ->
+                (match output with
+                 | Some p -> Printf.printf "Wrote provenance bundle (%s) to %s\n" format p
+                 | None -> print_string payload);
+                exit 0))
   | _ :: "repl" :: _ -> cmd_repl ~failfast mode_parse.mode env
   | _ :: "demo" :: rest ->
       let headless = List.mem "--headless" rest in

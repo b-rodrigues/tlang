@@ -2,7 +2,7 @@
 
 [![Chat on Matrix](https://img.shields.io/badge/Chat%20on-Matrix-000?logo=matrix&logoColor=white)](https://matrix.to/#/#tproject:matrix.org)
 [![License: EUPL v1.2](https://img.shields.io/badge/License-EUPL%20v1.2-blue.svg)](LICENSE)
-[![Status: Beta](https://img.shields.io/badge/Status-Beta%200.56.1%20%22L%27Empire%20du%20ruban%20rouge%22-blue.svg)](https://tstats-project.org/changelog.html)
+[![Status: Beta](https://img.shields.io/badge/Status-Beta%200.56.2%20%22L%27Empire%20du%20ruban%20rouge%22-blue.svg)](https://tstats-project.org/changelog.html)
 [![Built with Nix](https://img.shields.io/badge/built%20with-Nix-5277C3.svg?logo=nixos&logoColor=white)](https://nixos.org)
 [![Documentation](https://img.shields.io/badge/docs-tstats--project.org-informational.svg)](https://tstats-project.org)
 [![CI](https://github.com/b-rodrigues/tlang/actions/workflows/unit-tests.yaml/badge.svg)](https://github.com/b-rodrigues/tlang/actions)
@@ -215,6 +215,18 @@ Pipeline nodes can be dynamically expanded into multiple branches using `map_pat
 ### Introspection with `explain()`
 T values and pipelines are highly introspectable. The **`explain`** package provides the `explain()` function, which can be called on any object to get a detailed summary of its structure, metadata, and status. It is the recommended way to "look inside" your data and nodes in the REPL.
 
+For computed pipeline nodes in foreign runtimes (R, Python, Julia), `explain(p.node).foreign_meta` provides **read-time introspection** into models, time-series, and tensors without loading the artifact into memory or starting an external runtime:
+
+```t
+-- Fast inspection of foreign time-series, ML models, or deep neural networks:
+e = explain(p.model)
+e.foreign_meta.kind         -- "model", "forecast", "series", "graph", etc.
+e.foreign_meta.task         -- "time_series", "regression", "classification", etc.
+e.foreign_meta.order        -- [p, d, q] for ARIMA / seasonal specs
+e.foreign_meta.n_params     -- total parameter count for PyTorch, Keras, or Flux networks
+e.foreign_meta.metrics      -- free metrics: aic, bic, r_squared, loglik
+```
+
 ### Technical Presentation & Language Architecture
 
 For compiler engineers, programming language researchers, and systems architects interested in T's underlying formal semantics, AST design, process-isolated Nix execution engine, embedded PMML/ONNX model scoring, and composable optics:
@@ -260,7 +272,7 @@ t run src/pipeline.t
 
 ## Ecosystem & Standard Libraries
 
-**Beta 0.56.1 "L'Empire du ruban rouge"** — The T runtime includes built-in packages inspired by the tidyverse for data wrangling before or alongside foreign nodes:
+**Beta 0.56.2 "L'Empire du ruban rouge"** — The T runtime includes built-in packages inspired by the tidyverse for data wrangling before or alongside foreign nodes:
 
 - **colcraft**: Core data manipulation and categorical data management (`filter`, `select`, `mutate`, `summarize`, `pivot_*`, `fct_*`).
 - **chrono**: Comprehensive date and time handling (`ymd`, `floor_date`, `interval`).

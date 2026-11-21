@@ -954,6 +954,107 @@ Mermaid keyword (like <code>graph</code> or <code>flowchart</code>) to
 <code>show_plot()</code>, T dynamically generates a temporary HTML file
 containing the Mermaid JS engine, renders the graph, and opens it using
 your configured system viewer/browser.</p>
+<h3 id="model-metrics-leaderboard-pipeline_metrics">Model Metrics
+Leaderboard: <code>pipeline_metrics</code></h3>
+<p>In polyglot workflows, you frequently train and evaluate competing
+models across multiple runtimes—for example, fitting an exponential
+smoothing model (<code>forecast::ets</code>) in R, a gradient boosted
+regressor (<code>scikit-learn</code>) in Python, and a generalized
+linear model in Julia.</p>
+<p><code>pipeline_metrics(p)</code> queries all built model nodes from
+the latest build log and merges their <code>foreign_meta</code> sidecars
+into a single comparison <code>DataFrame</code>:</p>
+<pre class="t"><code>-- Compute a leaderboard across all model nodes
+metrics = pipeline_metrics(p)
+
+-- Filter by task and sort by a specific evaluation metric
+best_ts = pipeline_metrics(p, task = &quot;time_series&quot;, sort_by = &quot;aic&quot;)
+best_reg = pipeline_metrics(p, task = &quot;regression&quot;, sort_by = &quot;rmse&quot;)
+best_r2  = pipeline_metrics(p, task = &quot;regression&quot;, sort_by = &quot;r2&quot;, descending = true)</code></pre>
+<p>The resulting DataFrame contains: - <strong>Base Columns</strong>:
+<code>name</code>, <code>runtime</code>, <code>kind</code>,
+<code>task</code>, <code>method</code>, <code>n_obs</code>,
+<code>n_features</code>, <code>status</code>. - <strong>Metric
+Columns</strong>: One <code>Float</code> column per metric key reported
+by any model node (e.g., <code>aic</code>, <code>bic</code>,
+<code>rmse</code>, <code>r2</code>, <code>mae</code>), with
+<code>NA</code> for nodes that do not report that metric. -
+<strong>Collision Protection</strong>: If a metric key collides with a
+base column name (e.g., a metric named <code>n_obs</code>), it is
+automatically prefixed as <code>metric_n_obs</code>.</p>
+<h3 id="markdown-leaderboard-pipeline_metrics_markdown">Markdown
+Leaderboard: <code>pipeline_metrics_markdown</code></h3>
+<p>For automated pipeline reports, Quarto documents, or CI summaries,
+render the leaderboard directly as a Markdown table:</p>
+<pre class="t"><code>table_md = pipeline_metrics_markdown(p, task = &quot;regression&quot;, sort_by = &quot;rmse&quot;)
+print(table_md)</code></pre>
+<p>Produces:</p>
+<table style="width:100%;">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 10%" />
+<col style="width: 10%" />
+<col style="width: 10%" />
+<col style="width: 10%" />
+<col style="width: 10%" />
+<col style="width: 10%" />
+<col style="width: 10%" />
+<col style="width: 10%" />
+<col style="width: 10%" />
+</colgroup>
+<thead>
+<tr>
+<th>name</th>
+<th>runtime</th>
+<th>kind</th>
+<th>task</th>
+<th>method</th>
+<th>n_obs</th>
+<th>status</th>
+<th>aic</th>
+<th>rmse</th>
+<th>r2</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>rf_model</td>
+<td>Python</td>
+<td>model</td>
+<td>regression</td>
+<td>RandomForestRegressor</td>
+<td>506</td>
+<td>Built</td>
+<td>NA</td>
+<td>3.12</td>
+<td>0.86</td>
+</tr>
+<tr>
+<td>gbm_model</td>
+<td>Python</td>
+<td>model</td>
+<td>regression</td>
+<td>HistGradientBoostingRegressor</td>
+<td>506</td>
+<td>Built</td>
+<td>NA</td>
+<td>2.89</td>
+<td>0.89</td>
+</tr>
+<tr>
+<td>lm_model</td>
+<td>R</td>
+<td>model</td>
+<td>regression</td>
+<td>lm</td>
+<td>506</td>
+<td>Built</td>
+<td>3021.4</td>
+<td>4.67</td>
+<td>0.73</td>
+</tr>
+</tbody>
+</table>
 <hr />
 <h2 id="pipeline-validation">29. Pipeline Validation</h2>
 <blockquote>

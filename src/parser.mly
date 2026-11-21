@@ -175,13 +175,13 @@ statement:
        (`foo Bar = ...`) was a syntax error before and stays one. In
        particular the `type()` builtin keeps parsing as an ordinary call. *)
     { if kw <> "type" then raise (Ast.Invalid_type_declaration
-        (Printf.sprintf "Invalid declaration `%s %s`. Only `type Name = { ... }` declarations may start with two identifiers." kw name))
+        (Printf.sprintf "Invalid declaration `%s %s`. Only `type Name = { ... }` declarations may start with two identifiers." kw name, None))
       else with_stmt_loc (TypeDecl { tname = name; tdef = RecordDef { rd_fields = fields } }) $startpos }
   | kw = any_ident name = any_ident EQUALS first = union_case_decl rest = union_case_rest
     (* Contextual `type` union declaration:
        `type Shape = Circle(Float) | Rect(Float, Float) | Missing()`. *)
     { if kw <> "type" then raise (Ast.Invalid_type_declaration
-        (Printf.sprintf "Invalid declaration `%s %s`. Only `type Name = ...` declarations may start with two identifiers." kw name))
+        (Printf.sprintf "Invalid declaration `%s %s`. Only `type Name = ...` declarations may start with two identifiers." kw name, None))
       else with_stmt_loc (TypeDecl { tname = name; tdef = UnionDef { ud_cases = first :: rest } }) $startpos }
   | e = expr { with_stmt_loc (Expression e) $startpos }
   ;
@@ -204,8 +204,12 @@ union_case_rest:
 
 union_case_decl:
   | cname = any_ident
+    (* $startpos(cname): the lookahead token is already shifted here, so the
+       lexbuf position points past the case name. Carry the name's own
+       position so the diagnostic (and its `t fix` replacement) lands on
+       the bare case, not on a later occurrence of the same identifier. *)
     { raise (Ast.Invalid_type_declaration
-        (Printf.sprintf "Union case `%s` must use call syntax with parentheses (e.g. `%s(...)`), even when empty. Bare-word cases do not exist, and T has no type aliases." cname cname)) }
+        (Printf.sprintf "Union case `%s` must use call syntax with parentheses (e.g. `%s(...)`), even when empty. Bare-word cases do not exist, and T has no type aliases." cname cname, Some $startpos(cname))) }
   | cname = any_ident LPAREN skip_sep args = union_payload_types RPAREN { (cname, args) }
   ;
 

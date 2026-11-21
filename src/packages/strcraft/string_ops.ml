@@ -268,6 +268,39 @@ let to_upper_scalar args _env =
 
 let to_upper_impl args env = vectorize_unary to_upper_scalar args env
 
+(*
+--# Title case
+--#
+--# Capitalizes each word. Words split on space.
+--#
+--# @name str_to_title
+--# @param s :: String | List | Vector The input string(s).
+--# @return :: String | List[String] | Vector[String] Title-cased string.
+--# @example
+--#   str_to_title("hello world")
+--# @family string
+--# @export
+*)
+let title_word w =
+  if w = "" then w
+  else begin
+    (* Slice on a code-point boundary: `String.sub w 0 1` would split a
+       multi-byte UTF-8 lead byte away from its continuation bytes. *)
+    let first_len = min (utf8_char_length w.[0]) (String.length w) in
+    let first = String.sub w 0 first_len in
+    let rest = String.sub w first_len (String.length w - first_len) in
+    utf8_case_map Uucp.Case.Map.to_upper first ^ utf8_case_map Uucp.Case.Map.to_lower rest
+  end
+
+let str_to_title_scalar args _env =
+  match args with
+  | [VString s] ->
+      let words = String.split_on_char ' ' s in
+      VString (String.concat " " (List.map title_word words))
+  | _ -> Error.type_error "str_to_title expects a string."
+
+let str_to_title_impl args env = vectorize_unary str_to_title_scalar args env
+
 (* Helper used by trim_start and trim_end — not exported *)
 let ltrim s =
   let len = String.length s in
@@ -1297,6 +1330,7 @@ let register env =
   let env = Env.add "str_count" (make_builtin ~name:"str_count" 2 str_count_impl) env in
   let env = Env.add "str_sprintf" (make_builtin ~name:"str_sprintf" ~variadic:true 1 sprintf_impl) env in
   let env = Env.add "str_join" (make_builtin ~name:"str_join" ~variadic:true 1 join_impl) env in
+  let env = Env.add "str_to_title" (make_builtin ~name:"str_to_title" 1 str_to_title_impl) env in
   let env = Env.add "to_string" (make_builtin ~name:"to_string" 1 string_impl) env in
   let env = Env.add "str_split" (make_builtin ~name:"str_split" 2 strsplit_impl) env in
   env

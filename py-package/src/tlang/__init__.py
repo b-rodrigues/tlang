@@ -8,7 +8,9 @@ from .node_inspect import (
     show_code,
     warning_msg,
 )
-from .inspect_pipeline import inspect_pipeline
+from .graph import pipeline_cycles, pipeline_depth, pipeline_edges, pipeline_leaves, pipeline_node_depths, pipeline_roots, pipeline_to_dot, pipeline_to_mermaid, pipeline_validate
+from .inspect_pipeline import inspect_pipeline, pipeline_overview
+from .pipeline_frames import pipeline_config_to_frame, pipeline_to_frame
 from .node_diff import diff_artifacts, diff_nodes, diff_objects
 from .pipeline_nodes import pipeline_nodes
 from .read_node import deserialize, read_node
@@ -19,7 +21,19 @@ __all__ = [
     "read_node",
     "read_node_tree",
     "inspect_pipeline",
+    "pipeline_overview",
+    "pipeline_to_frame",
+    "pipeline_config_to_frame",
     "pipeline_nodes",
+    "pipeline_edges",
+    "pipeline_roots",
+    "pipeline_leaves",
+    "pipeline_depth",
+    "pipeline_node_depths",
+    "pipeline_cycles",
+    "pipeline_validate",
+    "pipeline_to_dot",
+    "pipeline_to_mermaid",
     "build_log_to_frame",
     "collect_exceptions",
     "list_logs",

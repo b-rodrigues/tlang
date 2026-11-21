@@ -34,8 +34,310 @@
 </nav>
 <div class="container">
 <h1 id="changelog">Changelog</h1>
-<h2 id="section">[0.56.1] - 2026-10-26</h2>
+<h2 id="unreleased">Unreleased</h2>
 <h3 id="new-features">New features</h3>
+<ul>
+<li><strong>Cross-runtime model metrics leaderboard
+(<code>pipeline_metrics</code>,
+<code>pipeline_metrics_markdown</code>)</strong>:
+<code>pipeline_metrics(p)</code> queries all model nodes across R,
+Python, and Julia from the latest <code>_pipeline/</code> build log and
+merges their <code>foreign_meta</code> sidecars into an aligned
+DataFrame. Base columns (<code>name</code>, <code>runtime</code>,
+<code>kind</code>, <code>task</code>, <code>method</code>,
+<code>n_obs</code>, <code>n_features</code>, <code>status</code>) are
+joined with one numeric column per metric key (such as <code>aic</code>,
+<code>bic</code>, <code>loglik</code>, <code>rmse</code>,
+<code>r_squared</code>, <code>mae</code>), sorted alphabetically with
+<code>NA</code> where a model does not report a metric. Metric keys
+colliding with base columns are safely prefixed (<code>metric_*</code>).
+Supports optional filtering by <code>task</code>
+(<code>"time_series"</code>, <code>"regression"</code>,
+<code>"classification"</code>) and sorting by <code>sort_by</code>
+(<code>"aic"</code>, <code>"n_obs"</code>, etc.) with
+<code>descending = true|false</code>.
+<code>pipeline_metrics_markdown(p)</code> renders the leaderboard as a
+GitHub-Flavored Markdown table for automated pipeline reports and
+documentation.</li>
+<li><strong>Companion frame &amp; lineage helpers</strong>: Added
+<code>pipeline_to_frame</code>, <code>pipeline_config_to_frame</code>,
+and graph lineage helpers (<code>parents</code>, <code>children</code>,
+<code>ancestors</code>, <code>descendants</code>) to the R, Python, and
+Julia companion packages (<code>r-package</code>,
+<code>py-package</code>, <code>jl-package</code>).</li>
+<li><strong>T Language Server Protocol enhancements
+(<code>t-lsp</code>)</strong>:
+<ul>
+<li><strong>Quick-fixes (<code>textDocument/codeAction</code>)</strong>:
+Real-time diagnostic suggestions (such as
+<code>Suggest_identifier</code>, <code>Rename_column</code>,
+<code>Rename_node</code>) now surface directly in LSP clients as
+one-click code actions (<code>Replace_text</code>). Supports
+<code>context.only = ["quickfix"]</code> filtering and marks
+high-confidence suggestions with <code>isPreferred = true</code>.</li>
+<li><strong>Live pipeline artifact hover
+(<code>textDocument/hover</code>)</strong>: Hovering over member access
+expressions <code>p.node_name</code> displays a rich Markdown tooltip
+containing: runtime, output store path, execution duration, dimensions
+(rows × columns), column schema types, and full model metadata from the
+<code>meta</code> sidecar (task, method, metrics, parameters). Uses
+UTF-16 character offsets and caches build logs and sidecars by file
+modification time (<code>mtime</code>) for zero typing latency.</li>
+</ul></li>
+<li><strong>Foreign schema hydration for <code>t check</code>
+(<code>--hydrate-foreign</code>)</strong>: Static schema checking
+(<code>t check --schema</code>) now supports opt-in output schema
+hydration for foreign nodes (R, Python, Julia) via
+<code>--hydrate-foreign</code>. When passed, <code>t check</code>
+inspects cached <code>_pipeline/</code> build logs and metadata sidecars
+to infer downstream column types, detecting invalid column references
+before expensive builds while keeping default tier-2 checking completely
+hermetic and offline.</li>
+<li><strong>Canonical T source code formatter (<code>t fmt</code>,
+<code>t_fmt</code>)</strong>:
+<ul>
+<li>CLI: <code>t fmt &lt;file.t&gt;</code> formats standard output,
+<code>t fmt --check &lt;file.t&gt;</code> validates formatting without
+modifications (exits 0 if clean, 1 if unformatted), and
+<code>t fmt --write &lt;file.t&gt;</code> (<code>-w</code>) formats
+files in place. Conflicting <code>--check</code> and
+<code>--write</code> flags or unknown options are rejected loudly.</li>
+<li>T Builtin: <code>t_fmt(path, write = false, check = false)</code>
+formats files programmatically.</li>
+<li>Formatter normalizes pipe chains (<code>|&gt;</code>), binary
+arithmetic and equality operators, commas, and indentation to 2 spaces
+while preserving comments (<code>#</code>), raw multi-line code blocks
+(<code>&lt;{ ... }&gt;</code>), multi-line strings, and CRLF line
+endings. Includes a parse-preservation safety check ensuring the
+formatted code parses cleanly before modifying files.</li>
+</ul></li>
+<li><strong>Offline reproducibility and provenance bundles
+(<code>t provenance</code>, <code>t_provenance</code>)</strong>:
+<ul>
+<li>CLI:
+<code>t provenance [--format ro-crate|sbom|json] [--output &lt;path&gt;] [--dir &lt;dir&gt;] [--file &lt;file.t&gt;] [--no-meta]</code>.</li>
+<li>T Builtin:
+<code>t_provenance(format = "ro-crate", output = NA, dir = ".", file = NA, include_meta = true)</code>.</li>
+<li>Exports deterministic provenance manifests from
+<code>tproject.toml</code>, locked Nix flake inputs
+(<code>flake.lock</code>), the latest build log
+(<code>_pipeline/build_log_*.json</code>), and
+<code>intent { ... }</code> blocks.</li>
+<li>Formats:
+<ul>
+<li><strong>RO-Crate 1.1 JSON-LD</strong> (<code>"ro-crate"</code>):
+Research Object Crate specification with dataset metadata
+(<code>datePublished</code>, <code>license</code>), node executions as
+<code>CreateAction</code> and <code>SoftwareApplication</code> entities,
+and stringified <code>foreignMeta</code>.</li>
+<li><strong>CycloneDX 1.5 SBOM</strong> (<code>"sbom"</code>): Software
+Bill of Materials for software supply chain auditing. Converts Nix SRI
+SHA256 hashes to hex strings, emits pipeline nodes as <code>data</code>
+components to prevent dangling references, and generates package purls
+(<code>pkg:generic/julia</code>, <code>pkg:generic/nix</code>,
+<code>pkg:pypi/</code>, <code>pkg:cran/</code>).</li>
+<li><strong>T-Native JSON</strong> (<code>"json"</code>): Structured
+JSON dump of the project provenance graph.</li>
+</ul></li>
+</ul></li>
+<li><strong>Richer <code>explain()</code> foreign metadata for
+time-series and ML models</strong>: R nodes now report task
+<code>time_series</code> for <code>forecast</code>-package models
+(<code>ets</code> with ETS letters and seasonal period,
+<code>bats</code>/<code>tbats</code> with multiple periods,
+<code>nnetar</code> with hidden-unit and repeat counts) and for
+<code>prophet</code>, tseries <code>garch</code>, rugarch
+<code>uGARCHfit</code> (variance-model name, estimated parameter count,
+<code>loglik</code>/AIC/BIC), and vars
+<code>varest</code>/<code>vec2var</code> (lag order and equation count).
+Objects from <code>forecast(...)</code> report the new
+<code>forecast</code> kind with method, horizon, and interval level.
+<code>zoo</code>/<code>xts</code> series read as <code>series</code>
+kind with <code>NROW</code> observations and start/end — previously
+misreported as matrices. <code>glmnet</code>/<code>cv.glmnet</code>
+report the task from the fit class plus feature count, lambda count,
+deviance ratio, and <code>lambda_min</code>/<code>lambda_1se</code>;
+<code>ranger</code> forests report tree/feature/sample counts with OOB
+error; <code>catboost.Model</code> objects report the loss name, tree
+count, and feature count. Python torch and keras models report total
+parameter and layer counts (keras adds the optimizer class); pmdarima
+ARIMA reports order, seasonal order, and likelihood criteria; catboost
+estimators report task, trees, features, and best iteration;
+sktime/statsforecast forecasters report the fitted horizon (while darts
+models record
+<code>input_chunk_length</code>/<code>output_chunk_length</code> in
+metrics). Julia <code>Distributions</code> values report
+<code>distribution</code> kind with the distribution name and moments;
+MCMCChains <code>Chains</code> report the new <code>chain</code> kind
+with draws, variables, and chain counts; Flux models report layer and
+parameter counts. New sidecar keys: <code>n_params</code>,
+<code>n_layers</code>, <code>n_chains</code>, <code>n_draws</code>,
+<code>n_lambda</code>, <code>n_equations</code>,
+<code>seasonal_period</code>, <code>horizon</code>,
+<code>changepoints</code>.</li>
+<li><strong><code>explain()</code> recognizes the wider R/Python/Julia
+modeling ecosystems</strong>: R smooth models keep their identity —
+<code>mgcv::gam</code> reports smooth-term counts and keeps
+<code>s(wt)</code> coefficient names visible instead of folding into the
+plain <code>glm</code> branch. Mixed, panel, and count models report
+their facts: nlme <code>lme</code>/<code>gls</code> group counts and fit
+criteria, <code>rq</code> quantile, <code>survreg</code> distribution,
+<code>betareg</code> scalar precision,
+<code>zeroinfl</code>/<code>hurdle</code>, <code>plm</code>, ordinal
+<code>clm</code>/<code>clmm</code> links, VGAM <code>vglm</code>
+families. Tuned wrappers report resampling results: caret
+<code>train</code> (model name and best
+accuracy/RMSE/<code>r_squared</code>), parsnip <code>model_fit</code>
+and workflows (engine and mode), <code>svm</code>/<code>ksvm</code>
+kernels and support vectors, <code>gbm</code> distributions and
+shrinkage, <code>C5.0</code>, <code>earth</code>, pls <code>mvr</code>,
+<code>party::BinaryTree</code> and <code>partykit::ctree</code> node
+counts. Clustering and ordination report standard facts:
+<code>Mclust</code>, <code>dbscan</code> (noise excluded),
+<code>clara</code>/<code>fanny</code> silhouettes, <code>mixEM</code>,
+FactoMineR
+<code>PCA</code>/<code>MCA</code>/<code>FAMD</code>/<code>CA</code> (0–1
+<code>var_first</code>), psych <code>fa</code>/<code>principal</code>.
+Statistical objects read as their own kinds: urca unit-root and
+cointegration tests as <code>test</code>, coda <code>mcmc</code> chains
+as <code>chain</code>, lavaan SEM fits with chi-square/CFI/RMSEA,
+<code>dist</code> objects as <code>dist</code>, sparse Matrix objects
+with nnz, igraph networks as <code>graph</code> with node and edge
+counts. Python: imbalanced-learn estimators report like sklearn, polars
+<code>LazyFrame</code> shows its schema, xarray <code>Dataset</code>
+reports the new <code>dataset</code> kind, HuggingFace transformers
+models report model type and parameter counts (while tokenizers and
+pipelines report <code>transformer</code>),
+tbats/skforecast/pyspark.ml/networkx report family facts, and
+statsmodels VECM/Markov-regime results report <code>time_series</code>.
+Julia: <code>CategoricalArray</code> values report <code>factor</code>
+kind with levels like R factors, MLJ machines name their model, and
+XGBoost.jl/ARCHModels fits report their facts.</li>
+<li><strong><code>explain()</code> recognizes tidyverts, R6 deep
+learning, and specialized R families</strong>: fable forecast tables
+report the <code>forecast</code> kind with unique-index horizon and
+model types, and mables (<code>mdl_df</code>/<code>model_df</code>)
+report model column names instead of reading as plain dataframes. The
+<code>smooth</code> package reports orders and AIC/BIC;
+<code>dlmFiltered</code> fits report observation counts. R6-based models
+report parameter and layer counts: keras models via
+<code>count_params()</code>, torch modules via parameter sums. Seurat
+objects report <code>dataset</code> kind with cell, gene, and
+active-assay counts. <code>neuralnet</code> fits report error and step
+counts.</li>
+<li><strong><code>explain()</code> recognizes Python NLP, distributed
+frames, and media objects</strong>: gensim <code>LdaModel</code> reports
+topic counts as components and <code>Word2Vec</code> reports vector size
+and vocabulary counts; dask frames report schema columns with partition
+counts; PIL images report the new <code>image</code> kind with
+dimensions and pixel mode; NeuralProphet reports parameter counts;
+tslearn clusterers report cluster counts.</li>
+<li><strong><code>explain()</code> recognizes Julia scientific,
+optimization, and ODE families</strong>: Clustering.jl
+<code>CmeansResult</code>/<code>DbscanResult</code> report cluster facts
+(with <code>DbscanResult</code> <code>n_obs</code> counting all
+observations via <code>assignments</code>); MultivariateStats
+<code>ICA</code>/<code>FactorAnalysis</code>/<code>PPCA</code>/<code>KernelPCA</code>/<code>MulticlassLDA</code>
+report <code>dim_reduction</code> with component and class counts;
+Graphs.jl networks report <code>graph</code> kind with node and edge
+counts; JuMP models report the new <code>optimization</code> kind with
+variable and constraint counts; SciML ODE problems and solutions report
+the new <code>ode</code> kind with time-span and return-code facts;
+GaussianMixtures <code>GMM</code> fits report <code>density</code> with
+component counts.</li>
+</ul>
+<h3 id="fixes">Fixes</h3>
+<ul>
+<li><strong>Foreign-meta probe accuracy and lazy imports</strong>:
+Python <code>_tlang_dl_meta</code> now inspects
+<code>sys.modules.get("torch")</code> instead of importing
+<code>torch</code> on every unclassified object, and
+<code>n_params</code>/<code>n_layers</code> report total parameters and
+leaf module layers consistently across frameworks. Fixed R
+<code>workflows::workflow</code> spec lookup (<code>$fit$fit$spec</code>
+/ <code>$fit$actions$model$spec</code>), <code>betareg</code> precision
+extraction (avoiding logical <code>object$phi</code> coercion),
+<code>rugarch::likelihood</code> qualification, <code>fable</code>
+multi-key/multi-model horizon calculation,
+<code>zoo</code>/<code>xts</code> <code>NROW</code>,
+<code>party::BinaryTree</code> <code>n_nodes</code>,
+<code>caret::train</code> <code>r_squared</code> key,
+<code>FactoMineR</code> 0–1 <code>var_first</code>, fractional
+<code>seasonal_period</code> preservation for <code>tbats</code>, and
+Julia module-qualified function lookups (<code>CategoricalArrays</code>,
+<code>Distributions</code>, <code>Flux.trainables</code>,
+<code>Graphs</code>, <code>JuMP</code>, <code>MultivariateStats</code>,
+<code>StateSpaceModels</code>, <code>StatsAPI</code>) plus
+<code>Clustering</code> module guards.</li>
+<li><strong>Pipeline and doc tooling hygiene</strong>: Guarded
+<code>Sys.is_directory</code> in <code>builder_internal.ml</code>’s
+<code>source_recording_enabled</code> check, recorded manual
+<code>Test_pipeline</code> failures in <code>FAILURE SUMMARY</code>, and
+separated the <code>pipeline_overview_markdown</code> doc block from
+<code>pipeline_overview</code>.</li>
+<li><strong>Cache invalidation notice</strong>: Expanding
+<code>r_save_meta</code>, <code>py_save_meta</code>, and
+<code>jl_save_meta</code> changes the derivation hash of existing R,
+Python, and Julia pipeline nodes, so cached foreign node builds will
+rebuild once on upgrade.</li>
+</ul>
+<h2 id="section">[0.56.2] - 2026-10-29</h2>
+<h3 id="new-features-1">New features</h3>
+<ul>
+<li><strong><code>t check</code> and <code>t fix</code> close the
+loop</strong>: new <code>Replace_text</code> fix kind covers
+<code>^arrow</code> to <code>^ipc</code>, <code>read_log("node")</code>
+to <code>read_log(p.node)</code>, bare <code>Missing</code> to
+<code>Missing()</code>, and dangling reads at edit distance 1 with
+unique match. <code>t fix</code> applies it only inside the diagnosed
+line and never inside comments, strings, or raw code blocks, so valid
+lookalike text is left untouched. Docs in
+<code>docs/cli-json-schemas.md</code> unify <code>diagnostics</code>
+shape, <code>schema_version</code>, and exit codes for
+<code>t check</code>, <code>t diff</code>, <code>t test</code>,
+<code>t run</code>, <code>t fix</code>.</li>
+<li><strong><code>is_failed(node)</code> and
+<code>node_status(node)</code></strong>: stable replacement for
+<code>is_error(inspect_node(x))</code>, which is always false since
+0.56.1. Both accept <code>read_node()</code> results and propagate NA.
+<code>is_failed()</code> answers <code>false</code> for any value that
+is not a node or an error, like a predicate; <code>node_status()</code>
+raises a <code>TypeError</code> for it, because it has no status to
+report. <code>t check</code> warns on the dead pattern.</li>
+<li><strong><code>pipeline_overview(p, only = ...)</code> and
+<code>pipeline_overview_markdown(p)</code></strong>: filter rows by
+failed, built, unbuilt, or all; Markdown output for
+<code>pipeline_report</code> and workflow summaries. Companions add
+<code>pipeline_overview()</code> with failed-first sort.</li>
+<li><strong>Companion parity</strong>: R, Python, Julia
+<code>inspect_node()</code> return <code>status</code> Built or Errored
+plus <code>error_code</code> and <code>error_message</code>, matching T
+ten keys. Healthy path keeps <code>children</code> and
+<code>error</code> for compat. R <code>pipeline_overview()</code> now
+returns the same <code>name</code> column and error fields as the Python
+and Julia companions.</li>
+<li><strong>String helpers</strong>: <code>str_to_title(s)</code>
+title-cases words on Unicode code-point boundaries.</li>
+<li><strong><code>t doctor</code> JVM check</strong>: for projects that
+use PMML, warns when <code>T_JPMML_JAVA</code> is missing and
+<code>java</code> is not on <code>PATH</code>, and names the Nix
+declaration that provides a JVM.</li>
+</ul>
+<h3 id="fixes-1">Fixes</h3>
+<ul>
+<li><strong>Clearer generic message</strong>:
+<code>Int is not widened to Float in generic T. Convert explicitly.</code></li>
+<li><strong>PMML runtime check</strong>: <code>t doctor</code> checks
+the runtime side and tells you to declare <code>jre</code> in
+<code>tproject.toml</code>. Jar resolution stays in the Nix shell.</li>
+<li><strong>Julia <code>pipeline_overview</code> status</strong>: built
+nodes report <code>Built</code> and skipped nodes keep their own status
+again. The status helper returned a <code>SubString</code>, so the
+<code>isa String</code> test failed and every healthy node showed as
+<code>Unbuilt</code>.</li>
+</ul>
+<h2 id="section-1">[0.56.1] - 2026-10-26</h2>
+<h3 id="new-features-2">New features</h3>
 <ul>
 <li><strong><code>t check</code> text output shows what to do
 next</strong>: each diagnostic now prints <code>expected</code> vs
@@ -67,7 +369,7 @@ test <code>inspect_node(x).status</code> instead.
 <code>rebuild_node</code> failures show the last 15 lines plus a
 <code>read_log()</code> pointer instead of a full log dump.</li>
 </ul>
-<h3 id="fixes">Fixes</h3>
+<h3 id="fixes-2">Fixes</h3>
 <ul>
 <li><strong>PMML helper jars no longer build from Maven, and are
 committed to the repository</strong>: <code>jpmml-statsmodels</code>
@@ -114,8 +416,8 @@ the Julia companion suite, so a stale
 <code>jl-package/Manifest.toml</code> pin fails fast instead of breaking
 loads later.</li>
 </ul>
-<h2 id="section-1">[0.56.0] - 2026-10-08</h2>
-<h3 id="new-features-1">New features</h3>
+<h2 id="section-2">[0.56.0] - 2026-10-08</h2>
+<h3 id="new-features-3">New features</h3>
 <ul>
 <li><strong>Companion <code>read_node()</code> picks the reader from the
 build log</strong>: the R, Python, and Julia <code>tlang</code> helpers
@@ -231,7 +533,7 @@ instead of a bare missing-node error.
 error, so the correct name is visible without listing nodes by
 hand.</li>
 </ul>
-<h3 id="fixes-1">Fixes</h3>
+<h3 id="fixes-3">Fixes</h3>
 <ul>
 <li><strong><code>explain()</code> on builtins is
 deterministic</strong>: argument names no longer depend on whether
@@ -279,8 +581,8 @@ children lineage in text mode and as
 <code>parents</code>/<code>children</code> arrays with
 <code>--json</code>.</li>
 </ul>
-<h2 id="section-2">[0.55.5] - 2026-10-03</h2>
-<h3 id="new-features-2">New features</h3>
+<h2 id="section-3">[0.55.5] - 2026-10-03</h2>
+<h3 id="new-features-4">New features</h3>
 <ul>
 <li><strong>Richer static types</strong>: collection types
 (<code>List[X]</code>, <code>Vector[X]</code>, <code>Dict[K, V]</code>),
@@ -359,7 +661,7 @@ user-defined record to a plain <code>Dict</code> (one entry per field,
 shallow) so record data can cross into foreign node code, where records
 themselves can never go.</li>
 </ul>
-<h3 id="fixes-2">Fixes</h3>
+<h3 id="fixes-4">Fixes</h3>
 <ul>
 <li><strong>Reassignment respects annotations in
 <code>t check</code></strong>: <code>x: Int = 1</code> followed by
@@ -531,8 +833,8 @@ strings, so <code>A'''</code> is three transposes. Non-ASCII identifiers
 transpose as well, and a quote after a reserved word that never ends an
 expression (<code>return 'x'</code>) opens a literal.</li>
 </ul>
-<h2 id="section-3">[0.55.4] - 2026-09-29</h2>
-<h3 id="new-features-3">New features</h3>
+<h2 id="section-4">[0.55.4] - 2026-09-29</h2>
+<h3 id="new-features-5">New features</h3>
 <ul>
 <li><strong>Automatic editor setup in new projects</strong>:
 <code>t init</code> now writes an <code>.envrc</code>
@@ -543,7 +845,7 @@ interpreters — after one <code>direnv allow</code>. Direnv state
 (<code>.direnv/</code>) is git-ignored in new projects and
 packages.</li>
 </ul>
-<h3 id="fixes-3">Fixes</h3>
+<h3 id="fixes-5">Fixes</h3>
 <ul>
 <li><p><strong>Default serializers no longer hang node builds</strong>:
 <code>default</code>/<code>^default</code> serializer/deserializer in T
@@ -653,8 +955,8 @@ revisions, and subdirectory paths from <code>tproject.toml</code> are
 escaped, so special characters cannot break generated flake
 evaluation.</p></li>
 </ul>
-<h2 id="section-4">[0.55.3] - 2026-09-26</h2>
-<h3 id="new-features-4">New features</h3>
+<h2 id="section-5">[0.55.3] - 2026-09-26</h2>
+<h3 id="new-features-6">New features</h3>
 <ul>
 <li><strong><code>renv+toml</code> R resolver (union mode)</strong>: Set
 <code>[r-dependencies] resolver = "renv+toml"</code> to use the union of
@@ -674,8 +976,8 @@ or switch to <code>renv+toml</code>. Caution: <code>renv+toml</code>
 ends single-source truth. Impure install commands (such as
 <code>R -e 'renv::install(...)'</code>) are never suggested.</li>
 </ul>
-<h2 id="section-5">[0.55.2] - 2026-09-26</h2>
-<h3 id="fixes-4">Fixes</h3>
+<h2 id="section-6">[0.55.2] - 2026-09-26</h2>
+<h3 id="fixes-6">Fixes</h3>
 <ul>
 <li><strong>Pipelines with R Git packages build again</strong>: R code
 that loads a package from Git — via <code>renv.lock</code> or via
@@ -693,8 +995,8 @@ dependency prompts now cover <code>requireNamespace()</code> and
 <code>require()</code>, and <code>pkg::</code>. Names inside string
 literals and <code>#</code> comments cause no prompt.</li>
 </ul>
-<h2 id="section-6">[0.55.1] - 2026-09-23</h2>
-<h3 id="new-features-5">New features</h3>
+<h2 id="section-7">[0.55.1] - 2026-09-23</h2>
+<h3 id="new-features-7">New features</h3>
 <ul>
 <li><strong><code>tlang</code> Quarto extension highlights T
 code</strong>: <code>{t}</code> chunks now render with syntax
@@ -727,7 +1029,7 @@ Vectorized.</li>
 matches CLI <code>t test</code> flags. <code>verbose = true</code>
 prints per-file error details.</li>
 </ul>
-<h3 id="fixes-5">Fixes</h3>
+<h3 id="fixes-7">Fixes</h3>
 <ul>
 <li><strong>Positron R interpreter discovery</strong>: Project R
 environments (<code>r-env</code> in generated <code>flake.nix</code>)
@@ -835,7 +1137,7 @@ from roxygen <code>@import</code>/<code>@importFrom</code> tags,
 Base packages are excluded. Discovery installs packages; code must still
 attach them (issue 473).</li>
 </ul>
-<h2 id="section-7">[0.55.0] - 2026-08-11</h2>
+<h2 id="section-8">[0.55.0] - 2026-08-11</h2>
 <h3 id="breaking-changes">Breaking Changes</h3>
 <ul>
 <li><strong>Arrow IPC serializer renamed <code>^arrow</code> →
@@ -1260,7 +1562,7 @@ value.</li>
 very negative <code>Datetime</code> counterexamples shrink correctly
 instead of overflowing a 32-bit intermediate.</li>
 </ul>
-<h2 id="section-8">[0.54.3] - 2026-08-01</h2>
+<h2 id="section-9">[0.54.3] - 2026-08-01</h2>
 <h3 id="pipeline-validation-fixes">Pipeline Validation Fixes</h3>
 <ul>
 <li><strong><code>text</code> is now treated as format-agnostic raw
@@ -1392,7 +1694,7 @@ guarantees.</li>
 error</strong> and returns the pipeline unchanged when valid, for
 guard-style use in pipeline chains.</li>
 </ul>
-<h2 id="section-9">[0.54.2] - 2026-07-29</h2>
+<h2 id="section-10">[0.54.2] - 2026-07-29</h2>
 <h3 id="testcraft-testing-package"><code>testcraft</code> — Testing
 Package</h3>
 <ul>
@@ -1494,7 +1796,7 @@ fix</strong>: Coverage cleaning and discovery now check both the project
 directory and the current working directory for <code>.coverage</code>
 files.</li>
 </ul>
-<h2 id="section-10">[0.54.1] - 2026-07-20</h2>
+<h2 id="section-11">[0.54.1] - 2026-07-20</h2>
 <h3 id="type-system-annotations-and-inference">Type System: Annotations
 and Inference</h3>
 <ul>
@@ -1724,7 +2026,7 @@ commands.</li>
 <li><strong><code>write_parquet(data, path)</code></strong>: Write a
 DataFrame to a Parquet file via Arrow.</li>
 </ul>
-<h2 id="section-11">[0.54.0] - 2026-07-08</h2>
+<h2 id="section-12">[0.54.0] - 2026-07-08</h2>
 <h3 id="pipeline-diagnostics">Pipeline &amp; Diagnostics</h3>
 <ul>
 <li><strong>SoftFailed Node Classification</strong>: Fixed
@@ -1898,7 +2200,7 @@ returns its SHA-256 hash, usable as the <code>sha256</code> argument to
 <code>fetchurl</code>. Enables a two-step workflow: compute the hash
 upfront, then pin it in a pipeline for reproducible builds.</li>
 </ul>
-<h2 id="section-12">[0.53.3] - 2026-06-26</h2>
+<h2 id="section-13">[0.53.3] - 2026-06-26</h2>
 <h3 id="toolchain-ci-updates">Toolchain &amp; CI Updates</h3>
 <ul>
 <li><strong>Nixpkgs Snapshot &amp; Package Updates</strong>: Updated the
@@ -1951,7 +2253,7 @@ distribution quantile, via binary search on <code>pchisq</code>.</li>
 <li>Enables power analysis and exact p-value thresholds natively in T
 without calling R.</li>
 </ul>
-<h2 id="section-13">[0.53.2] - 2026-06-24</h2>
+<h2 id="section-14">[0.53.2] - 2026-06-24</h2>
 <h3 id="hotfix">Hotfix</h3>
 <ul>
 <li><strong>Nix Flake Update / Maven Dependency Parity</strong>: Fixed
@@ -1960,7 +2262,7 @@ for the <code>jpmml-evaluator</code> library (used for PMML model
 scoring). The nixpkgs fetch source hash has been updated to restore
 local build compatibility.</li>
 </ul>
-<h2 id="section-14">[0.53.1] - 2026-06-24</h2>
+<h2 id="section-15">[0.53.1] - 2026-06-24</h2>
 <h3 id="hotfix-1">Hotfix</h3>
 <p>Fix for https://github.com/b-rodrigues/tlang/issues/434</p>
 <p>jpmm-statsmodels PR is not yet merged into NixOS/nixpkgs master
@@ -2013,7 +2315,7 @@ Fixes</h3>
 before the global environment, enabling dynamic column name
 resolution.</li>
 </ul>
-<h2 id="section-15">[0.53.0] - 2026-06-22</h2>
+<h2 id="section-16">[0.53.0] - 2026-06-22</h2>
 <p>This release:</p>
 <ul>
 <li><strong>Atelier TUI IDE Integration</strong>: This release
@@ -2115,7 +2417,7 @@ inside assignment/reassignment statements. The error is bound to the
 variable and propagated correctly, enabling robust recovery patterns via
 subsequent <code>match</code> blocks.</li>
 </ul>
-<h2 id="section-16">[0.52.3] - 2026-06-12</h2>
+<h2 id="section-17">[0.52.3] - 2026-06-12</h2>
 <p>This release:</p>
 <ul>
 <li>introduces a new meta-pipeline composition feature
@@ -2464,7 +2766,7 @@ code.</li>
 Checklist to <code>AGENTS.md</code> as a permanent reference for future
 contributions.</li>
 </ul>
-<h2 id="section-17">[0.52.2] - 2026-05-31</h2>
+<h2 id="section-18">[0.52.2] - 2026-05-31</h2>
 <p>This release introduces interactive pipeline node debugging via
 <code>debug_node</code>, native Nix orchestration features for granular
 rebuild control, job parallelisation, Cachix binary caching, and
@@ -2687,7 +2989,7 @@ values containing non-ASCII characters (accented letters, symbols like
 <code>explain()</code> tree output, instead of being shown as raw byte
 sequences such as <code>\226\134\146</code>.</li>
 </ul>
-<h2 id="section-18">[0.52.1] - 2026-05-22</h2>
+<h2 id="section-19">[0.52.1] - 2026-05-22</h2>
 <p>This release finalizes end-to-end Julia ONNX serialization support,
 fixes pipeline compiler strategy dictionary parsing issues, strengthens
 runtime safety by protecting reserved keywords, and completes the
@@ -3041,7 +3343,7 @@ better reflect its purpose of appending model-level diagnostics
 names and remove deprecated aliases.</li>
 </ul></li>
 </ul>
-<h2 id="section-19">[0.51.5] - 2026-05-08</h2>
+<h2 id="section-20">[0.51.5] - 2026-05-08</h2>
 <p>The focus of this release was to improve language ergonomics for data
 guardrails, enhance package manager feedback, and increase test coverage
 across all packages.</p>
@@ -3270,7 +3572,7 @@ process.</li>
 streamline local reporting workflows.</li>
 </ul></li>
 </ul>
-<h2 id="section-20">[0.51.4] - 2026-04-30</h2>
+<h2 id="section-21">[0.51.4] - 2026-04-30</h2>
 <p><strong>Status</strong>: Beta</p>
 <h3 id="ai-agent-onboarding-context-tiering">AI Agent Onboarding &amp;
 Context Tiering</h3>
@@ -3533,7 +3835,7 @@ Dictionaries. The system now correctly restores the native
 <code>Error</code> type across node boundaries, even when using modern
 JSON interchange.</li>
 </ul>
-<h2 id="section-21">[0.51.3] - 2026-04-12</h2>
+<h2 id="section-22">[0.51.3] - 2026-04-12</h2>
 <p><strong>Status</strong>: Beta</p>
 <h3 id="pipeline-infrastructure-observability">Pipeline Infrastructure
 &amp; Observability</h3>
@@ -3830,7 +4132,7 @@ sweep to remove legacy version strings and hardcoded formatting in
 installation and project guides.</li>
 </ul>
 <p>Version history and roadmap for the T programming language.</p>
-<h2 id="section-22">[0.51.1] - 2026-03-21</h2>
+<h2 id="section-23">[0.51.1] - 2026-03-21</h2>
 <p><strong>Status</strong>: Beta <strong>Release Date</strong>: 21st of
 March 2026</p>
 <h3 id="features-cli">Features &amp; CLI</h3>

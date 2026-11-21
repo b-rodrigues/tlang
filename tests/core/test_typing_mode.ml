@@ -62,7 +62,8 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
 
   test "generic lambda keeps Int and Float distinct"
     "const = \\<T>(x: T, y: T -> T) x; const(1, 2.5)"
-    {|Error(TypeError: "Type variable `T` has inconsistent types: Int vs Float")|};
+    {|Error(TypeError: "Type variable `T` has inconsistent types: Int vs Float. Int is not widened to Float in generic T. Convert explicitly.")|};
+
 
   test "single-use type variable never constrains"
     "id = \\<T>(x: T -> T) x; id(1)"
@@ -78,7 +79,7 @@ let run_tests pass_count fail_count _failures _eval_string _eval_string_env test
 
   test "generic lambda keeps Int and Float distinct inside lists"
     "const = \\<T>(x: T, y: T -> T) x; const([1], [2.5])"
-    {|Error(TypeError: "Type variable `T` has inconsistent types: List[Int] vs List[Float]")|};
+    {|Error(TypeError: "Type variable `T` has inconsistent types: List[Int] vs List[Float]. Int is not widened to Float in generic T. Convert explicitly.")|};
 
   test "generic lambda rejects heterogeneous dict values"
     "h = \\<T>(x: T, y: T -> T) x; h([a: 1], [a: \"s\"])"

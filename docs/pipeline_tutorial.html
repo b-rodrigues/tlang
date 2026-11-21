@@ -371,6 +371,47 @@ warnings</td>
 <td><code>ComputedNode</code></td>
 <td>Rebuild a single node and return updated artifact path</td>
 </tr>
+<tr>
+<td><code>is_failed(node)</code></td>
+<td><code>Any</code></td>
+<td><code>Bool</code> | <code>NA</code></td>
+<td>Test if a node, inspect result, or computed value represents a
+failure</td>
+</tr>
+<tr>
+<td><code>node_status(node)</code></td>
+<td><code>ComputedNode</code> | <code>VError</code></td>
+<td><code>String</code></td>
+<td>Return status string (<code>"Built"</code>, <code>"Errored"</code>,
+etc.); raises TypeError on non-nodes</td>
+</tr>
+<tr>
+<td><code>pipeline_overview(p, only?)</code></td>
+<td><code>Pipeline</code>, optional <code>String</code></td>
+<td><code>DataFrame</code></td>
+<td>Unified table joining static DAG configuration with live build
+state</td>
+</tr>
+<tr>
+<td><code>pipeline_overview_markdown(p, only?)</code></td>
+<td><code>Pipeline</code>, optional <code>String</code></td>
+<td><code>String</code></td>
+<td>Markdown table representation of <code>pipeline_overview</code></td>
+</tr>
+<tr>
+<td><code>pipeline_metrics(p, task?, sort_by?, descending?)</code></td>
+<td><code>Pipeline</code>, optional <code>String</code>,
+<code>String</code>, <code>Bool</code></td>
+<td><code>DataFrame</code></td>
+<td>Cross-runtime model metrics leaderboard from build sidecars</td>
+</tr>
+<tr>
+<td><code>pipeline_metrics_markdown(p, task?, sort_by?, descending?)</code></td>
+<td><code>Pipeline</code>, optional <code>String</code>,
+<code>String</code>, <code>Bool</code></td>
+<td><code>String</code></td>
+<td>Markdown table representation of <code>pipeline_metrics</code></td>
+</tr>
 </tbody>
 </table>
 <h3 id="pipeline-dag-structure">Pipeline DAG Structure</h3>
@@ -616,6 +657,21 @@ predicate</td>
 <td>—</td>
 <td><code>String</code></td>
 <td>Global Nix garbage collection</td>
+</tr>
+<tr>
+<td><code>t_provenance(format?, output?, dir?, file?, include_meta?)</code></td>
+<td>optional <code>String</code>, <code>String</code>,
+<code>String</code>, <code>String</code>, <code>Bool</code></td>
+<td><code>String</code></td>
+<td>Generate offline provenance bundle (RO-Crate 1.1, CycloneDX 1.5, or
+JSON)</td>
+</tr>
+<tr>
+<td><code>t_fmt(path, write?, check?)</code></td>
+<td><code>String</code>, optional <code>Bool</code>,
+<code>Bool</code></td>
+<td><code>String</code> | <code>Bool</code></td>
+<td>Canonical T source code formatter</td>
 </tr>
 </tbody>
 </table>
@@ -1212,7 +1268,16 @@ e = explain(p)
 e.kind        -- &quot;pipeline&quot;
 e.node_count  -- 3
 
-explain(p.x)  -- { `runtime`: &quot;T&quot;, `kind`: &quot;node&quot;, `name`: &quot;x&quot;, ... }</code></pre>
+explain(p.x)  -- { `runtime`: &quot;T&quot;, `kind`: &quot;node&quot;, `name`: &quot;x&quot;, ... }
+
+-- For foreign nodes (R, Python, Julia), explain exposes build-time sidecar facts:
+-- e.g. for a time-series or machine learning node:
+fit_info = explain(p.model)
+fit_info.foreign_meta.kind         -- &quot;model&quot;, &quot;forecast&quot;, &quot;series&quot;, etc.
+fit_info.foreign_meta.task         -- &quot;time_series&quot;, &quot;regression&quot;, &quot;classification&quot;, etc.
+fit_info.foreign_meta.n_params     -- total parameter count for neural networks / ML
+fit_info.foreign_meta.order        -- [p, d, q] for ARIMA
+fit_info.foreign_meta.metrics.aic  -- AIC metric without loading the artifact</code></pre>
 <hr />
 <h2 id="re-running-pipelines">12. Re-running Pipelines</h2>
 <p>Use <code>pipeline_run()</code> to re-execute a pipeline:</p>

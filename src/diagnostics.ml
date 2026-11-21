@@ -108,6 +108,7 @@ type suggested_fix =
   | Rename_column of { old_name: string; new_name: string; target_node: string option; file: string option; line: int option; edit_distance: int; is_unique: bool; confidence: confidence }
   | Rename_node of { old_name: string; new_name: string; target_node: string option; file: string option; line: int option; confidence: confidence }
   | Add_node_arg of { node: string; arg: string; target_node: string option; file: string option; line: int option; confidence: confidence }
+  | Replace_text of { old_text: string; new_text: string; target_node: string option; file: string option; line: int option; column: int option; confidence: confidence }
   | Suggest_identifier of { name: string; suggestion: string; target_node: string option; file: string option; line: int option; edit_distance: int; is_unique: bool; confidence: confidence }
   | Run_command of { command: string; description: string; target_node: string option; file: string option; line: int option; confidence: confidence }
   | NoFix
@@ -137,6 +138,9 @@ let make_suggest_identifier_fix ~name ~suggestion ~edit_distance ~is_unique ?tar
 
 let make_add_node_arg_fix ~node ~arg ?target_node ?file ?line () =
   Add_node_arg { node; arg; target_node; file; line; confidence = Medium }
+
+let make_replace_text_fix ~old_text ~new_text ?target_node ?file ?line ?column ?(confidence=High) () =
+  Replace_text { old_text; new_text; target_node; file; line; column; confidence }
 
 let make_rename_node_fix ~old_name ~new_name ?target_node ?file ?line () =
   Rename_node { old_name; new_name; target_node; file; line; confidence = Medium }
@@ -231,6 +235,17 @@ let suggested_fix_to_yojson = function
         ("line", opt_int_to_yojson line);
         ("confidence", `String (confidence_to_string confidence));
       ]
+  | Replace_text { old_text; new_text; target_node; file; line; column; confidence } ->
+      `Assoc [
+        ("kind", `String "replace_text");
+        ("old_text", `String old_text);
+        ("new_text", `String new_text);
+        ("target_node", opt_string_to_yojson target_node);
+        ("file", opt_string_to_yojson file);
+        ("column", opt_int_to_yojson column);
+        ("line", opt_int_to_yojson line);
+        ("confidence", `String (confidence_to_string confidence));
+      ]
   | Rename_node { old_name; new_name; target_node; file; line; confidence } ->
       `Assoc [
         ("kind", `String "rename_node");
@@ -307,6 +322,15 @@ let suggested_fix_of_yojson json =
             arg = json |> member "arg" |> to_string;
             target_node;
             file; line;
+            confidence;
+          }
+      | "replace_text" ->
+          Replace_text {
+            old_text = json |> member "old_text" |> to_string;
+            new_text = json |> member "new_text" |> to_string;
+            target_node;
+            file; line;
+            column = json |> member "column" |> opt_int_of_yojson;
             confidence;
           }
       | "rename_node" ->
@@ -576,7 +600,16 @@ let of_verror ?file ?existing_node_names (err : Ast.error_info) : diagnostic =
               | Some (s, edit_distance, is_unique) ->
                   make_suggest_identifier_fix ~name ~suggestion:s ~edit_distance ~is_unique ?target_node:node_name ?file ()
               | None -> NoFix))
-    | _ -> NoFix
+    | _ ->
+        (* Bare union case: Missing must be Missing(). Message names the case. *)
+        (try
+           let re = Str.regexp "Union case `\\([^`]+\\)` must use call syntax" in
+           ignore (Str.search_forward re err.message 0);
+           let cname = Str.matched_group 1 err.message in
+           make_replace_text_fix ~old_text:cname ~new_text:(cname ^ "()") ?target_node:node_name ?file
+             ?line:(match err.location with Some l -> Some l.Ast.line | None -> None)
+             ?column:(match err.location with Some l -> Some l.Ast.column | None -> None) ()
+         with Not_found -> NoFix)
   in
   {
     diag_id = gen_id ();
@@ -656,8 +689,53 @@ let of_pipeline_result ?file (p : Ast.pipeline_result) : diagnostic list =
     errors @ warnings
   ) p.Ast.p_node_diagnostics)
 
+(* True only for the exact `^arrow` format token. A longer name such as
+   `^arrow_ipc` is a different, still-unknown format: suggesting `^arrow` ->
+   `^ipc` there would point at text the file does not contain and make the
+   fix ambiguous. `` `arrow` `` (the old serializer name) still counts. *)
+let contains_arrow_hint msg =
+  let needle = "^arrow" in
+  let n = String.length msg and m = String.length needle in
+  let is_word_char = function
+    | 'a'..'z' | 'A'..'Z' | '0'..'9' | '_' -> true
+    | _ -> false
+  in
+  let rec find i =
+    if m = 0 then true
+    else if i + m > n then false
+    else if String.sub msg i m = needle
+            && (i + m >= n || not (is_word_char msg.[i + m]))
+    then true
+    else find (i + 1)
+  in
+  find 0
+  || (try ignore (Str.search_forward (Str.regexp_string "`arrow`") msg 0); true
+      with Not_found -> false)
+
+(* The strategy token as the file writes it: the backticked spelling in the
+   validation message, e.g. `^arrow` or `^ARROW`. That token is what [t fix]
+   must replace; a hardcoded `^arrow` misses any other casing and the fix is
+   then skipped. *)
+let extract_strategy_spelling msg =
+  let re =
+    Str.regexp "Unknown \\(serializer\\|deserializer\\) \\(format \\)?`\\([^`]+\\)`"
+  in
+  try
+    ignore (Str.search_forward re msg 0);
+    Some (Str.matched_group 3 msg)
+  with Not_found -> None
+
 let of_pipeline_validation ?file (p : Ast.pipeline_result) : diagnostic list =
   List.map (fun (e : Pipeline_validation.validation_error) ->
+    let arrow_fix () =
+      let old_text =
+        match extract_strategy_spelling e.Pipeline_validation.ve_message with
+        | Some token -> token
+        | None -> "^arrow"
+      in
+      make_replace_text_fix ~old_text ~new_text:"^ipc"
+        ?target_node:e.Pipeline_validation.ve_node ?file ()
+    in
     let suggested_fix =
       match e.Pipeline_validation.ve_kind with
       | "StructuralError" ->
@@ -671,7 +749,14 @@ let of_pipeline_validation ?file (p : Ast.pipeline_result) : diagnostic list =
                     let node = match e.Pipeline_validation.ve_node with Some n -> n | None -> "" in
                     make_add_node_arg_fix ~node ~arg:("deserializer = " ^ serializer)
                       ?target_node:e.Pipeline_validation.ve_node ?file ()
-                | None -> NoFix))
+                | None ->
+                    if contains_arrow_hint e.Pipeline_validation.ve_message then
+                      arrow_fix ()
+                    else NoFix))
+      | "TypeError" ->
+          if contains_arrow_hint e.Pipeline_validation.ve_message then
+            arrow_fix ()
+          else NoFix
       | _ -> NoFix
     in
     {
@@ -750,6 +835,8 @@ let suggested_fix_summary = function
       Some (Printf.sprintf "fix: rename node '%s' to '%s' (rename references by hand first)" old_name new_name)
   | Add_node_arg { node; arg; _ } ->
       Some (Printf.sprintf "fix: add '%s' to node '%s' (t fix applies it)" arg node)
+  | Replace_text { old_text; new_text; _ } ->
+      Some (Printf.sprintf "fix: replace '%s' with '%s' (t fix applies it)" old_text new_text)
   | Suggest_identifier { name; _ } ->
       Some (Printf.sprintf "fix: rename identifier '%s' by hand (t fix does not apply it)" name)
   | Run_command { command; description; _ } ->

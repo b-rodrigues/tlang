@@ -10,7 +10,13 @@ module String_set = Set.Make(String)
 exception TLangSyntaxError of string
 exception Mixed_bracket_form
 exception Invalid_match_pattern of string
-exception Invalid_type_declaration of string
+(* [Invalid_type_declaration (message, pos)] carries the position of the
+   offending construct when the parser knows it. A bare union case is
+   reduced after Menhir has already shifted its lookahead token, so
+   [Lexing.lexeme_start_p] points at the following `|` instead of the case
+   name; the explicit position keeps diagnostics and `t fix` on the right
+   column. [None] keeps the caller's lexbuf position. *)
+exception Invalid_type_declaration of string * Lexing.position option
 
 type symbol = string
 

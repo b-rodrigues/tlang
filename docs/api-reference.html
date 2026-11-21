@@ -2055,6 +2055,8 @@ id="is_datex-is_datetimex-is_periodx-is_durationx-is_intervalx"><code>is_date(x)
 <p>Update the timezone label of a Datetime value.</p>
 <hr />
 <h2 id="strcraft-package">Strcraft Package</h2>
+<p><code>str_to_title(s)</code> title-cases each word on Unicode
+code-point boundaries.</p>
 <p>Modern string manipulation utilities, inspired by R’s
 <code>stringr</code>.</p>
 <h3
@@ -3789,7 +3791,8 @@ pipeline has no matching build log yet.</p>
 <pre class="t"><code>pipeline_status(p)
 pipeline_status(p) |&gt; filter($status == &quot;Errored&quot;)</code></pre>
 <hr />
-<h3 id="pipeline_overviewp"><code>pipeline_overview(p)</code></h3>
+<h3
+id="pipeline_overviewp-only-na"><code>pipeline_overview(p, only = NA)</code></h3>
 <p>One-call table joining the columns of <code>pipeline_to_frame</code>
 with the live build state of <code>pipeline_status</code>. It is not a
 superset: <code>pipeline_config_to_frame</code> adds <code>shell</code>,
@@ -3800,6 +3803,9 @@ Column names match the source frames. Failed nodes sort first.</p>
 <p><strong>Parameters:</strong></p>
 <ul>
 <li><code>p</code> — The Pipeline object.</li>
+<li><code>only</code> (optional) — Filter rows: <code>failed</code>,
+<code>built</code>, <code>unbuilt</code>, or <code>all</code>. Default
+shows all, failed first.</li>
 </ul>
 <p><strong>Returns:</strong></p>
 <p><code>DataFrame</code> — Columns <code>name</code>,
@@ -3810,7 +3816,138 @@ Column names match the source frames. Failed nodes sort first.</p>
 fields are NA when the pipeline has no matching build log yet.</p>
 <p><strong>Examples:</strong></p>
 <pre class="t"><code>pipeline_overview(p)
+pipeline_overview(p, only = &quot;failed&quot;)
 pipeline_overview(p) |&gt; filter($status == &quot;Errored&quot;)</code></pre>
+<hr />
+<h3
+id="pipeline_overview_markdownp-only-na"><code>pipeline_overview_markdown(p, only = NA)</code></h3>
+<p>Same rows as <code>pipeline_overview</code>, rendered as a Markdown
+table for reports and workflow summaries. Used by
+<code>pipeline_report</code>.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>p</code> — The Pipeline object.</li>
+<li><code>only</code> (optional) — Same filter as
+<code>pipeline_overview</code>.</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>String</code> — Markdown table with <code>name</code>,
+<code>runtime</code>, <code>status</code>, <code>depth</code>,
+<code>error</code>.</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>pipeline_overview_markdown(p)
+pipeline_overview_markdown(p, only = &quot;failed&quot;)</code></pre>
+<hr />
+<h3
+id="pipeline_metricsp-task-na-sort_by-na-descending-false"><code>pipeline_metrics(p, task = NA, sort_by = NA, descending = false)</code></h3>
+<p>Collects build-time <code>foreign_meta</code> sidecars from model
+nodes across R, Python, and Julia into a single comparison DataFrame.
+Base columns (<code>name</code>, <code>runtime</code>,
+<code>kind</code>, <code>task</code>, <code>method</code>,
+<code>n_obs</code>, <code>n_features</code>, <code>status</code>) are
+followed by one <code>Float</code> column per metric key found across
+the selected nodes.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>p</code> — The Pipeline object.</li>
+<li><code>task</code> (optional) — Filter by task
+(e.g. <code>"time_series"</code>, <code>"regression"</code>,
+<code>"classification"</code>).</li>
+<li><code>sort_by</code> (optional) — Sort by any metric column,
+<code>"n_obs"</code>, <code>"n_features"</code>, or
+<code>"name"</code>.</li>
+<li><code>descending</code> (optional) — Sort descending when
+<code>true</code> (default <code>false</code>).</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>DataFrame</code> — One row per model node with aligned metric
+columns.</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>pipeline_metrics(p)
+pipeline_metrics(p, task = &quot;time_series&quot;, sort_by = &quot;aic&quot;)</code></pre>
+<hr />
+<h3
+id="pipeline_metrics_markdownp-task-na-sort_by-na-descending-false"><code>pipeline_metrics_markdown(p, task = NA, sort_by = NA, descending = false)</code></h3>
+<p>Same rows and filters as <code>pipeline_metrics</code>, rendered as a
+Markdown table.</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>pipeline_metrics_markdown(p, sort_by = &quot;aic&quot;)</code></pre>
+<hr />
+<h3
+id="t_fmtpath-write-false-check-false"><code>t_fmt(path, write = false, check = false)</code></h3>
+<p>Formats a <code>.t</code> source file using the canonical T
+formatter, preserving comments and <code>&lt;{ ... }&gt;</code> raw
+foreign code blocks.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>path</code> — Path to the <code>.t</code> file.</li>
+<li><code>write</code> (optional) — Write formatted output back to
+<code>path</code> when <code>true</code>.</li>
+<li><code>check</code> (optional) — Return <code>Bool</code>
+(<code>true</code> if already formatted, <code>false</code>
+otherwise).</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>String | Bool</code> — Formatted source string, or
+<code>Bool</code> when <code>check = true</code>.</p>
+<hr />
+<h3
+id="t_provenanceformat-ro-crate-output-na-dir-.-file-na-include_meta-true"><code>t_provenance(format = "ro-crate", output = NA, dir = ".", file = NA, include_meta = true)</code></h3>
+<p>Generates an offline reproducibility and audit bundle from
+<code>tproject.toml</code>, <code>flake.lock</code>, the latest
+<code>_pipeline/build_log_*.json</code> with <code>foreign_meta</code>
+sidecars, and <code>intent { ... }</code> blocks.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>format</code> (optional) — <code>"ro-crate"</code> (RO-Crate
+1.1 JSON-LD), <code>"sbom"</code> (CycloneDX 1.5 JSON), or
+<code>"json"</code>.</li>
+<li><code>output</code> (optional) — Optional output file path.</li>
+<li><code>dir</code> (optional) — Project root directory (default
+<code>"."</code>).</li>
+<li><code>file</code> (optional) — Target <code>.t</code> file to
+extract <code>intent</code> blocks from.</li>
+<li><code>include_meta</code> (optional) — Include
+<code>foreign_meta</code> sidecars in the manifest (default
+<code>true</code>).</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>String</code> — Formatted JSON manifest.</p>
+<hr />
+<h3 id="is_failednode"><code>is_failed(node)</code></h3>
+<p>Test if a node failed. Returns true for a failed node
+(<code>VError</code>), for a <code>read_node()</code> result whose value
+or diagnostics carry an error, or for an inspect result with status
+<code>Errored</code> or <code>SoftFailed</code>. Use after 0.56.1
+instead of <code>is_error(inspect_node(x))</code>, which is always
+false. <code>NA</code> propagates as <code>NA</code>.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>node</code> — A node value, <code>read_node()</code> result,
+inspect result, or error.</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>Bool | NA</code> — True when failed or Errored.</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>is_failed(p.bad)
+is_failed(inspect_node(p.bad))</code></pre>
+<hr />
+<h3 id="node_statusnode"><code>node_status(node)</code></h3>
+<p>Node build status. Returns <code>Built</code> for a computed node,
+<code>Errored</code> for a failed node or a <code>read_node()</code>
+result carrying an error, or the status field of an inspect result.
+<code>NA</code> propagates as <code>NA</code>.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>node</code> — A node value, <code>read_node()</code> result,
+inspect result, or error.</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<p><code>String | NA</code> — <code>Built</code> or
+<code>Errored</code>.</p>
+<p><strong>Examples:</strong></p>
+<pre class="t"><code>node_status(p.good)
+inspect_node(p.bad).status == &quot;Errored&quot;</code></pre>
 <hr />
 <h3
 id="build_log_historyp-n-na-pattern-na"><code>build_log_history(p, n = NA, pattern = NA)</code></h3>
@@ -3956,10 +4093,10 @@ print(summary)</code></pre>
 <h3 id="cli-t-diff">CLI: <code>t diff</code></h3>
 <p>The <code>t diff</code> command provides the same functionality from
 the shell, without needing to write a T script:</p>
-<div class="sourceCode" id="cb119"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb119-1"><a href="#cb119-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> diff <span class="op">&lt;</span>file.t<span class="op">&gt;</span>                    <span class="co"># compare last two builds</span></span>
-<span id="cb119-2"><a href="#cb119-2" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> diff <span class="op">&lt;</span>file.t<span class="op">&gt;</span> --json             <span class="co"># structured JSON output</span></span>
-<span id="cb119-3"><a href="#cb119-3" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> diff <span class="op">&lt;</span>file.t<span class="op">&gt;</span> --log-a 2 <span class="at">--log-b</span> 4  <span class="co"># compare specific build ranks</span></span></code></pre></div>
+<div class="sourceCode" id="cb124"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb124-1"><a href="#cb124-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> diff <span class="op">&lt;</span>file.t<span class="op">&gt;</span>                    <span class="co"># compare last two builds</span></span>
+<span id="cb124-2"><a href="#cb124-2" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> diff <span class="op">&lt;</span>file.t<span class="op">&gt;</span> --json             <span class="co"># structured JSON output</span></span>
+<span id="cb124-3"><a href="#cb124-3" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> diff <span class="op">&lt;</span>file.t<span class="op">&gt;</span> --log-a 2 <span class="at">--log-b</span> 4  <span class="co"># compare specific build ranks</span></span></code></pre></div>
 <hr />
 <h3 id="cli-t-fix">CLI: <code>t fix</code></h3>
 <p>Mechanically applies <code>suggested_fix</code> values from
@@ -3967,9 +4104,9 @@ class="sourceCode bash"><code class="sourceCode bash"><span id="cb119-1"><a href
 <code>t check --json</code> internally, collects diagnostics with
 non-null <code>suggested_fix</code>, and applies them to the source
 file.</p>
-<div class="sourceCode" id="cb120"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb120-1"><a href="#cb120-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> fix <span class="op">&lt;</span>file.t<span class="op">&gt;</span>                     <span class="co"># apply all suggested fixes</span></span>
-<span id="cb120-2"><a href="#cb120-2" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> fix <span class="at">--dry-run</span> <span class="op">&lt;</span>file.t<span class="op">&gt;</span>           <span class="co"># preview fixes without applying</span></span></code></pre></div>
+<div class="sourceCode" id="cb125"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb125-1"><a href="#cb125-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> fix <span class="op">&lt;</span>file.t<span class="op">&gt;</span>                     <span class="co"># apply all suggested fixes</span></span>
+<span id="cb125-2"><a href="#cb125-2" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> fix <span class="at">--dry-run</span> <span class="op">&lt;</span>file.t<span class="op">&gt;</span>           <span class="co"># preview fixes without applying</span></span></code></pre></div>
 <p><strong>Supported fix types:</strong></p>
 <table>
 <colgroup>
@@ -4027,17 +4164,17 @@ outcome, matching the real apply</td>
 </tbody>
 </table>
 <p><strong>Example:</strong></p>
-<div class="sourceCode" id="cb121"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb121-1"><a href="#cb121-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t check <span class="at">--json</span> pipeline.t <span class="kw">|</span> <span class="ex">jq</span> <span class="st">&#39;.diagnostics[].suggested_fix&#39;</span></span>
-<span id="cb121-2"><a href="#cb121-2" aria-hidden="true" tabindex="-1"></a><span class="kw">{</span></span>
-<span id="cb121-3"><a href="#cb121-3" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;kind&quot;</span><span class="ex">:</span> <span class="st">&quot;rename_column&quot;</span>,</span>
-<span id="cb121-4"><a href="#cb121-4" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;old_name&quot;</span><span class="ex">:</span> <span class="st">&quot;mpg&quot;</span>,</span>
-<span id="cb121-5"><a href="#cb121-5" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;new_name&quot;</span><span class="ex">:</span> <span class="st">&quot;MPG&quot;</span>,</span>
-<span id="cb121-6"><a href="#cb121-6" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;target_node&quot;</span><span class="ex">:</span> <span class="st">&quot;clean&quot;</span>,</span>
-<span id="cb121-7"><a href="#cb121-7" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;file&quot;</span><span class="ex">:</span> <span class="st">&quot;pipeline.t&quot;</span>,</span>
-<span id="cb121-8"><a href="#cb121-8" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;line&quot;</span><span class="ex">:</span> 5,</span>
-<span id="cb121-9"><a href="#cb121-9" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;confidence&quot;</span><span class="ex">:</span> <span class="st">&quot;high&quot;</span></span>
-<span id="cb121-10"><a href="#cb121-10" aria-hidden="true" tabindex="-1"></a><span class="kw">}</span></span></code></pre></div>
+<div class="sourceCode" id="cb126"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb126-1"><a href="#cb126-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> t check <span class="at">--json</span> pipeline.t <span class="kw">|</span> <span class="ex">jq</span> <span class="st">&#39;.diagnostics[].suggested_fix&#39;</span></span>
+<span id="cb126-2"><a href="#cb126-2" aria-hidden="true" tabindex="-1"></a><span class="kw">{</span></span>
+<span id="cb126-3"><a href="#cb126-3" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;kind&quot;</span><span class="ex">:</span> <span class="st">&quot;rename_column&quot;</span>,</span>
+<span id="cb126-4"><a href="#cb126-4" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;old_name&quot;</span><span class="ex">:</span> <span class="st">&quot;mpg&quot;</span>,</span>
+<span id="cb126-5"><a href="#cb126-5" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;new_name&quot;</span><span class="ex">:</span> <span class="st">&quot;MPG&quot;</span>,</span>
+<span id="cb126-6"><a href="#cb126-6" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;target_node&quot;</span><span class="ex">:</span> <span class="st">&quot;clean&quot;</span>,</span>
+<span id="cb126-7"><a href="#cb126-7" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;file&quot;</span><span class="ex">:</span> <span class="st">&quot;pipeline.t&quot;</span>,</span>
+<span id="cb126-8"><a href="#cb126-8" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;line&quot;</span><span class="ex">:</span> 5,</span>
+<span id="cb126-9"><a href="#cb126-9" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;confidence&quot;</span><span class="ex">:</span> <span class="st">&quot;high&quot;</span></span>
+<span id="cb126-10"><a href="#cb126-10" aria-hidden="true" tabindex="-1"></a><span class="kw">}</span></span></code></pre></div>
 <hr />
 <h3 id="t_test"><code>t_test()</code></h3>
 <p>REPL-callable version of <code>t test</code>. Runs the test suite and
@@ -4073,18 +4210,18 @@ results = t_test(failfast = true, timeout = 30, verbose = true)</code></pre>
 <p>Runs the test suite for the current project. Discovers test files
 (<code>test-*.t</code>, <code>test_*.t</code>, or <code>*_test.t</code>)
 recursively in the <code>tests/</code> directory.</p>
-<div class="sourceCode" id="cb123"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb123-1"><a href="#cb123-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test                        <span class="co"># human-readable output</span></span>
-<span id="cb123-2"><a href="#cb123-2" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--json</span>                 <span class="co"># structured JSON output (no preamble)</span></span>
-<span id="cb123-3"><a href="#cb123-3" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--format</span> junit         <span class="co"># JUnit XML output for CI</span></span>
-<span id="cb123-4"><a href="#cb123-4" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--json</span> tests/          <span class="co"># specify project directory</span></span>
-<span id="cb123-5"><a href="#cb123-5" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--only</span> <span class="st">&quot;stats&quot;</span>         <span class="co"># run only tests matching &quot;stats&quot;</span></span>
-<span id="cb123-6"><a href="#cb123-6" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--not</span> <span class="st">&quot;slow&quot;</span>           <span class="co"># skip tests matching &quot;slow&quot;</span></span>
-<span id="cb123-7"><a href="#cb123-7" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--only</span> <span class="st">&quot;stats&quot;</span> <span class="at">--not</span> <span class="st">&quot;anova&quot;</span>  <span class="co"># combine filters (OR semantics for --only)</span></span>
-<span id="cb123-8"><a href="#cb123-8" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--failfast</span>             <span class="co"># stop on first failure</span></span>
-<span id="cb123-9"><a href="#cb123-9" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--list</span>                 <span class="co"># list discovered tests without running</span></span>
-<span id="cb123-10"><a href="#cb123-10" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--timeout</span> 30           <span class="co"># mark tests exceeding 30s as failed</span></span>
-<span id="cb123-11"><a href="#cb123-11" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--coverage</span>             <span class="co"># generate Bisect_ppx coverage summary after tests</span></span></code></pre></div>
+<div class="sourceCode" id="cb128"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb128-1"><a href="#cb128-1" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test                        <span class="co"># human-readable output</span></span>
+<span id="cb128-2"><a href="#cb128-2" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--json</span>                 <span class="co"># structured JSON output (no preamble)</span></span>
+<span id="cb128-3"><a href="#cb128-3" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--format</span> junit         <span class="co"># JUnit XML output for CI</span></span>
+<span id="cb128-4"><a href="#cb128-4" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--json</span> tests/          <span class="co"># specify project directory</span></span>
+<span id="cb128-5"><a href="#cb128-5" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--only</span> <span class="st">&quot;stats&quot;</span>         <span class="co"># run only tests matching &quot;stats&quot;</span></span>
+<span id="cb128-6"><a href="#cb128-6" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--not</span> <span class="st">&quot;slow&quot;</span>           <span class="co"># skip tests matching &quot;slow&quot;</span></span>
+<span id="cb128-7"><a href="#cb128-7" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--only</span> <span class="st">&quot;stats&quot;</span> <span class="at">--not</span> <span class="st">&quot;anova&quot;</span>  <span class="co"># combine filters (OR semantics for --only)</span></span>
+<span id="cb128-8"><a href="#cb128-8" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--failfast</span>             <span class="co"># stop on first failure</span></span>
+<span id="cb128-9"><a href="#cb128-9" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--list</span>                 <span class="co"># list discovered tests without running</span></span>
+<span id="cb128-10"><a href="#cb128-10" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--timeout</span> 30           <span class="co"># mark tests exceeding 30s as failed</span></span>
+<span id="cb128-11"><a href="#cb128-11" aria-hidden="true" tabindex="-1"></a><span class="ex">t</span> test <span class="at">--coverage</span>             <span class="co"># generate Bisect_ppx coverage summary after tests</span></span></code></pre></div>
 <p><strong>Output formats:</strong></p>
 <table>
 <thead>
@@ -4189,18 +4326,18 @@ slow_integration.t      # exact filename
 legacy/                 # directory at any depth</code></pre>
 <p><strong>JUnit XML schema (when using
 <code>--format junit</code>):</strong></p>
-<div class="sourceCode" id="cb125"><pre
-class="sourceCode xml"><code class="sourceCode xml"><span id="cb125-1"><a href="#cb125-1" aria-hidden="true" tabindex="-1"></a><span class="fu">&lt;?xml</span> <span class="ot">version=</span><span class="st">&quot;1.0&quot;</span> <span class="ot">encoding=</span><span class="st">&quot;UTF-8&quot;</span><span class="fu">?&gt;</span></span>
-<span id="cb125-2"><a href="#cb125-2" aria-hidden="true" tabindex="-1"></a>&lt;<span class="kw">testsuites</span> <span class="ot">name=</span><span class="st">&quot;t test&quot;</span> <span class="ot">tests=</span><span class="st">&quot;2&quot;</span> <span class="ot">failures=</span><span class="st">&quot;1&quot;</span> <span class="ot">time=</span><span class="st">&quot;0.123&quot;</span>&gt;</span>
-<span id="cb125-3"><a href="#cb125-3" aria-hidden="true" tabindex="-1"></a>  &lt;<span class="kw">testsuite</span> <span class="ot">name=</span><span class="st">&quot;t test&quot;</span> <span class="ot">tests=</span><span class="st">&quot;2&quot;</span> <span class="ot">failures=</span><span class="st">&quot;1&quot;</span> <span class="ot">time=</span><span class="st">&quot;0.123&quot;</span>&gt;</span>
-<span id="cb125-4"><a href="#cb125-4" aria-hidden="true" tabindex="-1"></a>    &lt;<span class="kw">testcase</span> <span class="ot">name=</span><span class="st">&quot;tests/test_pass.t&quot;</span> <span class="ot">time=</span><span class="st">&quot;0.050&quot;</span> /&gt;</span>
-<span id="cb125-5"><a href="#cb125-5" aria-hidden="true" tabindex="-1"></a>    &lt;<span class="kw">testcase</span> <span class="ot">name=</span><span class="st">&quot;tests/test_fail.t&quot;</span> <span class="ot">time=</span><span class="st">&quot;0.073&quot;</span>&gt;</span>
-<span id="cb125-6"><a href="#cb125-6" aria-hidden="true" tabindex="-1"></a>      &lt;<span class="kw">failure</span> <span class="ot">message=</span><span class="st">&quot;Assertion failed&quot;</span> <span class="ot">type=</span><span class="st">&quot;TestFailure&quot;</span>&gt;</span>
-<span id="cb125-7"><a href="#cb125-7" aria-hidden="true" tabindex="-1"></a>        AssertionError: test failed</span>
-<span id="cb125-8"><a href="#cb125-8" aria-hidden="true" tabindex="-1"></a>      &lt;/<span class="kw">failure</span>&gt;</span>
-<span id="cb125-9"><a href="#cb125-9" aria-hidden="true" tabindex="-1"></a>    &lt;/<span class="kw">testcase</span>&gt;</span>
-<span id="cb125-10"><a href="#cb125-10" aria-hidden="true" tabindex="-1"></a>  &lt;/<span class="kw">testsuite</span>&gt;</span>
-<span id="cb125-11"><a href="#cb125-11" aria-hidden="true" tabindex="-1"></a>&lt;/<span class="kw">testsuites</span>&gt;</span></code></pre></div>
+<div class="sourceCode" id="cb130"><pre
+class="sourceCode xml"><code class="sourceCode xml"><span id="cb130-1"><a href="#cb130-1" aria-hidden="true" tabindex="-1"></a><span class="fu">&lt;?xml</span> <span class="ot">version=</span><span class="st">&quot;1.0&quot;</span> <span class="ot">encoding=</span><span class="st">&quot;UTF-8&quot;</span><span class="fu">?&gt;</span></span>
+<span id="cb130-2"><a href="#cb130-2" aria-hidden="true" tabindex="-1"></a>&lt;<span class="kw">testsuites</span> <span class="ot">name=</span><span class="st">&quot;t test&quot;</span> <span class="ot">tests=</span><span class="st">&quot;2&quot;</span> <span class="ot">failures=</span><span class="st">&quot;1&quot;</span> <span class="ot">time=</span><span class="st">&quot;0.123&quot;</span>&gt;</span>
+<span id="cb130-3"><a href="#cb130-3" aria-hidden="true" tabindex="-1"></a>  &lt;<span class="kw">testsuite</span> <span class="ot">name=</span><span class="st">&quot;t test&quot;</span> <span class="ot">tests=</span><span class="st">&quot;2&quot;</span> <span class="ot">failures=</span><span class="st">&quot;1&quot;</span> <span class="ot">time=</span><span class="st">&quot;0.123&quot;</span>&gt;</span>
+<span id="cb130-4"><a href="#cb130-4" aria-hidden="true" tabindex="-1"></a>    &lt;<span class="kw">testcase</span> <span class="ot">name=</span><span class="st">&quot;tests/test_pass.t&quot;</span> <span class="ot">time=</span><span class="st">&quot;0.050&quot;</span> /&gt;</span>
+<span id="cb130-5"><a href="#cb130-5" aria-hidden="true" tabindex="-1"></a>    &lt;<span class="kw">testcase</span> <span class="ot">name=</span><span class="st">&quot;tests/test_fail.t&quot;</span> <span class="ot">time=</span><span class="st">&quot;0.073&quot;</span>&gt;</span>
+<span id="cb130-6"><a href="#cb130-6" aria-hidden="true" tabindex="-1"></a>      &lt;<span class="kw">failure</span> <span class="ot">message=</span><span class="st">&quot;Assertion failed&quot;</span> <span class="ot">type=</span><span class="st">&quot;TestFailure&quot;</span>&gt;</span>
+<span id="cb130-7"><a href="#cb130-7" aria-hidden="true" tabindex="-1"></a>        AssertionError: test failed</span>
+<span id="cb130-8"><a href="#cb130-8" aria-hidden="true" tabindex="-1"></a>      &lt;/<span class="kw">failure</span>&gt;</span>
+<span id="cb130-9"><a href="#cb130-9" aria-hidden="true" tabindex="-1"></a>    &lt;/<span class="kw">testcase</span>&gt;</span>
+<span id="cb130-10"><a href="#cb130-10" aria-hidden="true" tabindex="-1"></a>  &lt;/<span class="kw">testsuite</span>&gt;</span>
+<span id="cb130-11"><a href="#cb130-11" aria-hidden="true" tabindex="-1"></a>&lt;/<span class="kw">testsuites</span>&gt;</span></code></pre></div>
 <h3 id="test-fixtures">Test Fixtures</h3>
 <p>T doesn’t have a dedicated
 <code>before_each</code>/<code>after_each</code> fixture mechanism
@@ -4315,7 +4452,7 @@ node.descendants          -- all transitive dependents, nearest-first, de-duplic
 
 -- Computed pipeline nodes (R, Python, Julia) carry build-time metadata:
 node = explain(p.fit)
-node.foreign_meta.kind        -- value kind: &quot;dataframe&quot;, &quot;matrix&quot;, &quot;vector&quot;, &quot;array&quot;, &quot;factor&quot;, &quot;series&quot;, &quot;table&quot;, &quot;model&quot;, &quot;test&quot;, &quot;data&quot;, &quot;transformer&quot;, &quot;distribution&quot;, &quot;other&quot;, or &quot;unknown&quot;
+node.foreign_meta.kind        -- value kind: &quot;dataframe&quot;, &quot;matrix&quot;, &quot;vector&quot;, &quot;array&quot;, &quot;factor&quot;, &quot;series&quot;, &quot;table&quot;, &quot;model&quot;, &quot;test&quot;, &quot;data&quot;, &quot;transformer&quot;, &quot;distribution&quot;, &quot;forecast&quot;, &quot;chain&quot;, &quot;dist&quot;, &quot;graph&quot;, &quot;dataset&quot;, &quot;image&quot;, &quot;optimization&quot;, &quot;ode&quot;, &quot;other&quot;, or &quot;unknown&quot;
 node.foreign_meta.class        -- runtime type name, e.g. &quot;lm&quot;, &quot;DataFrame&quot;, &quot;ARIMA&quot;
 node.foreign_meta.task         -- model task when known: &quot;regression&quot;, &quot;classification&quot;, &quot;clustering&quot;, &quot;time_series&quot;, &quot;dim_reduction&quot;, &quot;density&quot;, &quot;anomaly_detection&quot;, &quot;ranking&quot;, or &quot;survival&quot;
 node.foreign_meta.dimensions  -- shape as int list, e.g. [32, 11] for frames, [4, 3] for matrices, [3] for vectors
@@ -4326,22 +4463,38 @@ node.foreign_meta.n_features  -- input count (models)
 node.foreign_meta.n_trees     -- tree count (forests, when known)
 node.foreign_meta.n_rounds    -- boosting rounds (boosted trees, when known)
 node.foreign_meta.n_clusters  -- cluster count (clustering, when known)
-node.foreign_meta.n_nodes      -- tree node count (`rpart`, when known)
-node.foreign_meta.n_components -- component count (PCA, when known)
+node.foreign_meta.n_nodes      -- tree node count (`rpart`, `party::BinaryTree`, `partykit::ctree`, when known)
+node.foreign_meta.n_edges      -- edge count (igraph / networkx / Graphs.jl graphs, when known)
+node.foreign_meta.n_components -- component count (PCA, ICA, FactorAnalysis, LDA, when known)
+node.foreign_meta.n_params     -- total parameter count (torch/keras/Flux/HuggingFace models, MCMC variables, GARCH estimates, when known)
+node.foreign_meta.n_layers    -- layer count (torch leaf layers, keras/Flux models, when known)
+node.foreign_meta.n_chains    -- MCMC chain count (Julia `Chains`, coda `mcmc.list`, when known)
+node.foreign_meta.n_draws     -- draws per chain (Julia `Chains`, coda `mcmc`, when known)
+node.foreign_meta.n_lambda    -- lambda count (`glmnet` fits, when known)
+node.foreign_meta.n_equations -- endogenous series count (VAR/VECM, when known)
 node.foreign_meta.dtype        -- element type, e.g. &quot;float64&quot; (arrays, when known)
-node.foreign_meta.n_levels     -- level count with levels list (R factors)
-node.foreign_meta.start        -- series start, e.g. &quot;1949-1&quot; (R ts)
-node.foreign_meta.end          -- series end, e.g. &quot;1960-12&quot; (R ts)
-node.foreign_meta.method      -- algorithm variant: hclust linkage, or the test name for `htest` results
+node.foreign_meta.n_levels     -- level count with levels list (R factors, Julia `CategoricalArray`)
+node.foreign_meta.start        -- series start, e.g. &quot;1949-1&quot; (R ts, zoo/xts)
+node.foreign_meta.end          -- series end, e.g. &quot;1960-12&quot; (R ts, zoo/xts)
+node.foreign_meta.method      -- algorithm variant: hclust linkage, ETS letters, VAR/boosting loss names, or the test name for `htest` results
 node.foreign_meta.target      -- response name (models, when known)
 node.foreign_meta.formula     -- full model formula (R models, when known)
 node.foreign_meta.order       -- [p, d, q] (time-series models, when known)
 node.foreign_meta.seasonal_order -- [P, D, Q, m] (seasonal models, when known)
+node.foreign_meta.seasonal_period -- seasonal period list (`ets`, `bats`/`tbats`, `nnetar`, `prophet`, when known)
+node.foreign_meta.horizon     -- forecast horizon (forecast results, fable tables, sktime/statsforecast forecasters, when known)
+node.foreign_meta.changepoints -- changepoint count (prophet, when known)
 node.foreign_meta.features    -- full feature/column list (first 500 entries; `n_features` stays exact)
-node.foreign_meta.metrics     -- free numeric metrics (r_squared, aic, bic, ...); numbers only, other values are dropped
+node.foreign_meta.metrics     -- free numeric metrics (r_squared, aic, bic, loglik, ...); numbers only, other values are dropped
 node.foreign_meta.artifact_size -- artifact file size in bytes
 
-Time-series decompositions (`stl`) report component names as features and the seasonal period. Autocorrelation objects (`acf`) report the correlation type and series name; smoothing splines (`smooth.spline`) report penalty and degrees of freedom; empirical distributions (`ecdf`) report observation counts. Survival models (`coxph`) report event counts and concordance; Kaplan-Meier fits (`survfit`) report per-stratum counts. Trees (`rpart`) report node counts and split variables, with the task read from the fit method. Density estimates report bandwidth. `Logit`/`Probit` results report a classification task from the model class. Multinomial logits report predictor names (not outcome labels) and `PHReg` reports survival tasks. Rankers report boosting rounds. Frozen scipy distributions report the distribution name and moments; scipy test results report statistic and p-value. Contingency tables, `nnet` classifiers/regressors, `pam`/`agnes`/`diana` clusterings, `VAR` lag order, and Poisson/Gamma tasks report per-family facts. R factors report levels; R `ts` objects report series start/end. Pyarrow tables read as dataframes; native `DMatrix`/`Dataset` objects read as data inputs. Pure transformers report `transformer` kind (detected via sklearn ≥ 1.6 tags; older versions report `model`); calibrated and multioutput wrappers report inner-estimator facts; Julia time arrays report `series` kind with timestamps counted as observations. Boosting rounds count training rounds (`current_iteration`, falling back to trees per iteration); R `rpart` variables are de-duplicated split variables with the task read from the fit method.
+Time-series decompositions (`stl`) report component names as features and the seasonal period. Autocorrelation objects (`acf`) report the correlation type and series name; smoothing splines (`smooth.spline`) report penalty and degrees of freedom; empirical distributions (`ecdf`) report observation counts. Survival models (`coxph`, `survreg`) report event/observation counts and concordance/distribution; Kaplan-Meier fits (`survfit`) report per-stratum counts. Trees (`rpart`, `party::BinaryTree`, `partykit::ctree`) report node counts and split variables, with the task read from the fit method or response type. Density estimates report bandwidth. `Logit`/`Probit` results report a classification task from the model class. Multinomial logits report predictor names (not outcome labels) and `PHReg` reports survival tasks. Rankers report boosting rounds. Frozen scipy distributions and Julia `Distributions` values report `distribution` kind with the distribution name and moments; scipy test results report statistic and p-value. Contingency tables, `nnet` classifiers/regressors, `pam`/`agnes`/`diana` clusterings, and Poisson/Gamma tasks report per-family facts. R factors and Julia `CategoricalArray` values report `factor` kind and levels; R `ts` and `zoo`/`xts` objects report `series` kind with start/end. Pyarrow tables, polars `LazyFrame` schemas, and dask frames read as `dataframe`; native `DMatrix`/`Dataset` objects read as data inputs. Pure transformers report `transformer` kind (including sklearn ≥ 1.6 tags and HuggingFace tokenizers/pipelines); calibrated and multioutput wrappers report inner-estimator facts; Julia time arrays report `series` kind with timestamps counted as observations. Boosting rounds count training rounds (`current_iteration`, falling back to trees per iteration); R `rpart` variables are de-duplicated split variables with the task read from the fit method.
+
+Time-series and forecasting families: R `forecast`-package `ets` (ETS letters, seasonal period, AIC/BIC/sigma2), `bats`/`tbats` (multiple seasonal periods), `nnetar` (hidden units, repeats), `forecast(...)` result objects (`forecast` kind with method, horizon, and first interval level), tidyverts `fable` forecast tables (`forecast` kind with horizon and model types) and `mable` (`mdl_df`/`model_df` model column names), `smooth` package (orders, AIC/BIC), `dlmFiltered` (observation counts), `prophet` (changepoint count, seasonality names), tseries `garch` (GARCH order in `method`), rugarch `uGARCHfit` (variance-model name with order, parameter count, loglik/AIC/BIC), and vars `varest`/`vec2var` (lag order, equation count). Python `pmdarima` ARIMA (order, seasonal order, wrapped-result criteria), `tbats` (seasonal periods), `skforecast` (lag order), `sktime`/`statsforecast` forecasters (fitted horizon), `darts` models (`input_chunk_length`/`output_chunk_length` in metrics), `neuralprophet` (parameter counts), and statsmodels `VECM`/Markov-regime results (`time_series` with lag order, factor counts, regime counts). Julia `ARCHModels` fits report volatility spec names.
+
+Smooth, mixed, regularized, and ML models: R `mgcv::gam`/`bam` (smooth-term counts, `s(wt)` coefficient names, `edf`/`r_squared`), nlme `lme`/`gls` (group counts, loglik/AIC/BIC), `plm`, `rq` (tau), `betareg` (precision `phi`, pseudo R-squared), `zeroinfl`/`hurdle`, ordinal `clm`/`clmm` (link), VGAM `vglm` (family name and task), `glmnet`/`cv.glmnet` (task, features, lambda count, deviance ratio, `lambda_min`/`lambda_1se`), `ranger` (tree/feature/sample counts, task, OOB error), `catboost.Model` (loss name, trees, features), `caret::train` (model name, task, best resampling metrics including `r_squared`), `parsnip` `model_fit` and `workflows::workflow` (engine and mode from the spec), `e1071::svm` (kernel, support vectors), `kernlab::ksvm` (type and kernel in `method`, support vectors), `gbm` (distribution task, trees, shrinkage), `C5.0` (trials), `earth` (rsq/grsq), `pls::mvr` (components), and `neuralnet` (error, steps). Python `scikit-learn`/`imblearn`, `catboost`, `pyspark.ml`, and `tslearn` estimators report task, trees/clusters, and fit facts. Deep learning: Python `torch`/`keras`, HuggingFace `transformers` models, R6 `keras`/`torch` modules, and Julia `Flux` report total `n_params` and `n_layers` (keras also reports optimizer class). Julia `MLJ` machines report model name and task; `XGBoost.jl` boosters report `best_iteration`.
+
+Clustering, ordination, tests, chains, and scientific structures: R `Mclust` (G, model name, BIC), `dbscan` (clusters excluding noise, eps, minPts), `clara`/`fanny` (cluster sizes, silhouette), `mixEM` (components, loglik), FactoMineR `PCA`/`MCA`/`FAMD`/`CA` (dimensions, first-axis variance as 0–1 fraction), `psych` `fa`/`principal` (factor count, rotation, RMSEA), `urca` `ur.df`/`ur.kpss`/`ca.jo` (`test` kind), `coda` `mcmc`/`mcmc.list` (`chain` kind), `lavaan` SEM fits (method, parameter/observation counts, chi-square/p-value/CFI/RMSEA), `dist` objects (`dist` kind), sparse `Matrix` objects (nnz), `igraph` networks (`graph` kind with `n_nodes`/`n_edges`), and `Seurat` objects (`dataset` kind with cell, gene, active-assay counts). Python `gensim` `LdaModel`/`Word2Vec` (topics/vocab), `xarray` `Dataset` (`dataset` kind), `PIL` images (`image` kind with dimensions and pixel mode), and `networkx` graphs (`graph` kind). Julia `Clustering.jl` `CmeansResult`/`DbscanResult`/`KmedoidsResult` (cluster facts; DBSCAN includes noise in `n_obs` via `assignments`), `MultivariateStats` `ICA`/`FactorAnalysis`/`PPCA`/`KernelPCA`/`MulticlassLDA` (`dim_reduction` with component/class counts and 0–1 `var_first`), `MCMCChains` `Chains` (`chain` kind with `n_draws`/`n_params`/`n_chains`), `Graphs.jl` networks (`graph` kind), `JuMP` `Model` (`optimization` kind with variable/constraint counts), `SciML` `ODEProblem`/`ODESolution` (`ode` kind with time-span and return code), and `GaussianMixtures` `GMM` (`density` with component counts).
 
 Julia note: fit-metric verbs (`nobs`, `coefnames`, `r2`, `aic`,
 `deviance`, `loglikelihood`) resolve from whatever the node session

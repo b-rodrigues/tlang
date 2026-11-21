@@ -1,5 +1,12 @@
 
-let run_tests pass_count fail_count _failures _eval_string eval_string_env test =
+let run_tests pass_count fail_count failures _eval_string eval_string_env test =
+  let record_failure fmt =
+    Printf.ksprintf (fun msg ->
+      incr fail_count;
+      failures := msg :: !failures;
+      Printf.printf "%s" msg
+    ) fmt
+  in
   let strip_location s =
     let re = Str.regexp "\\[[^]]*L[0-9]+:C[0-9]+\\] " in
     Str.global_replace re "" s
@@ -118,21 +125,21 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   if Test_helpers.contains result "not been built yet" then begin
     incr pass_count; Printf.printf "  SUCCESS pipeline node access via dot (x) returns FileError for unbuilt pipeline\n"
   end else begin
-    incr fail_count; Printf.printf "  FAILURE pipeline node access via dot (x)\n    Expected: FileError with 'not been built yet'\n    Got: %s\n" result
+    record_failure "  FAILURE pipeline node access via dot (x)\n    Expected: FileError with 'not been built yet'\n    Got: %s\n" result
   end;
   let (v, _) = eval_string_env "read_node(p.total)" env_p3 in
   let result = Ast.Utils.value_to_string v in
   if Test_helpers.contains result "not been built yet" then begin
     incr pass_count; Printf.printf "  SUCCESS pipeline node access via dot (total) returns FileError for unbuilt pipeline\n"
   end else begin
-    incr fail_count; Printf.printf "  FAILURE pipeline node access via dot (total)\n    Expected: FileError with 'not been built yet'\n    Got: %s\n" result
+    record_failure "  FAILURE pipeline node access via dot (total)\n    Expected: FileError with 'not been built yet'\n    Got: %s\n" result
   end;
   let (v, _) = eval_string_env "p.nonexistent" env_p3 in
   let result = strip_location (Ast.Utils.value_to_string v) in
   if result = {|Error(KeyError: "Node `nonexistent` not found in Pipeline.")|} then begin
     incr pass_count; Printf.printf "  SUCCESS missing pipeline node returns error\n"
   end else begin
-    incr fail_count; Printf.printf "  FAILURE missing pipeline node returns error\n    Expected: Error(KeyError: ...)\n    Got: %s\n" result
+    record_failure "  FAILURE missing pipeline node returns error\n    Expected: Error(KeyError: ...)\n    Got: %s\n" result
   end;
   print_newline ();
 
@@ -169,9 +176,9 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
        if has "x = 1" && has "x + 1" && not (has "100 + 1") then
          begin incr pass_count; Printf.printf "  SUCCESS block-local assignment shadows outer env var\n" end
        else
-         begin incr fail_count; Printf.printf "  FAILURE block shadowing leaked outer value into node script\n" end
+         begin record_failure "  FAILURE block shadowing leaked outer value into node script\n" end
    | other ->
-       incr fail_count; Printf.printf "  FAILURE block shadowing fixture failed: %s\n"
+       record_failure "  FAILURE block shadowing fixture failed: %s\n"
          (Ast.Utils.value_to_string other));
   (* Outer data inlines as a frozen literal; outer lambdas stay symbolic
      (share code via functions, not bare references). *)
@@ -187,9 +194,9 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
        if has "(41 + 1)" then
          begin incr pass_count; Printf.printf "  SUCCESS outer data inlines as frozen literal\n" end
        else
-         begin incr fail_count; Printf.printf "  FAILURE outer data not inlined\n" end
+         begin record_failure "  FAILURE outer data not inlined\n" end
    | other ->
-       incr fail_count; Printf.printf "  FAILURE frozen fixture failed: %s\n"
+       record_failure "  FAILURE frozen fixture failed: %s\n"
          (Ast.Utils.value_to_string other));
   let (_, env_lam) = eval_string_env "f = \\(n: Int -> Int) n + 1" (Packages.init_env ()) in
   let (v_lam, _) = eval_string_env
@@ -203,9 +210,9 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
        if has "f(41)" && not (has "n + 1") then
          begin incr pass_count; Printf.printf "  SUCCESS outer lambda stays symbolic\n" end
        else
-         begin incr fail_count; Printf.printf "  FAILURE outer lambda not symbolic\n" end
+         begin record_failure "  FAILURE outer lambda not symbolic\n" end
    | other ->
-       incr fail_count; Printf.printf "  FAILURE lambda fixture failed: %s\n"
+       record_failure "  FAILURE lambda fixture failed: %s\n"
          (Ast.Utils.value_to_string other));
   print_newline ();
   (* Reassigning a captured outer variable is rejected at construction: the
@@ -219,7 +226,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
                          with Not_found -> false) ->
        incr pass_count; Printf.printf "  SUCCESS reassigning a captured outer variable is rejected\n"
    | other ->
-       incr fail_count; Printf.printf "  FAILURE captured-outer reassignment not rejected: %s\n"
+       record_failure "  FAILURE captured-outer reassignment not rejected: %s\n"
          (Ast.Utils.value_to_string other));
   (* Quoted code is exempt: it runs later, at runtime, so reassigning inside
      to_expr must not fail construction (variable_vice_t pattern). *)
@@ -230,7 +237,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
    | Ast.VPipeline _ ->
        incr pass_count; Printf.printf "  SUCCESS reassignment inside to_expr passes construction\n"
    | other ->
-       incr fail_count; Printf.printf "  FAILURE quoted reassignment wrongly rejected: %s\n"
+       record_failure "  FAILURE quoted reassignment wrongly rejected: %s\n"
          (Ast.Utils.value_to_string other));
   (* Builtins are exempt: runtime owns the reserved-keyword error. *)
   let (v_builtin, _) = eval_string_env
@@ -240,7 +247,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
    | Ast.VPipeline _ ->
        incr pass_count; Printf.printf "  SUCCESS builtin reassignment passes construction\n"
    | other ->
-       incr fail_count; Printf.printf "  FAILURE builtin reassignment wrongly rejected: %s\n"
+       record_failure "  FAILURE builtin reassignment wrongly rejected: %s\n"
          (Ast.Utils.value_to_string other));
   (* PMML helper jars come from the t-lang output, never from an eval-time
      `builtins.pathExists` probe: that probe realises t-lang during evaluation
@@ -259,9 +266,9 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
           && has "pmmlJarToolNames = [ \"jpmml-statsmodels\" \"jpmml-evaluator\" ];"
           && has "!(builtins.elem p pmmlJarToolNames)"
        then begin incr pass_count; Printf.printf "  SUCCESS PMML jars come from t-lang with no eval-time probe\n" end
-       else begin incr fail_count; Printf.printf "  FAILURE PMML jar emission changed\n" end
+       else begin record_failure "  FAILURE PMML jar emission changed\n" end
    | other ->
-       incr fail_count; Printf.printf "  FAILURE pmml fixture failed: %s\n"
+       record_failure "  FAILURE pmml fixture failed: %s\n"
          (Ast.Utils.value_to_string other));
   (* Reassignment of a block-local name is fine and stays local. The sentinel
      outer binding proves no leakage: shadowing (x = 1) plus reassignment
@@ -279,9 +286,9 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
        if has "{ x = 1; x := (x + 1); x }" && not (has "424242") then
          begin incr pass_count; Printf.printf "  SUCCESS block-local reassignment stays local\n" end
        else
-         begin incr fail_count; Printf.printf "  FAILURE block-local reassignment script unexpected\n" end
+         begin record_failure "  FAILURE block-local reassignment script unexpected\n" end
    | other ->
-       incr fail_count; Printf.printf "  FAILURE block-local reassignment fixture failed: %s\n"
+       record_failure "  FAILURE block-local reassignment fixture failed: %s\n"
          (Ast.Utils.value_to_string other));
   print_newline ();
 
@@ -291,7 +298,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   if result = {|["x", "y", "total"]|} then begin
     incr pass_count; Printf.printf "  SUCCESS pipeline_nodes() lists all nodes\n"
   end else begin
-    incr fail_count; Printf.printf "  FAILURE pipeline_nodes() lists all nodes\n    Expected: [\"x\", \"y\", \"total\"]\n    Got: %s\n" result
+    record_failure "  FAILURE pipeline_nodes() lists all nodes\n    Expected: [\"x\", \"y\", \"total\"]\n    Got: %s\n" result
   end;
 
   let (v, _) = eval_string_env {|pipeline_node(p, "total")|} env_p3 in
@@ -299,7 +306,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   if Test_helpers.contains result "computed_node" then begin
     incr pass_count; Printf.printf "  SUCCESS pipeline_node() returns ComputedNode for unbuilt pipeline\n"
   end else begin
-    incr fail_count; Printf.printf "  FAILURE pipeline_node() returns ComputedNode for unbuilt pipeline\n    Expected: computed_node\n    Got: %s\n" result
+    record_failure "  FAILURE pipeline_node() returns ComputedNode for unbuilt pipeline\n    Expected: computed_node\n    Got: %s\n" result
   end;
 
   let (v, _) = eval_string_env "pipeline_deps(p)" env_p3 in
@@ -307,7 +314,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   if result = {|{`x`: [], `y`: [], `total`: ["x", "y"]}|} then begin
     incr pass_count; Printf.printf "  SUCCESS pipeline_deps() returns dependency graph\n"
   end else begin
-    incr fail_count; Printf.printf "  FAILURE pipeline_deps() returns dependency graph\n    Expected: {`x`: [], `y`: [], `total`: [\"x\", \"y\"]}\n    Got: %s\n" result
+    record_failure "  FAILURE pipeline_deps() returns dependency graph\n    Expected: {`x`: [], `y`: [], `total`: [\"x\", \"y\"]}\n    Got: %s\n" result
   end;
 
   test "pipeline_nodes on non-pipeline"
@@ -350,7 +357,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   if Test_helpers.contains result4 "has not been built yet" then begin
     incr pass_count; Printf.printf "  SUCCESS lens set (existing node) marks node as unbuilt for read_node\n"
   end else begin
-    incr fail_count; Printf.printf "  FAILURE lens set (existing node) marks node as unbuilt\n    Got: %s\n" result4
+    record_failure "  FAILURE lens set (existing node) marks node as unbuilt\n    Got: %s\n" result4
   end;
   let (v5, _) = eval_string_env
     {|p = pipeline { x = 1 }; p2 = set(p, node_lens("y"), 99); read_node(p2.y)|}
@@ -359,7 +366,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   if Test_helpers.contains result5 "has not been built yet" then begin
     incr pass_count; Printf.printf "  SUCCESS lens set (new node) marks node as unbuilt for read_node\n"
   end else begin
-    incr fail_count; Printf.printf "  FAILURE lens set (new node) marks node as unbuilt\n    Got: %s\n" result5
+    record_failure "  FAILURE lens set (new node) marks node as unbuilt\n    Got: %s\n" result5
   end;
 
   test "get_pipeline_member: dot-access on unbuilt node returns unresolved computed_node"
@@ -374,7 +381,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   if Test_helpers.contains result "a" && Test_helpers.contains result ".drv" then begin
     incr pass_count; Printf.printf "  SUCCESS pipeline_to_drv() returns dictionary of drv paths\n"
   end else begin
-    incr fail_count; Printf.printf "  FAILURE pipeline_to_drv() returns dictionary of drv paths\n    Got: %s\n" result
+    record_failure "  FAILURE pipeline_to_drv() returns dictionary of drv paths\n    Got: %s\n" result
   end;
 
   test "pipeline_to_drv on non-pipeline"
@@ -386,7 +393,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   if Test_helpers.contains result_store "a" && Test_helpers.contains result_store "/nix/store/" then begin
     incr pass_count; Printf.printf "  SUCCESS pipeline_to_store() returns dictionary of store paths\n"
   end else begin
-    incr fail_count; Printf.printf "  FAILURE pipeline_to_store() returns dictionary of store paths\n    Got: %s\n" result_store
+    record_failure "  FAILURE pipeline_to_store() returns dictionary of store paths\n    Got: %s\n" result_store
   end;
 
   test "pipeline_to_store on non-pipeline"
@@ -411,7 +418,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   if Test_helpers.contains result_override "Pipeline populated in" then begin
     incr pass_count; Printf.printf "  SUCCESS dry_run call-site false overrides global dry_run true default\n"
   end else begin
-    incr fail_count; Printf.printf "  FAILURE dry_run call-site false overrides global dry_run true default\n    Got: %s\n" result_override
+    record_failure "  FAILURE dry_run call-site false overrides global dry_run true default\n    Got: %s\n" result_override
   end;
   Builder_utils.global_nix_defaults := Builder_utils.default_nix_opts;
 
@@ -420,7 +427,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   if Test_helpers.contains result_cache "node" && Test_helpers.contains result_cache "cached" && Test_helpers.contains result_cache "store_path" then begin
     incr pass_count; Printf.printf "  SUCCESS pipeline_cache_status() returns DataFrame with correct columns\n"
   end else begin
-    incr fail_count; Printf.printf "  FAILURE pipeline_cache_status() returns DataFrame with correct columns\n    Got: %s\n" result_cache
+    record_failure "  FAILURE pipeline_cache_status() returns DataFrame with correct columns\n    Got: %s\n" result_cache
   end;
 
   test "pipeline_cache_status on non-pipeline"
@@ -452,7 +459,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   if Test_helpers.contains result_gc "node" && Test_helpers.contains result_gc "store_path" && Test_helpers.contains result_gc "deleted" then begin
     incr pass_count; Printf.printf "  SUCCESS pipeline_gc() returns DataFrame with correct columns\n"
   end else begin
-    incr fail_count; Printf.printf "  FAILURE pipeline_gc() returns DataFrame with correct columns\n    Got: %s\n" result_gc
+    record_failure "  FAILURE pipeline_gc() returns DataFrame with correct columns\n    Got: %s\n" result_gc
   end;
 
   test "pipeline_gc on non-pipeline"
@@ -509,7 +516,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   if result = "Pipeline(3 nodes: [x, y, total])" then begin
     incr pass_count; Printf.printf "  SUCCESS pipeline_run() re-runs and returns same result\n"
   end else begin
-    incr fail_count; Printf.printf "  FAILURE pipeline_run() re-runs and returns same result\n    Expected: Pipeline(3 nodes: [x, y, total])\n    Got: %s\n" result
+    record_failure "  FAILURE pipeline_run() re-runs and returns same result\n    Expected: Pipeline(3 nodes: [x, y, total])\n    Got: %s\n" result
   end;
 
   (* Re-run produces same node values *)
@@ -518,7 +525,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   if Test_helpers.contains result "not been built yet" then begin
     incr pass_count; Printf.printf "  SUCCESS re-run returns FileError for unbuilt pipeline\n"
   end else begin
-    incr fail_count; Printf.printf "  FAILURE re-run returns FileError for unbuilt pipeline\n    Expected: FileError with 'not been built yet'\n    Got: %s\n" result
+    record_failure "  FAILURE re-run returns FileError for unbuilt pipeline\n    Expected: FileError with 'not been built yet'\n    Got: %s\n" result
   end;
 
   test "pipeline_run on non-pipeline"
@@ -537,7 +544,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   if verbose_args_ok then begin
     incr pass_count; Printf.printf "  SUCCESS nix verbosity args are derived correctly\n"
   end else begin
-    incr fail_count; Printf.printf "  FAILURE nix verbosity args are derived correctly\n"
+    record_failure "  FAILURE nix verbosity args are derived correctly\n"
   end;
   let source_fields_ok =
     let raw_expr = Ast.mk_expr (Ast.RawCode { raw_text = "df <- read.csv(\"a.csv\")\nprint(df)"; raw_identifiers = [] }) in
@@ -570,7 +577,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   if source_fields_ok then begin
     incr pass_count; Printf.printf "  SUCCESS build log source fields record raw code verbatim and script paths\n"
   end else begin
-    incr fail_count; Printf.printf "  FAILURE build log source fields record raw code verbatim and script paths\n"
+    record_failure "  FAILURE build log source fields record raw code verbatim and script paths\n"
   end;
   (* Script hash covers drift checks; opt-out drops embedded source. *)
   let rm_rf dir =
@@ -627,7 +634,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   if source_hash_opt_out_ok then begin
     incr pass_count; Printf.printf "  SUCCESS build log script hash and source opt-out work\n"
   end else begin
-    incr fail_count; Printf.printf "  FAILURE build log script hash and source opt-out work\n"
+    record_failure "  FAILURE build log script hash and source opt-out work\n"
   end;
   (* Flag reader: missing file records, explicit false opts out, wrong
      types fail closed with a warning instead of recording. *)
@@ -669,7 +676,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   if recording_flag_ok then begin
     incr pass_count; Printf.printf "  SUCCESS source recording flag fails closed\n"
   end else begin
-    incr fail_count; Printf.printf "  FAILURE source recording flag fails closed\n"
+    record_failure "  FAILURE source recording flag fails closed\n"
   end;
   (* Integration: fields drawn from a real evaluated pipeline, as
      save_build_log sees them. Pure-T nodes only: foreign nodes would
@@ -700,7 +707,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   if source_fields_live_ok then begin
     incr pass_count; Printf.printf "  SUCCESS build log source fields work on evaluated pipelines\n"
   end else begin
-    incr fail_count; Printf.printf "  FAILURE build log source fields work on evaluated pipelines\n"
+    record_failure "  FAILURE build log source fields work on evaluated pipelines\n"
   end;
   (* The written entry JSON carries the source fields: dropping them from
      the entry renderer is the most likely regression. *)
@@ -732,7 +739,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   if log_entry_ok then begin
     incr pass_count; Printf.printf "  SUCCESS build log entries carry source and script fields\n"
   end else begin
-    incr fail_count; Printf.printf "  FAILURE build log entries carry source and script fields\n"
+    record_failure "  FAILURE build log entries carry source and script fields\n"
   end;
   (* Clean up any stale logs from previous runs to avoid picking up mock logs *)
   let _ = try
@@ -774,7 +781,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   if t_make_verbose_ok then begin
     incr pass_count; Printf.printf "  SUCCESS t_make accepts verbose option\n"
   end else begin
-    incr fail_count; Printf.printf "  FAILURE t_make accepts verbose option\n"
+    record_failure "  FAILURE t_make accepts verbose option\n"
   end;
   test "t_make rejects non-int verbose"
     "error_code(t_make(verbose=\"loud\")) == \"TypeError\""
@@ -871,7 +878,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   if t_make_nix_options_builders_invalid then begin
     incr pass_count; Printf.printf "  SUCCESS t_make rejects non-string builders inside nix_options\n"
   end else begin
-    incr fail_count; Printf.printf "  FAILURE t_make rejects non-string builders inside nix_options\n"
+    record_failure "  FAILURE t_make rejects non-string builders inside nix_options\n"
   end;
 
   let t_make_nix_options_sandbox_invalid =
@@ -886,7 +893,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   if t_make_nix_options_sandbox_invalid then begin
     incr pass_count; Printf.printf "  SUCCESS t_make rejects invalid sandbox inside nix_options\n"
   end else begin
-    incr fail_count; Printf.printf "  FAILURE t_make rejects invalid sandbox inside nix_options\n"
+    record_failure "  FAILURE t_make rejects invalid sandbox inside nix_options\n"
   end;
 
   let t_make_nix_options_ok =
@@ -900,7 +907,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   if t_make_nix_options_ok then begin
     incr pass_count; Printf.printf "  SUCCESS t_make accepts nix_options dictionary\n"
   end else begin
-    incr fail_count; Printf.printf "  FAILURE t_make accepts nix_options dictionary\n"
+    record_failure "  FAILURE t_make accepts nix_options dictionary\n"
   end;
 
   let t_make_nix_options_invalid =
@@ -915,7 +922,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   if t_make_nix_options_invalid then begin
     incr pass_count; Printf.printf "  SUCCESS t_make rejects non-dict nix_options\n"
   end else begin
-    incr fail_count; Printf.printf "  FAILURE t_make rejects non-dict nix_options\n"
+    record_failure "  FAILURE t_make rejects non-dict nix_options\n"
   end;
 
   let t_make_requires_pipeline_action =
@@ -931,7 +938,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   if t_make_requires_pipeline_action then begin
     incr pass_count; Printf.printf "  SUCCESS t_make requires an explicit populate or build call in src/pipeline.t\n"
   end else begin
-    incr fail_count; Printf.printf "  FAILURE t_make requires an explicit populate or build call in src/pipeline.t\n"
+    record_failure "  FAILURE t_make requires an explicit populate or build call in src/pipeline.t\n"
   end;
   let t_make_warns_on_populate_without_build =
     with_temp_pipeline_project
@@ -948,7 +955,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   if t_make_warns_on_populate_without_build then begin
     incr pass_count; Printf.printf "  SUCCESS t_make warns when src/pipeline.t only populates the pipeline\n"
   end else begin
-    incr fail_count; Printf.printf "  FAILURE t_make warns when src/pipeline.t only populates the pipeline\n"
+    record_failure "  FAILURE t_make warns when src/pipeline.t only populates the pipeline\n"
   end;
   let t_make_warns_on_populate_build_unknown =
     with_temp_pipeline_project
@@ -966,7 +973,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   if t_make_warns_on_populate_build_unknown then begin
     incr pass_count; Printf.printf "  SUCCESS t_make warns when src/pipeline.t has ambiguous build intent\n"
   end else begin
-    incr fail_count; Printf.printf "  FAILURE t_make warns when src/pipeline.t has ambiguous build intent\n"
+    record_failure "  FAILURE t_make warns when src/pipeline.t has ambiguous build intent\n"
   end;
   let pipeline_entry_detection_ok =
     Pipeline_script.is_pipeline_entry_file "src/pipeline.t"
@@ -980,7 +987,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   if pipeline_entry_detection_ok then begin
     incr pass_count; Printf.printf "  SUCCESS pipeline entry detection only accepts project-relative src/pipeline.t\n"
   end else begin
-    incr fail_count; Printf.printf "  FAILURE pipeline entry detection only accepts project-relative src/pipeline.t\n"
+    record_failure "  FAILURE pipeline entry detection only accepts project-relative src/pipeline.t\n"
   end;
   let t_make_relative_filename_ok =
     with_temp_pipeline_project
@@ -993,7 +1000,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   if t_make_relative_filename_ok then begin
     incr pass_count; Printf.printf "  SUCCESS t_make accepts normalized relative src/pipeline.t paths\n"
   end else begin
-    incr fail_count; Printf.printf "  FAILURE t_make accepts normalized relative src/pipeline.t paths\n"
+    record_failure "  FAILURE t_make accepts normalized relative src/pipeline.t paths\n"
   end;
   let t_make_absolute_filename_rejected =
     with_temp_pipeline_project
@@ -1007,7 +1014,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   if t_make_absolute_filename_rejected then begin
     incr pass_count; Printf.printf "  SUCCESS t_make rejects absolute pipeline entry filenames\n"
   end else begin
-    incr fail_count; Printf.printf "  FAILURE t_make rejects absolute pipeline entry filenames\n"
+    record_failure "  FAILURE t_make rejects absolute pipeline entry filenames\n"
   end;
   let t_make_reloads_pipeline_script =
     with_temp_pipeline_project
@@ -1039,7 +1046,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   if t_make_reloads_pipeline_script then begin
     incr pass_count; Printf.printf "  SUCCESS t_make reloads src/pipeline.t in the same environment\n"
   end else begin
-    incr fail_count; Printf.printf "  FAILURE t_make reloads src/pipeline.t in the same environment\n"
+    record_failure "  FAILURE t_make reloads src/pipeline.t in the same environment\n"
   end;
   print_newline ();
 
@@ -1478,7 +1485,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   if Test_helpers.contains result "not been built yet" then begin
     incr pass_count; Printf.printf "  SUCCESS pipeline with DataFrame nrow returns FileError for unbuilt pipeline\n"
   end else begin
-    incr fail_count; Printf.printf "  FAILURE pipeline with DataFrame nrow\n    Expected: FileError with 'not been built yet'\n    Got: %s\n" result
+    record_failure "  FAILURE pipeline with DataFrame nrow\n    Expected: FileError with 'not been built yet'\n    Got: %s\n" result
   end;
 
   let (v, _) = eval_string_env "read_node(p.cols)" env_p3_df in
@@ -1486,7 +1493,7 @@ let run_tests pass_count fail_count _failures _eval_string eval_string_env test 
   if Test_helpers.contains result "not been built yet" then begin
     incr pass_count; Printf.printf "  SUCCESS pipeline with DataFrame ncol returns FileError for unbuilt pipeline\n"
   end else begin
-    incr fail_count; Printf.printf "  FAILURE pipeline with DataFrame ncol\n    Expected: FileError with 'not been built yet'\n    Got: %s\n" result
+    record_failure "  FAILURE pipeline with DataFrame ncol\n    Expected: FileError with 'not been built yet'\n    Got: %s\n" result
   end;
   (try Sys.remove csv_p3 with _ -> ());
   print_newline ();
@@ -1505,7 +1512,7 @@ p_cross = pipeline {
   if cross_nodes = "[\"a\", \"b\", \"c\"]" then begin
     incr pass_count; Printf.printf "  SUCCESS pipeline implicit and explicit nodes parsed\n"
   end else begin
-    incr fail_count; Printf.printf "  FAILURE pipeline explicit nodes failed\n    Got: %s\n" cross_nodes
+    record_failure "  FAILURE pipeline explicit nodes failed\n    Got: %s\n" cross_nodes
   end;
 
   (* Verify that explain indicates the different nodes *)
@@ -1513,7 +1520,7 @@ p_cross = pipeline {
   if Ast.Utils.value_to_string v_explain = "3" then begin
     incr pass_count; Printf.printf "  SUCCESS cross-runtime node count correct\n"
   end else begin
-    incr fail_count; Printf.printf "  FAILURE cross-runtime node count failed\n"
+    record_failure "  FAILURE cross-runtime node count failed\n"
   end;
 
   print_newline ();
@@ -1533,11 +1540,11 @@ p_cross = pipeline {
         if un.un_script = Some "train_model.R" && un.un_runtime = "R" then begin
           incr pass_count; Printf.printf "  SUCCESS node() with script stores path and runtime\n"
         end else begin
-          incr fail_count; Printf.printf "  FAILURE node() with script stores path and runtime\n    script=%s runtime=%s\n"
+          record_failure "  FAILURE node() with script stores path and runtime\n    script=%s runtime=%s\n"
             (match un.un_script with Some s -> s | None -> "None") un.un_runtime
         end
     | other ->
-        incr fail_count; Printf.printf "  FAILURE node() with script returned unexpected value: %s\n"
+        record_failure "  FAILURE node() with script returned unexpected value: %s\n"
           (Ast.Utils.value_to_string other));
 
   let (v_py_node, _) = eval_string_env
@@ -1568,7 +1575,7 @@ p_cross = pipeline {
            && same_env_vars un.un_env_vars [("API_KEY", Ast.VString "secret"); ("RETRIES", Ast.VInt 3)] ->
        incr pass_count; Printf.printf "  SUCCESS pyn() stores env_vars on the node\n"
    | other ->
-       incr fail_count; Printf.printf "  FAILURE pyn() env_vars parsing failed: %s\n"
+       record_failure "  FAILURE pyn() env_vars parsing failed: %s\n"
          (Ast.Utils.value_to_string other));
 
   test "node env_vars must be a dict"
@@ -1602,7 +1609,7 @@ p_cross = pipeline {
    | Ast.VNode un when un.un_runtime = "R" && List.exists (function { Ast.node = Ast.Value (VString "data.csv"); _ } -> true | _ -> false) un.un_includes ->
        incr pass_count; Printf.printf "  SUCCESS R node supports both command and args.path (auto-included)\n"
    | other ->
-       incr fail_count; Printf.printf "  FAILURE R node command/args mixed test failed: %s\n"
+       record_failure "  FAILURE R node command/args mixed test failed: %s\n"
          (Ast.Utils.value_to_string other));
 
   let (v_quarto_node, _) = eval_string_env
@@ -1620,7 +1627,7 @@ p_cross = pipeline {
              ] ->
        incr pass_count; Printf.printf "  SUCCESS node() stores Quarto runtime args and qmd path\n"
    | other ->
-        incr fail_count; Printf.printf "  FAILURE Quarto node args parsing failed: %s\n"
+        record_failure "  FAILURE Quarto node args parsing failed: %s\n"
           (Ast.Utils.value_to_string other));
 
   let (v_per_node_include, _) = eval_string_env
@@ -1639,10 +1646,10 @@ p_cross = pipeline {
        if has_include && has_functions then begin
          incr pass_count; Printf.printf "  SUCCESS per-node include and functions are correctly resolved\n"
        end else begin
-         incr fail_count; Printf.printf "  FAILURE per-node include/functions not found\n    include_found=%b functions_found=%b\n" has_include has_functions
+         record_failure "  FAILURE per-node include/functions not found\n    include_found=%b functions_found=%b\n" has_include has_functions
        end
    | other ->
-       incr fail_count; Printf.printf "  FAILURE per-node include test: unexpected value %s\n" (Ast.Utils.value_to_string other));
+       record_failure "  FAILURE per-node include test: unexpected value %s\n" (Ast.Utils.value_to_string other));
 
   let (v_qn_node, _) = eval_string_env
     {|qn(args = [subcommand: "render", path: "report.qmd", to: "html"])|}
@@ -1653,7 +1660,7 @@ p_cross = pipeline {
            && un.un_script = Some "report.qmd" ->
         incr pass_count; Printf.printf "  SUCCESS qn() defaults to the Quarto runtime\n"
    | other ->
-       incr fail_count; Printf.printf "  FAILURE qn() runtime wrapper failed: %s\n"
+       record_failure "  FAILURE qn() runtime wrapper failed: %s\n"
          (Ast.Utils.value_to_string other));
 
   let (v_py_pipeline, _) = eval_string_env
@@ -1673,10 +1680,10 @@ p_cross = pipeline {
        if runtime_ok && env_ok then begin
          incr pass_count; Printf.printf "  SUCCESS pyn() nodes are desugared with env_vars in pipelines\n"
        end else begin
-         incr fail_count; Printf.printf "  FAILURE pyn() pipeline desugaring failed\n"
+         record_failure "  FAILURE pyn() pipeline desugaring failed\n"
        end
    | other ->
-       incr fail_count; Printf.printf "  FAILURE pyn() pipeline should return VPipeline, got: %s\n"
+       record_failure "  FAILURE pyn() pipeline should return VPipeline, got: %s\n"
          (Ast.Utils.value_to_string other));
 
   let (v_env_pipeline, _) = eval_string_env
@@ -1700,10 +1707,10 @@ p_cross = pipeline {
        if rerun_has_envs && has_model_mode && has_retries then begin
          incr pass_count; Printf.printf "  SUCCESS pipeline preserves and emits node env_vars\n"
        end else begin
-         incr fail_count; Printf.printf "  FAILURE pipeline env_vars preservation/emission failed\n"
+         record_failure "  FAILURE pipeline env_vars preservation/emission failed\n"
        end
     | other ->
-         incr fail_count; Printf.printf "  FAILURE pipeline with env_vars should return VPipeline, got: %s\n"
+         record_failure "  FAILURE pipeline with env_vars should return VPipeline, got: %s\n"
            (Ast.Utils.value_to_string other));
 
   let (v_serializer_pipeline, _) = eval_string_env
@@ -1737,10 +1744,10 @@ p_cross = pipeline {
         if has_r_json_helpers && has_py_arrow_helpers && omits_old_runtime_prefixed_helpers then begin
           incr pass_count; Printf.printf "  SUCCESS pipeline emits r_/py_ runtime serializer helper names\n"
         end else begin
-          incr fail_count; Printf.printf "  FAILURE runtime serializer helper naming emission failed\n"
+          record_failure "  FAILURE runtime serializer helper naming emission failed\n"
         end
     | other ->
-        incr fail_count; Printf.printf "  FAILURE serializer naming pipeline should return VPipeline, got: %s\n"
+        record_failure "  FAILURE serializer naming pipeline should return VPipeline, got: %s\n"
           (Ast.Utils.value_to_string other));
 
   let (v_julia_parquet, _) = eval_string_env
@@ -1766,10 +1773,10 @@ p_cross = pipeline {
         if has_julia_parquet && omits_ipc_julia_helpers then begin
           incr pass_count; Printf.printf "  SUCCESS Julia ^parquet node emits Parquet2.jl code, not Arrow IPC\n"
         end else begin
-          incr fail_count; Printf.printf "  FAILURE Julia ^parquet emission is not genuine Parquet2.jl code\n"
+          record_failure "  FAILURE Julia ^parquet emission is not genuine Parquet2.jl code\n"
         end
     | other ->
-        incr fail_count; Printf.printf "  FAILURE Julia parquet pipeline should return VPipeline, got: %s\n"
+        record_failure "  FAILURE Julia parquet pipeline should return VPipeline, got: %s\n"
           (Ast.Utils.value_to_string other));
 
   let (v_julia_ipc, _) = eval_string_env
@@ -1791,10 +1798,10 @@ p_cross = pipeline {
         if has_julia_ipc then begin
           incr pass_count; Printf.printf "  SUCCESS Julia ^ipc node emits Arrow.jl code\n"
         end else begin
-          incr fail_count; Printf.printf "  FAILURE Julia ^ipc emission is missing Arrow.jl helpers\n"
+          record_failure "  FAILURE Julia ^ipc emission is missing Arrow.jl helpers\n"
         end
     | other ->
-        incr fail_count; Printf.printf "  FAILURE Julia ipc pipeline should return VPipeline, got: %s\n"
+        record_failure "  FAILURE Julia ipc pipeline should return VPipeline, got: %s\n"
           (Ast.Utils.value_to_string other));
 
   let (v_plot_pipeline, _) = eval_string_env
@@ -1851,10 +1858,10 @@ p_cross = pipeline {
         if has_r_plot_helpers && has_py_plot_helpers && has_jl_plot_helpers && has_meta_helpers then begin
          incr pass_count; Printf.printf "  SUCCESS pipeline emits plot metadata helpers for R, Python, and Julia nodes\n"
         end else begin
-          incr fail_count; Printf.printf "  FAILURE plot metadata helper emission failed\n"
+          record_failure "  FAILURE plot metadata helper emission failed\n"
         end
    | other ->
-       incr fail_count; Printf.printf "  FAILURE plot metadata pipeline should return VPipeline, got: %s\n"
+       record_failure "  FAILURE plot metadata pipeline should return VPipeline, got: %s\n"
          (Ast.Utils.value_to_string other));
 
   let temp_plot_dir = Filename.concat (Filename.get_temp_dir_name ()) "tlang-plot-metadata" in
@@ -1905,7 +1912,7 @@ p_cross = pipeline {
            && List.assoc_opt "title" pairs = Some (Ast.VString "Fuel economy") ->
        incr pass_count; Printf.printf "  SUCCESS read_node reads ggplot plot metadata artifacts from default serializer output\n"
    | other ->
-       incr fail_count; Printf.printf "  FAILURE ggplot plot metadata artifact reading failed: %s\n"
+       record_failure "  FAILURE ggplot plot metadata artifact reading failed: %s\n"
           (Ast.Utils.value_to_string other));
 
   let julia_plot_node_dir = Filename.concat temp_plot_dir "julia-plot-node" in
@@ -1951,7 +1958,7 @@ p_cross = pipeline {
           && List.assoc_opt "backend" pairs = Some (Ast.VString "Julia") ->
        incr pass_count; Printf.printf "  SUCCESS read_node reads Julia plot metadata artifacts from default serializer output\n"
    | other ->
-       incr fail_count; Printf.printf "  FAILURE Julia plot metadata artifact reading failed: %s\n"
+       record_failure "  FAILURE Julia plot metadata artifact reading failed: %s\n"
          (Ast.Utils.value_to_string other));
 
   let quarto_script = "test_quarto_report.qmd" in
@@ -1996,10 +2003,10 @@ p_cross = pipeline {
           if runtime_ok && args_ok && script_ok && keeps_quarto_explicit && has_render && has_path && has_to && has_flag && has_read_node_sub then begin
             incr pass_count; Printf.printf "  SUCCESS pipeline preserves and emits Quarto runtime args\n"
           end else begin
-            incr fail_count; Printf.printf "  FAILURE Quarto pipeline preservation/emission failed\n"
+            record_failure "  FAILURE Quarto pipeline preservation/emission failed\n"
           end
       | other ->
-          incr fail_count; Printf.printf "  FAILURE pipeline with Quarto node should return VPipeline, got: %s\n"
+          record_failure "  FAILURE pipeline with Quarto node should return VPipeline, got: %s\n"
             (Ast.Utils.value_to_string other));
 
   let (v_qn_pipeline, _) = eval_string_env
@@ -2012,7 +2019,7 @@ p_cross = pipeline {
      when List.assoc_opt "report" p.p_runtimes = Some "Quarto" ->
        incr pass_count; Printf.printf "  SUCCESS qn() nodes are desugared with Quarto runtime in pipelines\n"
    | other ->
-       incr fail_count; Printf.printf "  FAILURE qn() pipeline desugaring failed: %s\n"
+       record_failure "  FAILURE qn() pipeline desugaring failed: %s\n"
          (Ast.Utils.value_to_string other));
 
   test "pipeline_copy validates node type"
@@ -2043,7 +2050,7 @@ p_cross = pipeline {
    | Ast.VNode un when un.un_runtime = "R" ->
        incr pass_count; Printf.printf "  SUCCESS runtime auto-detected as R for .R script\n"
    | other ->
-       incr fail_count; Printf.printf "  FAILURE runtime auto-detection for .R failed: %s\n"
+       record_failure "  FAILURE runtime auto-detection for .R failed: %s\n"
          (Ast.Utils.value_to_string other));
 
   (* Test: runtime auto-detected from .py extension *)
@@ -2054,7 +2061,7 @@ p_cross = pipeline {
    | Ast.VNode un when un.un_runtime = "Python" ->
        incr pass_count; Printf.printf "  SUCCESS runtime auto-detected as Python for .py script\n"
    | other ->
-        incr fail_count; Printf.printf "  FAILURE runtime auto-detection for .py failed: %s\n"
+        record_failure "  FAILURE runtime auto-detection for .py failed: %s\n"
           (Ast.Utils.value_to_string other));
 
   let (v_quarto_auto, _) = eval_string_env
@@ -2064,7 +2071,7 @@ p_cross = pipeline {
    | Ast.VNode un when un.un_runtime = "Quarto" ->
        incr pass_count; Printf.printf "  SUCCESS runtime auto-detected as Quarto for .qmd script\n"
    | other ->
-       incr fail_count; Printf.printf "  FAILURE runtime auto-detection for .qmd failed: %s\n"
+       record_failure "  FAILURE runtime auto-detection for .qmd failed: %s\n"
          (Ast.Utils.value_to_string other));
 
   (* Test: script field accessible via dot access *)
@@ -2075,7 +2082,7 @@ p_cross = pipeline {
   if dot_script_s = {|"fit.R"|} then begin
     incr pass_count; Printf.printf "  SUCCESS node.script dot access returns script path\n"
   end else begin
-    incr fail_count; Printf.printf "  FAILURE node.script dot access\n    Expected: \"fit.R\"\n    Got: %s\n" dot_script_s
+    record_failure "  FAILURE node.script dot access\n    Expected: \"fit.R\"\n    Got: %s\n" dot_script_s
   end;
 
   (* Test: script=NA node returns NA for .script *)
@@ -2085,7 +2092,7 @@ p_cross = pipeline {
   if Ast.Utils.value_to_string v_no_script = "NA" then begin
     incr pass_count; Printf.printf "  SUCCESS node without script returns NA for .script\n"
   end else begin
-    incr fail_count; Printf.printf "  FAILURE node without script .script field\n    Expected: NA\n    Got: %s\n"
+    record_failure "  FAILURE node without script .script field\n    Expected: NA\n    Got: %s\n"
       (Ast.Utils.value_to_string v_no_script)
   end;
 
@@ -2100,7 +2107,7 @@ p_cross = pipeline {
   if pipeline_nodes_s = {|["data", "result"]|} then begin
     incr pass_count; Printf.printf "  SUCCESS pipeline with script node has correct node list\n"
   end else begin
-    incr fail_count; Printf.printf "  FAILURE pipeline with script node\n    Expected: [\"data\", \"result\"]\n    Got: %s\n" pipeline_nodes_s
+    record_failure "  FAILURE pipeline with script node\n    Expected: [\"data\", \"result\"]\n    Got: %s\n" pipeline_nodes_s
   end;
 
   print_newline ();
@@ -2119,7 +2126,7 @@ p.t_step|}
   | Ast.VComputedNode cn when cn.cn_path = Ast.unbuilt_path ->
       incr pass_count; Printf.printf "  SUCCESS T node is deferred when its sibling node is <unbuilt>\n"
   | other ->
-      incr fail_count; Printf.printf "  FAILURE T node should be deferred when sibling is <unbuilt>\n    Got: %s\n"
+      record_failure "  FAILURE T node should be deferred when sibling is <unbuilt>\n    Got: %s\n"
         (Ast.Utils.value_to_string other));
 
   (* Test: T node with a typo'd/undefined function name raises NameError and is NOT silently deferred *)
@@ -2133,7 +2140,7 @@ p.t_step|}
   if contains_substring name_err_str "Pipeline" && contains_substring name_err_str "x" && contains_substring name_err_str "y" then begin
     incr pass_count; Printf.printf "  SUCCESS undefined function in T node defers evaluation (pipeline created, node unbuilt)\n"
   end else begin
-    incr fail_count; Printf.printf "  FAILURE undefined function in T node should create pipeline without error\n    Got: %s\n" name_err_str
+    record_failure "  FAILURE undefined function in T node should create pipeline without error\n    Got: %s\n" name_err_str
   end;
 
   (* Test: rerun_pipeline correctly keeps a T node deferred when its sibling is <unbuilt> *)
@@ -2151,15 +2158,15 @@ p.t_step|}
       | Some (Ast.VComputedNode cn) when cn.cn_path = Ast.unbuilt_path ->
           incr pass_count; Printf.printf "  SUCCESS T node stays deferred after rerun when sibling is <unbuilt>\n"
       | Some other ->
-          incr fail_count; Printf.printf "  FAILURE T node should stay deferred after rerun\n    Got: %s\n"
+          record_failure "  FAILURE T node should stay deferred after rerun\n    Got: %s\n"
             (Ast.Utils.value_to_string other)
       | None ->
-          incr fail_count; Printf.printf "  FAILURE T node should stay deferred after rerun: node not found\n")
+          record_failure "  FAILURE T node should stay deferred after rerun: node not found\n")
     | other ->
-        incr fail_count; Printf.printf "  FAILURE rerun_pipeline returned unexpected value: %s\n"
+        record_failure "  FAILURE rerun_pipeline returned unexpected value: %s\n"
           (Ast.Utils.value_to_string other))
   | other ->
-      incr fail_count; Printf.printf "  FAILURE initial pipeline for rerun test failed: %s\n"
+      record_failure "  FAILURE initial pipeline for rerun test failed: %s\n"
         (Ast.Utils.value_to_string other));
 
   (* Regression test: Julia raw-code nodes with `using`/`import` must hoist those
@@ -2213,11 +2220,11 @@ p.t_step|}
        if imports_hoisted_before_begin && imports_absent_from_body then begin
          incr pass_count; Printf.printf "  SUCCESS Julia raw-code using/import are hoisted outside begin...end block\n"
        end else begin
-         incr fail_count; Printf.printf "  FAILURE Julia raw-code import hoisting failed (hoisted_before_begin=%b absent_from_body=%b)\n"
+         record_failure "  FAILURE Julia raw-code import hoisting failed (hoisted_before_begin=%b absent_from_body=%b)\n"
            imports_hoisted_before_begin imports_absent_from_body
        end
    | other ->
-       incr fail_count; Printf.printf "  FAILURE Julia import hoisting pipeline should return VPipeline, got: %s\n"
+       record_failure "  FAILURE Julia import hoisting pipeline should return VPipeline, got: %s\n"
          (Ast.Utils.value_to_string other));
 
   let test_build_log_api () =
@@ -2240,7 +2247,7 @@ p.t_step|}
     if v_log = Ast.VBool true then begin
       incr pass_count; Printf.printf "  SUCCESS build_log returns FileError on missing log\n"
     end else begin
-      incr fail_count; Printf.printf "  FAILURE build_log expected FileError, got %s\n"
+      record_failure "  FAILURE build_log expected FileError, got %s\n"
         (Ast.Utils.value_to_string v_log)
     end;
     let (v_frame, _) = eval_string_env
@@ -2251,7 +2258,7 @@ p.t_step|}
     if v_frame = Ast.VBool true then begin
       incr pass_count; Printf.printf "  SUCCESS build_log_to_frame validates arguments\n"
     end else begin
-      incr fail_count; Printf.printf "  FAILURE build_log_to_frame validation failed\n"
+      record_failure "  FAILURE build_log_to_frame validation failed\n"
     end;
     let test_build_log_warnings () =
       let mock_node1 = Ast.VDict [("name", Ast.VString "node_a"); ("status", Ast.VString "Completed"); ("duration", Ast.VFloat 1.2); ("path", Ast.VString "/nix/store/a")] in
@@ -2267,7 +2274,7 @@ p.t_step|}
       if s = expected then begin
         incr pass_count; Printf.printf "  SUCCESS value_to_string(VBuildLog) formats warnings correctly\n"
       end else begin
-        incr fail_count; Printf.printf "  FAILURE value_to_string(VBuildLog) mismatch:\n    Expected: %S\n    Got:      %S\n" expected s
+        record_failure "  FAILURE value_to_string(VBuildLog) mismatch:\n    Expected: %S\n    Got:      %S\n" expected s
       end
     in
     test_build_log_warnings ();
@@ -2288,7 +2295,7 @@ p.t_step|}
     if v_errors = Ast.VBool true then begin
       incr pass_count; Printf.printf "  SUCCESS collect_exceptions returns empty DataFrame for unbuilt/clean pipeline\n"
     end else begin
-      incr fail_count; Printf.printf "  FAILURE collect_exceptions expected empty DataFrame, got %s\n"
+      record_failure "  FAILURE collect_exceptions expected empty DataFrame, got %s\n"
         (Ast.Utils.value_to_string v_errors)
     end
   in
@@ -2327,10 +2334,10 @@ p.t_step|}
          if ok_name && ok_status && ok_msg && ok_keys && ok_code && ok_class then begin
            incr pass_count; Printf.printf "  SUCCESS inspect_node returns error facts dict on failing nodes\n"
          end else begin
-           incr fail_count; Printf.printf "  FAILURE inspect_node error dict mismatch: %s\n" (Ast.Utils.value_to_string res1)
+           record_failure "  FAILURE inspect_node error dict mismatch: %s\n" (Ast.Utils.value_to_string res1)
          end
      | other ->
-         incr fail_count; Printf.printf "  FAILURE inspect_node expected Dict, got: %s\n" (Ast.Utils.value_to_string other));
+         record_failure "  FAILURE inspect_node expected Dict, got: %s\n" (Ast.Utils.value_to_string other));
     let res2 = inspect_fn [(None, Ast.VString "not_a_computed_node")] (ref env) in
     (match res2 with
      | Ast.VError info ->
@@ -2338,10 +2345,10 @@ p.t_step|}
          if contains_substring info.message expected_substr then begin
            incr pass_count; Printf.printf "  SUCCESS inspect_node returns a clear error message on non-ComputedNode types\n"
          end else begin
-           incr fail_count; Printf.printf "  FAILURE inspect_node error message mismatch on non-ComputedNode: %s\n" info.message
+           record_failure "  FAILURE inspect_node error message mismatch on non-ComputedNode: %s\n" info.message
          end
      | other ->
-         incr fail_count; Printf.printf "  FAILURE inspect_node expected VError for string, got: %s\n" (Ast.Utils.value_to_string other))
+         record_failure "  FAILURE inspect_node expected VError for string, got: %s\n" (Ast.Utils.value_to_string other))
   in
   test_inspect_node_errors ();
 
@@ -2361,7 +2368,7 @@ p.t_step|}
     if v_inspect = Ast.VBool true then begin
       incr pass_count; Printf.printf "  SUCCESS inspect_pipeline(p) statically inspects pipeline structure\n"
     end else begin
-      incr fail_count; Printf.printf "  FAILURE inspect_pipeline(p) static inspection failed, got %s\n"
+      record_failure "  FAILURE inspect_pipeline(p) static inspection failed, got %s\n"
         (Ast.Utils.value_to_string v_inspect)
     end
   in
@@ -2411,7 +2418,7 @@ p.t_step|}
     if v_res = Ast.VBool true then begin
       incr pass_count; Printf.printf "  SUCCESS explain(collect_exceptions(p)) returns custom structured explanations\n"
     end else begin
-      incr fail_count; Printf.printf "  FAILURE explain(collect_exceptions(p)) validation failed, got %s\n"
+      record_failure "  FAILURE explain(collect_exceptions(p)) validation failed, got %s\n"
         (Ast.Utils.value_to_string v_res)
     end
   in
@@ -2498,7 +2505,7 @@ p.t_step|}
     if golden_ok then begin
       incr pass_count; Printf.printf "  SUCCESS Nix execution equivalence golden test matches manual nix-build exactly\n"
     end else begin
-      incr fail_count; Printf.printf "  FAILURE Nix execution equivalence golden test failed\n"
+      record_failure "  FAILURE Nix execution equivalence golden test failed\n"
     end
   in
   test_nix_execution_equivalence_golden ();
@@ -2619,7 +2626,7 @@ p.t_step|}
     if archive_ok then begin
       incr pass_count; Printf.printf "  SUCCESS export_artifacts()/import_artifacts() round-trip pipeline cache with inspection & granular export\n"
     end else begin
-      incr fail_count; Printf.printf "  FAILURE export_artifacts()/import_artifacts() round-trip pipeline cache with inspection & granular export\n"
+      record_failure "  FAILURE export_artifacts()/import_artifacts() round-trip pipeline cache with inspection & granular export\n"
     end
   in
   test_artifact_export_import_roundtrip ();
@@ -2762,7 +2769,7 @@ p.t_step|}
     if success = Ast.VBool true then begin
       incr pass_count; Printf.printf "  SUCCESS build_log_history and node_diff comprehensive test passes\n"
     end else begin
-      incr fail_count; Printf.printf "  FAILURE build_log_history and node_diff comprehensive test failed, got: %s\n"
+      record_failure "  FAILURE build_log_history and node_diff comprehensive test failed, got: %s\n"
         (Ast.Utils.value_to_string success)
     end
   in
@@ -2780,15 +2787,15 @@ p.t_step|}
          if p.p_has_patterns then begin
            incr pass_count; Printf.printf "  SUCCESS pipeline has patterns flag is true\n"
          end else begin
-           incr fail_count; Printf.printf "  FAILURE pipeline has patterns flag should be true\n"
+           record_failure "  FAILURE pipeline has patterns flag should be true\n"
          end;
          (match List.assoc_opt "b" p.p_patterns with
           | Some (PatternMap ["a"]) ->
               incr pass_count; Printf.printf "  SUCCESS node b has PatternMap metadata\n"
           | _ ->
-              incr fail_count; Printf.printf "  FAILURE node b should have PatternMap metadata\n")
+              record_failure "  FAILURE node b should have PatternMap metadata\n")
      | _ ->
-         incr fail_count; Printf.printf "  FAILURE expected a VPipeline, got %s\n" (Ast.Utils.value_to_string v_p));
+         record_failure "  FAILURE expected a VPipeline, got %s\n" (Ast.Utils.value_to_string v_p));
 
     (* 2. Test renaming preserves patterns *)
     let (v_renamed, _) = eval_string_env "rename_node(p, \"b\", \"new_b\")" env_p in
@@ -2797,15 +2804,15 @@ p.t_step|}
          if p_ren.p_has_patterns then begin
            incr pass_count; Printf.printf "  SUCCESS renamed pipeline has patterns flag is true\n"
          end else begin
-           incr fail_count; Printf.printf "  FAILURE renamed pipeline has patterns flag should be true\n"
+           record_failure "  FAILURE renamed pipeline has patterns flag should be true\n"
          end;
          (match List.assoc_opt "new_b" p_ren.p_patterns with
           | Some (PatternMap ["a"]) ->
               incr pass_count; Printf.printf "  SUCCESS renamed node new_b has PatternMap metadata\n"
           | _ ->
-              incr fail_count; Printf.printf "  FAILURE renamed node new_b should have PatternMap metadata\n")
+              record_failure "  FAILURE renamed node new_b should have PatternMap metadata\n")
      | _ ->
-         incr fail_count; Printf.printf "  FAILURE expected a VPipeline after rename_node, got %s\n" (Ast.Utils.value_to_string v_renamed));
+         record_failure "  FAILURE expected a VPipeline after rename_node, got %s\n" (Ast.Utils.value_to_string v_renamed));
 
     (* 3. Test filtering preserves patterns *)
     let (v_filtered, _) = eval_string_env "filter_node(p, $name == \"b\")" env_p in
@@ -2814,15 +2821,15 @@ p.t_step|}
          if p_fil.p_has_patterns then begin
            incr pass_count; Printf.printf "  SUCCESS filtered pipeline has patterns flag is true\n"
          end else begin
-           incr fail_count; Printf.printf "  FAILURE filtered pipeline has patterns flag should be true\n"
+           record_failure "  FAILURE filtered pipeline has patterns flag should be true\n"
          end;
          (match List.assoc_opt "b" p_fil.p_patterns with
           | Some (PatternMap ["a"]) ->
               incr pass_count; Printf.printf "  SUCCESS filtered node b has PatternMap metadata\n"
           | _ ->
-              incr fail_count; Printf.printf "  FAILURE filtered node b should have PatternMap metadata\n")
+              record_failure "  FAILURE filtered node b should have PatternMap metadata\n")
      | _ ->
-         incr fail_count; Printf.printf "  FAILURE expected a VPipeline after filter_node, got %s\n" (Ast.Utils.value_to_string v_filtered));
+         record_failure "  FAILURE expected a VPipeline after filter_node, got %s\n" (Ast.Utils.value_to_string v_filtered));
 
     (* 4. Test auto-expansion: build_pipeline and populate_pipeline succeed (no StructuralError) *)
     let (v_build, _) = eval_string_env "build_pipeline(p)" env_p in
@@ -2830,7 +2837,7 @@ p.t_step|}
     if not (contains_pattern "StructuralError" s_build) then begin
       incr pass_count; Printf.printf "  SUCCESS build_pipeline auto-expands and succeeds (no StructuralError)\n"
     end else begin
-      incr fail_count; Printf.printf "  FAILURE build_pipeline should auto-expand, got: %s\n" s_build
+      record_failure "  FAILURE build_pipeline should auto-expand, got: %s\n" s_build
     end;
 
     let (v_pop, _) = eval_string_env "populate_pipeline(p)" env_p in
@@ -2838,7 +2845,7 @@ p.t_step|}
     if not (contains_pattern "StructuralError" s_pop) then begin
       incr pass_count; Printf.printf "  SUCCESS populate_pipeline auto-expands and succeeds (no StructuralError)\n"
     end else begin
-      incr fail_count; Printf.printf "  FAILURE populate_pipeline should auto-expand, got: %s\n" s_pop
+      record_failure "  FAILURE populate_pipeline should auto-expand, got: %s\n" s_pop
     end;
 
     (* 5. Test chain auto-expands (p2 references 'a' which exists after expansion) *)
@@ -2847,7 +2854,7 @@ p.t_step|}
     if not (contains_pattern "StructuralError" s_chain) then begin
       incr pass_count; Printf.printf "  SUCCESS chain auto-expands and succeeds (no StructuralError)\n"
     end else begin
-      incr fail_count; Printf.printf "  FAILURE chain should auto-expand, got: %s\n" s_chain
+      record_failure "  FAILURE chain should auto-expand, got: %s\n" s_chain
     end;
     (* Verify chain result contains expanded branch names *)
     let (v_nodes, _) = eval_string_env "pipeline_nodes(chain(p, pipeline { d = a + 1 }))" env_p in
@@ -2855,7 +2862,7 @@ p.t_step|}
     if contains_pattern "b_branch_1" s_nodes then begin
       incr pass_count; Printf.printf "  SUCCESS chain result includes expanded branch 'b_branch_1'\n"
     end else begin
-      incr fail_count; Printf.printf "  FAILURE chain result should include expanded branch 'b_branch_1', got: %s\n" s_nodes
+      record_failure "  FAILURE chain result should include expanded branch 'b_branch_1', got: %s\n" s_nodes
     end;
     ()
   in
@@ -2881,7 +2888,7 @@ p.t_step|}
     if all_wired then begin
       incr pass_count; Printf.printf "  SUCCESS all composition/set-op builtins have wired expander\n"
     end else begin
-      incr fail_count; Printf.printf "  FAILURE some composition/set-op builtins returned expander-not-wired error\n"
+      record_failure "  FAILURE some composition/set-op builtins returned expander-not-wired error\n"
     end
   in
   test_composition_ref_wiring ();
@@ -2896,14 +2903,14 @@ p.t_step|}
     (match v_no_pat with
      | VPipeline p_no ->
          if p_no.p_has_patterns then begin
-           incr fail_count; Printf.printf "  FAILURE expand_pipeline on non-pattern pipeline should mark no patterns\n"
+           record_failure "  FAILURE expand_pipeline on non-pattern pipeline should mark no patterns\n"
          end else if List.length p_no.p_nodes = 1 then begin
            incr pass_count; Printf.printf "  SUCCESS expand_pipeline on non-pattern pipeline returns unchanged\n"
          end else begin
-           incr fail_count; Printf.printf "  FAILURE expand_pipeline on non-pattern pipeline should have 1 node\n"
+           record_failure "  FAILURE expand_pipeline on non-pattern pipeline should have 1 node\n"
          end
      | other ->
-         incr fail_count; Printf.printf "  FAILURE expand_pipeline on non-pattern pipeline should return VPipeline, got %s\n" (Ast.Utils.value_to_string other));
+         record_failure "  FAILURE expand_pipeline on non-pattern pipeline should return VPipeline, got %s\n" (Ast.Utils.value_to_string other));
 
     (* 2. Test expand_pipeline with PatternMap produces correct branches *)
     let env_p = Test_helpers.eval_setup eval_string_env env "test_pipeline:2554" "p = pipeline {\n  a = [10, 20, 30]\n  b = node(command = <{ a + 1 }>, pattern = map_pattern(a))\n}" in
@@ -2919,21 +2926,21 @@ p.t_step|}
          if has_a && has_b1 && has_b2 && has_b3 && not has_b_orig then begin
            incr pass_count; Printf.printf "  SUCCESS expand_pipeline with 3-value list creates 3 branches, removes original\n"
          end else begin
-           incr fail_count; Printf.printf "  FAILURE expand_pipeline with 3-value list: a=%b b1=%b b2=%b b3=%b b_orig=%b\n"
+           record_failure "  FAILURE expand_pipeline with 3-value list: a=%b b1=%b b2=%b b3=%b b_orig=%b\n"
              has_a has_b1 has_b2 has_b3 has_b_orig
          end;
          if not pe.p_has_patterns then begin
            incr pass_count; Printf.printf "  SUCCESS expanded pipeline has patterns flag is false\n"
          end else begin
-           incr fail_count; Printf.printf "  FAILURE expanded pipeline should have patterns flag false\n"
+           record_failure "  FAILURE expanded pipeline should have patterns flag false\n"
          end;
          if List.length pe.p_nodes = 4 then begin
            incr pass_count; Printf.printf "  SUCCESS expanded pipeline has 4 total nodes (a + 3 branches)\n"
          end else begin
-           incr fail_count; Printf.printf "  FAILURE expanded pipeline should have 4 nodes, got %d\n" (List.length pe.p_nodes)
+           record_failure "  FAILURE expanded pipeline should have 4 nodes, got %d\n" (List.length pe.p_nodes)
          end
      | other ->
-         incr fail_count; Printf.printf "  FAILURE expand_pipeline should return VPipeline, got %s\n" (Ast.Utils.value_to_string other));
+         record_failure "  FAILURE expand_pipeline should return VPipeline, got %s\n" (Ast.Utils.value_to_string other));
 
     (* 2a. Per-dependency strategy map keys follow branch renaming.
        Chained patterns rename the dep itself (`mid` → `mid_branch_N`);
@@ -2959,11 +2966,11 @@ p.t_step|}
          if key_of "out_branch_1" = ["mid_branch_1"] && key_of "out_branch_2" = ["mid_branch_2"] then begin
            incr pass_count; Printf.printf "  SUCCESS expanded strategy map keys renamed per branch\n"
          end else begin
-           incr fail_count; Printf.printf "  FAILURE expanded strategy map keys not renamed (b1=%s b2=%s)\n"
+           record_failure "  FAILURE expanded strategy map keys not renamed (b1=%s b2=%s)\n"
              (show (key_of "out_branch_1")) (show (key_of "out_branch_2"))
          end
      | other ->
-         incr fail_count; Printf.printf "  FAILURE expand_pipeline should return VPipeline, got %s\n" (Ast.Utils.value_to_string other));
+         record_failure "  FAILURE expand_pipeline should return VPipeline, got %s\n" (Ast.Utils.value_to_string other));
 
     (* 2b. Conditional shadow with a later read fails loudly instead of
        expanding branches that would mix per-branch slices with the whole
@@ -2974,7 +2981,7 @@ p.t_step|}
      | VError err when Test_helpers.contains err.message "conditionally binds" ->
          incr pass_count; Printf.printf "  SUCCESS expand_pipeline rejects conditional shadow with later read\n"
      | other ->
-         incr fail_count; Printf.printf "  FAILURE conditional shadow should fail loudly, got %s\n" (Ast.Utils.value_to_string other));
+         record_failure "  FAILURE conditional shadow should fail loudly, got %s\n" (Ast.Utils.value_to_string other));
 
     (* 2c. Conditional shadow with no later read still expands: nothing
        after the binder can observe the inconsistency. *)
@@ -2984,7 +2991,7 @@ p.t_step|}
      | VPipeline pe when List.length pe.p_nodes = 4 ->
          incr pass_count; Printf.printf "  SUCCESS expand_pipeline allows conditional shadow without later read\n"
      | other ->
-         incr fail_count; Printf.printf "  FAILURE conditional shadow without later read should expand, got %s\n" (Ast.Utils.value_to_string other));
+         record_failure "  FAILURE conditional shadow without later read should expand, got %s\n" (Ast.Utils.value_to_string other));
 
     (* 2d. Mentions inside comments and strings are not reads: a comment
        naming the dependency after a conditional binding still expands. *)
@@ -2994,7 +3001,7 @@ p.t_step|}
      | VPipeline pe when List.length pe.p_nodes = 4 ->
          incr pass_count; Printf.printf "  SUCCESS expand_pipeline ignores comment/string mentions after conditional binding\n"
      | other ->
-         incr fail_count; Printf.printf "  FAILURE comment/string mentions should not trip the rename error, got %s\n" (Ast.Utils.value_to_string other));
+         record_failure "  FAILURE comment/string mentions should not trip the rename error, got %s\n" (Ast.Utils.value_to_string other));
 
     (* 3. Test expand_pipeline with single value (length 1) — creates 1 branch *)
     let env_single = Test_helpers.eval_setup eval_string_env env "test_pipeline:2587" "p = pipeline {\n  a = 42\n  b = node(command = <{ a }>, pattern = map_pattern(a))\n}" in
@@ -3006,10 +3013,10 @@ p.t_step|}
          if has_b1 && not has_b_orig then begin
            incr pass_count; Printf.printf "  SUCCESS expand_pipeline with single value creates 1 branch\n"
          end else begin
-           incr fail_count; Printf.printf "  FAILURE expand_pipeline with single value: b1=%b b_orig=%b\n" has_b1 has_b_orig
+           record_failure "  FAILURE expand_pipeline with single value: b1=%b b_orig=%b\n" has_b1 has_b_orig
          end
      | _ ->
-         incr fail_count; Printf.printf "  FAILURE expand_pipeline with single value should succeed\n");
+         record_failure "  FAILURE expand_pipeline with single value should succeed\n");
 
     (* 4. Test expand_pipeline error on non-pipeline first arg *)
     let (v_err_type, _) = eval_string_env "expand_pipeline(42)" env in
@@ -3017,7 +3024,7 @@ p.t_step|}
      | VError _ ->
          incr pass_count; Printf.printf "  SUCCESS expand_pipeline errors on non-pipeline first arg\n"
      | _ ->
-         incr fail_count; Printf.printf "  FAILURE expand_pipeline should error on non-pipeline arg\n");
+         record_failure "  FAILURE expand_pipeline should error on non-pipeline arg\n");
 
     (* 5. Test expand_pipeline error on unknown named arg *)
     let (v_unknown, _) = eval_string_env "expand_pipeline(p, unknown = 1)" env_nop in
@@ -3025,7 +3032,7 @@ p.t_step|}
      | VError _ ->
          incr pass_count; Printf.printf "  SUCCESS expand_pipeline errors on unknown named arg\n"
      | _ ->
-         incr fail_count; Printf.printf "  FAILURE expand_pipeline should error on unknown named arg\n");
+         record_failure "  FAILURE expand_pipeline should error on unknown named arg\n");
 
     (* 6. Test build_pipeline succeeds after expand_pipeline *)
     let (v_build, _) = eval_string_env "build_pipeline(expand_pipeline(p))" env_p in
@@ -3033,7 +3040,7 @@ p.t_step|}
     if not (contains_pattern "StructuralError" s_build) then begin
       incr pass_count; Printf.printf "  SUCCESS build_pipeline succeeds after expand_pipeline (no StructuralError)\n"
     end else begin
-      incr fail_count; Printf.printf "  FAILURE build_pipeline after expand_pipeline should succeed, got: %s\n" s_build
+      record_failure "  FAILURE build_pipeline after expand_pipeline should succeed, got: %s\n" s_build
     end;
 
     (* 7. Test expand_pipeline with VDataFrame dependency — branches = num_rows *)
@@ -3054,11 +3061,11 @@ p.t_step|}
          if has_a && has_b1 && has_b2 && has_b3 && not has_b_orig then begin
            incr pass_count; Printf.printf "  SUCCESS expand_pipeline with 3-row dataframe creates 3 branches\n"
          end else begin
-           incr fail_count; Printf.printf "  FAILURE expand_pipeline with 3-row dataframe: a=%b b1=%b b2=%b b3=%b b_orig=%b\n"
+           record_failure "  FAILURE expand_pipeline with 3-row dataframe: a=%b b1=%b b2=%b b3=%b b_orig=%b\n"
              has_a has_b1 has_b2 has_b3 has_b_orig
          end
      | other ->
-         incr fail_count; Printf.printf "  FAILURE expand_pipeline with dataframe should return VPipeline, got %s\n"
+         record_failure "  FAILURE expand_pipeline with dataframe should return VPipeline, got %s\n"
            (Ast.Utils.value_to_string other));
 
     (* 8. Test expand_pipeline with non-T runtime creates branches with correct runtime *)
@@ -3082,11 +3089,11 @@ p.t_step|}
          if has_a && has_b1 && has_b2 && has_b3 && not has_b_orig && all_r_runtime then begin
            incr pass_count; Printf.printf "  SUCCESS expand_pipeline works with non-T runtime, creates 3 R branches\n"
          end else begin
-           incr fail_count; Printf.printf "  FAILURE expand_pipeline with non-T runtime: a=%b b1=%b b2=%b b3=%b b_orig=%b all_R=%b\n"
+           record_failure "  FAILURE expand_pipeline with non-T runtime: a=%b b1=%b b2=%b b3=%b b_orig=%b all_R=%b\n"
              has_a has_b1 has_b2 has_b3 has_b_orig all_r_runtime
          end
      | other ->
-         incr fail_count; Printf.printf "  FAILURE expand_pipeline with non-T runtime should return VPipeline, got %s\n"
+         record_failure "  FAILURE expand_pipeline with non-T runtime should return VPipeline, got %s\n"
            (Ast.Utils.value_to_string other));
 
     (* 9. Test pattern expansion respects block-local shadowing in raw code:
@@ -3108,11 +3115,11 @@ p.t_step|}
             | Some text when text = expected ->
                 incr pass_count; Printf.printf "  SUCCESS %s\n" name
             | Some text ->
-                incr fail_count; Printf.printf "  FAILURE %s\n    Expected: %s\n    Got:      %s\n" name expected text
+                record_failure "  FAILURE %s\n    Expected: %s\n    Got:      %s\n" name expected text
             | None ->
-                incr fail_count; Printf.printf "  FAILURE %s: branch %s has no raw command\n" name branch)
+                record_failure "  FAILURE %s: branch %s has no raw command\n" name branch)
        | (other, _) ->
-           incr fail_count; Printf.printf "  FAILURE %s: expansion failed: %s\n" name (Ast.Utils.value_to_string other))
+           record_failure "  FAILURE %s: expansion failed: %s\n" name (Ast.Utils.value_to_string other))
     in
     check_branch_text "expansion substitutes RHS but keeps binder and later reads"
       "p = pipeline {\n\
@@ -3159,16 +3166,16 @@ p.t_step|}
          if has_a && has_b && has_c1 && has_c6 && not has_c_orig && List.length pe.p_nodes = 8 then begin
            incr pass_count; Printf.printf "  SUCCESS cross_pattern with 2x3 creates 6 branches (8 total nodes)\n"
          end else begin
-           incr fail_count; Printf.printf "  FAILURE cross_pattern: a=%b b=%b c1=%b c6=%b c_orig=%b nodes=%d\n"
+           record_failure "  FAILURE cross_pattern: a=%b b=%b c1=%b c6=%b c_orig=%b nodes=%d\n"
              has_a has_b has_c1 has_c6 has_c_orig (List.length pe.p_nodes)
          end;
          if not pe.p_has_patterns then begin
            incr pass_count; Printf.printf "  SUCCESS cross_pattern expanded pipeline has patterns flag false\n"
          end else begin
-           incr fail_count; Printf.printf "  FAILURE cross_pattern expanded pipeline should have patterns flag false\n"
+           record_failure "  FAILURE cross_pattern expanded pipeline should have patterns flag false\n"
          end
      | other ->
-         incr fail_count; Printf.printf "  FAILURE expand_pipeline cross_pattern should return VPipeline, got %s\n"
+         record_failure "  FAILURE expand_pipeline cross_pattern should return VPipeline, got %s\n"
            (Ast.Utils.value_to_string other));
 
     (* 2. Test chained patterns: cross_pattern supplies downstream map_pattern,
@@ -3202,16 +3209,16 @@ p.t_step|}
          if has_d1 && has_d4 && not has_d_orig && not has_c_orig && deps_rewired && all_d_have_correct_deps then begin
            incr pass_count; Printf.printf "  SUCCESS chained cross->map creates 4 d branches, deps rewired correctly\n"
          end else begin
-           incr fail_count; Printf.printf "  FAILURE chained cross->map: d1=%b d4=%b d_orig=%b c_orig=%b deps_rewired=%b all_correct=%b\n"
+           record_failure "  FAILURE chained cross->map: d1=%b d4=%b d_orig=%b c_orig=%b deps_rewired=%b all_correct=%b\n"
              has_d1 has_d4 has_d_orig has_c_orig deps_rewired all_d_have_correct_deps
          end;
          if not pe.p_has_patterns then begin
            incr pass_count; Printf.printf "  SUCCESS chained expanded pipeline has patterns flag false\n"
          end else begin
-           incr fail_count; Printf.printf "  FAILURE chained expanded pipeline should have patterns flag false\n"
+           record_failure "  FAILURE chained expanded pipeline should have patterns flag false\n"
          end
      | other ->
-         incr fail_count; Printf.printf "  FAILURE expand_pipeline chained cross->map should return VPipeline, got %s\n"
+         record_failure "  FAILURE expand_pipeline chained cross->map should return VPipeline, got %s\n"
            (Ast.Utils.value_to_string other));
 
     (* 3. Test raw-code substitution: exact string equality and word-boundary regex *)
@@ -3239,12 +3246,12 @@ p.t_step|}
          if exact_ok then begin
            incr pass_count; Printf.printf "  SUCCESS non-T raw-code exact substitution correct (10 * 2, 20 * 2)\n"
          end else begin
-           incr fail_count; Printf.printf "  FAILURE non-T raw-code exact substitution: b1=%s b2=%s\n"
+           record_failure "  FAILURE non-T raw-code exact substitution: b1=%s b2=%s\n"
              (match b1_text with Some s -> s | None -> "N/A")
              (match b2_text with Some s -> s | None -> "N/A")
          end
      | other ->
-         incr fail_count; Printf.printf "  FAILURE expand_pipeline non-T raw-code should return VPipeline, got %s\n"
+         record_failure "  FAILURE expand_pipeline non-T raw-code should return VPipeline, got %s\n"
            (Ast.Utils.value_to_string other));
 
     (* 4. Test word-boundary regex: only standalone identifier is substituted *)
@@ -3272,12 +3279,12 @@ p.t_step|}
          if wb_ok then begin
            incr pass_count; Printf.printf "  SUCCESS word-boundary regex: only 'a' replaced, 'aa' and 'a_b' untouched\n"
          end else begin
-           incr fail_count; Printf.printf "  FAILURE word-boundary regex: c1=%s c2=%s (expected 'aa + 10 + a_b', 'aa + 20 + a_b')\n"
+           record_failure "  FAILURE word-boundary regex: c1=%s c2=%s (expected 'aa + 10 + a_b', 'aa + 20 + a_b')\n"
              (match c1_text with Some s -> s | None -> "N/A")
              (match c2_text with Some s -> s | None -> "N/A")
          end
      | other ->
-         incr fail_count; Printf.printf "  FAILURE expand_pipeline word-boundary should return VPipeline, got %s\n"
+         record_failure "  FAILURE expand_pipeline word-boundary should return VPipeline, got %s\n"
            (Ast.Utils.value_to_string other));
 
     ()
@@ -3304,9 +3311,9 @@ p.t_step|}
          if has_y1 && has_y2 && has_y3 && not has_y_orig && List.length pe.p_nodes = 4 then
            (incr pass_count; Printf.printf "  SUCCESS slice_pattern with 3 indices creates 3 branches (4 total nodes)\n")
          else
-           (incr fail_count; Printf.printf "  FAILURE slice_pattern: y1=%b y2=%b y3=%b y_orig=%b nodes=%d\n"
+           (record_failure "  FAILURE slice_pattern: y1=%b y2=%b y3=%b y_orig=%b nodes=%d\n"
               has_y1 has_y2 has_y3 has_y_orig (List.length pe.p_nodes))
-     | _ -> incr fail_count; Printf.printf "  FAILURE slice_pattern should return VPipeline\n");
+     | _ -> record_failure "  FAILURE slice_pattern should return VPipeline\n");
 
     (* 2. slice_pattern with single index --- 1 branch *)
     let env_s1 = Test_helpers.eval_setup eval_string_env env "test_pipeline:2879" "p = pipeline {\n\
@@ -3322,9 +3329,9 @@ p.t_step|}
          if has_y1 && not has_y_orig && List.length pe.p_nodes = 2 then
            (incr pass_count; Printf.printf "  SUCCESS slice_pattern with single index creates 1 branch\n")
          else
-           (incr fail_count; Printf.printf "  FAILURE slice_pattern single: y1=%b y_orig=%b nodes=%d\n"
+           (record_failure "  FAILURE slice_pattern single: y1=%b y_orig=%b nodes=%d\n"
               has_y1 has_y_orig (List.length pe.p_nodes))
-     | _ -> incr fail_count; Printf.printf "  FAILURE slice_pattern single should return VPipeline\n");
+     | _ -> record_failure "  FAILURE slice_pattern single should return VPipeline\n");
 
     (* 3. head_pattern with n=3 from 5 elements --- 3 branches *)
     let env_h = Test_helpers.eval_setup eval_string_env env "test_pipeline:2900" "p = pipeline {\n\
@@ -3342,9 +3349,9 @@ p.t_step|}
          if has_y1 && has_y3 && not has_y4 && not has_y_orig && List.length pe.p_nodes = 4 then
            (incr pass_count; Printf.printf "  SUCCESS head_pattern(n=3) creates 3 branches (4 total nodes)\n")
          else
-           (incr fail_count; Printf.printf "  FAILURE head_pattern: y1=%b y3=%b y4=%b y_orig=%b nodes=%d\n"
+           (record_failure "  FAILURE head_pattern: y1=%b y3=%b y4=%b y_orig=%b nodes=%d\n"
               has_y1 has_y3 has_y4 has_y_orig (List.length pe.p_nodes))
-     | _ -> incr fail_count; Printf.printf "  FAILURE head_pattern should return VPipeline\n");
+     | _ -> record_failure "  FAILURE head_pattern should return VPipeline\n");
 
     (* 4. head_pattern with n exceeding length --- capped *)
     let env_hcap = Test_helpers.eval_setup eval_string_env env "test_pipeline:2923" "p = pipeline {\n\
@@ -3360,9 +3367,9 @@ p.t_step|}
          if has_y3 && not has_y4 && List.length pe.p_nodes = 4 then
            (incr pass_count; Printf.printf "  SUCCESS head_pattern(n=10 on 3 items) caps to 3 branches\n")
          else
-           (incr fail_count; Printf.printf "  FAILURE head_pattern cap: y3=%b y4=%b nodes=%d\n"
+           (record_failure "  FAILURE head_pattern cap: y3=%b y4=%b nodes=%d\n"
               has_y3 has_y4 (List.length pe.p_nodes))
-     | _ -> incr fail_count; Printf.printf "  FAILURE head_pattern cap should return VPipeline\n");
+     | _ -> record_failure "  FAILURE head_pattern cap should return VPipeline\n");
 
     (* 5. tail_pattern with n=2 from 5 elements --- 2 branches (last 2) *)
     let env_t = Test_helpers.eval_setup eval_string_env env "test_pipeline:2944" "p = pipeline {\n\
@@ -3380,9 +3387,9 @@ p.t_step|}
          if has_y1 && has_y2 && not has_y3 && not has_y_orig && List.length pe.p_nodes = 3 then
            (incr pass_count; Printf.printf "  SUCCESS tail_pattern(n=2) creates 2 branches (3 total nodes)\n")
          else
-           (incr fail_count; Printf.printf "  FAILURE tail_pattern: y1=%b y2=%b y3=%b y_orig=%b nodes=%d\n"
+           (record_failure "  FAILURE tail_pattern: y1=%b y2=%b y3=%b y_orig=%b nodes=%d\n"
               has_y1 has_y2 has_y3 has_y_orig (List.length pe.p_nodes))
-     | _ -> incr fail_count; Printf.printf "  FAILURE tail_pattern should return VPipeline\n");
+     | _ -> record_failure "  FAILURE tail_pattern should return VPipeline\n");
 
     (* 6. sample_pattern with n=2 from 5 elements --- 2 branches *)
     let env_samp = Test_helpers.eval_setup eval_string_env env "test_pipeline:2967" "p = pipeline {\n\
@@ -3401,9 +3408,9 @@ p.t_step|}
          if has_y1 && has_y2 && not has_y3 && not has_y_orig && List.length branch_names = 2 then
            (incr pass_count; Printf.printf "  SUCCESS sample_pattern(n=2) creates 2 random branches\n")
          else
-           (incr fail_count; Printf.printf "  FAILURE sample_pattern: y1=%b y2=%b y3=%b y_orig=%b branch_count=%d\n"
+           (record_failure "  FAILURE sample_pattern: y1=%b y2=%b y3=%b y_orig=%b branch_count=%d\n"
               has_y1 has_y2 has_y3 has_y_orig (List.length branch_names))
-      | _ -> incr fail_count; Printf.printf "  FAILURE sample_pattern should return VPipeline\n");
+      | _ -> record_failure "  FAILURE sample_pattern should return VPipeline\n");
 
     (* 7. sample_pattern determinism — two expansions of the same pipeline agree *)
     let (v_samp1, _) = eval_string_env "expand_pipeline(p)" env_samp in
@@ -3415,9 +3422,9 @@ p.t_step|}
          if names1 = names2 then
            (incr pass_count; Printf.printf "  SUCCESS sample_pattern is deterministic (two expansions produce same branches)\n")
          else
-           (incr fail_count; Printf.printf "  FAILURE sample_pattern should be deterministic, got diff: %s vs %s\n"
+           (record_failure "  FAILURE sample_pattern should be deterministic, got diff: %s vs %s\n"
               (String.concat ", " names1) (String.concat ", " names2))
-      | _ -> incr fail_count; Printf.printf "  FAILURE sample_pattern determinism: expand_pipeline should return VPipeline\n");
+      | _ -> record_failure "  FAILURE sample_pattern determinism: expand_pipeline should return VPipeline\n");
 
     (* 8. cross_pattern rejects selector sub-patterns *)
     let env_cross_rej = Test_helpers.eval_setup eval_string_env env "test_pipeline:3005" "p = pipeline {\n\
@@ -3430,7 +3437,7 @@ p.t_step|}
     if contains_pattern "only map_pattern is supported inside cross_pattern" s_rej then
       (incr pass_count; Printf.printf "  SUCCESS cross_pattern rejects slice_pattern as sub-pattern\n")
     else
-      (incr fail_count; Printf.printf "  FAILURE cross_pattern should reject selector, got: %s\n" s_rej);
+      (record_failure "  FAILURE cross_pattern should reject selector, got: %s\n" s_rej);
 
     ()
   in
@@ -3445,7 +3452,7 @@ p.t_step|}
   if classify_hunk_kind_tests then begin
     incr pass_count; Printf.printf "  SUCCESS patience diff hunk kinds classify mixed changes correctly\n"
   end else begin
-    incr fail_count; Printf.printf "  FAILURE patience diff hunk kinds classify mixed changes correctly\n"
+    record_failure "  FAILURE patience diff hunk kinds classify mixed changes correctly\n"
   end;
 
   (* set_pipeline_global_options tests *)
@@ -3491,11 +3498,11 @@ p.t_step|}
        if q_ok && p_unchanged then
          (incr pass_count; Printf.printf "  SUCCESS set_pipeline_global_options merges functions and leaves original unchanged\n")
        else
-         (incr fail_count; Printf.printf "  FAILURE set_pipeline_global_options functions merge failed\n    n1: {%s}\n    n2: {%s}\n    n3: {%s}\n    n4: {%s}\n    p_unchanged: %b\n"
+         (record_failure "  FAILURE set_pipeline_global_options functions merge failed\n    n1: {%s}\n    n2: {%s}\n    n3: {%s}\n    n4: {%s}\n    p_unchanged: %b\n"
             (String.concat ", " (get_funcs q "n1")) (String.concat ", " (get_funcs q "n2"))
             (String.concat ", " (get_funcs q "n3")) (String.concat ", " (get_funcs q "n4")) p_unchanged)
    | other ->
-       incr fail_count; Printf.printf "  FAILURE set_pipeline_global_options test: expected VPipeline, got %s\n" (Utils.value_to_string other));
+       record_failure "  FAILURE set_pipeline_global_options test: expected VPipeline, got %s\n" (Utils.value_to_string other));
 
   (* Test 2: Include merge *)
   (let env = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_pipeline:3086" {|
@@ -3511,9 +3518,9 @@ p.t_step|}
        if List.mem "shared.yaml" n1_includes && List.mem "extra.csv" n1_includes then
          (incr pass_count; Printf.printf "  SUCCESS set_pipeline_global_options merges global include with per-node include\n")
        else
-         (incr fail_count; Printf.printf "  FAILURE set_pipeline_global_options include merge failed: {%s}\n" (String.concat ", " n1_includes))
+         (record_failure "  FAILURE set_pipeline_global_options include merge failed: {%s}\n" (String.concat ", " n1_includes))
    | other ->
-       incr fail_count; Printf.printf "  FAILURE set_pipeline_global_options include test: expected VPipeline, got %s\n" (Utils.value_to_string other));
+       record_failure "  FAILURE set_pipeline_global_options include test: expected VPipeline, got %s\n" (Utils.value_to_string other));
 
   (* Test 3: Unknown argument error *)
   test "set_pipeline_global_options unknown argument"
@@ -3534,9 +3541,9 @@ p.t_step|}
        if n1_funcs = ["second.R"; "first.R"] then
          (incr pass_count; Printf.printf "  SUCCESS set_pipeline_global_options composable: second call prepends before first\n")
        else
-         (incr fail_count; Printf.printf "  FAILURE set_pipeline_global_options composability failed: {%s}\n" (String.concat ", " n1_funcs))
+         (record_failure "  FAILURE set_pipeline_global_options composability failed: {%s}\n" (String.concat ", " n1_funcs))
    | other ->
-       incr fail_count; Printf.printf "  FAILURE set_pipeline_global_options composability test: expected VPipeline, got %s\n" (Ast.Utils.value_to_string other));
+       record_failure "  FAILURE set_pipeline_global_options composability test: expected VPipeline, got %s\n" (Ast.Utils.value_to_string other));
 
   (* Test 5: Nodes added after the call do not inherit defaults *)
   (let env = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_pipeline:3127" {|
@@ -3553,10 +3560,10 @@ p.t_step|}
        if List.mem "global.yaml" n1_includes && n2_includes = [] then
          (incr pass_count; Printf.printf "  SUCCESS set_pipeline_global_options: nodes added after call do not inherit defaults\n")
        else
-         (incr fail_count; Printf.printf "  FAILURE set_pipeline_global_options nodes-after failed: n1={%s} n2={%s}\n"
+         (record_failure "  FAILURE set_pipeline_global_options nodes-after failed: n1={%s} n2={%s}\n"
             (String.concat ", " n1_includes) (String.concat ", " n2_includes))
     | other ->
-        incr fail_count; Printf.printf "  FAILURE set_pipeline_global_options nodes-after test: expected VPipeline, got %s\n" (Ast.Utils.value_to_string other));
+        record_failure "  FAILURE set_pipeline_global_options nodes-after test: expected VPipeline, got %s\n" (Ast.Utils.value_to_string other));
 
    (* Helper accessors for new pipeline fields *)
    let get_env_vars p name =
@@ -3634,12 +3641,12 @@ p.t_step|}
         if q_ok && p_unchanged then
           (incr pass_count; Printf.printf "  SUCCESS set_pipeline_global_options merges env_vars and leaves original unchanged\n")
         else
-          (incr fail_count; Printf.printf "  FAILURE set_pipeline_global_options env_vars merge failed: n1={%s} n2={%s} p_unchanged=%b\n"
+          (record_failure "  FAILURE set_pipeline_global_options env_vars merge failed: n1={%s} n2={%s} p_unchanged=%b\n"
              (String.concat ", " (List.map (fun (k, v) -> k ^ "=" ^ v) n1_vars))
              (String.concat ", " (List.map (fun (k, v) -> k ^ "=" ^ v) n2_vars))
              p_unchanged)
     | other ->
-        incr fail_count; Printf.printf "  FAILURE set_pipeline_global_options env_vars test: expected VPipeline, got %s\n" (Utils.value_to_string other));
+        record_failure "  FAILURE set_pipeline_global_options env_vars test: expected VPipeline, got %s\n" (Utils.value_to_string other));
 
    (* Test 7: args merge *)
    (let env = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_pipeline:3230" {|
@@ -3655,10 +3662,10 @@ p.t_step|}
         if List.mem ("mode", "batch") n1_args && List.mem ("extra_arg", "per_node") n1_args then
           (incr pass_count; Printf.printf "  SUCCESS set_pipeline_global_options merges args (global prepended)\n")
         else
-          (incr fail_count; Printf.printf "  FAILURE set_pipeline_global_options args merge failed: {%s}\n"
+          (record_failure "  FAILURE set_pipeline_global_options args merge failed: {%s}\n"
              (String.concat ", " (List.map (fun (k, v) -> k ^ "=" ^ v) n1_args)))
     | other ->
-        incr fail_count; Printf.printf "  FAILURE set_pipeline_global_options args test: expected VPipeline, got %s\n" (Utils.value_to_string other));
+        record_failure "  FAILURE set_pipeline_global_options args test: expected VPipeline, got %s\n" (Utils.value_to_string other));
 
    (* Test 8: serializer override *)
    (let env = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_pipeline:3249" {|
@@ -3676,9 +3683,9 @@ p.t_step|}
         if n1_ser = "ipc" && n2_ser = "ipc" then
           (incr pass_count; Printf.printf "  SUCCESS set_pipeline_global_options overrides serializer for all nodes\n")
         else
-          (incr fail_count; Printf.printf "  FAILURE set_pipeline_global_options serializer override failed: n1=%s n2=%s\n" n1_ser n2_ser)
+          (record_failure "  FAILURE set_pipeline_global_options serializer override failed: n1=%s n2=%s\n" n1_ser n2_ser)
     | other ->
-        incr fail_count; Printf.printf "  FAILURE set_pipeline_global_options serializer test: expected VPipeline, got %s\n" (Utils.value_to_string other));
+        record_failure "  FAILURE set_pipeline_global_options serializer test: expected VPipeline, got %s\n" (Utils.value_to_string other));
 
    (* Test 9: deserializer override *)
    (let env = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_pipeline:3269" {|
@@ -3694,9 +3701,9 @@ p.t_step|}
         if n1_deser = "csv" then
           (incr pass_count; Printf.printf "  SUCCESS set_pipeline_global_options overrides deserializer\n")
         else
-          (incr fail_count; Printf.printf "  FAILURE set_pipeline_global_options deserializer override failed: n1=%s\n" n1_deser)
+          (record_failure "  FAILURE set_pipeline_global_options deserializer override failed: n1=%s\n" n1_deser)
     | other ->
-        incr fail_count; Printf.printf "  FAILURE set_pipeline_global_options deserializer test: expected VPipeline, got %s\n" (Utils.value_to_string other));
+        record_failure "  FAILURE set_pipeline_global_options deserializer test: expected VPipeline, got %s\n" (Utils.value_to_string other));
 
    (* Test 10: noop override (OR semantics) *)
    (let env = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_pipeline:3287" {|
@@ -3714,9 +3721,9 @@ p.t_step|}
         if n1_noop && n2_noop then
           (incr pass_count; Printf.printf "  SUCCESS set_pipeline_global_options noop=true sets all nodes to noop\n")
         else
-          (incr fail_count; Printf.printf "  FAILURE set_pipeline_global_options noop failed: n1=%b n2=%b\n" n1_noop n2_noop)
+          (record_failure "  FAILURE set_pipeline_global_options noop failed: n1=%b n2=%b\n" n1_noop n2_noop)
     | other ->
-        incr fail_count; Printf.printf "  FAILURE set_pipeline_global_options noop test: expected VPipeline, got %s\n" (Utils.value_to_string other));
+        record_failure "  FAILURE set_pipeline_global_options noop test: expected VPipeline, got %s\n" (Utils.value_to_string other));
 
    (* Test 10b: noop=false leaves nodes unchanged *)
    (let env = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_pipeline:3307" {|
@@ -3732,9 +3739,9 @@ p.t_step|}
         if n1_noop then
           (incr pass_count; Printf.printf "  SUCCESS set_pipeline_global_options noop=false does not clear per-node noop\n")
         else
-          (incr fail_count; Printf.printf "  FAILURE set_pipeline_global_options noop=false incorrectly cleared per-node noop\n")
+          (record_failure "  FAILURE set_pipeline_global_options noop=false incorrectly cleared per-node noop\n")
     | other ->
-        incr fail_count; Printf.printf "  FAILURE set_pipeline_global_options noop false test: expected VPipeline, got %s\n" (Utils.value_to_string other));
+        record_failure "  FAILURE set_pipeline_global_options noop false test: expected VPipeline, got %s\n" (Utils.value_to_string other));
 
    (* Test 11: shell override *)
    (let env = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_pipeline:3325" {|
@@ -3750,10 +3757,10 @@ p.t_step|}
         if n1_shell = Some "zsh" then
           (incr pass_count; Printf.printf "  SUCCESS set_pipeline_global_options overrides shell\n")
         else
-          (incr fail_count; Printf.printf "  FAILURE set_pipeline_global_options shell override failed: got %s\n"
+          (record_failure "  FAILURE set_pipeline_global_options shell override failed: got %s\n"
              (match n1_shell with Some s -> s | None -> "None"))
     | other ->
-        incr fail_count; Printf.printf "  FAILURE set_pipeline_global_options shell test: expected VPipeline, got %s\n" (Utils.value_to_string other));
+        record_failure "  FAILURE set_pipeline_global_options shell test: expected VPipeline, got %s\n" (Utils.value_to_string other));
 
    (* Test 12: shell_args prepend *)
    (let env = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_pipeline:3344" {|
@@ -3769,10 +3776,10 @@ p.t_step|}
         if n1_shell_args = ["--global"; "--per-node"] then
           (incr pass_count; Printf.printf "  SUCCESS set_pipeline_global_options prepends shell_args\n")
         else
-          (incr fail_count; Printf.printf "  FAILURE set_pipeline_global_options shell_args prepend failed: {%s}\n"
+          (record_failure "  FAILURE set_pipeline_global_options shell_args prepend failed: {%s}\n"
              (String.concat ", " n1_shell_args))
     | other ->
-        incr fail_count; Printf.printf "  FAILURE set_pipeline_global_options shell_args test: expected VPipeline, got %s\n" (Utils.value_to_string other));
+        record_failure "  FAILURE set_pipeline_global_options shell_args test: expected VPipeline, got %s\n" (Utils.value_to_string other));
 
    (* Test 13: flake override *)
    (let env = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_pipeline:3363" {|
@@ -3790,11 +3797,11 @@ p.t_step|}
         if n1_flake = Some "path:./global" && n2_flake = Some "path:./global" then
           (incr pass_count; Printf.printf "  SUCCESS set_pipeline_global_options overrides flake for all nodes\n")
         else
-          (incr fail_count; Printf.printf "  FAILURE set_pipeline_global_options flake override failed: n1=%s n2=%s\n"
+          (record_failure "  FAILURE set_pipeline_global_options flake override failed: n1=%s n2=%s\n"
              (match n1_flake with Some f -> f | None -> "None")
              (match n2_flake with Some f -> f | None -> "None"))
     | other ->
-        incr fail_count; Printf.printf "  FAILURE set_pipeline_global_options flake test: expected VPipeline, got %s\n" (Utils.value_to_string other));
+        record_failure "  FAILURE set_pipeline_global_options flake test: expected VPipeline, got %s\n" (Utils.value_to_string other));
 
    (* Test 14: dependencies prepend (per-node arg is `deps`) *)
    (let env = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_pipeline:3385" {|
@@ -3813,11 +3820,11 @@ p.t_step|}
         if q_ok then
           (incr pass_count; Printf.printf "  SUCCESS set_pipeline_global_options prepends dependencies\n")
         else
-          (incr fail_count; Printf.printf "  FAILURE set_pipeline_global_options deps prepend failed: n1=%s n2=%s\n"
+          (record_failure "  FAILURE set_pipeline_global_options deps prepend failed: n1=%s n2=%s\n"
              (match n1_deps with Some d -> String.concat ", " d | None -> "None")
              (match n2_deps with Some d -> String.concat ", " d | None -> "None"))
     | other ->
-        incr fail_count; Printf.printf "  FAILURE set_pipeline_global_options deps test: expected VPipeline, got %s\n" (Utils.value_to_string other));
+        record_failure "  FAILURE set_pipeline_global_options deps test: expected VPipeline, got %s\n" (Utils.value_to_string other));
 
    (* Test 14b: dependencies omitted leaves p_explicit_deps untouched *)
    (* Regression: when `dependencies` is not passed, n1's deps must stay Some ["n2"]
@@ -3838,11 +3845,11 @@ p.t_step|}
         if q_ok then
           (incr pass_count; Printf.printf "  SUCCESS set_pipeline_global_options leaves deps untouched when dependencies omitted\n")
         else
-          (incr fail_count; Printf.printf "  FAILURE set_pipeline_global_options deps omitted test failed: n1=%s n2=%s\n"
+          (record_failure "  FAILURE set_pipeline_global_options deps omitted test failed: n1=%s n2=%s\n"
              (match n1_deps with Some d -> String.concat ", " d | None -> "None")
              (match n2_deps with Some d -> String.concat ", " d | None -> "None"))
     | other ->
-        incr fail_count; Printf.printf "  FAILURE set_pipeline_global_options deps omitted test: expected VPipeline, got %s\n" (Utils.value_to_string other));
+        record_failure "  FAILURE set_pipeline_global_options deps omitted test: expected VPipeline, got %s\n" (Utils.value_to_string other));
 
    (* Test 15: Type error for wrong env_vars type *)
    test "set_pipeline_global_options env_vars type error"
@@ -3890,9 +3897,9 @@ p.t_step|}
         if q_ok then
           (incr pass_count; Printf.printf "  SUCCESS set_pipeline_global_options runtimes scope\n")
         else
-          (incr fail_count; Printf.printf "  FAILURE set_pipeline_global_options runtimes scope failed: n1=%s n2=%s n3=%s\n" n1_ser n2_ser n3_ser)
+          (record_failure "  FAILURE set_pipeline_global_options runtimes scope failed: n1=%s n2=%s n3=%s\n" n1_ser n2_ser n3_ser)
     | other ->
-        incr fail_count; Printf.printf "  FAILURE set_pipeline_global_options runtimes scope test: expected VPipeline, got %s\n" (Utils.value_to_string other));
+        record_failure "  FAILURE set_pipeline_global_options runtimes scope test: expected VPipeline, got %s\n" (Utils.value_to_string other));
 
    (* Test 21: nodes scope — include only applies to listed nodes *)
    (let env = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_pipeline:3483" {|
@@ -3913,10 +3920,10 @@ p.t_step|}
         if q_ok then
           (incr pass_count; Printf.printf "  SUCCESS set_pipeline_global_options nodes scope\n")
         else
-          (incr fail_count; Printf.printf "  FAILURE set_pipeline_global_options nodes scope failed: n1={%s} n2={%s} n3={%s}\n"
+          (record_failure "  FAILURE set_pipeline_global_options nodes scope failed: n1={%s} n2={%s} n3={%s}\n"
              (String.concat ", " n1_incs) (String.concat ", " n2_incs) (String.concat ", " n3_incs))
     | other ->
-        incr fail_count; Printf.printf "  FAILURE set_pipeline_global_options nodes scope test: expected VPipeline, got %s\n" (Utils.value_to_string other));
+        record_failure "  FAILURE set_pipeline_global_options nodes scope test: expected VPipeline, got %s\n" (Utils.value_to_string other));
 
    (* Test 22: union of nodes and runtimes scopes *)
    (let env = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_pipeline:3507" {|
@@ -3934,10 +3941,10 @@ p.t_step|}
         if q_ok then
           (incr pass_count; Printf.printf "  SUCCESS set_pipeline_global_options nodes+runtimes union scope\n")
         else
-          (incr fail_count; Printf.printf "  FAILURE set_pipeline_global_options union scope failed: n1=%b n2=%b n3=%b\n"
+          (record_failure "  FAILURE set_pipeline_global_options union scope failed: n1=%b n2=%b n3=%b\n"
              (get_noop q "n1") (get_noop q "n2") (get_noop q "n3"))
     | other ->
-        incr fail_count; Printf.printf "  FAILURE set_pipeline_global_options union scope test: expected VPipeline, got %s\n" (Utils.value_to_string other));
+        record_failure "  FAILURE set_pipeline_global_options union scope test: expected VPipeline, got %s\n" (Utils.value_to_string other));
 
    (* Test 23: unknown node name errors *)
    test "set_pipeline_global_options unknown node error"
@@ -3968,12 +3975,12 @@ p.t_step|}
         if q_ok then
           (incr pass_count; Printf.printf "  SUCCESS set_pipeline_global_options scoped dependencies leave non-targets untouched\n")
         else
-          (incr fail_count; Printf.printf "  FAILURE set_pipeline_global_options scoped deps failed: n1=%s n2=%s n3=%s\n"
+          (record_failure "  FAILURE set_pipeline_global_options scoped deps failed: n1=%s n2=%s n3=%s\n"
              (match n1_deps with Some d -> String.concat ", " d | None -> "None")
              (match n2_deps with Some d -> String.concat ", " d | None -> "None")
              (match n3_deps with Some d -> String.concat ", " d | None -> "None"))
     | other ->
-        incr fail_count; Printf.printf "  FAILURE set_pipeline_global_options scoped deps test: expected VPipeline, got %s\n" (Utils.value_to_string other));
+        record_failure "  FAILURE set_pipeline_global_options scoped deps test: expected VPipeline, got %s\n" (Utils.value_to_string other));
 
    (* Test 26: pipeline_node_options read-back after global options merge *)
    (let env = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_pipeline:3564" {|
@@ -4019,13 +4026,12 @@ p.t_step|}
         if ok then
           (incr pass_count; Printf.printf "  SUCCESS pipeline_node_options read-back after global merge\n")
         else
-          (incr fail_count;
-           Printf.printf "  FAILURE pipeline_node_options read-back failed: funcs={%s} incs={%s} shell=%s flake=%s noop=%b env_vars=%s deps={%s} shell_args={%s} rt=%s depth=%d cmd_type=%s\n%s\n"
+          (record_failure "  FAILURE pipeline_node_options read-back failed: funcs={%s} incs={%s} shell=%s flake=%s noop=%b env_vars=%s deps={%s} shell_args={%s} rt=%s depth=%d cmd_type=%s\n%s\n"
              (String.concat ", " funcs) (String.concat ", " incs) sh fl noop
              (match env_vars with Some (VString s) -> s | _ -> "?")
              (String.concat ", " deps) (String.concat ", " shell_args) rt depth cmd_type dbg)
     | other ->
-        incr fail_count; Printf.printf "  FAILURE pipeline_node_options read-back test: expected VDict, got %s\n" (Utils.value_to_string other));
+        record_failure "  FAILURE pipeline_node_options read-back test: expected VDict, got %s\n" (Utils.value_to_string other));
 
    (* Test 27: pipeline_node_options unknown node error *)
    test "pipeline_node_options unknown node error"
@@ -4062,9 +4068,9 @@ p.t_step|}
         if q_ok then
           (incr pass_count; Printf.printf "  SUCCESS set_pipeline_global_options explicit empty nodes scope targets no nodes\n")
         else
-          (incr fail_count; Printf.printf "  FAILURE set_pipeline_global_options empty nodes scope failed: n1=%s n2=%s\n" (get_serializer q "n1") (get_serializer q "n2"))
+          (record_failure "  FAILURE set_pipeline_global_options empty nodes scope failed: n1=%s n2=%s\n" (get_serializer q "n1") (get_serializer q "n2"))
     | other ->
-        incr fail_count; Printf.printf "  FAILURE set_pipeline_global_options empty nodes scope test: expected VPipeline, got %s\n" (Utils.value_to_string other));
+        record_failure "  FAILURE set_pipeline_global_options empty nodes scope test: expected VPipeline, got %s\n" (Utils.value_to_string other));
 
    (* Test 32: explicit empty nodes + runtimes still targets the runtime's nodes *)
    (let env = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_pipeline:3655" {|
@@ -4081,9 +4087,9 @@ p.t_step|}
         if q_ok then
           (incr pass_count; Printf.printf "  SUCCESS set_pipeline_global_options empty nodes + runtimes union\n")
         else
-          (incr fail_count; Printf.printf "  FAILURE set_pipeline_global_options empty nodes + runtimes union failed: n1=%s n2=%s\n" (get_serializer q "n1") (get_serializer q "n2"))
+          (record_failure "  FAILURE set_pipeline_global_options empty nodes + runtimes union failed: n1=%s n2=%s\n" (get_serializer q "n1") (get_serializer q "n2"))
     | other ->
-        incr fail_count; Printf.printf "  FAILURE set_pipeline_global_options empty nodes + runtimes union test: expected VPipeline, got %s\n" (Utils.value_to_string other));
+        record_failure "  FAILURE set_pipeline_global_options empty nodes + runtimes union test: expected VPipeline, got %s\n" (Utils.value_to_string other));
 
    (* Test 33 (reviewer issue 1): serializer provenance — explicit ^text
       shows "node", sh constructor default shows NA *)
@@ -4110,8 +4116,8 @@ p.t_step|}
         if ok then
           (incr pass_count; Printf.printf "  SUCCESS serializer provenance: ^text -> node, sh default -> NA\n")
         else
-          (incr fail_count; Printf.printf "  FAILURE serializer provenance failed: R^text got '%s' (exp node), sh default got '%s' (exp NA)\n" r_src s_src)
-    | _ -> incr fail_count; Printf.printf "  FAILURE serializer provenance test: expected VDict\n");
+          (record_failure "  FAILURE serializer provenance failed: R^text got '%s' (exp node), sh default got '%s' (exp NA)\n" r_src s_src)
+    | _ -> record_failure "  FAILURE serializer provenance test: expected VDict\n");
 
    (* Test 34a (reviewer issue 2): global deps visible in p_deps *)
    (let env = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_pipeline:3702" {|
@@ -4129,8 +4135,8 @@ p.t_step|}
         if ok then
           (incr pass_count; Printf.printf "  SUCCESS global deps visible in p_deps\n")
         else
-          (incr fail_count; Printf.printf "  FAILURE global deps not in p_deps: a deps=[%s]\n" (String.concat ", " deps_a))
-    | _ -> incr fail_count; Printf.printf "  FAILURE global deps p_deps test: expected VPipeline\n");
+          (record_failure "  FAILURE global deps not in p_deps: a deps=[%s]\n" (String.concat ", " deps_a))
+    | _ -> record_failure "  FAILURE global deps p_deps test: expected VPipeline\n");
 
    (* Test 34b (reviewer issue 2): self-dep filtered from global deps *)
    (let env = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_pipeline:3721" {|
@@ -4147,8 +4153,8 @@ p.t_step|}
         if ok then
           (incr pass_count; Printf.printf "  SUCCESS global deps self-reference filtered\n")
         else
-          (incr fail_count; Printf.printf "  FAILURE self-ref not filtered: a deps=[%s]\n" (String.concat ", " deps_a))
-    | _ -> incr fail_count; Printf.printf "  FAILURE self-dep filter test: expected VPipeline\n");
+          (record_failure "  FAILURE self-ref not filtered: a deps=[%s]\n" (String.concat ", " deps_a))
+    | _ -> record_failure "  FAILURE self-dep filter test: expected VPipeline\n");
 
    (* Test 34c (reviewer issue 2): global-dep-created cycle caught *)
    test "global-dep cycle caught by validate"
@@ -4177,7 +4183,7 @@ p.t_step|}
     if cycles_match && validate_catches then
       (incr pass_count; Printf.printf "  SUCCESS pipeline_cycles and pipeline_validate consistent for global-dep cycle\n")
     else
-      (incr fail_count; Printf.printf "  FAILURE cycle consistency failed: cycles=%s validate=%s\n"
+      (record_failure "  FAILURE cycle consistency failed: cycles=%s validate=%s\n"
         (Ast.Utils.value_to_string vcyc) (Ast.Utils.value_to_string vval)));
 
    (* Test 36 (reviewer issue 4): provenance per-function source mapping *)
@@ -4211,9 +4217,9 @@ p.t_step|}
         if ok then
           (incr pass_count; Printf.printf "  SUCCESS provenance per-function source mapping (global vs node)\n")
         else
-          (incr fail_count; Printf.printf "  FAILURE provenance mapping failed: funcs global=[%s] node=[%s] deps global=[%s]\n"
+          (record_failure "  FAILURE provenance mapping failed: funcs global=[%s] node=[%s] deps global=[%s]\n"
             (String.concat ", " globals) (String.concat ", " nodes) (String.concat ", " dep_globals))
-     | _ -> incr fail_count; Printf.printf "  FAILURE provenance mapping test: expected VDict\n");
+     | _ -> record_failure "  FAILURE provenance mapping test: expected VDict\n");
 
    (* pipeline_config_to_frame: value-content test — verifies provenance columns
       reflect actual global-option merges *)
@@ -4259,9 +4265,9 @@ p.t_step|}
         if ok then
           (incr pass_count; Printf.printf "  SUCCESS pipeline_config_to_frame value-content after global merge\n")
         else
-          (incr fail_count; Printf.printf "  FAILURE pipeline_config_to_frame value-content failed: prov_ser=%s n_funcs_g=%d n_funcs_n=%d n_deps_g=%d\n"
+          (record_failure "  FAILURE pipeline_config_to_frame value-content failed: prov_ser=%s n_funcs_g=%d n_funcs_n=%d n_deps_g=%d\n"
              prov_ser n_funcs_g n_funcs_n n_deps_g)
-    | _ -> incr fail_count; Printf.printf "  FAILURE pipeline_config_to_frame value-content test: expected VDataFrame\n");
+    | _ -> record_failure "  FAILURE pipeline_config_to_frame value-content test: expected VDataFrame\n");
 
    (* mutate_node: provenance check — mutated fields show Source_node, not global *)
    (let env = Test_helpers.eval_setup eval_string_env (Packages.init_env ()) "test_pipeline:3852" {|
@@ -4290,9 +4296,9 @@ p.t_step|}
         if ok then
           (incr pass_count; Printf.printf "  SUCCESS mutate_node provenance: functions -> node, shell -> node after mutation\n")
         else
-          (incr fail_count; Printf.printf "  FAILURE mutate_node provenance failed: funcs global=[%s] node=[%s] shell_src=%s\n"
+          (record_failure "  FAILURE mutate_node provenance failed: funcs global=[%s] node=[%s] shell_src=%s\n"
              (String.concat ", " f_globals) (String.concat ", " f_nodes) shell_src)
-     | _ -> incr fail_count; Printf.printf "  FAILURE mutate_node provenance test: expected VDict\n");
+     | _ -> record_failure "  FAILURE mutate_node provenance test: expected VDict\n");
 
    (* Test 38 (block-local bindings in T node commands): names bound by
       assignments inside a node's `{ }` block are NOT pipeline dependencies,
@@ -4330,7 +4336,7 @@ p.t_step|}
         if ok then
           (incr pass_count; Printf.printf "  SUCCESS block-local binding leaves only the sibling node as a dependency\n")
         else
-          (incr fail_count; Printf.printf "  FAILURE block-local deps inference: clean deps=[%s]\n" (String.concat ", " deps_clean))
-    | _ -> incr fail_count; Printf.printf "  FAILURE block-local deps inference: expected VPipeline\n");
+          (record_failure "  FAILURE block-local deps inference: clean deps=[%s]\n" (String.concat ", " deps_clean))
+    | _ -> record_failure "  FAILURE block-local deps inference: expected VPipeline\n");
 
    print_newline ()

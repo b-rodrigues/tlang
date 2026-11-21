@@ -254,6 +254,18 @@ def inspect_node(
         {"code": row["code"], "message": row["message"]}
         for row in _warning_rows(name, entry, pipeline_path)
     ]
+    err = _error_of_entry(entry, pipeline_path)
+    raw_status = _status_of(entry)
+    if err is not None or (isinstance(raw_status, str) and raw_status in ("Errored", "SoftFailed")):
+        status = "Errored"
+        klass = "Error"
+        err_code = err["code"] if isinstance(err, dict) else _text_or_none(entry.get("error_code"))
+        err_msg = err["message"] if isinstance(err, dict) else _text_or_none(entry.get("error_message"))
+    else:
+        status = "Built"
+        klass = _text_or_none(entry.get("class"))
+        err_code = None
+        err_msg = None
     return {
         "name": name,
         "runtime": _text_or_none(entry.get("runtime")),
@@ -264,10 +276,12 @@ def inspect_node(
         if isinstance(entry.get("dependencies"), list)
         else [],
         "children": _direct_children(deps_map, name),
-        "status": _status_of(entry),
-        "class": _text_or_none(entry.get("class")),
-        "path": path,
-        "error": _error_of_entry(entry, pipeline_path),
+        "status": status,
+        "class": klass,
+        "path": path if status == "Built" else None,
+        "error": err,
+        "error_code": err_code,
+        "error_message": err_msg,
         "warnings": warnings,
     }
 

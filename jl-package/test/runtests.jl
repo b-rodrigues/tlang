@@ -531,3 +531,129 @@ end
         @test logs[1]["pipeline"] == "demo"
     end
 end
+
+@testset "pipeline_overview parity" begin
+    mktempdir() do tmp_dir
+        pipe = joinpath(tmp_dir, "_pipeline")
+        mkpath(pipe)
+        art = joinpath(tmp_dir, "a.txt"); write(art, "a")
+        verror = joinpath(tmp_dir, "err.json")
+        open(verror, "w") do io
+            JSON.print(io, Dict("type" => "VError", "code" => "RuntimeError",
+                "message" => "boom"))
+        end
+        _write_log(pipe, [
+            Dict("node" => "ok", "path" => art, "runtime" => "T",
+                "serializer" => "text", "dependencies" => String[],
+                "status" => "Completed", "class" => "String"),
+            Dict("node" => "bad", "path" => verror, "runtime" => "T",
+                "serializer" => "text", "dependencies" => String[],
+                "status" => "Completed", "class" => "VError"),
+            Dict("node" => "skip", "path" => art, "runtime" => "R",
+                "serializer" => "json", "dependencies" => String[],
+                "status" => "Skipped", "class" => "String"),
+            Dict("node" => "soft", "path" => art, "runtime" => "Python",
+                "serializer" => "csv", "dependencies" => String[],
+                "status" => "SoftFailed", "class" => "String",
+                "error_code" => "ValueError", "error_message" => "bad value"),
+        ], "build_log_20260108_000000_ovw.json")
+
+        rows = pipeline_overview(pipeline_dir=pipe, which_log="20260108")
+        @test [r["name"] for r in rows] == ["bad", "soft", "ok", "skip"]
+        @test [r["status"] for r in rows] == ["Errored", "Errored", "Built", "Skipped"]
+        @test [r["class"] for r in rows] == ["Error", "Error", "String", "String"]
+        @test [r["error_code"] for r in rows] ==
+            ["RuntimeError", "ValueError", nothing, nothing]
+        @test [r["error_message"] for r in rows] ==
+            ["boom", "bad value", nothing, nothing]
+        @test rows[1]["path"] === nothing
+
+        @test [r["name"] for r in pipeline_overview(pipeline_dir=pipe, which_log="20260108", only="failed")] ==
+            ["bad", "soft"]
+        @test [r["name"] for r in pipeline_overview(pipeline_dir=pipe, which_log="20260108", only="built")] ==
+            ["ok"]
+        @test [r["name"] for r in pipeline_overview(pipeline_dir=pipe, which_log="20260108", only="unbuilt")] ==
+            ["skip"]
+        @test length(pipeline_overview(pipeline_dir=pipe, which_log="20260108", only="all")) == 4
+        @test_throws ErrorException pipeline_overview(pipeline_dir=pipe, only="bad")
+    end
+end
+
+@testset "graph helpers" begin
+    mktempdir() do tmp_dir
+        pipe = joinpath(tmp_dir, "_pipeline")
+        mkpath(pipe)
+        dag = [
+            Dict("node_name" => "a", "depends" => String[]),
+            Dict("node_name" => "b", "depends" => ["a"]),
+            Dict("node_name" => "c", "depends" => ["a", "b"]),
+        ]
+        open(joinpath(pipe, "dag.json"), "w") do io
+            JSON.print(io, dag)
+        end
+        @test pipeline_edges(pipeline_dir=pipe) == [["a", "b"], ["a", "c"], ["b", "c"]]
+        @test "a" in pipeline_roots(pipeline_dir=pipe)
+        @test pipeline_leaves(pipeline_dir=pipe) == ["c"]
+        @test pipeline_depth(pipeline_dir=pipe) == 2
+        @test pipeline_node_depths(pipeline_dir=pipe) == Dict("a" => 0, "b" => 1, "c" => 2)
+        @test isempty(pipeline_cycles(pipeline_dir=pipe))
+        @test isempty(pipeline_validate(pipeline_dir=pipe))
+        @test occursin("digraph pipeline", pipeline_to_dot(pipeline_dir=pipe))
+        @test occursin("graph LR", pipeline_to_mermaid(pipeline_dir=pipe))
+    end
+end
+
+@testset "pipeline frames" begin
+    mktempdir() do tmp_dir
+        pipe = joinpath(tmp_dir, "_pipeline")
+        art = joinpath(tmp_dir, "a.txt"); write(art, "a")
+        _write_log(pipe, [
+            Dict("node" => "a", "path" => art, "runtime" => "T",
+                "serializer" => "text", "dependencies" => String[],
+                "status" => "Completed", "class" => "String", "source" => "[1, 2]"),
+            Dict("node" => "b", "path" => art, "runtime" => "R",
+                "serializer" => "json", "dependencies" => ["a"],
+                "status" => "Completed", "class" => "String", "script" => "train.R"),
+            Dict("node" => "c", "path" => art, "runtime" => "Python",
+                "serializer" => "csv", "dependencies" => ["b"],
+                "status" => "Completed", "class" => "String"),
+        ], "build_log_20260101_000000_abc.json")
+        rows = pipeline_to_frame(pipeline_dir=pipe)
+        @test [r["name"] for r in rows] == ["a", "b", "c"]
+        @test [r["depth"] for r in rows] == [0, 1, 2]
+        @test [r["command_type"] for r in rows] == ["command", "script", nothing]
+        @test rows[2]["deps"] == ["a"]
+        # Build logs never store these: always nothing, never faked.
+        @test rows[1]["deserializer"] === nothing
+        @test rows[1]["noop"] === nothing
+
+        cfg = pipeline_config_to_frame(pipeline_dir=pipe)
+        by_name = Dict(r["name"] => r for r in cfg)
+        @test by_name["b"]["n_deps"] == 1
+        @test by_name["a"]["n_deps"] == 0
+        # Unknown provenance stays nothing (unknown, not zero).
+        @test by_name["a"]["prov_serializer"] === nothing
+        @test by_name["a"]["shell"] === nothing
+        @test by_name["a"]["n_funcs"] === nothing
+        @test by_name["a"]["n_deps_global"] === nothing
+    end
+
+    mktempdir() do tmp_dir
+        pipe = joinpath(tmp_dir, "_pipeline")
+        mkpath(pipe)
+        open(joinpath(pipe, "dag.json"), "w") do io
+            JSON.print(io, [
+                Dict("node_name" => "a", "depends" => String[]),
+                Dict("node_name" => "b", "depends" => ["a"]),
+            ])
+        end
+        rows = pipeline_to_frame(pipeline_dir=pipe)
+        @test [r["name"] for r in rows] == ["a", "b"]
+        @test [r["depth"] for r in rows] == [0, 1]
+        @test rows[1]["runtime"] === nothing
+        @test rows[1]["command_type"] === nothing
+        cfg = pipeline_config_to_frame(pipeline_dir=pipe)
+        @test cfg[2]["n_deps"] == 1
+        @test cfg[1]["serializer"] === nothing
+    end
+end

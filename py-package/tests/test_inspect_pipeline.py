@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from tlang import inspect_pipeline
+from tlang import inspect_pipeline, pipeline_overview
 
 
 def _write_log(pipe: Path, nodes: list[dict], name: str = "build_log_20260101_000000_abc.json") -> None:
@@ -131,6 +131,94 @@ class InspectPipelineTests(unittest.TestCase):
             )
             with self.assertRaises(ValueError):
                 inspect_pipeline(pipe, which_log="20260102")
+
+
+class PipelineOverviewTests(unittest.TestCase):
+    def test_overview_rows_and_filters(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            pipe = tmp_path / "_pipeline"
+            art = tmp_path / "a.txt"
+            art.write_text("a")
+            err_art = tmp_path / "err.json"
+            err_art.write_text(
+                json.dumps({"type": "VError", "code": "RuntimeError", "message": "boom"})
+            )
+            _write_log(
+                pipe,
+                [
+                    {
+                        "node": "ok",
+                        "path": str(art),
+                        "runtime": "T",
+                        "serializer": "text",
+                        "dependencies": [],
+                        "status": "Completed",
+                        "class": "String",
+                    },
+                    {
+                        "node": "bad",
+                        "path": str(err_art),
+                        "runtime": "T",
+                        "serializer": "text",
+                        "dependencies": [],
+                        "status": "Completed",
+                        "class": "VError",
+                    },
+                    {
+                        "node": "skip",
+                        "path": str(art),
+                        "runtime": "R",
+                        "serializer": "json",
+                        "dependencies": [],
+                        "status": "Skipped",
+                        "class": "String",
+                    },
+                    {
+                        "node": "soft",
+                        "path": str(art),
+                        "runtime": "Python",
+                        "serializer": "csv",
+                        "dependencies": [],
+                        "status": "SoftFailed",
+                        "class": "String",
+                        "error_code": "ValueError",
+                        "error_message": "bad value",
+                    },
+                ],
+                name="build_log_20260103_000000_ovw.json",
+            )
+            rows = pipeline_overview(pipe)
+            self.assertEqual([r["name"] for r in rows], ["bad", "soft", "ok", "skip"])
+            self.assertEqual(
+                [r["status"] for r in rows], ["Errored", "Errored", "Built", "Skipped"]
+            )
+            self.assertEqual(
+                [r["class"] for r in rows], ["Error", "Error", "String", "String"]
+            )
+            self.assertEqual(
+                [r["error_code"] for r in rows],
+                ["RuntimeError", "ValueError", None, None],
+            )
+            self.assertEqual(
+                [r["error_message"] for r in rows], ["boom", "bad value", None, None]
+            )
+            self.assertIsNone(rows[0]["path"])
+            self.assertEqual(
+                [r["name"] for r in pipeline_overview(pipe, only="failed")],
+                ["bad", "soft"],
+            )
+            self.assertEqual(
+                [r["name"] for r in pipeline_overview(pipe, only="built")], ["ok"]
+            )
+            self.assertEqual(
+                [r["name"] for r in pipeline_overview(pipe, only="unbuilt")], ["skip"]
+            )
+            self.assertEqual(len(pipeline_overview(pipe, only="all")), 4)
+            with self.assertRaises(ValueError):
+                pipeline_overview(pipe, only="bad")
+            with self.assertRaises(TypeError):
+                pipeline_overview(pipe, only=1)
 
 
 if __name__ == "__main__":

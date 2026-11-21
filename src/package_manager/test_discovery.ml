@@ -309,7 +309,7 @@ let run_test_file ?(base_env : Ast.environment option) (file : string) : test_re
     { file; success = false;
       error_msg = Some msg;
       duration }
-  | Ast.Invalid_type_declaration msg ->
+  | Ast.Invalid_type_declaration (msg, _) ->
     let duration = Unix.gettimeofday () -. start in
     { file; success = false;
       error_msg = Some msg;

@@ -52,6 +52,7 @@ type suggested_fix = private
   | Rename_column of { old_name: string; new_name: string; target_node: string option; file: string option; line: int option; edit_distance: int; is_unique: bool; confidence: confidence }
   | Rename_node of { old_name: string; new_name: string; target_node: string option; file: string option; line: int option; confidence: confidence }
   | Add_node_arg of { node: string; arg: string; target_node: string option; file: string option; line: int option; confidence: confidence }
+  | Replace_text of { old_text: string; new_text: string; target_node: string option; file: string option; line: int option; column: int option; confidence: confidence }
   | Suggest_identifier of { name: string; suggestion: string; target_node: string option; file: string option; line: int option; edit_distance: int; is_unique: bool; confidence: confidence }
   | Run_command of { command: string; description: string; target_node: string option; file: string option; line: int option; confidence: confidence }
   | NoFix
@@ -79,6 +80,12 @@ val make_add_node_arg_fix : node:string -> arg:string -> ?target_node:string -> 
     referenced elsewhere in the file (`deps`, sibling expressions, raw-code
     blocks), so confidence is [Medium]. *)
 val make_rename_node_fix : old_name:string -> new_name:string -> ?target_node:string -> ?file:string -> ?line:int -> unit -> suggested_fix
+
+(** Replace_text: simple text replace for deterministic renames.
+    Used for `^arrow` to `^ipc`, `read_log("n")` to `read_log(p.n)`,
+    and bare `Missing` to `Missing()`. Confidence is High when
+    the match is unique, else Medium. *)
+val make_replace_text_fix : old_text:string -> new_text:string -> ?target_node:string -> ?file:string -> ?line:int -> ?column:int -> ?confidence:confidence -> unit -> suggested_fix
 
 (** Run_command: suggests a shell command. Always [Low]. *)
 val make_run_command_fix : command:string -> description:string -> ?target_node:string -> ?file:string -> ?line:int -> unit -> suggested_fix

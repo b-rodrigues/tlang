@@ -3,7 +3,7 @@ module tlang
 using JSON
 using Serialization
 
-export read_node, read_node_tree, inspect_pipeline, inspect_node, lineage, show_code, error_msg, error_code, error_context, warning_msg, list_logs, build_log_to_frame, collect_exceptions, pipeline_nodes, diff_artifacts, diff_nodes, diff_objects
+export read_node, read_node_tree, inspect_pipeline, pipeline_overview, inspect_node, lineage, show_code, error_msg, error_code, error_context, warning_msg, list_logs, build_log_to_frame, collect_exceptions, pipeline_nodes, diff_artifacts, diff_nodes, diff_objects, pipeline_edges, pipeline_roots, pipeline_leaves, pipeline_node_depths, pipeline_depth, pipeline_cycles, pipeline_validate, pipeline_to_dot, pipeline_to_mermaid, pipeline_to_frame, pipeline_config_to_frame
 
 const FIXTURE_LOGS = ["build_log_ocaml_mock.json", "build_log_legacy_version.json"]
 
@@ -652,7 +652,9 @@ Return trimmed text or `nothing` for missing values.
 """
 function _inspect_text_or_nothing(value)
     if value isa String && !isempty(strip(value))
-        return strip(value)
+        # String(), not the SubString strip returns: callers test
+        # `isa String` on these values.
+        return String(strip(value))
     end
     return nothing
 end
@@ -778,7 +780,9 @@ string when present, else maps `success` (bool or "true"/"false" string) to
 function _frames_status_of(entry)
     status = get(entry, "status", nothing)
     if status isa String && !isempty(strip(status))
-        return strip(status)
+        # String(), not the SubString strip returns: pipeline_overview tests
+        # `isa String` to decide Built versus Unbuilt.
+        return String(strip(status))
     end
     success = get(entry, "success", nothing)
     if success isa Bool
@@ -1236,8 +1240,7 @@ end
     inspect_node(name::String; which_log=nothing, pipeline_dir="_pipeline")
 
 Inspect one node's metadata, lineage, error, and warnings. Returns a `Dict`
-with `name`, `runtime`, `serializer`, `dependencies`, `children` (direct
-dependents), `status`, `class`, `path`, `error`, and `warnings`.
+with `name`, `runtime`, `serializer`, `dependencies`, `children`, `status` (Built or Errored), `class`, `path`, `error`, `error_code`, `error_message`, and `warnings`.
 """
 function inspect_node(
     name::String;
@@ -1265,7 +1268,13 @@ function inspect_node(
     catch
         nothing
     end
-    status = _frames_status_of(entry)
+    err = _error_of_entry(entry, pipeline_dir)
+    raw_status = _frames_status_of(entry)
+    is_failed = err !== nothing || (raw_status isa String && raw_status in ("Errored", "SoftFailed"))
+    status = is_failed ? "Errored" : "Built"
+    klass = is_failed ? "Error" : _inspect_text_or_nothing(get(entry, "class", nothing))
+    err_code = err === nothing ? nothing : get(err, "code", nothing)
+    err_msg = err === nothing ? nothing : get(err, "message", nothing)
     return Dict{String, Any}(
         "name" => name,
         "runtime" => _inspect_text_or_nothing(get(entry, "runtime", nothing)),
@@ -1273,9 +1282,11 @@ function inspect_node(
         "dependencies" => unique(sort(clean)),
         "children" => children,
         "status" => status,
-        "class" => _inspect_text_or_nothing(get(entry, "class", nothing)),
-        "path" => artifact,
-        "error" => _error_of_entry(entry, pipeline_dir),
+        "class" => klass,
+        "path" => status == "Built" ? artifact : nothing,
+        "error" => err,
+        "error_code" => err_code,
+        "error_message" => err_msg,
         "warnings" => warnings,
     )
 end
@@ -1618,6 +1629,458 @@ function diff_nodes(
         context=context,
         deserializer=deserializer,
     )
+end
+
+"""
+    pipeline_overview(; pipeline_dir="_pipeline", which_log=nothing, only=nothing)
+
+Overview table, failed first. Mirrors T pipeline_overview.
+Returns a Vector of Dicts with name, runtime, serializer, dependencies,
+status, class, path, error_code, and error_message. Failed nodes carry
+status "Errored". Built nodes carry "Built"; unbuilt or skipped nodes keep
+their own status instead of being reported as built.
+Pass only="failed" for failures only.
+"""
+function pipeline_overview(; pipeline_dir::String="_pipeline", which_log::Union{String, Nothing}=nothing, only::Union{String, Nothing}=nothing)
+    only_norm = only === nothing ? nothing : lowercase(strip(only))
+    if only_norm !== nothing && !(only_norm in ("failed", "errored", "built", "completed", "unbuilt", "pending", "all"))
+        error("pipeline_overview: only must be failed, built, unbuilt, or all, but got \"$only\".")
+    end
+    rows = inspect_pipeline(pipeline_dir=pipeline_dir, which_log=which_log)
+    entries = Dict{String, Any}()
+    logs = _list_build_logs(pipeline_dir)
+    if !isempty(logs)
+        log_file = _select_build_log(logs, which_log, pipeline_dir)
+        build_log = JSON.parsefile(joinpath(pipeline_dir, log_file))
+        for entry in get(build_log, "nodes", Any[])
+            if entry isa AbstractDict
+                nm = get(entry, "node", nothing)
+                if nm isa String
+                    entries[nm] = entry
+                end
+            end
+        end
+    end
+    out = Dict{String, Any}[]
+    for r in rows
+        name = get(r, "node", nothing)
+        st = get(r, "status", nothing)
+        st_text = st isa String ? strip(st) : ""
+        entry = name isa String && haskey(entries, name) ? entries[name] : nothing
+        err = entry === nothing ? nothing : _error_of_entry(entry, pipeline_dir)
+        is_errored = st_text in ("Errored", "SoftFailed") || get(r, "class", nothing) == "Error" || err !== nothing
+        status = if is_errored
+            "Errored"
+        elseif st_text in ("Completed", "Built", "Cached")
+            "Built"
+        elseif isempty(st_text)
+            "Unbuilt"
+        else
+            st_text
+        end
+        push!(out, Dict{String, Any}(
+            "name" => name,
+            "runtime" => get(r, "runtime", nothing),
+            "serializer" => get(r, "serializer", nothing),
+            "dependencies" => get(r, "dependencies", String[]),
+            "status" => status,
+            "class" => is_errored ? "Error" : get(r, "class", nothing),
+            "path" => is_errored ? nothing : get(r, "path", nothing),
+            "error_code" => err isa AbstractDict ? get(err, "code", nothing) : nothing,
+            "error_message" => err isa AbstractDict ? get(err, "message", nothing) : nothing,
+        ))
+    end
+    failed = filter(x -> x["status"] == "Errored", out)
+    ok = filter(x -> x["status"] != "Errored", out)
+    ordered = vcat(failed, ok)
+    if only_norm === nothing || only_norm == "all"
+        return ordered
+    elseif only_norm in ("failed", "errored")
+        return failed
+    elseif only_norm in ("built", "completed")
+        return filter(x -> x["status"] == "Built", ordered)
+    else
+        return filter(x -> x["status"] in ("Unbuilt", "Pending", "Skipped", "NA"), ordered)
+    end
+end
+
+"""
+    _load_deps_map(; pipeline_dir, which_log, dag_file)
+
+Load node -> dependencies map from build log or DAG file.
+"""
+function _load_deps_map(; pipeline_dir::String="_pipeline", which_log::Union{String, Nothing}=nothing, dag_file::String="dag.json")
+    if !isdir(pipeline_dir)
+        error("Pipeline directory `$pipeline_dir` does not exist.")
+    end
+    logs = _list_build_logs(pipeline_dir)
+    if !isempty(logs)
+        log_file = _select_build_log(logs, which_log, pipeline_dir)
+        build_log = JSON.parsefile(joinpath(pipeline_dir, log_file))
+        nodes = get(build_log, "nodes", nothing)
+        if !(nodes isa Vector)
+            error("Build log `$log_file` does not contain a `nodes` array.")
+        end
+        out = Dict{String, Vector{String}}()
+        for entry in nodes
+            if entry isa AbstractDict
+                nm = get(entry, "node", nothing)
+                if nm isa String && !isempty(strip(nm))
+                    deps = get(entry, "dependencies", String[])
+                    clean = sorted_unique_strings(deps)
+                    out[nm] = clean
+                end
+            end
+        end
+        return out
+    end
+    dag_path = joinpath(pipeline_dir, dag_file)
+    if !isfile(dag_path)
+        error("DAG file `$dag_path` does not exist.")
+    end
+    dag = try
+        JSON.parsefile(dag_path)
+    catch e
+        error("Failed to read DAG file `$dag_path`: $e")
+    end
+    if !(dag isa Vector)
+        error("DAG file `$dag_path` must decode to an array.")
+    end
+    out = Dict{String, Vector{String}}()
+    for (idx, entry) in enumerate(dag)
+        (name, deps) = _validate_node_entry(entry, idx, dag_path)
+        out[name] = deps
+    end
+    return out
+end
+
+function sorted_unique_strings(v)
+    if v === nothing
+        return String[]
+    end
+    arr = v isa Vector ? v : [v]
+    clean = [strip(String(x)) for x in arr if x isa String && !isempty(strip(String(x)))]
+    return sort!(unique!(clean))
+end
+
+""" Pipeline dependency edges as [dep, node] pairs. Mirrors T `pipeline_edges`. """
+function pipeline_edges(; pipeline_dir::String="_pipeline", which_log::Union{String, Nothing}=nothing, dag_file::String="dag.json")
+    deps_map = _load_deps_map(pipeline_dir=pipeline_dir, which_log=which_log, dag_file=dag_file)
+    # Preserve DAG order: re-read names in file order when no log exists.
+    names_order = collect(keys(deps_map))
+    if isempty(_list_build_logs(pipeline_dir))
+        dag_path = joinpath(pipeline_dir, dag_file)
+        dag = JSON.parsefile(dag_path)
+        names_order = String[entry["node_name"] for entry in dag if entry isa AbstractDict && haskey(entry, "node_name")]
+    end
+    edges = Vector{String}[]
+    for nm in names_order
+        for dep in get(deps_map, nm, String[])
+            push!(edges, [dep, nm])
+        end
+    end
+    return edges
+end
+
+""" Pipeline root nodes. Mirrors T `pipeline_roots`. """
+function pipeline_roots(; pipeline_dir::String="_pipeline", which_log::Union{String, Nothing}=nothing, dag_file::String="dag.json")
+    deps_map = _load_deps_map(pipeline_dir=pipeline_dir, which_log=which_log, dag_file=dag_file)
+    return [k for (k, v) in deps_map if isempty(v)]
+end
+
+""" Pipeline leaf nodes. Mirrors T `pipeline_leaves`. """
+function pipeline_leaves(; pipeline_dir::String="_pipeline", which_log::Union{String, Nothing}=nothing, dag_file::String="dag.json")
+    deps_map = _load_deps_map(pipeline_dir=pipeline_dir, which_log=which_log, dag_file=dag_file)
+    all_deps = Set{String}()
+    for deps in values(deps_map)
+        for d in deps
+            push!(all_deps, d)
+        end
+    end
+    return [k for k in keys(deps_map) if !(k in all_deps)]
+end
+
+""" Topological depth per node. Roots have depth 0. """
+function pipeline_node_depths(; pipeline_dir::String="_pipeline", which_log::Union{String, Nothing}=nothing, dag_file::String="dag.json")
+    deps_map = _load_deps_map(pipeline_dir=pipeline_dir, which_log=which_log, dag_file=dag_file)
+    cache = Dict{String, Int}()
+    function depth_of(name::String, seen::Set{String})::Int
+        if haskey(cache, name)
+            return cache[name]
+        end
+        if name in seen
+            return 0
+        end
+        deps = get(deps_map, name, String[])
+        d = isempty(deps) ? 0 : 1 + maximum([depth_of(dep, union(seen, Set([name]))) for dep in deps])
+        cache[name] = d
+        return d
+    end
+    return Dict(name => depth_of(name, Set{String}()) for name in keys(deps_map))
+end
+
+""" Maximum topological depth. Mirrors T `pipeline_depth`. """
+function pipeline_depth(; pipeline_dir::String="_pipeline", which_log::Union{String, Nothing}=nothing, dag_file::String="dag.json")
+    depths = pipeline_node_depths(pipeline_dir=pipeline_dir, which_log=which_log, dag_file=dag_file)
+    return isempty(depths) ? 0 : maximum(values(depths))
+end
+
+""" Nodes in dependency cycles. Empty means valid DAG. """
+function pipeline_cycles(; pipeline_dir::String="_pipeline", which_log::Union{String, Nothing}=nothing, dag_file::String="dag.json")
+    deps_map = _load_deps_map(pipeline_dir=pipeline_dir, which_log=which_log, dag_file=dag_file)
+    color = Dict(k => 0 for k in keys(deps_map))
+    cycles = String[]
+    function visit(name::String)
+        c = get(color, name, 0)
+        if c == 1
+            if !(name in cycles)
+                push!(cycles, name)
+            end
+            return
+        end
+        if c != 0
+            return
+        end
+        color[name] = 1
+        for dep in get(deps_map, name, String[])
+            if haskey(color, dep)
+                visit(dep)
+            end
+        end
+        color[name] = 2
+    end
+    for nm in keys(deps_map)
+        visit(nm)
+    end
+    return cycles
+end
+
+""" Structural validation messages. Empty means valid. """
+function pipeline_validate(; pipeline_dir::String="_pipeline", which_log::Union{String, Nothing}=nothing, dag_file::String="dag.json")
+    deps_map = _load_deps_map(pipeline_dir=pipeline_dir, which_log=which_log, dag_file=dag_file)
+    errors = String[]
+    for (nm, deps) in deps_map
+        for dep in deps
+            if !haskey(deps_map, dep)
+                push!(errors, "Node `$(nm)` depends on `$(dep)` which does not exist in the pipeline.")
+            end
+        end
+    end
+    cycles = pipeline_cycles(pipeline_dir=pipeline_dir, which_log=which_log, dag_file=dag_file)
+    if !isempty(cycles)
+        push!(errors, "Pipeline has dependency cycle(s) involving: $(join(cycles, ", ")).")
+    end
+    return errors
+end
+
+""" Graphviz DOT string of the pipeline graph. """
+function pipeline_to_dot(; pipeline_dir::String="_pipeline", which_log::Union{String, Nothing}=nothing, dag_file::String="dag.json", title::Union{String, Nothing}=nothing)
+    deps_map = _load_deps_map(pipeline_dir=pipeline_dir, which_log=which_log, dag_file=dag_file)
+    lines = String["digraph pipeline {"]
+    if title !== nothing
+        push!(lines, "  label=\"$(title)\";")
+    end
+    push!(lines, "  rankdir=LR;", "  node [shape=box];")
+    for nm in keys(deps_map)
+        push!(lines, "  \"$(nm)\";")
+    end
+    for (nm, deps) in deps_map
+        for dep in deps
+            push!(lines, "  \"$(dep)\" -> \"$(nm)\";")
+        end
+    end
+    push!(lines, "}")
+    return join(lines, "\n") * "\n"
+end
+
+""" Mermaid flowchart string of the pipeline graph. """
+function pipeline_to_mermaid(; pipeline_dir::String="_pipeline", which_log::Union{String, Nothing}=nothing, dag_file::String="dag.json", title::Union{String, Nothing}=nothing)
+    deps_map = _load_deps_map(pipeline_dir=pipeline_dir, which_log=which_log, dag_file=dag_file)
+    names_list = collect(keys(deps_map))
+    ids = Dict(nm => "n$(i)" for (i, nm) in enumerate(names_list))
+    lines = String[]
+    if title !== nothing
+        push!(lines, "---", "tlang-title: $(title)", "---")
+    end
+    push!(lines, "graph LR")
+    for nm in names_list
+        push!(lines, "  $(ids[nm])[\"$(nm)\"];")
+    end
+    for (nm, deps) in deps_map
+        for dep in deps
+            if haskey(ids, dep)
+                push!(lines, "  $(ids[dep]) --> $(ids[nm]);")
+            end
+        end
+    end
+    return join(lines, "\n") * "\n"
+end
+
+"""
+    _command_type_of(entry)
+
+Derive `script` vs `command` from build-log source fields, or `nothing`.
+"""
+function _command_type_of(entry)
+    if !(entry isa AbstractDict)
+        return nothing
+    end
+    script = get(entry, "script", nothing)
+    if script isa String && !isempty(strip(script))
+        return "script"
+    end
+    source = get(entry, "source", nothing)
+    if source isa String && !isempty(strip(source))
+        return "command"
+    end
+    return nothing
+end
+
+"""
+    _load_frame_data(pipeline_dir, which_log, dag_file)
+
+Return `(names, entries, deps_map)`. Uses the selected build log when logs
+exist, else the static DAG file. `names` preserves file order.
+"""
+function _load_frame_data(pipeline_dir::String, which_log, dag_file::String)
+    if !isdir(pipeline_dir)
+        error("Pipeline directory `$pipeline_dir` does not exist.")
+    end
+    logs = _list_build_logs(pipeline_dir)
+    if !isempty(logs)
+        log_file = _select_build_log(logs, which_log, pipeline_dir)
+        build_log = JSON.parsefile(joinpath(pipeline_dir, log_file))
+        if !haskey(build_log, "nodes") || !(build_log["nodes"] isa Vector)
+            error("Build log `$log_file` does not contain a `nodes` array.")
+        end
+        names = String[]
+        entries = Dict{String, Any}()
+        deps = Dict{String, Vector{String}}()
+        for entry in build_log["nodes"]
+            if !(entry isa AbstractDict)
+                continue
+            end
+            nm = get(entry, "node", nothing)
+            if !(nm isa String) || isempty(strip(nm))
+                continue
+            end
+            push!(names, nm)
+            entries[nm] = entry
+            raw = get(entry, "dependencies", String[])
+            clean = String[]
+            if raw isa Vector
+                for d in raw
+                    if d isa String && !isempty(strip(d))
+                        push!(clean, d)
+                    end
+                end
+            end
+            deps[nm] = unique(sort(clean))
+        end
+        return names, entries, deps
+    end
+    dag_path = joinpath(pipeline_dir, dag_file)
+    if !isfile(dag_path)
+        error("DAG file `$dag_path` does not exist.")
+    end
+    dag = try
+        JSON.parsefile(dag_path)
+    catch e
+        error("Failed to read DAG file `$dag_path`: $e")
+    end
+    if !(dag isa Vector)
+        error("DAG file `$dag_path` must decode to an array.")
+    end
+    names = String[]
+    deps = Dict{String, Vector{String}}()
+    for (idx, entry) in enumerate(dag)
+        (nm, ds) = _validate_node_entry(entry, idx, dag_path)
+        push!(names, nm)
+        deps[nm] = ds
+    end
+    return names, Dict{String, Any}(), deps
+end
+
+const _CONFIG_COLUMNS = String[
+    "name", "runtime", "depth", "command_type", "serializer",
+    "deserializer", "noop", "shell", "flake",
+    "prov_serializer", "prov_deserializer", "prov_noop", "prov_shell", "prov_flake",
+    "n_deps", "n_deps_global", "n_deps_node",
+    "n_funcs", "n_funcs_global", "n_funcs_node",
+    "n_incs", "n_incs_global", "n_incs_node",
+    "n_env_vars", "n_env_vars_global", "n_env_vars_node",
+    "n_args", "n_args_global", "n_args_node",
+    "n_shell_args", "n_shell_args_global", "n_shell_args_node",
+]
+
+"""
+    pipeline_to_frame(; pipeline_dir="_pipeline", which_log=nothing, dag_file="dag.json")
+
+Static per-node config table. Mirrors T `pipeline_to_frame`.
+One `Dict` per node with `name`, `runtime`, `serializer`, `deserializer`,
+`noop`, `deps`, `depth`, and `command_type`.
+
+File-based limits (explicit, not silent): build logs do not store
+`deserializer` or `noop`, so both are always `nothing`. `runtime` and
+`serializer` are `nothing` for unbuilt nodes from `dag.json`.
+`command_type` is `"script"` when the log entry has a `script` field,
+`"command"` when it has `source`, else `nothing`. `deps` is a sorted
+vector (T uses a comma-separated string).
+"""
+function pipeline_to_frame(;
+    pipeline_dir::String = "_pipeline",
+    which_log::Union{String, Nothing} = nothing,
+    dag_file::String = "dag.json"
+)
+    names, entries, deps = _load_frame_data(pipeline_dir, which_log, dag_file)
+    depths = pipeline_node_depths(pipeline_dir=pipeline_dir, which_log=which_log, dag_file=dag_file)
+    rows = Dict{String, Any}[]
+    for nm in names
+        entry = get(entries, nm, nothing)
+        push!(rows, Dict{String, Any}(
+            "name" => nm,
+            "runtime" => entry === nothing ? nothing : _inspect_text_or_nothing(get(entry, "runtime", nothing)),
+            "serializer" => entry === nothing ? nothing : _inspect_text_or_nothing(get(entry, "serializer", nothing)),
+            "deserializer" => nothing,
+            "noop" => nothing,
+            "deps" => get(deps, nm, String[]),
+            "depth" => get(depths, nm, 0),
+            "command_type" => _command_type_of(entry),
+        ))
+    end
+    return rows
+end
+
+"""
+    pipeline_config_to_frame(; pipeline_dir="_pipeline", which_log=nothing, dag_file="dag.json")
+
+Per-node config plus provenance counts. Mirrors T `pipeline_config_to_frame`.
+Returns all T column names. Only `name`, `runtime`, `depth`,
+`command_type`, `serializer`, and `n_deps` come from files. Every
+provenance column (`prov_*`), `shell`, `flake`, `deserializer`, `noop`,
+and every count except `n_deps` is `nothing` because build logs and
+`dag.json` do not store that data. `nothing` means unknown, not zero.
+"""
+function pipeline_config_to_frame(;
+    pipeline_dir::String = "_pipeline",
+    which_log::Union{String, Nothing} = nothing,
+    dag_file::String = "dag.json"
+)
+    names, entries, deps = _load_frame_data(pipeline_dir, which_log, dag_file)
+    depths = pipeline_node_depths(pipeline_dir=pipeline_dir, which_log=which_log, dag_file=dag_file)
+    rows = Dict{String, Any}[]
+    for nm in names
+        entry = get(entries, nm, nothing)
+        row = Dict{String, Any}(k => nothing for k in _CONFIG_COLUMNS)
+        row["name"] = nm
+        row["runtime"] = entry === nothing ? nothing : _inspect_text_or_nothing(get(entry, "runtime", nothing))
+        row["depth"] = get(depths, nm, 0)
+        row["command_type"] = _command_type_of(entry)
+        row["serializer"] = entry === nothing ? nothing : _inspect_text_or_nothing(get(entry, "serializer", nothing))
+        row["n_deps"] = length(get(deps, nm, String[]))
+        push!(rows, row)
+    end
+    return rows
 end
 
 end # module

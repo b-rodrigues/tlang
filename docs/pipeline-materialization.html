@@ -1161,6 +1161,63 @@ unaffected. The project-level environment is aliased
 (<code>stdenv = projectStdenv</code>, <code>tBin = projectTBin</code>,
 etc.) so existing pipeline definitions require no changes.</p>
 <hr />
+<h2
+id="build-time-metadata-sidecars-meta-and-foreign-object-introspection">36.
+Build-Time Metadata Sidecars (<code>meta</code>) and Foreign Object
+Introspection</h2>
+<p>When executing multi-language pipelines in hermetic Nix sandboxes,
+inspecting foreign artifacts (such as trained models, large datasets, or
+neural networks) traditionally posed a trade-off: either start the
+foreign runtime and deserialize the full artifact into memory, or lose
+visibility into the node’s output.</p>
+<p>T resolves this by emitting <strong>build-time metadata
+sidecars</strong> inside the Nix derivation for foreign runtimes
+(<strong>R</strong>, <strong>Python</strong>, and
+<strong>Julia</strong>).</p>
+<h3 id="how-sidecar-generation-works">How Sidecar Generation Works</h3>
+<p>During code generation (<code>src/pipeline/nix_emit_node.ml</code>),
+T injects an automated object inspection routine into the guest
+derivation wrapper:</p>
+<ul>
+<li>In <strong>R</strong>:
+<code>r_save_meta(object, file.path(Sys.getenv('out'), 'meta'))</code></li>
+<li>In <strong>Python</strong>:
+<code>py_save_meta(object, os.path.join(os.environ['out'], 'meta'))</code></li>
+<li>In <strong>Julia</strong>:
+<code>jl_save_meta(object, joinpath(ENV["out"], "meta"))</code></li>
+</ul>
+<p>These emitters run pure, duck-typed checks that inspect the object’s
+class, structure, dimensions, and fitted properties without mutating the
+object or causing side effects (for example, checking
+<code>sys.modules.get("torch")</code> in Python so PyTorch is never
+imported unless the user’s node already loaded it). The extracted
+metadata is written to <code>$out/meta</code> alongside the main
+serialized output at <code>$out/artifact</code>.</p>
+<h3 id="read-time-introspection-via-explain">Read-Time Introspection via
+<code>explain()</code></h3>
+<p>Because the metadata is stored as an independent JSON sidecar in the
+Nix store, T can inspect the node’s properties <strong>without</strong>
+loading the serialized artifact or initializing an external language
+runtime:</p>
+<pre class="t"><code>-- Instant read-time introspection: reads $out/meta directly
+fit_meta = explain(p.model_fit).foreign_meta
+
+fit_meta.kind         -- &quot;model&quot;, &quot;forecast&quot;, &quot;series&quot;, &quot;graph&quot;, etc.
+fit_meta.class        -- runtime class (e.g. &quot;ARIMA&quot;, &quot;ranger&quot;, &quot;Sequential&quot;)
+fit_meta.task         -- &quot;regression&quot;, &quot;classification&quot;, &quot;time_series&quot;, etc.
+fit_meta.n_params     -- total parameter count for neural networks / ML
+fit_meta.order        -- [p, d, q] for time-series models
+fit_meta.metrics      -- free numeric metrics (e.g. aic, bic, loglik, r_squared)</code></pre>
+<p>In the CLI, <code>t explain --node p.model_fit</code> (and
+<code>t explain --json --node p.model_fit</code>) displays this metadata
+alongside the node’s dependency lineage and execution timings.</p>
+<p>For the full table of supported <code>foreign_meta</code> fields and
+recognized R, Python, and Julia model families (time series,
+forecasting, ML, deep learning, clustering, ordination, Bayesian chains,
+graphs, optimization, and ODEs), see <a href="models.html">Statistical
+Models &amp; Tidy Output</a> and <a
+href="reference/explain.html"><code>explain()</code> Reference</a>.</p>
+<hr />
 <h2 id="next-steps">Next Steps</h2>
 <p>Now that you’ve mastered pipeline materialization, learn how to
 manage reproducible projects and develop T packages:</p>

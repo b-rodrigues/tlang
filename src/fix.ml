@@ -35,6 +35,174 @@ let is_word_char = function
   | 'a'..'z' | 'A'..'Z' | '0'..'9' | '_' -> true
   | _ -> false
 
+(* Lexical masks for Replace_text. [blocked] marks bytes inside a `--` line
+   comment or a `<{ ... }>` raw code block; [in_string] marks bytes inside a
+   double-quoted string literal (quotes included). Replace_text never edits
+   comments or raw blocks, and only edits a string literal when the old text
+   itself starts with a quote (e.g. read_log("a") -> read_log(p.a)).
+   Multi-byte UTF-8 bytes are treated as ordinary bytes; a replacement never
+   splits a character because both old and new text are whole strings.
+   Unclosed strings/comments simply extend to the end of the input, which can
+   only make the fix more conservative. *)
+let scan_lexical_masks content =
+  let n = String.length content in
+  let blocked = Array.make n false in
+  let in_string = Array.make n false in
+  let i = ref 0 in
+  let in_str = ref false in
+  let in_raw = ref false in
+  while !i < n do
+    let c = content.[!i] in
+    if !in_raw then begin
+      blocked.(!i) <- true;
+      if c = '}' && !i + 1 < n && content.[!i + 1] = '>' then begin
+        blocked.(!i + 1) <- true;
+        in_raw := false;
+        i := !i + 2
+      end else incr i
+    end else if !in_str then begin
+      in_string.(!i) <- true;
+      if c = '\\' && !i + 1 < n then begin
+        in_string.(!i + 1) <- true;
+        i := !i + 2
+      end else begin
+        if c = '"' then in_str := false;
+        incr i
+      end
+    end else if c = '"' then begin
+      in_string.(!i) <- true;
+      in_str := true;
+      incr i
+    end else if c = '<' && !i + 1 < n && content.[!i + 1] = '{' then begin
+      blocked.(!i) <- true;
+      blocked.(!i + 1) <- true;
+      in_raw := true;
+      i := !i + 2
+    end else if c = '-' && !i + 1 < n && content.[!i + 1] = '-' then begin
+      while !i < n && content.[!i] <> '\n' do
+        blocked.(!i) <- true;
+        incr i
+      done
+    end else incr i
+  done;
+  (blocked, in_string)
+
+(* Byte range [start, stop) of the 1-based line [line], or None when the file
+   has fewer lines. The line's terminating newline is excluded. *)
+let line_span content line =
+  if line < 1 then None
+  else begin
+    let n = String.length content in
+    let rec go i current =
+      if current = line then
+        match String.index_from_opt content i '\n' with
+        | Some j -> Some (i, j)
+        | None -> Some (i, n)
+      else if i >= n then None
+      else
+        match String.index_from_opt content i '\n' with
+        | Some j -> go (j + 1) (current + 1)
+        | None -> None
+    in
+    go 0 1
+  end
+
+(* A match may start at [i] only on a word boundary: no word character before
+   a word-initial old text (`p.mode` must not match inside `xp.mode`). *)
+let left_boundary_ok content i old_text =
+  String.length old_text > 0
+  && (not (is_word_char old_text.[0])
+      || i = 0
+      || not (is_word_char content.[i - 1]))
+
+(* A match may end at [i + len] only on a word boundary: no word character
+   after a word-final old text, and no `(` so a bare identifier is not
+   rewritten inside an existing call (`Missing` must not match inside
+   `Missing()` or `MissingValue`, `^arrow` must not match inside `^arrow_ipc`). *)
+let right_boundary_ok content i old_text =
+  let m = String.length old_text in
+  if m = 0 || not (is_word_char old_text.[m - 1]) then true
+  else
+    let after = i + m in
+    after >= String.length content
+    || (not (is_word_char content.[after]) && content.[after] <> '(')
+
+(* Every byte of the candidate match must be editable text: not in a comment
+   or raw block, and not inside a string literal unless the old text itself
+   starts with a quote. *)
+let match_is_editable ~blocked ~in_string ~content ~old_text i =
+  let m = String.length old_text in
+  let allow_string = m > 0 && old_text.[0] = '"' in
+  let rec ok k =
+    if k >= m then true
+    else if blocked.(i + k) then false
+    else if in_string.(i + k) && not allow_string then false
+    else ok (k + 1)
+  in
+  ok 0 &&
+  left_boundary_ok content i old_text &&
+  right_boundary_ok content i old_text
+
+(* Start offsets of every replaceable occurrence of [old_text], in order.
+   When [line] is given the search is confined to that line, so the same old
+   text in another node (or in a later diagnostic) is left untouched. When
+   [column] is also given, only one occurrence is returned: the first at or
+   after that 1-based source column, or the nearest earlier one. A quoted
+   argument like "a" can appear more than once on a line, and only the
+   diagnosed occurrence must change. *)
+let replace_positions ~content ~old_text ~line ?column () =
+  let m = String.length old_text in
+  if m = 0 then []
+  else begin
+    let (blocked, in_string) = scan_lexical_masks content in
+    let n = String.length content in
+    let start, stop =
+      match line with
+      | None -> (0, n)
+      | Some l ->
+          (match line_span content l with
+           | Some (a, b) -> (a, b)
+           | None -> (0, 0))
+    in
+    let rec loop i acc =
+      if i + m > stop then List.rev acc
+      else if String.sub content i m = old_text
+              && match_is_editable ~blocked ~in_string ~content ~old_text i
+      then loop (i + m) (i :: acc)
+      else loop (i + 1) acc
+    in
+    let positions = loop start [] in
+    (* `column` is a 1-based source column within its line, while positions are
+       absolute byte offsets. Convert to an absolute target; without a line the
+       column carries no usable position. *)
+    let column_target =
+      match line, column with
+      | Some _, Some col -> Some (start + max 1 col - 1)
+      | _ -> None
+    in
+    match column_target with
+    | None -> positions
+    | Some target ->
+        (* Prefer the first occurrence at or after the diagnosed column — the
+           fix text sits at or after the construct the diagnostic names. Fall
+           back to the nearest earlier occurrence when it does not. *)
+        let first_after =
+          List.find_opt (fun pos -> pos >= target) positions
+        in
+        let nearest =
+          List.fold_left (fun acc pos ->
+            let distance = abs (pos - target) in
+            match acc with
+            | None -> Some (pos, distance)
+            | Some (_, best) when distance < best -> Some (pos, distance)
+            | _ -> acc) None positions
+        in
+        (match first_after, nearest with
+         | Some pos, _ -> [pos]
+         | None, Some (pos, _) -> [pos]
+         | None, None -> [])
+  end
+
 (* Does [word] appear in [content] as a standalone identifier, bounded on both
    sides by non-word characters? Unlike replace_word_bound, the preceding
    character is also checked so `count` is not matched inside `account`. *)
@@ -461,6 +629,40 @@ let apply_rename_node ~file ~old_name ~new_name =
    skipped, not would-apply. Fix kinds that are never auto-applied
    (Suggest_identifier, Run_command, NoFix) always report Skipped with an
    explanatory note so the user knows what to do manually. *)
+let scan_replace_text ~file ~old_text ?line ?column () : bool option =
+  try
+    let ch = open_in file in
+    let content = Fun.protect ~finally:(fun () -> close_in_noerr ch)
+      (fun () -> really_input_string ch (in_channel_length ch))
+    in
+    Some (replace_positions ~content ~old_text ~line ?column () <> [])
+  with Sys_error _ -> None
+
+let apply_replace_text ~file ~old_text ~new_text ?line ?column () =
+  try
+    let ch = open_in file in
+    let content = Fun.protect ~finally:(fun () -> close_in_noerr ch)
+      (fun () -> really_input_string ch (in_channel_length ch))
+    in
+    match replace_positions ~content ~old_text ~line ?column () with
+    | [] -> false
+    | positions ->
+        let m = String.length old_text in
+        let buf = Buffer.create (String.length content + 64) in
+        let last = ref 0 in
+        List.iter (fun pos ->
+          Buffer.add_string buf (String.sub content !last (pos - !last));
+          Buffer.add_string buf new_text;
+          last := pos + m
+        ) positions;
+        Buffer.add_string buf
+          (String.sub content !last (String.length content - !last));
+        let oc = open_out file in
+        Fun.protect ~finally:(fun () -> close_out_noerr oc)
+          (fun () -> output_string oc (Buffer.contents buf));
+        true
+  with Sys_error _ -> false
+
 let dry_run_outcome ~default_file (d : Diagnostics.diagnostic) =
   let file_to_fix = match d.diag_file with Some f -> f | None -> default_file in
   match d.diag_suggested_fix with
@@ -493,6 +695,13 @@ let dry_run_outcome ~default_file (d : Diagnostics.diagnostic) =
              (String.concat ", " (List.map string_of_int lines))
              file_to_fix))
        | NotFound -> Skipped None)
+  | Diagnostics.Replace_text { old_text; line; column; _ } ->
+      (match scan_replace_text ~file:file_to_fix ~old_text ?line ?column () with
+       | Some true -> Would_apply
+       | Some false ->
+           Skipped (Some (Printf.sprintf
+             "Text `%s` not found in %s — nothing to replace." old_text file_to_fix))
+       | None -> Skipped None)
   | Diagnostics.Suggest_identifier { name; _ } ->
       Skipped (Some (Printf.sprintf
         "Identifier `%s` needs manual rename (t fix does not apply it)." name))
@@ -512,6 +721,8 @@ let apply_fix ~file (fix : Diagnostics.suggested_fix) =
       apply_add_node_arg ~file ~node ~arg
   | Rename_node { old_name; new_name; _ } ->
       apply_rename_node ~file ~old_name ~new_name
+  | Replace_text { old_text; new_text; line; column; _ } ->
+      apply_replace_text ~file ~old_text ~new_text ?line ?column ()
   | Suggest_identifier _ -> false
   | Run_command _ -> false
   | NoFix -> false
@@ -530,7 +741,26 @@ let sort_fixes_by_descending_line fixes =
       compare lb la
   ) fixes
 
+(* Identical Replace_text suggestions repeated for the same file and line are
+   one edit, not two. Dedupe before both dry-run and the real apply so the
+   preview and the applied/skipped counts always agree. *)
+let dedupe_replace_text (fixes : Diagnostics.diagnostic list) =
+  let seen = Hashtbl.create 8 in
+  List.filter (fun (d : Diagnostics.diagnostic) ->
+    match d.diag_suggested_fix with
+    | Diagnostics.Replace_text { old_text; new_text; line; column; _ } ->
+        let key = Printf.sprintf "%s\000%s\000%s\000%s\000%s"
+          (Option.value ~default:"" d.diag_file)
+          old_text new_text
+          (match line with Some l -> string_of_int l | None -> "")
+          (match column with Some c -> string_of_int c | None -> "")
+        in
+        if Hashtbl.mem seen key then false
+        else begin Hashtbl.add seen key (); true end
+    | _ -> true) fixes
+
 let apply_fixes ~dry_run ~default_file (fixes : Diagnostics.diagnostic list) =
+  let fixes = dedupe_replace_text fixes in
   let applied = ref 0 in
   let skipped = ref 0 in
   let would_apply = ref 0 in

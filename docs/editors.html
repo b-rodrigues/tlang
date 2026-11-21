@@ -154,14 +154,27 @@ supports it or if you specifically want tree-sitter highlighting.</p>
 <hr />
 <h2 id="language-server-protocol-lsp">Language Server Protocol
 (LSP)</h2>
-<p>The T language server provides advanced features like
-<strong>Autocompletion</strong> (context-aware suggestions),
-<strong>Diagnostics</strong> (real-time error checking), <strong>Hover
-Information</strong> (tooltips showing signatures/docs), and <strong>Go
-to Definition</strong>.</p>
+<p>The T language server (<code>t-lsp</code>) provides language
+intelligence features directly inside modern text editors and IDEs:</p>
+<ul>
+<li><strong>Autocompletion</strong>: Context-aware suggestions for
+imported packages, builtins, local variables, and DataFrame column
+references (<code>$col</code>).</li>
+<li><strong>Diagnostics</strong>: Real-time syntax, type, schema, and
+DAG validation without manual checking.</li>
+<li><strong>Code Actions (Quick-Fixes)</strong>: One-click fixes
+(<code>textDocument/codeAction</code>) for actionable diagnostics such
+as typo corrections, column renames, and node renames.</li>
+<li><strong>Live Pipeline Artifact Hover</strong>: Rich tooltips
+(<code>textDocument/hover</code>) showing execution status, store paths,
+durations, schema shapes, and foreign model metrics when hovering over
+pipeline nodes (<code>p.node_name</code>).</li>
+<li><strong>Go to Definition</strong>: Jump directly to function
+definitions, imported package symbols, and pipeline nodes.</li>
+</ul>
 <p>The <code>t-lsp</code> server is implemented in OCaml. When you enter
 a T project via <code>nix develop</code>, the correctly versioned binary
-is put in your <code>PATH</code>.</p>
+is placed in your <code>PATH</code>.</p>
 <blockquote>
 <p>[!IMPORTANT] <strong>Launching the LSP</strong>: For your editor to
 find the <code>t-lsp</code> binary, you must either launch your editor
@@ -176,6 +189,54 @@ class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">which</span> t-lsp</span></code></pre></div>
 <p>If <code>which t-lsp</code> prints nothing, your editor will not be
 able to start the T language server either.</p>
+<h3 id="lsp-quick-fixes-code-actions">LSP Quick-Fixes (Code
+Actions)</h3>
+<p>When <code>t-lsp</code> detects actionable issues in your script
+(such as a misspelled identifier, a renamed DataFrame column, or a node
+name collision), it emits diagnostics with suggested fixes. In supported
+editors, these suggestions appear as interactive <strong>Code
+Actions</strong>:</p>
+<ul>
+<li><strong>VS Code / Positron</strong>: Place the cursor on the
+underlined warning or error and press <code>Ctrl+.</code> (or
+<code>Cmd+.</code> on macOS), or click the lightbulb icon to apply the
+suggested fix.</li>
+<li><strong>Neovim</strong>: Run
+<code>:lua vim.lsp.buf.code_action()</code> (or use your configured
+keymap, e.g. <code>&lt;leader&gt;ca</code>).</li>
+<li><strong>Emacs (eglot)</strong>: Run
+<code>M-x eglot-code-actions</code>.</li>
+</ul>
+<p>The language server filters code actions when requested with
+<code>context.only = ["quickfix"]</code> and marks high-confidence
+replacements with <code>isPreferred = true</code>.</p>
+<h3 id="live-pipeline-artifact-hover">Live Pipeline Artifact Hover</h3>
+<p>When working with pipeline definitions in T scripts, you frequently
+reference nodes via member access expressions
+(e.g. <code>p.clean_data</code> or <code>p.model_forecast</code>).
+<code>t-lsp</code> inspects the project’s cached build log
+(<code>_pipeline/build_log_*.json</code>) and metadata sidecars to give
+you instant feedback on hover:</p>
+<ul>
+<li><strong>Execution status &amp; duration</strong>: Whether the node
+is built or errored, and how many seconds it took to build.</li>
+<li><strong>Nix Store path</strong>: The exact immutable
+<code>/nix/store/...</code> artifact path.</li>
+<li><strong>Data shape</strong>: Number of rows and columns for tabular
+artifacts.</li>
+<li><strong>Schema &amp; column types</strong>: List of columns and
+Arrow types produced by the node.</li>
+<li><strong>Model metadata &amp; metrics</strong>: For nodes producing
+machine learning models, time-series fits, or statistical estimates, the
+hover card displays the model family, task, method, and key training
+metrics (such as AIC, BIC, RMSE, <span
+class="math inline"><em>R</em><sup>2</sup></span>, or parameter
+count).</li>
+</ul>
+<p>Build logs and metadata sidecars are cached in memory and refreshed
+based on filesystem modification timestamps (<code>mtime</code>),
+ensuring that editor hover queries are instantaneous and
+non-blocking.</p>
 <hr />
 <h2
 id="tree-sitter-grammar-build-it-once-then-point-your-editor-at-it">Tree-sitter

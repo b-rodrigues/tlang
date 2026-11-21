@@ -2621,6 +2621,8 @@ Update the timezone label of a Datetime value.
 
 ## Strcraft Package
 
+`str_to_title(s)` title-cases each word on Unicode code-point boundaries.
+
 Modern string manipulation utilities, inspired by R's `stringr`.
 
 ### `str_replace(string, pattern, replacement)` / `replace_first(string, pattern, replacement)`
@@ -4031,13 +4033,14 @@ pipeline_status(p) |> filter($status == "Errored")
 
 ---
 
-### `pipeline_overview(p)`
+### `pipeline_overview(p, only = NA)`
 
 One-call table joining the columns of `pipeline_to_frame` with the live build state of `pipeline_status`. It is not a superset: `pipeline_config_to_frame` adds `shell`, `flake`, `prov_*` and `n_*` columns. Node diagnostics live in `pipeline_node_options` (and as `$diagnostics` in `filter_node` predicates). Column names match the source frames. Failed nodes sort first.
 
 **Parameters:**
 
 - `p` — The Pipeline object.
+- `only` (optional) — Filter rows: `failed`, `built`, `unbuilt`, or `all`. Default shows all, failed first.
 
 **Returns:**
 
@@ -4046,7 +4049,137 @@ One-call table joining the columns of `pipeline_to_frame` with the live build st
 **Examples:**
 ```t
 pipeline_overview(p)
+pipeline_overview(p, only = "failed")
 pipeline_overview(p) |> filter($status == "Errored")
+```
+
+---
+
+### `pipeline_overview_markdown(p, only = NA)`
+
+Same rows as `pipeline_overview`, rendered as a Markdown table for reports and workflow summaries. Used by `pipeline_report`.
+
+**Parameters:**
+
+- `p` — The Pipeline object.
+- `only` (optional) — Same filter as `pipeline_overview`.
+
+**Returns:**
+
+`String` — Markdown table with `name`, `runtime`, `status`, `depth`, `error`.
+
+**Examples:**
+```t
+pipeline_overview_markdown(p)
+pipeline_overview_markdown(p, only = "failed")
+```
+
+---
+
+### `pipeline_metrics(p, task = NA, sort_by = NA, descending = false)`
+
+Collects build-time `foreign_meta` sidecars from model nodes across R, Python, and Julia into a single comparison DataFrame. Base columns (`name`, `runtime`, `kind`, `task`, `method`, `n_obs`, `n_features`, `status`) are followed by one `Float` column per metric key found across the selected nodes.
+
+**Parameters:**
+
+- `p` — The Pipeline object.
+- `task` (optional) — Filter by task (e.g. `"time_series"`, `"regression"`, `"classification"`).
+- `sort_by` (optional) — Sort by any metric column, `"n_obs"`, `"n_features"`, or `"name"`.
+- `descending` (optional) — Sort descending when `true` (default `false`).
+
+**Returns:**
+
+`DataFrame` — One row per model node with aligned metric columns.
+
+**Examples:**
+```t
+pipeline_metrics(p)
+pipeline_metrics(p, task = "time_series", sort_by = "aic")
+```
+
+---
+
+### `pipeline_metrics_markdown(p, task = NA, sort_by = NA, descending = false)`
+
+Same rows and filters as `pipeline_metrics`, rendered as a Markdown table.
+
+**Examples:**
+```t
+pipeline_metrics_markdown(p, sort_by = "aic")
+```
+
+---
+
+### `t_fmt(path, write = false, check = false)`
+
+Formats a `.t` source file using the canonical T formatter, preserving comments and `<{ ... }>` raw foreign code blocks.
+
+**Parameters:**
+
+- `path` — Path to the `.t` file.
+- `write` (optional) — Write formatted output back to `path` when `true`.
+- `check` (optional) — Return `Bool` (`true` if already formatted, `false` otherwise).
+
+**Returns:**
+
+`String | Bool` — Formatted source string, or `Bool` when `check = true`.
+
+---
+
+### `t_provenance(format = "ro-crate", output = NA, dir = ".", file = NA, include_meta = true)`
+
+Generates an offline reproducibility and audit bundle from `tproject.toml`, `flake.lock`, the latest `_pipeline/build_log_*.json` with `foreign_meta` sidecars, and `intent { ... }` blocks.
+
+**Parameters:**
+
+- `format` (optional) — `"ro-crate"` (RO-Crate 1.1 JSON-LD), `"sbom"` (CycloneDX 1.5 JSON), or `"json"`.
+- `output` (optional) — Optional output file path.
+- `dir` (optional) — Project root directory (default `"."`).
+- `file` (optional) — Target `.t` file to extract `intent` blocks from.
+- `include_meta` (optional) — Include `foreign_meta` sidecars in the manifest (default `true`).
+
+**Returns:**
+
+`String` — Formatted JSON manifest.
+
+---
+
+### `is_failed(node)`
+
+Test if a node failed. Returns true for a failed node (`VError`), for a `read_node()` result whose value or diagnostics carry an error, or for an inspect result with status `Errored` or `SoftFailed`. Use after 0.56.1 instead of `is_error(inspect_node(x))`, which is always false. `NA` propagates as `NA`.
+
+**Parameters:**
+
+- `node` — A node value, `read_node()` result, inspect result, or error.
+
+**Returns:**
+
+`Bool | NA` — True when failed or Errored.
+
+**Examples:**
+```t
+is_failed(p.bad)
+is_failed(inspect_node(p.bad))
+```
+
+---
+
+### `node_status(node)`
+
+Node build status. Returns `Built` for a computed node, `Errored` for a failed node or a `read_node()` result carrying an error, or the status field of an inspect result. `NA` propagates as `NA`.
+
+**Parameters:**
+
+- `node` — A node value, `read_node()` result, inspect result, or error.
+
+**Returns:**
+
+`String | NA` — `Built` or `Errored`.
+
+**Examples:**
+```t
+node_status(p.good)
+inspect_node(p.bad).status == "Errored"
 ```
 
 ---
@@ -4419,7 +4552,7 @@ node.descendants          -- all transitive dependents, nearest-first, de-duplic
 
 -- Computed pipeline nodes (R, Python, Julia) carry build-time metadata:
 node = explain(p.fit)
-node.foreign_meta.kind        -- value kind: "dataframe", "matrix", "vector", "array", "factor", "series", "table", "model", "test", "data", "transformer", "distribution", "other", or "unknown"
+node.foreign_meta.kind        -- value kind: "dataframe", "matrix", "vector", "array", "factor", "series", "table", "model", "test", "data", "transformer", "distribution", "forecast", "chain", "dist", "graph", "dataset", "image", "optimization", "ode", "other", or "unknown"
 node.foreign_meta.class        -- runtime type name, e.g. "lm", "DataFrame", "ARIMA"
 node.foreign_meta.task         -- model task when known: "regression", "classification", "clustering", "time_series", "dim_reduction", "density", "anomaly_detection", "ranking", or "survival"
 node.foreign_meta.dimensions  -- shape as int list, e.g. [32, 11] for frames, [4, 3] for matrices, [3] for vectors
@@ -4430,22 +4563,38 @@ node.foreign_meta.n_features  -- input count (models)
 node.foreign_meta.n_trees     -- tree count (forests, when known)
 node.foreign_meta.n_rounds    -- boosting rounds (boosted trees, when known)
 node.foreign_meta.n_clusters  -- cluster count (clustering, when known)
-node.foreign_meta.n_nodes      -- tree node count (`rpart`, when known)
-node.foreign_meta.n_components -- component count (PCA, when known)
+node.foreign_meta.n_nodes      -- tree node count (`rpart`, `party::BinaryTree`, `partykit::ctree`, when known)
+node.foreign_meta.n_edges      -- edge count (igraph / networkx / Graphs.jl graphs, when known)
+node.foreign_meta.n_components -- component count (PCA, ICA, FactorAnalysis, LDA, when known)
+node.foreign_meta.n_params     -- total parameter count (torch/keras/Flux/HuggingFace models, MCMC variables, GARCH estimates, when known)
+node.foreign_meta.n_layers    -- layer count (torch leaf layers, keras/Flux models, when known)
+node.foreign_meta.n_chains    -- MCMC chain count (Julia `Chains`, coda `mcmc.list`, when known)
+node.foreign_meta.n_draws     -- draws per chain (Julia `Chains`, coda `mcmc`, when known)
+node.foreign_meta.n_lambda    -- lambda count (`glmnet` fits, when known)
+node.foreign_meta.n_equations -- endogenous series count (VAR/VECM, when known)
 node.foreign_meta.dtype        -- element type, e.g. "float64" (arrays, when known)
-node.foreign_meta.n_levels     -- level count with levels list (R factors)
-node.foreign_meta.start        -- series start, e.g. "1949-1" (R ts)
-node.foreign_meta.end          -- series end, e.g. "1960-12" (R ts)
-node.foreign_meta.method      -- algorithm variant: hclust linkage, or the test name for `htest` results
+node.foreign_meta.n_levels     -- level count with levels list (R factors, Julia `CategoricalArray`)
+node.foreign_meta.start        -- series start, e.g. "1949-1" (R ts, zoo/xts)
+node.foreign_meta.end          -- series end, e.g. "1960-12" (R ts, zoo/xts)
+node.foreign_meta.method      -- algorithm variant: hclust linkage, ETS letters, VAR/boosting loss names, or the test name for `htest` results
 node.foreign_meta.target      -- response name (models, when known)
 node.foreign_meta.formula     -- full model formula (R models, when known)
 node.foreign_meta.order       -- [p, d, q] (time-series models, when known)
 node.foreign_meta.seasonal_order -- [P, D, Q, m] (seasonal models, when known)
+node.foreign_meta.seasonal_period -- seasonal period list (`ets`, `bats`/`tbats`, `nnetar`, `prophet`, when known)
+node.foreign_meta.horizon     -- forecast horizon (forecast results, fable tables, sktime/statsforecast forecasters, when known)
+node.foreign_meta.changepoints -- changepoint count (prophet, when known)
 node.foreign_meta.features    -- full feature/column list (first 500 entries; `n_features` stays exact)
-node.foreign_meta.metrics     -- free numeric metrics (r_squared, aic, bic, ...); numbers only, other values are dropped
+node.foreign_meta.metrics     -- free numeric metrics (r_squared, aic, bic, loglik, ...); numbers only, other values are dropped
 node.foreign_meta.artifact_size -- artifact file size in bytes
 
-Time-series decompositions (`stl`) report component names as features and the seasonal period. Autocorrelation objects (`acf`) report the correlation type and series name; smoothing splines (`smooth.spline`) report penalty and degrees of freedom; empirical distributions (`ecdf`) report observation counts. Survival models (`coxph`) report event counts and concordance; Kaplan-Meier fits (`survfit`) report per-stratum counts. Trees (`rpart`) report node counts and split variables, with the task read from the fit method. Density estimates report bandwidth. `Logit`/`Probit` results report a classification task from the model class. Multinomial logits report predictor names (not outcome labels) and `PHReg` reports survival tasks. Rankers report boosting rounds. Frozen scipy distributions report the distribution name and moments; scipy test results report statistic and p-value. Contingency tables, `nnet` classifiers/regressors, `pam`/`agnes`/`diana` clusterings, `VAR` lag order, and Poisson/Gamma tasks report per-family facts. R factors report levels; R `ts` objects report series start/end. Pyarrow tables read as dataframes; native `DMatrix`/`Dataset` objects read as data inputs. Pure transformers report `transformer` kind (detected via sklearn ≥ 1.6 tags; older versions report `model`); calibrated and multioutput wrappers report inner-estimator facts; Julia time arrays report `series` kind with timestamps counted as observations. Boosting rounds count training rounds (`current_iteration`, falling back to trees per iteration); R `rpart` variables are de-duplicated split variables with the task read from the fit method.
+Time-series decompositions (`stl`) report component names as features and the seasonal period. Autocorrelation objects (`acf`) report the correlation type and series name; smoothing splines (`smooth.spline`) report penalty and degrees of freedom; empirical distributions (`ecdf`) report observation counts. Survival models (`coxph`, `survreg`) report event/observation counts and concordance/distribution; Kaplan-Meier fits (`survfit`) report per-stratum counts. Trees (`rpart`, `party::BinaryTree`, `partykit::ctree`) report node counts and split variables, with the task read from the fit method or response type. Density estimates report bandwidth. `Logit`/`Probit` results report a classification task from the model class. Multinomial logits report predictor names (not outcome labels) and `PHReg` reports survival tasks. Rankers report boosting rounds. Frozen scipy distributions and Julia `Distributions` values report `distribution` kind with the distribution name and moments; scipy test results report statistic and p-value. Contingency tables, `nnet` classifiers/regressors, `pam`/`agnes`/`diana` clusterings, and Poisson/Gamma tasks report per-family facts. R factors and Julia `CategoricalArray` values report `factor` kind and levels; R `ts` and `zoo`/`xts` objects report `series` kind with start/end. Pyarrow tables, polars `LazyFrame` schemas, and dask frames read as `dataframe`; native `DMatrix`/`Dataset` objects read as data inputs. Pure transformers report `transformer` kind (including sklearn ≥ 1.6 tags and HuggingFace tokenizers/pipelines); calibrated and multioutput wrappers report inner-estimator facts; Julia time arrays report `series` kind with timestamps counted as observations. Boosting rounds count training rounds (`current_iteration`, falling back to trees per iteration); R `rpart` variables are de-duplicated split variables with the task read from the fit method.
+
+Time-series and forecasting families: R `forecast`-package `ets` (ETS letters, seasonal period, AIC/BIC/sigma2), `bats`/`tbats` (multiple seasonal periods), `nnetar` (hidden units, repeats), `forecast(...)` result objects (`forecast` kind with method, horizon, and first interval level), tidyverts `fable` forecast tables (`forecast` kind with horizon and model types) and `mable` (`mdl_df`/`model_df` model column names), `smooth` package (orders, AIC/BIC), `dlmFiltered` (observation counts), `prophet` (changepoint count, seasonality names), tseries `garch` (GARCH order in `method`), rugarch `uGARCHfit` (variance-model name with order, parameter count, loglik/AIC/BIC), and vars `varest`/`vec2var` (lag order, equation count). Python `pmdarima` ARIMA (order, seasonal order, wrapped-result criteria), `tbats` (seasonal periods), `skforecast` (lag order), `sktime`/`statsforecast` forecasters (fitted horizon), `darts` models (`input_chunk_length`/`output_chunk_length` in metrics), `neuralprophet` (parameter counts), and statsmodels `VECM`/Markov-regime results (`time_series` with lag order, factor counts, regime counts). Julia `ARCHModels` fits report volatility spec names.
+
+Smooth, mixed, regularized, and ML models: R `mgcv::gam`/`bam` (smooth-term counts, `s(wt)` coefficient names, `edf`/`r_squared`), nlme `lme`/`gls` (group counts, loglik/AIC/BIC), `plm`, `rq` (tau), `betareg` (precision `phi`, pseudo R-squared), `zeroinfl`/`hurdle`, ordinal `clm`/`clmm` (link), VGAM `vglm` (family name and task), `glmnet`/`cv.glmnet` (task, features, lambda count, deviance ratio, `lambda_min`/`lambda_1se`), `ranger` (tree/feature/sample counts, task, OOB error), `catboost.Model` (loss name, trees, features), `caret::train` (model name, task, best resampling metrics including `r_squared`), `parsnip` `model_fit` and `workflows::workflow` (engine and mode from the spec), `e1071::svm` (kernel, support vectors), `kernlab::ksvm` (type and kernel in `method`, support vectors), `gbm` (distribution task, trees, shrinkage), `C5.0` (trials), `earth` (rsq/grsq), `pls::mvr` (components), and `neuralnet` (error, steps). Python `scikit-learn`/`imblearn`, `catboost`, `pyspark.ml`, and `tslearn` estimators report task, trees/clusters, and fit facts. Deep learning: Python `torch`/`keras`, HuggingFace `transformers` models, R6 `keras`/`torch` modules, and Julia `Flux` report total `n_params` and `n_layers` (keras also reports optimizer class). Julia `MLJ` machines report model name and task; `XGBoost.jl` boosters report `best_iteration`.
+
+Clustering, ordination, tests, chains, and scientific structures: R `Mclust` (G, model name, BIC), `dbscan` (clusters excluding noise, eps, minPts), `clara`/`fanny` (cluster sizes, silhouette), `mixEM` (components, loglik), FactoMineR `PCA`/`MCA`/`FAMD`/`CA` (dimensions, first-axis variance as 0–1 fraction), `psych` `fa`/`principal` (factor count, rotation, RMSEA), `urca` `ur.df`/`ur.kpss`/`ca.jo` (`test` kind), `coda` `mcmc`/`mcmc.list` (`chain` kind), `lavaan` SEM fits (method, parameter/observation counts, chi-square/p-value/CFI/RMSEA), `dist` objects (`dist` kind), sparse `Matrix` objects (nnz), `igraph` networks (`graph` kind with `n_nodes`/`n_edges`), and `Seurat` objects (`dataset` kind with cell, gene, active-assay counts). Python `gensim` `LdaModel`/`Word2Vec` (topics/vocab), `xarray` `Dataset` (`dataset` kind), `PIL` images (`image` kind with dimensions and pixel mode), and `networkx` graphs (`graph` kind). Julia `Clustering.jl` `CmeansResult`/`DbscanResult`/`KmedoidsResult` (cluster facts; DBSCAN includes noise in `n_obs` via `assignments`), `MultivariateStats` `ICA`/`FactorAnalysis`/`PPCA`/`KernelPCA`/`MulticlassLDA` (`dim_reduction` with component/class counts and 0–1 `var_first`), `MCMCChains` `Chains` (`chain` kind with `n_draws`/`n_params`/`n_chains`), `Graphs.jl` networks (`graph` kind), `JuMP` `Model` (`optimization` kind with variable/constraint counts), `SciML` `ODEProblem`/`ODESolution` (`ode` kind with time-span and return code), and `GaussianMixtures` `GMM` (`density` with component counts).
 
 Julia note: fit-metric verbs (`nobs`, `coefnames`, `r2`, `aic`,
 `deviance`, `loglikelihood`) resolve from whatever the node session

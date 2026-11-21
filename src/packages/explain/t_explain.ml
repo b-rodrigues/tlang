@@ -19,13 +19,45 @@ let contains_sub s sub =
 --# Explain Value
 --#
 --# Returns a dictionary describing the structure and content of a value.
---# Node results from `read_node(...)` are wrapped with node metadata and
---# expose the explained payload under `contents`.
---# Computed pipeline nodes (e.g. `p.node`) also expose `foreign_meta` with
---# shape facts from the build-time `meta` sidecar (dimensions for frames
---# and arrays, n_obs/n_features/formula/order/metrics for models), or NA
---# when absent.
---# Explaining a pipeline lists per-node `dependencies` (direct inputs)
+--#
+--# For primitive types, collections, and DataFrames, `explain()` provides structural summaries:
+--# data dimensions, schema columns, NA counts, and example rows.
+--#
+--# For pipeline node results from `read_node(...)`, `explain()` returns a node wrapper with
+--# `kind`, `node_name`, `diagnostics`, and the explained payload under `contents`.
+--#
+--# For computed pipeline nodes (e.g. `explain(p.node)`), `explain()` exposes the read-time
+--# `foreign_meta` sidecar dictionary recorded during Nix derivation execution for R, Python, and Julia
+--# nodes, avoiding artifact deserialization or initializing foreign runtimes.
+--#
+--# Supported `foreign_meta` fields include:
+--# - `kind`: Value kind ("dataframe", "matrix", "vector", "array", "factor", "series", "table", "model", "test", "data", "transformer", "distribution", "forecast", "chain", "dist", "graph", "dataset", "image", "optimization", "ode", "other", or "unknown")
+--# - `class`: Runtime type name (e.g. "lm", "DataFrame", "ARIMA", "SimpleGraph")
+--# - `task`: Model task ("regression", "classification", "clustering", "time_series", "dim_reduction", "density", "anomaly_detection", "ranking", "survival")
+--# - `dimensions`: Shape as an integer list, e.g. [32, 11] for frames, [4, 3] for matrices
+--# - `n_obs`: Training row count
+--# - `n_features`: Number of features or predictor columns
+--# - `n_groups`, `groups`: Grouping counts for mixed-effects and panel models (e.g. `nlme` `lme`/`gls`)
+--# - `n_trees`, `n_rounds`: Tree count and boosting rounds (e.g. Random Forest, XGBoost, CatBoost, gbm)
+--# - `n_clusters`: Cluster count (e.g. k-means, Mclust, dbscan, Clustering.jl)
+--# - `n_nodes`, `n_edges`: Graph vertex and edge counts (igraph, networkx, Graphs.jl) or decision tree nodes (`rpart`, `party::BinaryTree`, `partykit::ctree`)
+--# - `n_components`: Dimensionality reduction components (PCA, ICA, FactorAnalysis, LDA)
+--# - `n_params`, `n_layers`: Total parameter and layer counts (PyTorch, Keras, Flux, neuralnet, R6 torch/keras)
+--# - `n_chains`, `n_draws`: MCMC chain and draw counts (Julia `Chains`, coda `mcmc`/`mcmc.list`)
+--# - `n_lambda`: Regularization path length (`glmnet`, `cv.glmnet`)
+--# - `n_equations`: Endogenous series count for VAR/VECM models
+--# - `dtype`: Element data type (e.g. "float64")
+--# - `n_levels`, `levels`: Categorical level counts and values (R factors, Julia `CategoricalArray`)
+--# - `start`, `end`: Time-series bounds (R `ts`, `zoo`/`xts`)
+--# - `order`, `seasonal_order`, `seasonal_period`: Time-series specifications (ARIMA, SARIMA, ETS, BATS/TBATS, Prophet, NNETAR, pmdarima)
+--# - `horizon`: Forecast horizon (forecast results, fable, sktime, statsforecast)
+--# - `changepoints`: Changepoint counts (Prophet)
+--# - `method`: Algorithm variant, linkage method, ETS letters, or test name
+--# - `target`, `formula`: Response variable and model formula
+--# - `metrics`: Free numeric metrics (e.g. aic, bic, loglik, r_squared, rmse, deviance)
+--# - `artifact_size`: Materialized artifact size in bytes
+--#
+--# Explaining a pipeline (`explain(p)`) lists per-node `dependencies` (direct inputs)
 --# and `children` (direct dependents) plus the transitive `ancestors`
 --# and `descendants` closures (nearest-first, de-duplicated).
 --#
@@ -34,7 +66,10 @@ let contains_sub s sub =
 --# @return :: Dict A structured description of the value.
 --# @example
 --#   explain(mtcars)
---#   explain(1)
+--#   explain(p.fit).foreign_meta
+--#   explain(p.forecast_node).foreign_meta.horizon
+--#   explain(p.nn_model).foreign_meta.n_params
+--#   explain(p)
 --# @family explain
 --# @seealso type, str
 --# @export
@@ -141,6 +176,27 @@ let register ?(ensure_docs=ignore) env =
     | Some _ -> None
     | None -> None
   in
+  let assoc_num_list key pairs =
+    let to_num = function
+      | `Int i -> Some (VInt i)
+      | `Intlit s -> (try Some (VInt (int_of_string s)) with _ -> None)
+      | `Float f ->
+          (match finite_float f with
+           | None -> None
+           | Some g ->
+               if Float.is_integer g && g >= float_of_int min_int && g <= float_of_int max_int then
+                 Some (VInt (int_of_float g))
+               else
+                 Some (VFloat g))
+      | _ -> None
+    in
+    match List.assoc_opt key pairs with
+    | Some (`List items) ->
+        let ns = List.filter_map to_num items in
+        (match ns with [] -> None | _ -> Some ns)
+    | Some _ -> None
+    | None -> None
+  in
   let assoc_groups pairs =
     match List.assoc_opt "groups" pairs with
     | Some (`Assoc m) ->
@@ -230,7 +286,13 @@ let register ?(ensure_docs=ignore) env =
     (match assoc_int "n_rounds" pairs with Some n -> add "n_rounds" (VInt n) | None -> ());
     (match assoc_int "n_clusters" pairs with Some n -> add "n_clusters" (VInt n) | None -> ());
     (match assoc_int "n_nodes" pairs with Some n -> add "n_nodes" (VInt n) | None -> ());
+    (match assoc_int "n_edges" pairs with Some n -> add "n_edges" (VInt n) | None -> ());
     (match assoc_int "n_levels" pairs with Some n -> add "n_levels" (VInt n) | None -> ());
+    (match assoc_int "n_params" pairs with Some n -> add "n_params" (VInt n) | None -> ());
+    (match assoc_int "n_layers" pairs with Some n -> add "n_layers" (VInt n) | None -> ());
+    (match assoc_int "n_chains" pairs with Some n -> add "n_chains" (VInt n) | None -> ());
+    (match assoc_int "n_draws" pairs with Some n -> add "n_draws" (VInt n) | None -> ());
+    (match assoc_int "n_lambda" pairs with Some n -> add "n_lambda" (VInt n) | None -> ());
     (match assoc_string_list "levels" pairs with
      | Some names ->
          add "levels" (VList (List.map (fun s -> (None, VString s)) names));
@@ -248,6 +310,12 @@ let register ?(ensure_docs=ignore) env =
     (match assoc_int_list "seasonal_order" pairs with
      | Some ns -> add "seasonal_order" (VList (List.map (fun n -> (None, VInt n)) ns))
      | None -> ());
+    (match assoc_num_list "seasonal_period" pairs with
+     | Some ns -> add "seasonal_period" (VList (List.map (fun v -> (None, v)) ns))
+     | None -> ());
+    (match assoc_int "horizon" pairs with Some n -> add "horizon" (VInt n) | None -> ());
+    (match assoc_int "changepoints" pairs with Some n -> add "changepoints" (VInt n) | None -> ());
+    (match assoc_int "n_equations" pairs with Some n -> add "n_equations" (VInt n) | None -> ());
     (match assoc_string_list "features" pairs with
      | Some names ->
          add "features" (VList (List.map (fun s -> (None, VString s)) names));
@@ -289,9 +357,11 @@ let register ?(ensure_docs=ignore) env =
     | [] -> VNA NAGeneric
     | _ ->
         let display = ["kind"; "class"; "task"; "method"; "dimensions"; "n_obs"; "n_groups"; "groups"; "n_features";
-                       "n_trees"; "n_rounds"; "n_clusters"; "n_nodes"; "n_components"; "n_levels";
+                       "n_trees"; "n_rounds"; "n_clusters"; "n_nodes"; "n_edges"; "n_components"; "n_levels";
+                       "n_params"; "n_layers"; "n_chains"; "n_draws"; "n_lambda";
                        "dtype";
-                       "target"; "order"; "seasonal_order"; "start"; "end";
+                       "target"; "order"; "seasonal_order"; "seasonal_period"; "horizon"; "changepoints"; "n_equations";
+                       "start"; "end";
                        "features_preview"; "levels_preview"; "formula_preview"; "metrics"; "artifact_size"] in
         let shown = List.filter (fun k -> List.mem_assoc k ordered) display in
         make_explain_dict ~display_keys:shown ordered)

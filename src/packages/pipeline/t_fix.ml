@@ -37,6 +37,8 @@ let format_fix_result (result : Fix.fix_result) =
             Printf.sprintf "  Rename node '%s' to '%s'" old_name new_name
         | Diagnostics.Add_node_arg { node; arg; _ } ->
             Printf.sprintf "  Add argument '%s' to node '%s'" arg node
+        | Diagnostics.Replace_text { old_text; new_text; _ } ->
+            Printf.sprintf "  Replace '%s' with '%s'" old_text new_text
         | Diagnostics.Suggest_identifier { name; _ } ->
             Printf.sprintf "  Manual rename needed for '%s' (t fix does not apply it)" name
         | Diagnostics.Run_command { command; _ } ->

@@ -50,6 +50,8 @@ module Server = struct
     lines : string array;
     mutable scope : Symbol_table.scope;
     mutable diagnostics : Diagnostic.t list;
+    mutable t_diagnostics : Diagnostics.diagnostic list;
+    mutable pipeline_names : string list;
     mutable definitions : Ast.source_location Analyzer.Definition_map.t;
   }
 
@@ -106,11 +108,13 @@ module Server = struct
       ~severity:DiagnosticSeverity.Error
       ()
 
-  let diagnostic_at_lexeme lexbuf message =
-    let pos = Lexing.lexeme_start_p lexbuf in
+  let diagnostic_at_position pos message =
     let line = max 0 (pos.Lexing.pos_lnum - 1) in
     let character = max 0 (pos.Lexing.pos_cnum - pos.Lexing.pos_bol) in
     make_diagnostic ~line ~character ~message
+
+  let diagnostic_at_lexeme lexbuf message =
+    diagnostic_at_position (Lexing.lexeme_start_p lexbuf) message
 
   let is_op_char = function
     | '|' | '>' | '?' | '+' | '-' | '*' | '/' | '=' | '!' | '<' | '&' | '%' | '~' | '.' -> true
@@ -164,12 +168,36 @@ module Server = struct
     List.iter (Symbol_table.add_observed_column scope) (extract_columns text);
 
     let diagnostics = ref [] in
+    let t_diagnostics = ref [] in
+    let pipeline_names = ref [] in
     let definitions = ref Analyzer.Definition_map.empty in
+    let filename = Lsp_support.uri_to_file_path (DocumentUri.to_string uri) in
     let lexbuf = Lexing.from_string text in
     (try
        let program = Parser.program Lexer.token lexbuf in
        let analysis = Analyzer.analyze program scope in
-       definitions := analysis.definitions
+       definitions := analysis.definitions;
+       pipeline_names := Lsp_support.pipeline_bindings_of_program program;
+       let static_diags = Lsp_support.static_diagnostics_of_program ~filename program in
+       t_diagnostics := static_diags;
+       diagnostics :=
+         List.map (fun (d : Diagnostics.diagnostic) ->
+           let line = match d.diag_line with Some l -> max 0 (l - 1) | None -> 0 in
+           let character = match d.diag_column with Some c -> max 0 (c - 1) | None -> 0 in
+           let severity =
+             match d.diag_severity with
+             | Diagnostics.Error -> DiagnosticSeverity.Error
+             | Diagnostics.Warning -> DiagnosticSeverity.Warning
+           in
+           Diagnostic.create
+             ~range:(Range.create
+               ~start:(Position.create ~line ~character)
+               ~end_:(Position.create ~line ~character))
+             ~message:(`String d.diag_message)
+             ~severity
+             ~source:"tlang"
+             ()
+         ) static_diags
        with
         | Parser.Error ->
            diagnostics := [ diagnostic_at_lexeme lexbuf "Syntax error" ]
@@ -177,8 +205,10 @@ module Server = struct
            diagnostics := [ diagnostic_at_lexeme lexbuf "Mixed bracket literal (found both single elements and key-value pairs)" ]
         | Ast.Invalid_match_pattern msg ->
            diagnostics := [ diagnostic_at_lexeme lexbuf msg ]
-        | Ast.Invalid_type_declaration msg ->
-           diagnostics := [ diagnostic_at_lexeme lexbuf msg ]
+        | Ast.Invalid_type_declaration (msg, pos_opt) ->
+           let pos = match pos_opt with Some p -> p | None -> Lexing.lexeme_start_p lexbuf in
+           t_diagnostics := [ Lsp_support.diagnostic_of_invalid_type_decl ~filename msg pos ];
+           diagnostics := [ diagnostic_at_position pos msg ]
       | Lexer.SyntaxError msg ->
           diagnostics :=
             [ diagnostic_at_lexeme lexbuf (Printf.sprintf "Lexer error: %s" msg) ]
@@ -188,7 +218,7 @@ module Server = struct
             [ diagnostic_at_lexeme lexbuf "Internal analysis error" ]);
     let doc =
       let lines = Array.of_list (String.split_on_char '\n' text) in
-      { uri; text; lines; scope; diagnostics = !diagnostics; definitions = !definitions }
+      { uri; text; lines; scope; diagnostics = !diagnostics; t_diagnostics = !t_diagnostics; pipeline_names = !pipeline_names; definitions = !definitions }
     in
     Hashtbl.replace server.documents uri doc;
     send_diagnostics uri !diagnostics;
@@ -203,6 +233,7 @@ module Server = struct
       ~completionProvider:(CompletionOptions.create ~triggerCharacters:["$"; "."] ())
       ~hoverProvider:(`Bool true)
       ~definitionProvider:(`Bool true)
+      ~codeActionProvider:(`Bool true)
       ()
     in
     InitializeResult.create ~capabilities ()
@@ -244,6 +275,18 @@ module Server = struct
         match get_line_at doc line with
         | None -> None
         | Some line_text ->
+          let file_path = Lsp_support.uri_to_file_path (DocumentUri.to_string uri) in
+          let live_artifact_hover =
+            match Lsp_support.extract_dot_member line_text character with
+            | Some (target, node_name) when List.mem target doc.pipeline_names ->
+                Lsp_support.artifact_hover_markdown ~file_path ~node_name
+            | _ -> None
+          in
+          match live_artifact_hover with
+          | Some md ->
+              let markup = MarkupContent.create ~kind:MarkupKind.Markdown ~value:md in
+              Some (Hover.create ~contents:(`MarkupContent markup) ())
+          | None ->
           match extract_word_at line_text character with
             | Some name -> (
                match Symbol_table.lookup doc.scope name with
@@ -282,7 +325,7 @@ module Server = struct
                       let markup = MarkupContent.create ~kind:MarkupKind.Markdown ~value:content in
                       Some (Hover.create ~contents:(`MarkupContent markup) ())
                   | "?|>" ->
-                      let content = "**?|>**: `x ?|> f(...) -> f(x, ...)`\n\nSafe pipe operator. Only executes the function if `x` is not `null` or `NA`. Otherwise returns `null`/`NA`.\n\n*(LSP v0.5.3)*" in
+                      let content = "**?|>**: `x ?|> f(...) -> f(x, ...)`\n\nError-forwarding pipe operator. Passes `x` (including `Error` values) into `f` so recovery code can inspect errors.\n\n*(LSP v0.5.3)*" in
                       let markup = MarkupContent.create ~kind:MarkupKind.Markdown ~value:content in
                       Some (Hover.create ~contents:(`MarkupContent markup) ())
                   | _ -> None
@@ -315,6 +358,59 @@ module Server = struct
                   Some (`Location (Location.create ~uri ~range))
               | None -> None)
            | None -> None
+
+  let handle_code_action server (params : CodeActionParams.t) : Yojson.Safe.t =
+    let uri = params.textDocument.uri in
+    let wants_quickfix =
+      match params.context.only with
+      | None -> true
+      | Some [] -> true
+      | Some kinds ->
+          List.exists (function
+            | CodeActionKind.QuickFix -> true
+            | CodeActionKind.Other s -> String.starts_with ~prefix:"quickfix" s
+            | _ -> false
+          ) kinds
+    in
+    if not wants_quickfix then `List []
+    else
+    match Hashtbl.find_opt server.documents uri with
+    | None -> `List []
+    | Some doc ->
+        let start_line = params.range.start.line in
+        let end_line = params.range.end_.line in
+        let fixes =
+          Lsp_support.quick_fixes_for_range
+            ~text:doc.text
+            ~range_start_line:start_line
+            ~range_end_line:end_line
+            doc.t_diagnostics
+        in
+        let uri_str = DocumentUri.to_string uri in
+        let actions =
+          List.map (fun (qf : Lsp_support.quick_fix) ->
+            let edits_json =
+              List.map (fun (e : Lsp_support.text_edit) ->
+                `Assoc [
+                  ("range", `Assoc [
+                    ("start", `Assoc [("line", `Int e.start_line); ("character", `Int e.start_char)]);
+                    ("end", `Assoc [("line", `Int e.end_line); ("character", `Int e.end_char)]);
+                  ]);
+                  ("newText", `String e.new_text);
+                ]
+              ) qf.qf_edits
+            in
+            `Assoc [
+              ("title", `String qf.qf_title);
+              ("kind", `String "quickfix");
+              ("isPreferred", `Bool true);
+              ("edit", `Assoc [
+                ("changes", `Assoc [(uri_str, `List edits_json)]);
+              ]);
+            ]
+          ) fixes
+        in
+        `List actions
 
   let dispatch server (packet : Jsonrpc.Packet.t) =
     let params_to_yojson = function
@@ -371,6 +467,10 @@ module Server = struct
               | Some _ -> `Null
               | None -> `Null
             in
+            Transport.write_message (Jsonrpc.Response.ok req.id result |> Jsonrpc.Response.yojson_of_t)
+        | "textDocument/codeAction" ->
+            let params = CodeActionParams.t_of_yojson (params_to_yojson req.params) in
+            let result = handle_code_action server params in
             Transport.write_message (Jsonrpc.Response.ok req.id result |> Jsonrpc.Response.yojson_of_t)
         | _ ->
             let err = Jsonrpc.Response.Error.make ~code:MethodNotFound ~message:"Unknown method" () in

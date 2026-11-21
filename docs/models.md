@@ -147,6 +147,127 @@ res = residuals(mtcars, model, type: "pearson")
 
 ---
 
+### Inspecting Foreign Models (`explain(p.node).foreign_meta`)
+
+In polyglot pipelines, nodes frequently train models using **R**, **Python**, or **Julia** that cannot be converted to PMML/ONNX, or that produce complex objects (such as time-series fits, deep neural networks, mixed-effects regressions, or Bayesian Markov chains) stored in native formats (`.rds`, `.pkl`, `.jld2`).
+
+While native T models can be passed directly to `summary()` or `fit_stats()`, inspecting foreign models traditionally required starting the foreign runtime and deserializing large artifacts into memory.
+
+To eliminate this overhead at inspection time, $T$ provides **read-time foreign metadata introspection**:
+
+1. **Automatic sidecar generation**: During Nix derivation execution in the sandbox, $T$'s runtime emitters (`r_save_meta`, `py_save_meta`, `jl_save_meta`) inspect the returned object and write an uncompressed JSON metadata sidecar (`$out/meta`) alongside the artifact.
+2. **Instant access**: In $T$, calling `explain(p.node_name)` exposes this sidecar under `.foreign_meta`. It can be queried in milliseconds without loading the artifact or initializing R, Python, or Julia.
+3. **CLI & Agent inspection**: From the shell, `t explain --node p.node_name` (and `t explain --json --node p.node_name`) prints the metadata and DAG lineage.
+
+#### Supported Metadata Fields
+
+The `foreign_meta` dictionary exposes the following normalized fields when present:
+
+| Field | Description | Supported Families / Examples |
+|:---|:---|:---|
+| `kind` | Value kind | `"model"`, `"forecast"`, `"chain"`, `"graph"`, `"dataset"`, `"image"`, `"optimization"`, `"ode"`, `"distribution"`, `"transformer"`, `"dataframe"`, `"matrix"`, `"series"`, `"factor"`, `"test"` |
+| `class` | Runtime type name | `"ARIMA"`, `"ets"`, `"Sequential"`, `"Chain"`, `"lme"`, `"ranger"`, `"SimpleGraph"` |
+| `task` | Statistical / ML task | `"regression"`, `"classification"`, `"clustering"`, `"time_series"`, `"dim_reduction"`, `"density"`, `"anomaly_detection"`, `"ranking"`, `"survival"` |
+| `dimensions` | Object shape | `[rows, cols]` for frames/matrices, `[dim]` for vectors, `[width, height]` for PIL images |
+| `n_obs` | Training observations | Regression, classification, time series, survival models |
+| `n_features` / `features` | Predictor counts & names | Feature column names, fitted coefficients (`lm`, `mgcv`, ARIMA `ar1`/`ma1`) |
+| `n_params` | Total parameter count | PyTorch (`torch.nn`), Keras / TensorFlow, Julia Flux, HuggingFace, R6 keras/torch, `neuralnet` |
+| `n_layers` | Layer count | Neural networks (PyTorch leaf layers, Keras, Flux, R6) |
+| `n_trees` | Tree count | Random Forest, `ranger`, XGBoost, CatBoost, LightGBM, `gbm` |
+| `n_rounds` | Boosting rounds | Gradient boosted trees and rankers |
+| `n_nodes` | Tree / graph node count | Decision trees (`rpart`, `party::BinaryTree`, `partykit::ctree`), or graph vertices |
+| `n_edges` | Graph edge count | `igraph` networks (R), `networkx` graphs (Python), `Graphs.jl` (Julia) |
+| `n_clusters` | Cluster count | k-means, `Mclust`, `dbscan`, `clara`/`fanny`, `tslearn`, `Clustering.jl` |
+| `n_components` | Component count | PCA, ICA, FactorAnalysis, LDA, gensim `LdaModel` topics |
+| `n_groups` / `groups` | Grouping structure | Mixed models (`nlme` `lme`/`gls`), panel models (`plm`) |
+| `n_chains` / `n_draws` | MCMC chain & sample counts | Julia `MCMCChains.Chains`, R `coda::mcmc` / `mcmc.list` |
+| `n_lambda` | Regularization path length | `glmnet` / `cv.glmnet` fits |
+| `n_equations` | Endogenous series count | Vector Autoregressions (VAR / VECM) |
+| `order` | Lag order `[p, d, q]` | ARIMA, SARIMA, `pmdarima`, statsmodels |
+| `seasonal_order` | `[P, D, Q, m]` | Seasonal ARIMA models |
+| `seasonal_period` | Seasonal periods list | `ets`, `bats`/`tbats`, `nnetar`, `prophet` |
+| `horizon` | Forecast horizon | `forecast(...)` results, fable forecast tables, `sktime` forecasters, `statsforecast` |
+| `changepoints` | Changepoint count | Facebook / Meta `prophet` models |
+| `method` | Algorithm variant | Linkage method (`hclust`), ETS model string, test name (`htest`) |
+| `target` / `formula` | Target & formula | Response variable and formula representation |
+| `metrics` | Numeric fit criteria | `aic`, `bic`, `loglik`, `r_squared`, `rmse`, `deviance`, `concordance` |
+| `artifact_size` | File size | Serialized artifact size in bytes |
+
+#### Examples
+
+##### Time Series & Forecasting (R & Python)
+```t
+-- Fit ARIMA in R via forecast
+p = pipeline {
+    ts_node = rn(
+        command = <{
+            library(forecast)
+            auto.arima(AirPassengers)
+        }>,
+        serializer = ^rds
+    )
+}
+build_pipeline(p)
+
+-- Inspect model facts in T instantly
+info = explain(p.ts_node).foreign_meta
+info.kind           -- "model"
+info.task           -- "time_series"
+info.order          -- [2, 1, 1]
+info.seasonal_order -- [0, 1, 0, 12]
+info.metrics.aic    -- 1017.85
+```
+
+##### Deep Learning (PyTorch, Keras, Julia Flux)
+```t
+-- Fit a PyTorch model in Python
+p = pipeline {
+    nn_node = pyn(
+        command = <{
+            import torch.nn as nn
+            model = nn.Sequential(
+                nn.Linear(20, 64),
+                nn.ReLU(),
+                nn.Linear(64, 1)
+            )
+            model
+        }>,
+        serializer = ^pickle
+    )
+}
+build_pipeline(p)
+
+-- Read parameter counts without starting Python
+info = explain(p.nn_node).foreign_meta
+info.kind         -- "model"
+info.n_params     -- 1409
+info.n_layers     -- 3
+```
+
+##### Random Forest & Gradient Boosting (ranger, XGBoost, CatBoost)
+```t
+-- Fit a random forest in R with ranger
+p = pipeline {
+    rf_node = rn(
+        command = <{
+            library(ranger)
+            ranger(Species ~ ., data = iris, num.trees = 300)
+        }>,
+        serializer = ^rds
+    )
+}
+build_pipeline(p)
+
+info = explain(p.rf_node).foreign_meta
+info.kind              -- "model"
+info.task              -- "classification"
+info.n_trees           -- 300
+info.n_features        -- 4
+info.metrics.oob_error -- 0.04
+```
+
+---
+
 ## Hypothesis Testing & Diagnostics
 
 ### `anova(model1, model2, ...)`
