@@ -215,15 +215,16 @@ Pipeline nodes can be dynamically expanded into multiple branches using `map_pat
 ### Introspection with `explain()`
 T values and pipelines are highly introspectable. The **`explain`** package provides the `explain()` function, which can be called on any object to get a detailed summary of its structure, metadata, and status. It is the recommended way to "look inside" your data and nodes in the REPL.
 
-For computed pipeline nodes in foreign runtimes (R, Python, Julia), `explain(p.node).foreign_meta` provides **zero-cost build-time introspection** into models, time-series, and tensors without loading the artifact into memory or starting an external runtime:
+For computed pipeline nodes in foreign runtimes (R, Python, Julia), `explain(p.node).foreign_meta` provides **read-time introspection** into models, time-series, and tensors without loading the artifact into memory or starting an external runtime:
 
 ```t
 -- Fast inspection of foreign time-series, ML models, or deep neural networks:
 e = explain(p.model)
-e.foreign_meta.kind         -- "model", "time_series", "forecast", "graph", etc.
+e.foreign_meta.kind         -- "model", "forecast", "series", "graph", etc.
+e.foreign_meta.task         -- "time_series", "regression", "classification", etc.
 e.foreign_meta.order        -- [p, d, q] for ARIMA / seasonal specs
-e.foreign_meta.n_params     -- parameter count for PyTorch, Keras, or Flux networks
-e.foreign_meta.metrics      -- free metrics: aic, bic, r_squared, logLik
+e.foreign_meta.n_params     -- total parameter count for PyTorch, Keras, or Flux networks
+e.foreign_meta.metrics      -- free metrics: aic, bic, r_squared, loglik
 ```
 
 ### Technical Presentation & Language Architecture

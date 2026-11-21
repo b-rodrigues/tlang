@@ -192,16 +192,16 @@ regressions, or Bayesian Markov chains) stored in native formats
 <code>summary()</code> or <code>fit_stats()</code>, inspecting foreign
 models traditionally required starting the foreign runtime and
 deserializing large artifacts into memory.</p>
-<p>To eliminate this overhead, <span
-class="math inline"><em>T</em></span> provides <strong>zero-cost
-build-time foreign metadata introspection</strong>:</p>
+<p>To eliminate this overhead at inspection time, <span
+class="math inline"><em>T</em></span> provides <strong>read-time foreign
+metadata introspection</strong>:</p>
 <ol type="1">
 <li><strong>Automatic sidecar generation</strong>: During Nix derivation
 execution in the sandbox, <span class="math inline"><em>T</em></span>’s
 runtime emitters (<code>r_save_meta</code>, <code>py_save_meta</code>,
-<code>jl_save_meta</code>) automatically inspect the returned object and
-write an uncompressed JSON metadata sidecar (<code>$out/meta</code>)
-alongside the artifact.</li>
+<code>jl_save_meta</code>) inspect the returned object and write an
+uncompressed JSON metadata sidecar (<code>$out/meta</code>) alongside
+the artifact.</li>
 <li><strong>Instant access</strong>: In <span
 class="math inline"><em>T</em></span>, calling
 <code>explain(p.node_name)</code> exposes this sidecar under
@@ -233,11 +233,12 @@ normalized fields when present:</p>
 <td style="text-align: left;"><code>kind</code></td>
 <td style="text-align: left;">Value kind</td>
 <td style="text-align: left;"><code>"model"</code>,
-<code>"time_series"</code>, <code>"forecast"</code>,
-<code>"chain"</code>, <code>"graph"</code>, <code>"dataset"</code>,
-<code>"image"</code>, <code>"optimization"</code>, <code>"ode"</code>,
+<code>"forecast"</code>, <code>"chain"</code>, <code>"graph"</code>,
+<code>"dataset"</code>, <code>"image"</code>,
+<code>"optimization"</code>, <code>"ode"</code>,
 <code>"distribution"</code>, <code>"transformer"</code>,
-<code>"dataframe"</code>, <code>"matrix"</code></td>
+<code>"dataframe"</code>, <code>"matrix"</code>, <code>"series"</code>,
+<code>"factor"</code>, <code>"test"</code></td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>class</code></td>
@@ -278,15 +279,16 @@ survival models</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>n_params</code></td>
-<td style="text-align: left;">Parameter count</td>
+<td style="text-align: left;">Total parameter count</td>
 <td style="text-align: left;">PyTorch (<code>torch.nn</code>), Keras /
-TensorFlow, Julia Flux, R6 keras/torch, <code>neuralnet</code></td>
+TensorFlow, Julia Flux, HuggingFace, R6 keras/torch,
+<code>neuralnet</code></td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>n_layers</code></td>
 <td style="text-align: left;">Layer count</td>
-<td style="text-align: left;">Neural networks (PyTorch, Keras, Flux,
-R6)</td>
+<td style="text-align: left;">Neural networks (PyTorch leaf layers,
+Keras, Flux, R6)</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>n_trees</code></td>
@@ -301,9 +303,10 @@ XGBoost, CatBoost, LightGBM, <code>gbm</code></td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>n_nodes</code></td>
-<td style="text-align: left;">Tree node count</td>
+<td style="text-align: left;">Tree / graph node count</td>
 <td style="text-align: left;">Decision trees (<code>rpart</code>,
-<code>partykit::BinaryTree</code>), or graph vertices</td>
+<code>party::BinaryTree</code>, <code>partykit::ctree</code>), or graph
+vertices</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>n_edges</code></td>
@@ -372,7 +375,8 @@ statsmodels</td>
 <td style="text-align: left;"><code>horizon</code></td>
 <td style="text-align: left;">Forecast horizon</td>
 <td style="text-align: left;"><code>forecast(...)</code> results, fable
-forecast tables, <code>sktime</code>/<code>darts</code> forecasters</td>
+forecast tables, <code>sktime</code> forecasters,
+<code>statsforecast</code></td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>changepoints</code></td>
@@ -397,7 +401,7 @@ representation</td>
 <td style="text-align: left;"><code>metrics</code></td>
 <td style="text-align: left;">Numeric fit criteria</td>
 <td style="text-align: left;"><code>aic</code>, <code>bic</code>,
-<code>log_likelihood</code>, <code>r_squared</code>, <code>rmse</code>,
+<code>loglik</code>, <code>r_squared</code>, <code>rmse</code>,
 <code>deviance</code>, <code>concordance</code></td>
 </tr>
 <tr>
@@ -410,7 +414,7 @@ representation</td>
 <h4 id="examples">Examples</h4>
 <h5 id="time-series-forecasting-r-python">Time Series &amp; Forecasting
 (R &amp; Python)</h5>
-<pre class="t"><code>-- Fit ARIMA in Python via pmdarima or in R via forecast
+<pre class="t"><code>-- Fit ARIMA in R via forecast
 p = pipeline {
     ts_node = rn(
         command = &lt;{
@@ -424,11 +428,11 @@ build_pipeline(p)
 
 -- Inspect model facts in T instantly
 info = explain(p.ts_node).foreign_meta
-info.kind         -- &quot;time_series&quot;
-info.task         -- &quot;time_series&quot;
-info.order        -- [0, 1, 1]
-info.seasonal_order -- [0, 1, 1, 12]
-info.metrics.aic  -- 1017.85</code></pre>
+info.kind           -- &quot;model&quot;
+info.task           -- &quot;time_series&quot;
+info.order          -- [2, 1, 1]
+info.seasonal_order -- [0, 1, 0, 12]
+info.metrics.aic    -- 1017.85</code></pre>
 <h5 id="deep-learning-pytorch-keras-julia-flux">Deep Learning (PyTorch,
 Keras, Julia Flux)</h5>
 <pre class="t"><code>-- Fit a PyTorch model in Python
@@ -468,10 +472,11 @@ p = pipeline {
 build_pipeline(p)
 
 info = explain(p.rf_node).foreign_meta
-info.task         -- &quot;classification&quot;
-info.n_trees      -- 300
-info.n_features   -- 4
-info.metrics.r_squared -- 0.94</code></pre>
+info.kind              -- &quot;model&quot;
+info.task              -- &quot;classification&quot;
+info.n_trees           -- 300
+info.n_features        -- 4
+info.metrics.oob_error -- 0.04</code></pre>
 <hr />
 <h2 id="hypothesis-testing-diagnostics">Hypothesis Testing &amp;
 Diagnostics</h2>

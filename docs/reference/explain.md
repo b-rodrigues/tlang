@@ -8,7 +8,7 @@ For primitive types, collections, and DataFrames, `explain()` provides structura
 
 For pipeline node results from `read_node(...)`, `explain()` returns a node wrapper with `kind`, `node_name`, `diagnostics`, and the explained payload under `contents`. 
 
-For computed pipeline nodes (e.g. `explain(p.node)`), `explain()` exposes the zero-cost build-time `foreign_meta` sidecar dictionary recorded during Nix derivation execution for R, Python, and Julia nodes, avoiding deserialization or initializing foreign runtimes. 
+For computed pipeline nodes (e.g. `explain(p.node)`), `explain()` exposes the read-time `foreign_meta` sidecar dictionary recorded during Nix derivation execution for R, Python, and Julia nodes, avoiding artifact deserialization or initializing foreign runtimes. 
 
 Supported `foreign_meta` fields include: 
 
@@ -21,9 +21,9 @@ Supported `foreign_meta` fields include:
 - `n_groups`, `groups`: Grouping counts for mixed-effects and panel models (e.g. `nlme` `lme`/`gls`) 
 - `n_trees`, `n_rounds`: Tree count and boosting rounds (e.g. Random Forest, XGBoost, CatBoost, gbm) 
 - `n_clusters`: Cluster count (e.g. k-means, Mclust, dbscan, Clustering.jl) 
-- `n_nodes`, `n_edges`: Graph vertex and edge counts (igraph, networkx, Graphs.jl) or decision tree nodes (`rpart`, `BinaryTree`) 
+- `n_nodes`, `n_edges`: Graph vertex and edge counts (igraph, networkx, Graphs.jl) or decision tree nodes (`rpart`, `party::BinaryTree`, `partykit::ctree`) 
 - `n_components`: Dimensionality reduction components (PCA, ICA, FactorAnalysis, LDA) 
-- `n_params`, `n_layers`: Parameter and layer counts (PyTorch, Keras, Flux, neuralnet, R6 torch/keras) 
+- `n_params`, `n_layers`: Total parameter and layer counts (PyTorch, Keras, Flux, neuralnet, R6 torch/keras) 
 - `n_chains`, `n_draws`: MCMC chain and draw counts (Julia `Chains`, coda `mcmc`/`mcmc.list`) 
 - `n_lambda`: Regularization path length (`glmnet`, `cv.glmnet`) 
 - `n_equations`: Endogenous series count for VAR/VECM models 
@@ -31,11 +31,11 @@ Supported `foreign_meta` fields include:
 - `n_levels`, `levels`: Categorical level counts and values (R factors, Julia `CategoricalArray`) 
 - `start`, `end`: Time-series bounds (R `ts`, `zoo`/`xts`) 
 - `order`, `seasonal_order`, `seasonal_period`: Time-series specifications (ARIMA, SARIMA, ETS, BATS/TBATS, Prophet, NNETAR, pmdarima) 
-- `horizon`: Forecast horizon (forecast results, fable, sktime, darts, statsforecast) 
+- `horizon`: Forecast horizon (forecast results, fable, sktime, statsforecast) 
 - `changepoints`: Changepoint counts (Prophet) 
 - `method`: Algorithm variant, linkage method, ETS letters, or test name 
 - `target`, `formula`: Response variable and model formula 
-- `metrics`: Free numeric metrics (e.g. AIC, BIC, log-likelihood, R-squared, RMSE, deviance) 
+- `metrics`: Free numeric metrics (e.g. aic, bic, loglik, r_squared, rmse, deviance) 
 - `artifact_size`: Materialized artifact size in bytes 
 
 Explaining a pipeline (`explain(p)`) lists per-node `dependencies` (direct inputs) and `children` (direct dependents) plus the transitive `ancestors` and `descendants` closures (nearest-first, de-duplicated).

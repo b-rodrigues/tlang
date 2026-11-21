@@ -26,9 +26,9 @@ let contains_sub s sub =
 --# For pipeline node results from `read_node(...)`, `explain()` returns a node wrapper with
 --# `kind`, `node_name`, `diagnostics`, and the explained payload under `contents`.
 --#
---# For computed pipeline nodes (e.g. `explain(p.node)`), `explain()` exposes the zero-cost build-time
+--# For computed pipeline nodes (e.g. `explain(p.node)`), `explain()` exposes the read-time
 --# `foreign_meta` sidecar dictionary recorded during Nix derivation execution for R, Python, and Julia
---# nodes, avoiding deserialization or initializing foreign runtimes.
+--# nodes, avoiding artifact deserialization or initializing foreign runtimes.
 --#
 --# Supported `foreign_meta` fields include:
 --# - `kind`: Value kind ("dataframe", "matrix", "vector", "array", "factor", "series", "table", "model", "test", "data", "transformer", "distribution", "forecast", "chain", "dist", "graph", "dataset", "image", "optimization", "ode", "other", or "unknown")
@@ -40,9 +40,9 @@ let contains_sub s sub =
 --# - `n_groups`, `groups`: Grouping counts for mixed-effects and panel models (e.g. `nlme` `lme`/`gls`)
 --# - `n_trees`, `n_rounds`: Tree count and boosting rounds (e.g. Random Forest, XGBoost, CatBoost, gbm)
 --# - `n_clusters`: Cluster count (e.g. k-means, Mclust, dbscan, Clustering.jl)
---# - `n_nodes`, `n_edges`: Graph vertex and edge counts (igraph, networkx, Graphs.jl) or decision tree nodes (`rpart`, `BinaryTree`)
+--# - `n_nodes`, `n_edges`: Graph vertex and edge counts (igraph, networkx, Graphs.jl) or decision tree nodes (`rpart`, `party::BinaryTree`, `partykit::ctree`)
 --# - `n_components`: Dimensionality reduction components (PCA, ICA, FactorAnalysis, LDA)
---# - `n_params`, `n_layers`: Parameter and layer counts (PyTorch, Keras, Flux, neuralnet, R6 torch/keras)
+--# - `n_params`, `n_layers`: Total parameter and layer counts (PyTorch, Keras, Flux, neuralnet, R6 torch/keras)
 --# - `n_chains`, `n_draws`: MCMC chain and draw counts (Julia `Chains`, coda `mcmc`/`mcmc.list`)
 --# - `n_lambda`: Regularization path length (`glmnet`, `cv.glmnet`)
 --# - `n_equations`: Endogenous series count for VAR/VECM models
@@ -50,11 +50,11 @@ let contains_sub s sub =
 --# - `n_levels`, `levels`: Categorical level counts and values (R factors, Julia `CategoricalArray`)
 --# - `start`, `end`: Time-series bounds (R `ts`, `zoo`/`xts`)
 --# - `order`, `seasonal_order`, `seasonal_period`: Time-series specifications (ARIMA, SARIMA, ETS, BATS/TBATS, Prophet, NNETAR, pmdarima)
---# - `horizon`: Forecast horizon (forecast results, fable, sktime, darts, statsforecast)
+--# - `horizon`: Forecast horizon (forecast results, fable, sktime, statsforecast)
 --# - `changepoints`: Changepoint counts (Prophet)
 --# - `method`: Algorithm variant, linkage method, ETS letters, or test name
 --# - `target`, `formula`: Response variable and model formula
---# - `metrics`: Free numeric metrics (e.g. AIC, BIC, log-likelihood, R-squared, RMSE, deviance)
+--# - `metrics`: Free numeric metrics (e.g. aic, bic, loglik, r_squared, rmse, deviance)
 --# - `artifact_size`: Materialized artifact size in bytes
 --#
 --# Explaining a pipeline (`explain(p)`) lists per-node `dependencies` (direct inputs)
@@ -176,6 +176,27 @@ let register ?(ensure_docs=ignore) env =
     | Some _ -> None
     | None -> None
   in
+  let assoc_num_list key pairs =
+    let to_num = function
+      | `Int i -> Some (VInt i)
+      | `Intlit s -> (try Some (VInt (int_of_string s)) with _ -> None)
+      | `Float f ->
+          (match finite_float f with
+           | None -> None
+           | Some g ->
+               if Float.is_integer g && g >= float_of_int min_int && g <= float_of_int max_int then
+                 Some (VInt (int_of_float g))
+               else
+                 Some (VFloat g))
+      | _ -> None
+    in
+    match List.assoc_opt key pairs with
+    | Some (`List items) ->
+        let ns = List.filter_map to_num items in
+        (match ns with [] -> None | _ -> Some ns)
+    | Some _ -> None
+    | None -> None
+  in
   let assoc_groups pairs =
     match List.assoc_opt "groups" pairs with
     | Some (`Assoc m) ->
@@ -289,8 +310,8 @@ let register ?(ensure_docs=ignore) env =
     (match assoc_int_list "seasonal_order" pairs with
      | Some ns -> add "seasonal_order" (VList (List.map (fun n -> (None, VInt n)) ns))
      | None -> ());
-    (match assoc_int_list "seasonal_period" pairs with
-     | Some ns -> add "seasonal_period" (VList (List.map (fun n -> (None, VInt n)) ns))
+    (match assoc_num_list "seasonal_period" pairs with
+     | Some ns -> add "seasonal_period" (VList (List.map (fun v -> (None, v)) ns))
      | None -> ());
     (match assoc_int "horizon" pairs with Some n -> add "horizon" (VInt n) | None -> ());
     (match assoc_int "changepoints" pairs with Some n -> add "changepoints" (VInt n) | None -> ());

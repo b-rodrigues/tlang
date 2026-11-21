@@ -57,7 +57,7 @@ This file is a distilled reference for the **T programming language**. It is int
   - `read_node("name")`: Access output of an upstream node.
   - `explain(read_node("name"))`: Inspect node diagnostics and explained contents.
   - `explain(p)`: Per-node `dependencies` (parents) and `children` (direct dependents), plus transitive `ancestors`/`descendants`.
-  - `explain(p.node).foreign_meta`: Zero-cost build-time shape/model facts for R/Python/Julia nodes (kind, task, dimensions, n_params, n_layers, order, seasonal_period, horizon, n_trees, metrics) without loading the artifact.
+  - `explain(p.node).foreign_meta`: Read-time shape/model facts for R/Python/Julia nodes (kind, task, dimensions, n_params, n_layers, order, seasonal_period, horizon, n_trees, metrics) without loading the artifact.
   - `pipeline_copy(p, node="name", to="path")`: Export artifacts.
 - **Sandboxing**: Every node runs in an isolated Nix environment declared in the project manifest.
 

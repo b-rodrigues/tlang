@@ -34,49 +34,11 @@
 </nav>
 <div class="container">
 <h1 id="pipeline_overview_markdown">pipeline_overview_markdown</h1>
-<p>Unified pipeline overview table</p>
-<p>One call joins pipeline structure with the latest build log into a
-single per-node table: the columns of <code>pipeline_to_frame</code>
-plus the live build state of <code>pipeline_status</code>.</p>
-<p>It is not a superset of the other frames.
-<code>pipeline_config_to_frame</code> also reports <code>shell</code>,
-<code>flake</code>, the <code>prov_*</code> provenance columns and the
-<code>n_*</code> count columns. None of these are repeated here; call
-that function when you need them. Node diagnostics live in
-<code>pipeline_node_options</code> (and as <code>$diagnostics</code> in
-<code>filter_node</code> predicates), not in this table nor in
-<code>pipeline_to_frame</code>.</p>
-<p>Column names match the source frames so filters copy over unchanged.
-Failed nodes sort first so the root cause is visible without extra
-calls.</p>
-<p>Columns:</p>
-<ul>
-<li><code>name</code> — node name (String)</li>
-<li><code>runtime</code> — e.g. “T”, “R”, “Python” (String)</li>
-<li><code>serializer</code> — e.g. “default”, “^csv” (String)</li>
-<li><code>deserializer</code> — e.g. “default”, “^csv” (String)</li>
-<li><code>noop</code> — whether the node is a no-op (Bool)</li>
-<li><code>deps</code> — names of nodes this node depends on (String,
-comma-separated)</li>
-<li><code>depth</code> — topological depth in the DAG (Int); roots are
-depth 0</li>
-<li><code>command_type</code> — one of “command” or “script”
-(String)</li>
-<li><code>status</code> — build status from the latest matching log, or
-NA</li>
-<li><code>duration</code> — node build duration in seconds (Float), or
-NA</li>
-<li><code>path</code> — Nix store path of the node output, or NA</li>
-<li><code>error</code> — <code>code: message</code> for failed nodes, or
-NA</li>
-</ul>
+<p>Markdown overview table</p>
+<p>Same rows as pipeline_overview, rendered as a Markdown table for
+reports and workflow summaries.</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><p><strong>pipeline</strong> (<code>Pipeline</code>): The pipeline
-to summarize.</p></li>
-<li><p><strong>only</strong> (<code>String</code>): = NA Filter rows:
-failed, built, unbuilt, or all. Default shows all, failed
-first.</p></li>
 <li><p><strong>pipeline</strong> (<code>Pipeline</code>): The pipeline
 to summarize.</p></li>
 <li><p><strong>only</strong> (<code>String</code>): = NA Same filter as
@@ -85,24 +47,10 @@ pipeline_overview.</p></li>
 <h2 id="returns">Returns</h2>
 <p>Markdown table with name, runtime, status, depth, error.</p>
 <h2 id="examples">Examples</h2>
-<pre class="t"><code>pipeline_overview(p)
-pipeline_overview(p, only = &quot;failed&quot;)
-pipeline_overview(p) |&gt; filter($status == &quot;Errored&quot;)
-
-Markdown overview table
-
-Same rows as pipeline_overview, rendered as a Markdown table
-for reports and workflow summaries.
-
-pipeline_overview_markdown(p)
+<pre class="t"><code>pipeline_overview_markdown(p)
 pipeline_overview_markdown(p, only = &quot;failed&quot;)</code></pre>
 <h2 id="see-also">See Also</h2>
-<p><a
-href="pipeline_overview_markdown.html">pipeline_overview_markdown</a>,
-<a href="pipeline_config_to_frame.html">pipeline_config_to_frame</a>, <a
-href="pipeline_status.html">pipeline_status</a>, <a
-href="pipeline_to_frame.html">pipeline_to_frame</a>, <a
-href="pipeline_report.html">pipeline_report</a>, <a
+<p><a href="pipeline_report.html">pipeline_report</a>, <a
 href="pipeline_overview.html">pipeline_overview</a></p>
 </div>
 <footer>

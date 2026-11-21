@@ -283,7 +283,7 @@ Use this workflow to understand what a pipeline node does, what it produced, and
 | `pipeline_copy(node?, target_dir?)` | Copies built artifacts from Nix store to local directory | Export files (HTML, CSV, plots) to workspace |
 | `warning_msg(p.node)` | Formatted warning text (own + upstream) | Diagnose warnings without raw diagnostics |
 | `explain(read_node(p.node))` | Structured dict of the value's type, shape, columns, preview | Understand what the data looks like |
-| `explain(p.node).foreign_meta` | Dict of foreign shape/model facts (kind, task, n_params, order, metrics) | Zero-cost introspection of R/Python/Julia outputs without loading artifacts |
+| `explain(p.node).foreign_meta` | Dict of foreign shape/model facts (kind, task, n_params, order, metrics) | Read-time introspection of R/Python/Julia outputs without loading artifacts |
 | `explain(p)` | Per-node dependencies and children | Trace lineage through the pipeline |
 | `rebuild_node(p.node)` | Rebuilds a single node, returns updated ComputedNode | One node changed, don't rebuild entire pipeline |
 | `debug_node(p.node)` | Launches interactive REPL in the node's runtime env | Deep debugging of R/Python/Julia code |

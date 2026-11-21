@@ -153,9 +153,9 @@ In polyglot pipelines, nodes frequently train models using **R**, **Python**, or
 
 While native T models can be passed directly to `summary()` or `fit_stats()`, inspecting foreign models traditionally required starting the foreign runtime and deserializing large artifacts into memory.
 
-To eliminate this overhead, $T$ provides **zero-cost build-time foreign metadata introspection**:
+To eliminate this overhead at inspection time, $T$ provides **read-time foreign metadata introspection**:
 
-1. **Automatic sidecar generation**: During Nix derivation execution in the sandbox, $T$'s runtime emitters (`r_save_meta`, `py_save_meta`, `jl_save_meta`) automatically inspect the returned object and write an uncompressed JSON metadata sidecar (`$out/meta`) alongside the artifact.
+1. **Automatic sidecar generation**: During Nix derivation execution in the sandbox, $T$'s runtime emitters (`r_save_meta`, `py_save_meta`, `jl_save_meta`) inspect the returned object and write an uncompressed JSON metadata sidecar (`$out/meta`) alongside the artifact.
 2. **Instant access**: In $T$, calling `explain(p.node_name)` exposes this sidecar under `.foreign_meta`. It can be queried in milliseconds without loading the artifact or initializing R, Python, or Julia.
 3. **CLI & Agent inspection**: From the shell, `t explain --node p.node_name` (and `t explain --json --node p.node_name`) prints the metadata and DAG lineage.
 
@@ -165,17 +165,17 @@ The `foreign_meta` dictionary exposes the following normalized fields when prese
 
 | Field | Description | Supported Families / Examples |
 |:---|:---|:---|
-| `kind` | Value kind | `"model"`, `"time_series"`, `"forecast"`, `"chain"`, `"graph"`, `"dataset"`, `"image"`, `"optimization"`, `"ode"`, `"distribution"`, `"transformer"`, `"dataframe"`, `"matrix"` |
+| `kind` | Value kind | `"model"`, `"forecast"`, `"chain"`, `"graph"`, `"dataset"`, `"image"`, `"optimization"`, `"ode"`, `"distribution"`, `"transformer"`, `"dataframe"`, `"matrix"`, `"series"`, `"factor"`, `"test"` |
 | `class` | Runtime type name | `"ARIMA"`, `"ets"`, `"Sequential"`, `"Chain"`, `"lme"`, `"ranger"`, `"SimpleGraph"` |
 | `task` | Statistical / ML task | `"regression"`, `"classification"`, `"clustering"`, `"time_series"`, `"dim_reduction"`, `"density"`, `"anomaly_detection"`, `"ranking"`, `"survival"` |
 | `dimensions` | Object shape | `[rows, cols]` for frames/matrices, `[dim]` for vectors, `[width, height]` for PIL images |
 | `n_obs` | Training observations | Regression, classification, time series, survival models |
 | `n_features` / `features` | Predictor counts & names | Feature column names, fitted coefficients (`lm`, `mgcv`, ARIMA `ar1`/`ma1`) |
-| `n_params` | Parameter count | PyTorch (`torch.nn`), Keras / TensorFlow, Julia Flux, R6 keras/torch, `neuralnet` |
-| `n_layers` | Layer count | Neural networks (PyTorch, Keras, Flux, R6) |
+| `n_params` | Total parameter count | PyTorch (`torch.nn`), Keras / TensorFlow, Julia Flux, HuggingFace, R6 keras/torch, `neuralnet` |
+| `n_layers` | Layer count | Neural networks (PyTorch leaf layers, Keras, Flux, R6) |
 | `n_trees` | Tree count | Random Forest, `ranger`, XGBoost, CatBoost, LightGBM, `gbm` |
 | `n_rounds` | Boosting rounds | Gradient boosted trees and rankers |
-| `n_nodes` | Tree node count | Decision trees (`rpart`, `partykit::BinaryTree`), or graph vertices |
+| `n_nodes` | Tree / graph node count | Decision trees (`rpart`, `party::BinaryTree`, `partykit::ctree`), or graph vertices |
 | `n_edges` | Graph edge count | `igraph` networks (R), `networkx` graphs (Python), `Graphs.jl` (Julia) |
 | `n_clusters` | Cluster count | k-means, `Mclust`, `dbscan`, `clara`/`fanny`, `tslearn`, `Clustering.jl` |
 | `n_components` | Component count | PCA, ICA, FactorAnalysis, LDA, gensim `LdaModel` topics |
@@ -186,18 +186,18 @@ The `foreign_meta` dictionary exposes the following normalized fields when prese
 | `order` | Lag order `[p, d, q]` | ARIMA, SARIMA, `pmdarima`, statsmodels |
 | `seasonal_order` | `[P, D, Q, m]` | Seasonal ARIMA models |
 | `seasonal_period` | Seasonal periods list | `ets`, `bats`/`tbats`, `nnetar`, `prophet` |
-| `horizon` | Forecast horizon | `forecast(...)` results, fable forecast tables, `sktime`/`darts` forecasters |
+| `horizon` | Forecast horizon | `forecast(...)` results, fable forecast tables, `sktime` forecasters, `statsforecast` |
 | `changepoints` | Changepoint count | Facebook / Meta `prophet` models |
 | `method` | Algorithm variant | Linkage method (`hclust`), ETS model string, test name (`htest`) |
 | `target` / `formula` | Target & formula | Response variable and formula representation |
-| `metrics` | Numeric fit criteria | `aic`, `bic`, `log_likelihood`, `r_squared`, `rmse`, `deviance`, `concordance` |
+| `metrics` | Numeric fit criteria | `aic`, `bic`, `loglik`, `r_squared`, `rmse`, `deviance`, `concordance` |
 | `artifact_size` | File size | Serialized artifact size in bytes |
 
 #### Examples
 
 ##### Time Series & Forecasting (R & Python)
 ```t
--- Fit ARIMA in Python via pmdarima or in R via forecast
+-- Fit ARIMA in R via forecast
 p = pipeline {
     ts_node = rn(
         command = <{
@@ -211,11 +211,11 @@ build_pipeline(p)
 
 -- Inspect model facts in T instantly
 info = explain(p.ts_node).foreign_meta
-info.kind         -- "time_series"
-info.task         -- "time_series"
-info.order        -- [0, 1, 1]
-info.seasonal_order -- [0, 1, 1, 12]
-info.metrics.aic  -- 1017.85
+info.kind           -- "model"
+info.task           -- "time_series"
+info.order          -- [2, 1, 1]
+info.seasonal_order -- [0, 1, 0, 12]
+info.metrics.aic    -- 1017.85
 ```
 
 ##### Deep Learning (PyTorch, Keras, Julia Flux)
@@ -259,10 +259,11 @@ p = pipeline {
 build_pipeline(p)
 
 info = explain(p.rf_node).foreign_meta
-info.task         -- "classification"
-info.n_trees      -- 300
-info.n_features   -- 4
-info.metrics.r_squared -- 0.94
+info.kind              -- "model"
+info.task              -- "classification"
+info.n_trees           -- 300
+info.n_features        -- 4
+info.metrics.oob_error -- 0.04
 ```
 
 ---

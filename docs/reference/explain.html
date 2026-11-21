@@ -45,10 +45,10 @@ schema columns, NA counts, and example rows.</p>
 <code>node_name</code>, <code>diagnostics</code>, and the explained
 payload under <code>contents</code>.</p>
 <p>For computed pipeline nodes (e.g. <code>explain(p.node)</code>),
-<code>explain()</code> exposes the zero-cost build-time
-<code>foreign_meta</code> sidecar dictionary recorded during Nix
-derivation execution for R, Python, and Julia nodes, avoiding
-deserialization or initializing foreign runtimes.</p>
+<code>explain()</code> exposes the read-time <code>foreign_meta</code>
+sidecar dictionary recorded during Nix derivation execution for R,
+Python, and Julia nodes, avoiding artifact deserialization or
+initializing foreign runtimes.</p>
 <p>Supported <code>foreign_meta</code> fields include:</p>
 <ul>
 <li><code>kind</code>: Value kind (“dataframe”, “matrix”, “vector”,
@@ -74,11 +74,12 @@ rounds (e.g. Random Forest, XGBoost, CatBoost, gbm)</li>
 dbscan, Clustering.jl)</li>
 <li><code>n_nodes</code>, <code>n_edges</code>: Graph vertex and edge
 counts (igraph, networkx, Graphs.jl) or decision tree nodes
-(<code>rpart</code>, <code>BinaryTree</code>)</li>
+(<code>rpart</code>, <code>party::BinaryTree</code>,
+<code>partykit::ctree</code>)</li>
 <li><code>n_components</code>: Dimensionality reduction components (PCA,
 ICA, FactorAnalysis, LDA)</li>
-<li><code>n_params</code>, <code>n_layers</code>: Parameter and layer
-counts (PyTorch, Keras, Flux, neuralnet, R6 torch/keras)</li>
+<li><code>n_params</code>, <code>n_layers</code>: Total parameter and
+layer counts (PyTorch, Keras, Flux, neuralnet, R6 torch/keras)</li>
 <li><code>n_chains</code>, <code>n_draws</code>: MCMC chain and draw
 counts (Julia <code>Chains</code>, coda
 <code>mcmc</code>/<code>mcmc.list</code>)</li>
@@ -95,14 +96,14 @@ and values (R factors, Julia <code>CategoricalArray</code>)</li>
 <code>seasonal_period</code>: Time-series specifications (ARIMA, SARIMA,
 ETS, BATS/TBATS, Prophet, NNETAR, pmdarima)</li>
 <li><code>horizon</code>: Forecast horizon (forecast results, fable,
-sktime, darts, statsforecast)</li>
+sktime, statsforecast)</li>
 <li><code>changepoints</code>: Changepoint counts (Prophet)</li>
 <li><code>method</code>: Algorithm variant, linkage method, ETS letters,
 or test name</li>
 <li><code>target</code>, <code>formula</code>: Response variable and
 model formula</li>
-<li><code>metrics</code>: Free numeric metrics (e.g. AIC, BIC,
-log-likelihood, R-squared, RMSE, deviance)</li>
+<li><code>metrics</code>: Free numeric metrics (e.g. aic, bic, loglik,
+r_squared, rmse, deviance)</li>
 <li><code>artifact_size</code>: Materialized artifact size in bytes</li>
 </ul>
 <p>Explaining a pipeline (<code>explain(p)</code>) lists per-node
