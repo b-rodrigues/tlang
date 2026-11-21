@@ -42,7 +42,9 @@ open Ast
 --# @family pipeline
 --# @seealso pipeline_to_frame, pipeline_status, pipeline_config_to_frame, pipeline_overview_markdown
 --# @export
---#
+*)
+
+(*
 --# Markdown overview table
 --#
 --# Same rows as pipeline_overview, rendered as a Markdown table

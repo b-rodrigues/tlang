@@ -47,17 +47,24 @@ DataFrame. Base columns (<code>name</code>, <code>runtime</code>,
 <code>kind</code>, <code>task</code>, <code>method</code>,
 <code>n_obs</code>, <code>n_features</code>, <code>status</code>) are
 joined with one numeric column per metric key (such as <code>aic</code>,
-<code>bic</code>, <code>rmse</code>, <code>r2</code>, <code>mae</code>),
-sorted alphabetically with <code>NA</code> where a model does not report
-a metric. Metric keys colliding with base columns are safely prefixed
-(<code>metric_*</code>). Supports optional filtering by
-<code>task</code> (<code>"time_series"</code>,
-<code>"regression"</code>, <code>"classification"</code>) and sorting by
-<code>sort_by</code> (<code>"aic"</code>, <code>"n_obs"</code>, etc.)
-with <code>descending = true|false</code>.
+<code>bic</code>, <code>loglik</code>, <code>rmse</code>,
+<code>r_squared</code>, <code>mae</code>), sorted alphabetically with
+<code>NA</code> where a model does not report a metric. Metric keys
+colliding with base columns are safely prefixed (<code>metric_*</code>).
+Supports optional filtering by <code>task</code>
+(<code>"time_series"</code>, <code>"regression"</code>,
+<code>"classification"</code>) and sorting by <code>sort_by</code>
+(<code>"aic"</code>, <code>"n_obs"</code>, etc.) with
+<code>descending = true|false</code>.
 <code>pipeline_metrics_markdown(p)</code> renders the leaderboard as a
 GitHub-Flavored Markdown table for automated pipeline reports and
 documentation.</li>
+<li><strong>Companion frame &amp; lineage helpers</strong>: Added
+<code>pipeline_to_frame</code>, <code>pipeline_config_to_frame</code>,
+and graph lineage helpers (<code>parents</code>, <code>children</code>,
+<code>ancestors</code>, <code>descendants</code>) to the R, Python, and
+Julia companion packages (<code>r-package</code>,
+<code>py-package</code>, <code>jl-package</code>).</li>
 <li><strong>T Language Server Protocol enhancements
 (<code>t-lsp</code>)</strong>:
 <ul>
@@ -141,86 +148,95 @@ time-series and ML models</strong>: R nodes now report task
 <code>nnetar</code> with hidden-unit and repeat counts) and for
 <code>prophet</code>, tseries <code>garch</code>, rugarch
 <code>uGARCHfit</code> (variance-model name, estimated parameter count,
-log-likelihood/AIC/BIC), and vars
+<code>loglik</code>/AIC/BIC), and vars
 <code>varest</code>/<code>vec2var</code> (lag order and equation count).
 Objects from <code>forecast(...)</code> report the new
 <code>forecast</code> kind with method, horizon, and interval level.
 <code>zoo</code>/<code>xts</code> series read as <code>series</code>
-kind with start/end — previously misreported as matrices.
-<code>glmnet</code>/<code>cv.glmnet</code> report the task from the fit
-class plus feature count, lambda count, deviance ratio, and
-<code>lambda_min</code>/<code>lambda_1se</code>; <code>ranger</code>
-forests report tree/feature/sample counts with OOB error;
-<code>catboost.Model</code> objects report the loss name, tree count,
-and feature count. Python torch and keras models report parameter and
-layer counts (keras adds the optimizer class); pmdarima ARIMA reports
-order, seasonal order, and likelihood criteria; catboost estimators
-report task, trees, features, and best iteration;
-sktime/darts/statsforecast forecasters report the fitted horizon. Julia
-<code>Distributions</code> values report <code>distribution</code> kind
-with the distribution name and moments; MCMCChains <code>Chains</code>
-report the new <code>chain</code> kind with draws, variables, and chain
-counts; Flux models report layer and parameter counts. New sidecar keys:
-<code>n_params</code>, <code>n_layers</code>, <code>n_chains</code>,
-<code>n_draws</code>, <code>n_lambda</code>, <code>n_equations</code>,
+kind with <code>NROW</code> observations and start/end — previously
+misreported as matrices. <code>glmnet</code>/<code>cv.glmnet</code>
+report the task from the fit class plus feature count, lambda count,
+deviance ratio, and <code>lambda_min</code>/<code>lambda_1se</code>;
+<code>ranger</code> forests report tree/feature/sample counts with OOB
+error; <code>catboost.Model</code> objects report the loss name, tree
+count, and feature count. Python torch and keras models report total
+parameter and layer counts (keras adds the optimizer class); pmdarima
+ARIMA reports order, seasonal order, and likelihood criteria; catboost
+estimators report task, trees, features, and best iteration;
+sktime/statsforecast forecasters report the fitted horizon (while darts
+models record
+<code>input_chunk_length</code>/<code>output_chunk_length</code> in
+metrics). Julia <code>Distributions</code> values report
+<code>distribution</code> kind with the distribution name and moments;
+MCMCChains <code>Chains</code> report the new <code>chain</code> kind
+with draws, variables, and chain counts; Flux models report layer and
+parameter counts. New sidecar keys: <code>n_params</code>,
+<code>n_layers</code>, <code>n_chains</code>, <code>n_draws</code>,
+<code>n_lambda</code>, <code>n_equations</code>,
 <code>seasonal_period</code>, <code>horizon</code>,
 <code>changepoints</code>.</li>
-<li><strong><code>explain()</code> recognizes the wider modeling
-ecosystems</strong>: R smooth models keep their identity —
+<li><strong><code>explain()</code> recognizes the wider R/Python/Julia
+modeling ecosystems</strong>: R smooth models keep their identity —
 <code>mgcv::gam</code> reports smooth-term counts and keeps
 <code>s(wt)</code> coefficient names visible instead of folding into the
 plain <code>glm</code> branch. Mixed, panel, and count models report
 their facts: nlme <code>lme</code>/<code>gls</code> group counts and fit
 criteria, <code>rq</code> quantile, <code>survreg</code> distribution,
-<code>betareg</code> precision,
+<code>betareg</code> scalar precision,
 <code>zeroinfl</code>/<code>hurdle</code>, <code>plm</code>, ordinal
 <code>clm</code>/<code>clmm</code> links, VGAM <code>vglm</code>
 families. Tuned wrappers report resampling results: caret
-<code>train</code> (model name and best accuracy/RMSE), parsnip
-<code>model_fit</code> and workflows (engine and mode),
-<code>svm</code>/<code>ksvm</code> kernels and support vectors,
-<code>gbm</code> distributions and shrinkage, <code>C5.0</code>,
-<code>earth</code>, pls <code>mvr</code>, partykit
-<code>BinaryTree</code> node counts. Clustering and ordination report
-standard facts: <code>Mclust</code>, <code>dbscan</code> (noise
-excluded), <code>clara</code>/<code>fanny</code> silhouettes,
-<code>mixEM</code>, FactoMineR
-<code>PCA</code>/<code>MCA</code>/<code>FAMD</code>/<code>CA</code>,
-psych <code>fa</code>/<code>principal</code>. Statistical objects read
-as their own kinds: urca unit-root and cointegration tests as
-<code>test</code>, coda <code>mcmc</code> chains as <code>chain</code>,
-lavaan SEM fits with chi-square/CFI/RMSEA, <code>dist</code> objects as
-<code>dist</code>, sparse Matrix objects with nnz, igraph networks as
-<code>graph</code> with node and edge counts. Python: imbalanced-learn
-estimators report like sklearn, polars <code>LazyFrame</code> shows its
-schema, xarray <code>Dataset</code> reports the new <code>dataset</code>
-kind, HuggingFace transformers report model type and parameter counts,
+<code>train</code> (model name and best
+accuracy/RMSE/<code>r_squared</code>), parsnip <code>model_fit</code>
+and workflows (engine and mode), <code>svm</code>/<code>ksvm</code>
+kernels and support vectors, <code>gbm</code> distributions and
+shrinkage, <code>C5.0</code>, <code>earth</code>, pls <code>mvr</code>,
+<code>party::BinaryTree</code> and <code>partykit::ctree</code> node
+counts. Clustering and ordination report standard facts:
+<code>Mclust</code>, <code>dbscan</code> (noise excluded),
+<code>clara</code>/<code>fanny</code> silhouettes, <code>mixEM</code>,
+FactoMineR
+<code>PCA</code>/<code>MCA</code>/<code>FAMD</code>/<code>CA</code> (0–1
+<code>var_first</code>), psych <code>fa</code>/<code>principal</code>.
+Statistical objects read as their own kinds: urca unit-root and
+cointegration tests as <code>test</code>, coda <code>mcmc</code> chains
+as <code>chain</code>, lavaan SEM fits with chi-square/CFI/RMSEA,
+<code>dist</code> objects as <code>dist</code>, sparse Matrix objects
+with nnz, igraph networks as <code>graph</code> with node and edge
+counts. Python: imbalanced-learn estimators report like sklearn, polars
+<code>LazyFrame</code> shows its schema, xarray <code>Dataset</code>
+reports the new <code>dataset</code> kind, HuggingFace transformers
+models report model type and parameter counts (while tokenizers and
+pipelines report <code>transformer</code>),
 tbats/skforecast/pyspark.ml/networkx report family facts, and
 statsmodels VECM/Markov-regime results report <code>time_series</code>.
 Julia: <code>CategoricalArray</code> values report <code>factor</code>
 kind with levels like R factors, MLJ machines name their model, and
 XGBoost.jl/ARCHModels fits report their facts.</li>
-<li><strong><code>explain()</code> keeps the R long tail</strong>:
-tidyverts tables keep their identity — fable forecast tables report the
-<code>forecast</code> kind with horizon and model types, and mables
-(<code>mdl_df</code>/<code>model_df</code>) report model column names
-instead of reading as plain dataframes. The <code>smooth</code> package
-reports orders and AIC/BIC; <code>dlmFiltered</code> fits report
-observation counts. R6-based models report parameter and layer counts:
-keras models via <code>count_params()</code>, torch modules via
-parameter sums. Seurat objects report <code>dataset</code> kind with
-cell, gene, and active-assay counts. <code>neuralnet</code> fits report
-error and step counts.</li>
-<li><strong><code>explain()</code> keeps the Python long tail</strong>:
-gensim <code>LdaModel</code> reports topic counts as components and
-<code>Word2Vec</code> reports vector size and vocabulary counts; dask
-frames report schema columns with partition counts; PIL images report
-the new <code>image</code> kind with dimensions and pixel mode;
-NeuralProphet reports parameter counts; tslearn clusterers report
-cluster counts.</li>
-<li><strong><code>explain()</code> keeps the Julia long tail</strong>:
-Clustering.jl <code>CmeansResult</code>/<code>DbscanResult</code> report
-cluster facts; MultivariateStats
+<li><strong><code>explain()</code> recognizes tidyverts, R6 deep
+learning, and specialized R families</strong>: fable forecast tables
+report the <code>forecast</code> kind with unique-index horizon and
+model types, and mables (<code>mdl_df</code>/<code>model_df</code>)
+report model column names instead of reading as plain dataframes. The
+<code>smooth</code> package reports orders and AIC/BIC;
+<code>dlmFiltered</code> fits report observation counts. R6-based models
+report parameter and layer counts: keras models via
+<code>count_params()</code>, torch modules via parameter sums. Seurat
+objects report <code>dataset</code> kind with cell, gene, and
+active-assay counts. <code>neuralnet</code> fits report error and step
+counts.</li>
+<li><strong><code>explain()</code> recognizes Python NLP, distributed
+frames, and media objects</strong>: gensim <code>LdaModel</code> reports
+topic counts as components and <code>Word2Vec</code> reports vector size
+and vocabulary counts; dask frames report schema columns with partition
+counts; PIL images report the new <code>image</code> kind with
+dimensions and pixel mode; NeuralProphet reports parameter counts;
+tslearn clusterers report cluster counts.</li>
+<li><strong><code>explain()</code> recognizes Julia scientific,
+optimization, and ODE families</strong>: Clustering.jl
+<code>CmeansResult</code>/<code>DbscanResult</code> report cluster facts
+(with <code>DbscanResult</code> <code>n_obs</code> counting all
+observations via <code>assignments</code>); MultivariateStats
 <code>ICA</code>/<code>FactorAnalysis</code>/<code>PPCA</code>/<code>KernelPCA</code>/<code>MulticlassLDA</code>
 report <code>dim_reduction</code> with component and class counts;
 Graphs.jl networks report <code>graph</code> kind with node and edge
@@ -229,6 +245,41 @@ variable and constraint counts; SciML ODE problems and solutions report
 the new <code>ode</code> kind with time-span and return-code facts;
 GaussianMixtures <code>GMM</code> fits report <code>density</code> with
 component counts.</li>
+</ul>
+<h3 id="fixes">Fixes</h3>
+<ul>
+<li><strong>Foreign-meta probe accuracy and lazy imports</strong>:
+Python <code>_tlang_dl_meta</code> now inspects
+<code>sys.modules.get("torch")</code> instead of importing
+<code>torch</code> on every unclassified object, and
+<code>n_params</code>/<code>n_layers</code> report total parameters and
+leaf module layers consistently across frameworks. Fixed R
+<code>workflows::workflow</code> spec lookup (<code>$fit$fit$spec</code>
+/ <code>$fit$actions$model$spec</code>), <code>betareg</code> precision
+extraction (avoiding logical <code>object$phi</code> coercion),
+<code>rugarch::likelihood</code> qualification, <code>fable</code>
+multi-key/multi-model horizon calculation,
+<code>zoo</code>/<code>xts</code> <code>NROW</code>,
+<code>party::BinaryTree</code> <code>n_nodes</code>,
+<code>caret::train</code> <code>r_squared</code> key,
+<code>FactoMineR</code> 0–1 <code>var_first</code>, fractional
+<code>seasonal_period</code> preservation for <code>tbats</code>, and
+Julia module-qualified function lookups (<code>CategoricalArrays</code>,
+<code>Distributions</code>, <code>Flux.trainables</code>,
+<code>Graphs</code>, <code>JuMP</code>, <code>MultivariateStats</code>,
+<code>StateSpaceModels</code>, <code>StatsAPI</code>) plus
+<code>Clustering</code> module guards.</li>
+<li><strong>Pipeline and doc tooling hygiene</strong>: Guarded
+<code>Sys.is_directory</code> in <code>builder_internal.ml</code>’s
+<code>source_recording_enabled</code> check, recorded manual
+<code>Test_pipeline</code> failures in <code>FAILURE SUMMARY</code>, and
+separated the <code>pipeline_overview_markdown</code> doc block from
+<code>pipeline_overview</code>.</li>
+<li><strong>Cache invalidation notice</strong>: Expanding
+<code>r_save_meta</code>, <code>py_save_meta</code>, and
+<code>jl_save_meta</code> changes the derivation hash of existing R,
+Python, and Julia pipeline nodes, so cached foreign node builds will
+rebuild once on upgrade.</li>
 </ul>
 <h2 id="section">[0.56.2] - 2026-10-29</h2>
 <h3 id="new-features-1">New features</h3>
@@ -272,7 +323,7 @@ use PMML, warns when <code>T_JPMML_JAVA</code> is missing and
 <code>java</code> is not on <code>PATH</code>, and names the Nix
 declaration that provides a JVM.</li>
 </ul>
-<h3 id="fixes">Fixes</h3>
+<h3 id="fixes-1">Fixes</h3>
 <ul>
 <li><strong>Clearer generic message</strong>:
 <code>Int is not widened to Float in generic T. Convert explicitly.</code></li>
@@ -318,7 +369,7 @@ test <code>inspect_node(x).status</code> instead.
 <code>rebuild_node</code> failures show the last 15 lines plus a
 <code>read_log()</code> pointer instead of a full log dump.</li>
 </ul>
-<h3 id="fixes-1">Fixes</h3>
+<h3 id="fixes-2">Fixes</h3>
 <ul>
 <li><strong>PMML helper jars no longer build from Maven, and are
 committed to the repository</strong>: <code>jpmml-statsmodels</code>
@@ -482,7 +533,7 @@ instead of a bare missing-node error.
 error, so the correct name is visible without listing nodes by
 hand.</li>
 </ul>
-<h3 id="fixes-2">Fixes</h3>
+<h3 id="fixes-3">Fixes</h3>
 <ul>
 <li><strong><code>explain()</code> on builtins is
 deterministic</strong>: argument names no longer depend on whether
@@ -610,7 +661,7 @@ user-defined record to a plain <code>Dict</code> (one entry per field,
 shallow) so record data can cross into foreign node code, where records
 themselves can never go.</li>
 </ul>
-<h3 id="fixes-3">Fixes</h3>
+<h3 id="fixes-4">Fixes</h3>
 <ul>
 <li><strong>Reassignment respects annotations in
 <code>t check</code></strong>: <code>x: Int = 1</code> followed by
@@ -794,7 +845,7 @@ interpreters — after one <code>direnv allow</code>. Direnv state
 (<code>.direnv/</code>) is git-ignored in new projects and
 packages.</li>
 </ul>
-<h3 id="fixes-4">Fixes</h3>
+<h3 id="fixes-5">Fixes</h3>
 <ul>
 <li><p><strong>Default serializers no longer hang node builds</strong>:
 <code>default</code>/<code>^default</code> serializer/deserializer in T
@@ -926,7 +977,7 @@ ends single-source truth. Impure install commands (such as
 <code>R -e 'renv::install(...)'</code>) are never suggested.</li>
 </ul>
 <h2 id="section-6">[0.55.2] - 2026-09-26</h2>
-<h3 id="fixes-5">Fixes</h3>
+<h3 id="fixes-6">Fixes</h3>
 <ul>
 <li><strong>Pipelines with R Git packages build again</strong>: R code
 that loads a package from Git — via <code>renv.lock</code> or via
@@ -978,7 +1029,7 @@ Vectorized.</li>
 matches CLI <code>t test</code> flags. <code>verbose = true</code>
 prints per-file error details.</li>
 </ul>
-<h3 id="fixes-6">Fixes</h3>
+<h3 id="fixes-7">Fixes</h3>
 <ul>
 <li><strong>Positron R interpreter discovery</strong>: Project R
 environments (<code>r-env</code> in generated <code>flake.nix</code>)

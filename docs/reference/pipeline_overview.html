@@ -72,17 +72,23 @@ NA</li>
 </ul>
 <h2 id="parameters">Parameters</h2>
 <ul>
-<li><strong>pipeline</strong> (<code>Pipeline</code>): The pipeline to
-summarize.</li>
+<li><p><strong>pipeline</strong> (<code>Pipeline</code>): The pipeline
+to summarize.</p></li>
+<li><p><strong>only</strong> (<code>String</code>): = NA Filter rows:
+failed, built, unbuilt, or all. Default shows all, failed
+first.</p></li>
 </ul>
 <h2 id="returns">Returns</h2>
 <p>One row per node, failed nodes first.</p>
 <h2 id="examples">Examples</h2>
 <pre class="t"><code>pipeline_overview(p)
+pipeline_overview(p, only = &quot;failed&quot;)
 pipeline_overview(p) |&gt; filter($status == &quot;Errored&quot;)</code></pre>
 <h2 id="see-also">See Also</h2>
-<p><a href="pipeline_config_to_frame.html">pipeline_config_to_frame</a>,
-<a href="pipeline_status.html">pipeline_status</a>, <a
+<p><a
+href="pipeline_overview_markdown.html">pipeline_overview_markdown</a>,
+<a href="pipeline_config_to_frame.html">pipeline_config_to_frame</a>, <a
+href="pipeline_status.html">pipeline_status</a>, <a
 href="pipeline_to_frame.html">pipeline_to_frame</a></p>
 </div>
 <footer>

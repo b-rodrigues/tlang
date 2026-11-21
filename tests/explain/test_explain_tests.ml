@@ -1372,8 +1372,8 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
      {|{"kind":"model","class":"svm.formula","task":"classification","method":"radial","n_features":4,"metrics":{"n_support_vectors":25}}|},
      "explain(p2v).foreign_meta.metrics.n_support_vectors", "25");
     ("ksvm", "R", "ksvm",
-     {|{"kind":"model","class":"ksvm","task":"classification","method":"C-svc","metrics":{"kernel":"rbfdot","n_support_vectors":20}}|},
-     "explain(p2v).foreign_meta.method", {|"C-svc"|});
+     {|{"kind":"model","class":"ksvm","task":"classification","method":"C-svc (rbfdot)","metrics":{"n_support_vectors":20}}|},
+     "explain(p2v).foreign_meta.method", {|"C-svc (rbfdot)"|});
     ("gbm", "R", "gbm",
      {|{"kind":"model","class":"gbm","task":"classification","method":"bernoulli","n_trees":100,"metrics":{"shrinkage":0.1}}|},
      "explain(p2v).foreign_meta.n_trees", "100");
@@ -1405,8 +1405,8 @@ let run_tests pass_count fail_count failures _eval_string eval_string_env test t
      {|{"kind":"model","class":"BertForMaskedLM","method":"bert","n_params":110000000}|},
      "explain(p2v).foreign_meta.n_params", "110000000");
     ("tbats", "Python", "TBATS",
-     {|{"kind":"model","class":"TBATS","task":"time_series","seasonal_period":[12],"metrics":{"aic":300.5}}|},
-     "get(explain(p2v).foreign_meta.seasonal_period, 0)", "12");
+     {|{"kind":"model","class":"TBATS","task":"time_series","seasonal_period":[7,365.25],"metrics":{"aic":300.5}}|},
+     "get(explain(p2v).foreign_meta.seasonal_period, 1)", "365.25");
     ("skforecast", "Python", "ForecasterAutoreg",
      {|{"kind":"model","class":"ForecasterAutoreg","task":"time_series","order":[10]}|},
      "get(explain(p2v).foreign_meta.order, 0)", "10");

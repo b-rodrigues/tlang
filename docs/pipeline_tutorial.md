@@ -681,6 +681,15 @@ e.kind        -- "pipeline"
 e.node_count  -- 3
 
 explain(p.x)  -- { `runtime`: "T", `kind`: "node", `name`: "x", ... }
+
+-- For foreign nodes (R, Python, Julia), explain exposes build-time sidecar facts:
+-- e.g. for a time-series or machine learning node:
+fit_info = explain(p.model)
+fit_info.foreign_meta.kind         -- "model", "forecast", "series", etc.
+fit_info.foreign_meta.task         -- "time_series", "regression", "classification", etc.
+fit_info.foreign_meta.n_params     -- total parameter count for neural networks / ML
+fit_info.foreign_meta.order        -- [p, d, q] for ARIMA
+fit_info.foreign_meta.metrics.aic  -- AIC metric without loading the artifact
 ```
 
 ---

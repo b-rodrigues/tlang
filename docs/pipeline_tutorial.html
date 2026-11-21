@@ -1268,7 +1268,16 @@ e = explain(p)
 e.kind        -- &quot;pipeline&quot;
 e.node_count  -- 3
 
-explain(p.x)  -- { `runtime`: &quot;T&quot;, `kind`: &quot;node&quot;, `name`: &quot;x&quot;, ... }</code></pre>
+explain(p.x)  -- { `runtime`: &quot;T&quot;, `kind`: &quot;node&quot;, `name`: &quot;x&quot;, ... }
+
+-- For foreign nodes (R, Python, Julia), explain exposes build-time sidecar facts:
+-- e.g. for a time-series or machine learning node:
+fit_info = explain(p.model)
+fit_info.foreign_meta.kind         -- &quot;model&quot;, &quot;forecast&quot;, &quot;series&quot;, etc.
+fit_info.foreign_meta.task         -- &quot;time_series&quot;, &quot;regression&quot;, &quot;classification&quot;, etc.
+fit_info.foreign_meta.n_params     -- total parameter count for neural networks / ML
+fit_info.foreign_meta.order        -- [p, d, q] for ARIMA
+fit_info.foreign_meta.metrics.aic  -- AIC metric without loading the artifact</code></pre>
 <hr />
 <h2 id="re-running-pipelines">12. Re-running Pipelines</h2>
 <p>Use <code>pipeline_run()</code> to re-execute a pipeline:</p>

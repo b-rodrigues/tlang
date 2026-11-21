@@ -27,6 +27,8 @@ Columns:
 
 - **pipeline** (`Pipeline`): The pipeline to summarize.
 
+- **only** (`String`): = NA Filter rows: failed, built, unbuilt, or all. Default shows all, failed first.
+
 
 ## Returns
 
@@ -36,10 +38,11 @@ One row per node, failed nodes first.
 
 ```t
 pipeline_overview(p)
+pipeline_overview(p, only = "failed")
 pipeline_overview(p) |> filter($status == "Errored")
 ```
 
 ## See Also
 
-[pipeline_config_to_frame](pipeline_config_to_frame.html), [pipeline_status](pipeline_status.html), [pipeline_to_frame](pipeline_to_frame.html)
+[pipeline_overview_markdown](pipeline_overview_markdown.html), [pipeline_config_to_frame](pipeline_config_to_frame.html), [pipeline_status](pipeline_status.html), [pipeline_to_frame](pipeline_to_frame.html)
 

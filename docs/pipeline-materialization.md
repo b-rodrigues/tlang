@@ -811,6 +811,44 @@ Nodes without a `flake` argument are completely unaffected. The project-level en
 
 ---
 
+## 36. Build-Time Metadata Sidecars (`meta`) and Foreign Object Introspection
+
+When executing multi-language pipelines in hermetic Nix sandboxes, inspecting foreign artifacts (such as trained models, large datasets, or neural networks) traditionally posed a trade-off: either start the foreign runtime and deserialize the full artifact into memory, or lose visibility into the node's output.
+
+T resolves this by emitting **build-time metadata sidecars** inside the Nix derivation for foreign runtimes (**R**, **Python**, and **Julia**).
+
+### How Sidecar Generation Works
+
+During code generation (`src/pipeline/nix_emit_node.ml`), T injects an automated object inspection routine into the guest derivation wrapper:
+
+- In **R**: `r_save_meta(object, file.path(Sys.getenv('out'), 'meta'))`
+- In **Python**: `py_save_meta(object, os.path.join(os.environ['out'], 'meta'))`
+- In **Julia**: `jl_save_meta(object, joinpath(ENV["out"], "meta"))`
+
+These emitters run pure, duck-typed checks that inspect the object's class, structure, dimensions, and fitted properties without mutating the object or causing side effects (for example, checking `sys.modules.get("torch")` in Python so PyTorch is never imported unless the user's node already loaded it). The extracted metadata is written to `$out/meta` alongside the main serialized output at `$out/artifact`.
+
+### Read-Time Introspection via `explain()`
+
+Because the metadata is stored as an independent JSON sidecar in the Nix store, T can inspect the node's properties **without** loading the serialized artifact or initializing an external language runtime:
+
+```t
+-- Instant read-time introspection: reads $out/meta directly
+fit_meta = explain(p.model_fit).foreign_meta
+
+fit_meta.kind         -- "model", "forecast", "series", "graph", etc.
+fit_meta.class        -- runtime class (e.g. "ARIMA", "ranger", "Sequential")
+fit_meta.task         -- "regression", "classification", "time_series", etc.
+fit_meta.n_params     -- total parameter count for neural networks / ML
+fit_meta.order        -- [p, d, q] for time-series models
+fit_meta.metrics      -- free numeric metrics (e.g. aic, bic, loglik, r_squared)
+```
+
+In the CLI, `t explain --node p.model_fit` (and `t explain --json --node p.model_fit`) displays this metadata alongside the node's dependency lineage and execution timings.
+
+For the full table of supported `foreign_meta` fields and recognized R, Python, and Julia model families (time series, forecasting, ML, deep learning, clustering, ordination, Bayesian chains, graphs, optimization, and ODEs), see [Statistical Models & Tidy Output](models.md) and [`explain()` Reference](reference/explain.md).
+
+---
+
 ## Next Steps
 
 Now that you've mastered pipeline materialization, learn how to manage reproducible projects and develop T packages:

@@ -180,6 +180,304 @@ id="residualsdata-model-type-response"><code>residuals(data, model, type = "resp
 <pre class="t"><code>res = residuals(mtcars, model, type: &quot;pearson&quot;)
 -- # A DataFrame: 32 × 3 [actual, fitted, resid]</code></pre>
 <hr />
+<h3 id="inspecting-foreign-models-explainp.node.foreign_meta">Inspecting
+Foreign Models (<code>explain(p.node).foreign_meta</code>)</h3>
+<p>In polyglot pipelines, nodes frequently train models using
+<strong>R</strong>, <strong>Python</strong>, or <strong>Julia</strong>
+that cannot be converted to PMML/ONNX, or that produce complex objects
+(such as time-series fits, deep neural networks, mixed-effects
+regressions, or Bayesian Markov chains) stored in native formats
+(<code>.rds</code>, <code>.pkl</code>, <code>.jld2</code>).</p>
+<p>While native T models can be passed directly to
+<code>summary()</code> or <code>fit_stats()</code>, inspecting foreign
+models traditionally required starting the foreign runtime and
+deserializing large artifacts into memory.</p>
+<p>To eliminate this overhead at inspection time, <span
+class="math inline"><em>T</em></span> provides <strong>read-time foreign
+metadata introspection</strong>:</p>
+<ol type="1">
+<li><strong>Automatic sidecar generation</strong>: During Nix derivation
+execution in the sandbox, <span class="math inline"><em>T</em></span>’s
+runtime emitters (<code>r_save_meta</code>, <code>py_save_meta</code>,
+<code>jl_save_meta</code>) inspect the returned object and write an
+uncompressed JSON metadata sidecar (<code>$out/meta</code>) alongside
+the artifact.</li>
+<li><strong>Instant access</strong>: In <span
+class="math inline"><em>T</em></span>, calling
+<code>explain(p.node_name)</code> exposes this sidecar under
+<code>.foreign_meta</code>. It can be queried in milliseconds without
+loading the artifact or initializing R, Python, or Julia.</li>
+<li><strong>CLI &amp; Agent inspection</strong>: From the shell,
+<code>t explain --node p.node_name</code> (and
+<code>t explain --json --node p.node_name</code>) prints the metadata
+and DAG lineage.</li>
+</ol>
+<h4 id="supported-metadata-fields">Supported Metadata Fields</h4>
+<p>The <code>foreign_meta</code> dictionary exposes the following
+normalized fields when present:</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr>
+<th style="text-align: left;">Field</th>
+<th style="text-align: left;">Description</th>
+<th style="text-align: left;">Supported Families / Examples</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>kind</code></td>
+<td style="text-align: left;">Value kind</td>
+<td style="text-align: left;"><code>"model"</code>,
+<code>"forecast"</code>, <code>"chain"</code>, <code>"graph"</code>,
+<code>"dataset"</code>, <code>"image"</code>,
+<code>"optimization"</code>, <code>"ode"</code>,
+<code>"distribution"</code>, <code>"transformer"</code>,
+<code>"dataframe"</code>, <code>"matrix"</code>, <code>"series"</code>,
+<code>"factor"</code>, <code>"test"</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>class</code></td>
+<td style="text-align: left;">Runtime type name</td>
+<td style="text-align: left;"><code>"ARIMA"</code>, <code>"ets"</code>,
+<code>"Sequential"</code>, <code>"Chain"</code>, <code>"lme"</code>,
+<code>"ranger"</code>, <code>"SimpleGraph"</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>task</code></td>
+<td style="text-align: left;">Statistical / ML task</td>
+<td style="text-align: left;"><code>"regression"</code>,
+<code>"classification"</code>, <code>"clustering"</code>,
+<code>"time_series"</code>, <code>"dim_reduction"</code>,
+<code>"density"</code>, <code>"anomaly_detection"</code>,
+<code>"ranking"</code>, <code>"survival"</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>dimensions</code></td>
+<td style="text-align: left;">Object shape</td>
+<td style="text-align: left;"><code>[rows, cols]</code> for
+frames/matrices, <code>[dim]</code> for vectors,
+<code>[width, height]</code> for PIL images</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>n_obs</code></td>
+<td style="text-align: left;">Training observations</td>
+<td style="text-align: left;">Regression, classification, time series,
+survival models</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>n_features</code> /
+<code>features</code></td>
+<td style="text-align: left;">Predictor counts &amp; names</td>
+<td style="text-align: left;">Feature column names, fitted coefficients
+(<code>lm</code>, <code>mgcv</code>, ARIMA
+<code>ar1</code>/<code>ma1</code>)</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>n_params</code></td>
+<td style="text-align: left;">Total parameter count</td>
+<td style="text-align: left;">PyTorch (<code>torch.nn</code>), Keras /
+TensorFlow, Julia Flux, HuggingFace, R6 keras/torch,
+<code>neuralnet</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>n_layers</code></td>
+<td style="text-align: left;">Layer count</td>
+<td style="text-align: left;">Neural networks (PyTorch leaf layers,
+Keras, Flux, R6)</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>n_trees</code></td>
+<td style="text-align: left;">Tree count</td>
+<td style="text-align: left;">Random Forest, <code>ranger</code>,
+XGBoost, CatBoost, LightGBM, <code>gbm</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>n_rounds</code></td>
+<td style="text-align: left;">Boosting rounds</td>
+<td style="text-align: left;">Gradient boosted trees and rankers</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>n_nodes</code></td>
+<td style="text-align: left;">Tree / graph node count</td>
+<td style="text-align: left;">Decision trees (<code>rpart</code>,
+<code>party::BinaryTree</code>, <code>partykit::ctree</code>), or graph
+vertices</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>n_edges</code></td>
+<td style="text-align: left;">Graph edge count</td>
+<td style="text-align: left;"><code>igraph</code> networks (R),
+<code>networkx</code> graphs (Python), <code>Graphs.jl</code>
+(Julia)</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>n_clusters</code></td>
+<td style="text-align: left;">Cluster count</td>
+<td style="text-align: left;">k-means, <code>Mclust</code>,
+<code>dbscan</code>, <code>clara</code>/<code>fanny</code>,
+<code>tslearn</code>, <code>Clustering.jl</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>n_components</code></td>
+<td style="text-align: left;">Component count</td>
+<td style="text-align: left;">PCA, ICA, FactorAnalysis, LDA, gensim
+<code>LdaModel</code> topics</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>n_groups</code> /
+<code>groups</code></td>
+<td style="text-align: left;">Grouping structure</td>
+<td style="text-align: left;">Mixed models (<code>nlme</code>
+<code>lme</code>/<code>gls</code>), panel models (<code>plm</code>)</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>n_chains</code> /
+<code>n_draws</code></td>
+<td style="text-align: left;">MCMC chain &amp; sample counts</td>
+<td style="text-align: left;">Julia <code>MCMCChains.Chains</code>, R
+<code>coda::mcmc</code> / <code>mcmc.list</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>n_lambda</code></td>
+<td style="text-align: left;">Regularization path length</td>
+<td style="text-align: left;"><code>glmnet</code> /
+<code>cv.glmnet</code> fits</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>n_equations</code></td>
+<td style="text-align: left;">Endogenous series count</td>
+<td style="text-align: left;">Vector Autoregressions (VAR / VECM)</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>order</code></td>
+<td style="text-align: left;">Lag order <code>[p, d, q]</code></td>
+<td style="text-align: left;">ARIMA, SARIMA, <code>pmdarima</code>,
+statsmodels</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>seasonal_order</code></td>
+<td style="text-align: left;"><code>[P, D, Q, m]</code></td>
+<td style="text-align: left;">Seasonal ARIMA models</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>seasonal_period</code></td>
+<td style="text-align: left;">Seasonal periods list</td>
+<td style="text-align: left;"><code>ets</code>,
+<code>bats</code>/<code>tbats</code>, <code>nnetar</code>,
+<code>prophet</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>horizon</code></td>
+<td style="text-align: left;">Forecast horizon</td>
+<td style="text-align: left;"><code>forecast(...)</code> results, fable
+forecast tables, <code>sktime</code> forecasters,
+<code>statsforecast</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>changepoints</code></td>
+<td style="text-align: left;">Changepoint count</td>
+<td style="text-align: left;">Facebook / Meta <code>prophet</code>
+models</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>method</code></td>
+<td style="text-align: left;">Algorithm variant</td>
+<td style="text-align: left;">Linkage method (<code>hclust</code>), ETS
+model string, test name (<code>htest</code>)</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>target</code> /
+<code>formula</code></td>
+<td style="text-align: left;">Target &amp; formula</td>
+<td style="text-align: left;">Response variable and formula
+representation</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>metrics</code></td>
+<td style="text-align: left;">Numeric fit criteria</td>
+<td style="text-align: left;"><code>aic</code>, <code>bic</code>,
+<code>loglik</code>, <code>r_squared</code>, <code>rmse</code>,
+<code>deviance</code>, <code>concordance</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>artifact_size</code></td>
+<td style="text-align: left;">File size</td>
+<td style="text-align: left;">Serialized artifact size in bytes</td>
+</tr>
+</tbody>
+</table>
+<h4 id="examples">Examples</h4>
+<h5 id="time-series-forecasting-r-python">Time Series &amp; Forecasting
+(R &amp; Python)</h5>
+<pre class="t"><code>-- Fit ARIMA in R via forecast
+p = pipeline {
+    ts_node = rn(
+        command = &lt;{
+            library(forecast)
+            auto.arima(AirPassengers)
+        }&gt;,
+        serializer = ^rds
+    )
+}
+build_pipeline(p)
+
+-- Inspect model facts in T instantly
+info = explain(p.ts_node).foreign_meta
+info.kind           -- &quot;model&quot;
+info.task           -- &quot;time_series&quot;
+info.order          -- [2, 1, 1]
+info.seasonal_order -- [0, 1, 0, 12]
+info.metrics.aic    -- 1017.85</code></pre>
+<h5 id="deep-learning-pytorch-keras-julia-flux">Deep Learning (PyTorch,
+Keras, Julia Flux)</h5>
+<pre class="t"><code>-- Fit a PyTorch model in Python
+p = pipeline {
+    nn_node = pyn(
+        command = &lt;{
+            import torch.nn as nn
+            model = nn.Sequential(
+                nn.Linear(20, 64),
+                nn.ReLU(),
+                nn.Linear(64, 1)
+            )
+            model
+        }&gt;,
+        serializer = ^pickle
+    )
+}
+build_pipeline(p)
+
+-- Read parameter counts without starting Python
+info = explain(p.nn_node).foreign_meta
+info.kind         -- &quot;model&quot;
+info.n_params     -- 1409
+info.n_layers     -- 3</code></pre>
+<h5 id="random-forest-gradient-boosting-ranger-xgboost-catboost">Random
+Forest &amp; Gradient Boosting (ranger, XGBoost, CatBoost)</h5>
+<pre class="t"><code>-- Fit a random forest in R with ranger
+p = pipeline {
+    rf_node = rn(
+        command = &lt;{
+            library(ranger)
+            ranger(Species ~ ., data = iris, num.trees = 300)
+        }&gt;,
+        serializer = ^rds
+    )
+}
+build_pipeline(p)
+
+info = explain(p.rf_node).foreign_meta
+info.kind              -- &quot;model&quot;
+info.task              -- &quot;classification&quot;
+info.n_trees           -- 300
+info.n_features        -- 4
+info.metrics.oob_error -- 0.04</code></pre>
+<hr />
 <h2 id="hypothesis-testing-diagnostics">Hypothesis Testing &amp;
 Diagnostics</h2>
 <h3

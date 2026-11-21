@@ -1649,9 +1649,22 @@ r_save_meta <- function(object, path) {
     cls <- tryCatch(as.character(class(object)[1]), error = function(e) NULL)
     if (!is.null(cls) && length(cls) == 1 && !is.na(cls) && nzchar(cls)) meta$class <- cls
     if (inherits(object, "fable")) {
-      # tidyverts forecast tables (fable): rows are future periods.
+      # tidyverts forecast tables (fable): horizon is the count of unique
+      # forecast time-index steps (not nrow, which scales with keys * models).
       meta$kind <- "forecast"
-      h <- tryCatch(as.integer(nrow(object)), error = function(e) NULL)
+      h <- tryCatch({
+        idx <- attr(object, "index")
+        if (!is.null(idx)) {
+          idx_col <- as.character(idx)[1]
+          as.integer(length(unique(object[[idx_col]])))
+        } else {
+          iv <- tsibble::index_var(object)
+          as.integer(length(unique(object[[iv]])))
+        }
+      }, error = function(e) NULL)
+      if (is.null(h) || length(h) != 1 || is.na(h)) {
+        h <- tryCatch(as.integer(nrow(object)), error = function(e) NULL)
+      }
       if (!is.null(h) && length(h) == 1 && !is.na(h)) meta$horizon <- h
       mth <- tryCatch(paste(unique(object$.model), collapse = ", "), error = function(e) NULL)
       if (!is.null(mth) && length(mth) == 1 && !is.na(mth) && nzchar(mth)) meta$method <- mth
@@ -1695,8 +1708,16 @@ r_save_meta <- function(object, path) {
       # zoo covers xts (xts extends zoo). Both are index series, not
       # matrices, even though they carry a 2-element dim.
       meta$kind <- "series"
-      no <- tryCatch(as.integer(length(object)), error = function(e) NULL)
+      no <- tryCatch(as.integer(NROW(object)), error = function(e) NULL)
       if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- no
+      cns <- tryCatch(colnames(object), error = function(e) NULL)
+      if (!is.null(cns) && length(cns) > 0) {
+        meta$n_features <- length(cns)
+        meta$features <- as.list(as.character(cns))
+      } else {
+        nc <- tryCatch(as.integer(NCOL(object)), error = function(e) NULL)
+        if (!is.null(nc) && length(nc) == 1 && !is.na(nc) && nc > 1) meta$n_features <- nc
+      }
       metrics <- list()
       fr <- tryCatch(frequency(object), error = function(e) NULL)
       if (!is.null(fr) && length(fr) == 1 && !is.na(fr) && fr > 1) metrics$period <- as.integer(fr)
@@ -1719,7 +1740,7 @@ r_save_meta <- function(object, path) {
           meta$method <- vm
         }
       }
-      no <- tryCatch(length(fitted(object)), error = function(e) NULL)
+      no <- tryCatch(length(stats::fitted(object)), error = function(e) NULL)
       if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- as.integer(no)
       np <- tryCatch(sum(object@fit$ipars[, 4]), error = function(e) NULL)
       if (!is.null(np) && length(np) == 1 && !is.na(np)) {
@@ -1727,7 +1748,7 @@ r_save_meta <- function(object, path) {
         if (npar > 0) meta$n_params <- npar
       }
       metrics <- list()
-      ll <- tryCatch(as.numeric(likelihood(object)), error = function(e) NULL)
+      ll <- tryCatch(as.numeric(rugarch::likelihood(object)), error = function(e) NULL)
       if (!is.null(ll) && length(ll) == 1 && !is.na(ll)) metrics$loglik <- ll
       ic <- tryCatch(rugarch::infocriteria(object), error = function(e) NULL)
       if (!is.null(ic)) {
@@ -1854,6 +1875,15 @@ r_save_meta <- function(object, path) {
       meta$kind <- "model"
       no <- tryCatch(as.integer(length(party::where(object))), error = function(e) NULL)
       if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- no
+      nn <- tryCatch({
+        cnt <- function(nd) {
+          if (is.null(nd)) return(0L)
+          if (isTRUE(nd$terminal)) return(1L)
+          1L + cnt(nd$left) + cnt(nd$right)
+        }
+        cnt(object@tree)
+      }, error = function(e) NULL)
+      if (!is.null(nn) && length(nn) == 1 && !is.na(nn) && nn > 0L) meta$n_nodes <- as.integer(nn)
       resp <- tryCatch(object@responses@variables[[1]], error = function(e) NULL)
       if (!is.null(resp)) {
         if (is.factor(resp)) meta$task <- "classification"
@@ -2488,8 +2518,10 @@ r_save_meta <- function(object, path) {
       sp <- tryCatch(object$seasonal.periods, error = function(e) NULL)
       if (is.null(sp)) sp <- tryCatch(object$k, error = function(e) NULL)
       if (!is.null(sp) && length(sp) > 0 && !any(is.na(sp))) {
-        per <- as.integer(sp[sp > 1])
-        if (length(per) > 0) meta$seasonal_period <- as.list(per)
+        per <- as.numeric(sp[sp > 1])
+        if (length(per) > 0) {
+          meta$seasonal_period <- lapply(per, function(v) if (v == floor(v)) as.integer(v) else v)
+        }
       }
       no <- tryCatch(length(object$y), error = function(e) NULL)
       if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- as.integer(no)
@@ -2683,7 +2715,7 @@ r_save_meta <- function(object, path) {
         for (nm in c("TrainAccuracy", "TrainKappa", "TrainRMSE", "TrainRsquared")) {
           vv <- tryCatch(as.numeric(perf[[nm]]), error = function(e) NULL)
           if (!is.null(vv) && length(vv) == 1 && !is.na(vv)) {
-            key <- tolower(sub("^Train", "", nm))
+            key <- if (nm == "TrainRsquared") "r_squared" else tolower(sub("^Train", "", nm))
             metrics[[key]] <- vv
           }
         }
@@ -2694,14 +2726,25 @@ r_save_meta <- function(object, path) {
       # engine and mode.
       meta$kind <- "model"
       target_spec <- NULL
-      if (inherits(object, "model_fit")) target_spec <- tryCatch(object$spec, error = function(e) NULL)
-      else target_spec <- tryCatch(object$fit$spec, error = function(e) NULL)
+      if (inherits(object, "model_fit")) {
+        target_spec <- tryCatch(object$spec, error = function(e) NULL)
+      } else {
+        target_spec <- tryCatch(object$fit$fit$spec, error = function(e) NULL)
+        if (is.null(target_spec)) target_spec <- tryCatch(object$fit$actions$model$spec, error = function(e) NULL)
+        if (is.null(target_spec)) target_spec <- tryCatch(object$fit$spec, error = function(e) NULL)
+      }
       if (!is.null(target_spec)) {
         eng <- tryCatch(as.character(target_spec$engine), error = function(e) NULL)
         if (!is.null(eng) && length(eng) == 1 && !is.na(eng) && nzchar(eng)) meta$method <- eng
         mod <- tryCatch(as.character(target_spec$mode), error = function(e) NULL)
         if (!is.null(mod) && length(mod) == 1 && !is.na(mod) && nzchar(mod)) meta$task <- mod
       }
+      no <- tryCatch({
+        if (inherits(object, "workflow") && !is.null(object$pre$mold$outcomes)) {
+          as.integer(nrow(object$pre$mold$outcomes))
+        } else NULL
+      }, error = function(e) NULL)
+      if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- no
     } else if (inherits(object, "svm")) {
       # e1071::svm (type/kernel are integer codes: type 0,1=class, 2=one-class, 3,4=reg; kernel 0=linear, 1=polynomial, 2=radial, 3=sigmoid).
       meta$kind <- "model"
@@ -2883,7 +2926,16 @@ r_save_meta <- function(object, path) {
       no <- tryCatch(as.integer(object$n), error = function(e) NULL)
       if (!is.null(no) && length(no) == 1 && !is.na(no)) meta$n_obs <- no
       metrics <- list()
-      phi <- tryCatch(as.numeric(object$phi), error = function(e) NULL)
+      # In betareg, object$phi is a logical flag; the scalar precision estimate
+      # lives under object$coefficients$precision (unless numeric phi is supplied).
+      phi <- tryCatch({
+        pr <- object$coefficients$precision
+        if (!is.null(pr) && is.numeric(pr) && length(pr) == 1 && !is.na(pr)) {
+          as.numeric(pr[[1]])
+        } else if (is.numeric(object$phi) && length(object$phi) == 1 && !is.na(object$phi)) {
+          as.numeric(object$phi)
+        } else NULL
+      }, error = function(e) NULL)
       if (!is.null(phi) && length(phi) == 1 && !is.na(phi)) metrics$phi <- phi
       pr2 <- tryCatch(as.numeric(object$pseudo.r.squared), error = function(e) NULL)
       if (!is.null(pr2) && length(pr2) == 1 && !is.na(pr2)) metrics$pseudo_r_squared <- pr2
@@ -2991,7 +3043,7 @@ r_save_meta <- function(object, path) {
         if (!is.null(nc) && length(nc) == 1 && !is.na(nc)) meta$n_components <- as.integer(nc)
       }
       metrics <- list()
-      vf <- tryCatch(as.numeric(object$eig[1, 2]), error = function(e) NULL)
+      vf <- tryCatch(as.numeric(object$eig[1, 2]) / 100, error = function(e) NULL)
       if (!is.null(vf) && length(vf) == 1 && !is.na(vf)) metrics$var_first <- vf
       if (length(metrics) > 0) meta$metrics <- metrics
     } else if (inherits(object, "CA")) {
@@ -3006,7 +3058,7 @@ r_save_meta <- function(object, path) {
         if (!is.null(nc) && length(nc) == 1 && !is.na(nc)) meta$n_components <- as.integer(nc)
       }
       metrics <- list()
-      vf <- tryCatch(as.numeric(object$eig[1, 2]), error = function(e) NULL)
+      vf <- tryCatch(as.numeric(object$eig[1, 2]) / 100, error = function(e) NULL)
       if (!is.null(vf) && length(vf) == 1 && !is.na(vf)) metrics$var_first <- vf
       if (length(metrics) > 0) meta$metrics <- metrics
     } else if (inherits(object, "fa") || inherits(object, "principal")) {
@@ -3302,19 +3354,19 @@ def _tlang_sanitize_json(v):
 def _tlang_dl_meta(obj):
     """Best-effort facts for torch / keras models.
 
-    Returns None when the object belongs to neither framework. Only
-    called from the last-resort branch of py_save_meta, so torch is
-    never imported for frames or classical models."""
+    Returns None when the object belongs to neither framework. Checks
+    sys.modules so torch is never imported when not already loaded."""
     try:
-        import torch as _tlang_torch
-        if isinstance(obj, _tlang_torch.nn.Module):
+        import sys as _tlang_sys
+        _tlang_torch = _tlang_sys.modules.get("torch")
+        if _tlang_torch is not None and isinstance(obj, _tlang_torch.nn.Module):
             out = {"kind": "model"}
             try:
-                out["n_params"] = int(sum(p.numel() for p in obj.parameters() if p.requires_grad))
+                out["n_params"] = int(sum(p.numel() for p in obj.parameters()))
             except Exception:
                 pass
             try:
-                out["n_layers"] = int(len(list(obj.children())))
+                out["n_layers"] = int(sum(1 for m in obj.modules() if len(list(m.children())) == 0))
             except Exception:
                 pass
             return out
@@ -3778,7 +3830,8 @@ def py_save_meta(obj, path):
                 pass
         elif mod.startswith(("sktime.forecasting", "darts.models", "statsforecast.models")):
             # Forecasting libraries: class name carries the model; the
-            # fitted horizon comes from fh (sktime) or chunk lengths (darts).
+            # fitted horizon comes from fh (sktime), while darts chunk
+            # lengths are training hyperparameters stored in metrics.
             meta["kind"] = "model"
             meta["task"] = "time_series"
             try:
@@ -3790,7 +3843,7 @@ def py_save_meta(obj, path):
             try:
                 ocl = getattr(obj, "output_chunk_length", None)
                 if ocl is not None:
-                    meta["horizon"] = int(ocl)
+                    meta.setdefault("metrics", {})["output_chunk_length"] = int(ocl)
             except Exception:
                 pass
             try:
@@ -3828,21 +3881,38 @@ def py_save_meta(obj, path):
             except Exception:
                 pass
         elif mod.startswith("transformers"):
-            # HuggingFace pretrained models.
-            meta["kind"] = "model"
-            try:
-                cfg = getattr(obj, "config", None)
-                mt = getattr(cfg, "model_type", None)
-                if mt:
-                    meta["method"] = str(mt)
-            except Exception:
-                pass
-            try:
-                np_fn = getattr(obj, "num_parameters", None)
-                if callable(np_fn):
-                    meta["n_params"] = int(np_fn())
-            except Exception:
-                pass
+            # HuggingFace transformers: distinguish tokenizers/pipelines from models.
+            if "Tokenizer" in cls.__name__ or mod.startswith("transformers.tokenization"):
+                meta["kind"] = "transformer"
+                try:
+                    vs = getattr(obj, "vocab_size", None)
+                    if vs is not None:
+                        meta.setdefault("metrics", {})["vocab_size"] = int(vs)
+                except Exception:
+                    pass
+            elif "Pipeline" in cls.__name__ or mod.startswith("transformers.pipelines"):
+                meta["kind"] = "transformer"
+                try:
+                    ptask = getattr(obj, "task", None)
+                    if ptask:
+                        meta["method"] = str(ptask)
+                except Exception:
+                    pass
+            else:
+                meta["kind"] = "model"
+                try:
+                    cfg = getattr(obj, "config", None)
+                    mt = getattr(cfg, "model_type", None)
+                    if mt:
+                        meta["method"] = str(mt)
+                except Exception:
+                    pass
+                try:
+                    np_fn = getattr(obj, "num_parameters", None)
+                    if callable(np_fn):
+                        meta["n_params"] = int(np_fn())
+                except Exception:
+                    pass
         elif mod.startswith("tbats"):
             # tbats package — exponential smoothing for multiple seasonality.
             meta["kind"] = "model"
@@ -3852,7 +3922,7 @@ def py_save_meta(obj, path):
                 if sp is None:
                     sp = getattr(getattr(getattr(obj, "params", None), "components", None), "seasonal_periods", None)
                 if sp is not None:
-                    per = [int(float(v)) for v in list(sp) if float(v) > 1]
+                    per = [int(float(v)) if float(v).is_integer() else float(v) for v in list(sp) if float(v) > 1]
                     if per:
                         meta["seasonal_period"] = per
             except Exception:
@@ -3966,7 +4036,7 @@ def py_save_meta(obj, path):
             try:
                 inner = getattr(obj, "model", None)
                 if inner is not None:
-                    meta["n_params"] = int(sum(p.numel() for p in inner.parameters() if p.requires_grad))
+                    meta["n_params"] = int(sum(p.numel() for p in inner.parameters()))
             except Exception:
                 pass
         elif mod.startswith("tslearn"):
@@ -4347,6 +4417,33 @@ function jl_module_matches(module_name, expected)
         occursin("." * expected * ".", module_name)
 end
 
+function jl_find_module(name::AbstractString)
+    for (_, mod) in Base.loaded_modules
+        if string(nameof(mod)) == name
+            return mod
+        end
+    end
+    nothing
+end
+
+function jl_resolve_fn(obj, mod_names, fn_sym::Symbol)
+    pm = parentmodule(typeof(obj))
+    if isdefined(pm, fn_sym)
+        return getfield(pm, fn_sym)
+    end
+    names_list = mod_names isa AbstractString ? (mod_names,) : mod_names
+    for name in names_list
+        m = jl_find_module(name)
+        if m !== nothing && isdefined(m, fn_sym)
+            return getfield(m, fn_sym)
+        end
+    end
+    if isdefined(Main, fn_sym)
+        return getfield(Main, fn_sym)
+    end
+    nothing
+end
+
 function jl_first_string(container, keys)
     for key in keys
         value = jl_string_or_nothing(jl_lookup(container, key))
@@ -4718,13 +4815,16 @@ function jl_save_meta(obj, path)
             catch
             end
         elseif iscat
-            # CategoricalArrays.jl values — mirrors R factors. levels() is
-            # exported by the package that built the array.
+            # CategoricalArrays.jl values — mirrors R factors. Resolve levels()
+            # via the package module so `import CategoricalArrays: categorical` works.
             meta["kind"] = "factor"
             try
-                lvs = levels(obj)
-                meta["n_levels"] = Int(length(lvs))
-                meta["levels"] = string.(lvs)
+                levels_fn = jl_resolve_fn(obj, ("CategoricalArrays", "DataAPI"), :levels)
+                if levels_fn !== nothing
+                    lvs = levels_fn(obj)
+                    meta["n_levels"] = Int(length(lvs))
+                    meta["levels"] = string.(lvs)
+                end
             catch
             end
             try
@@ -4953,9 +5053,12 @@ function jl_save_meta(obj, path)
                 catch
                 end
                 try
-                    mm = haskey(meta, "metrics") ? meta["metrics"] : Dict{String, Any}()
-                    mm["loglik"] = Float64(loglike(obj))
-                    meta["metrics"] = mm
+                    ll_fn = jl_resolve_fn(obj, ("StateSpaceModels",), :loglike)
+                    if ll_fn !== nothing
+                        mm = haskey(meta, "metrics") ? meta["metrics"] : Dict{String, Any}()
+                        mm["loglik"] = Float64(ll_fn(obj))
+                        meta["metrics"] = mm
+                    end
                 catch
                 end
             end
@@ -4966,23 +5069,27 @@ function jl_save_meta(obj, path)
             end
             if isdist
                 # Distributions.jl values (Normal, Beta, truncated, ...).
-                # mean/std dispatch correctly because the package that
-                # produced the object is loaded in the node's script.
                 meta["kind"] = "distribution"
                 try
                     meta["method"] = string(nameof(typeof(obj)))
                 catch
                 end
                 try
-                    mm = haskey(meta, "metrics") ? meta["metrics"] : Dict{String, Any}()
-                    mm["mean"] = Float64(mean(obj))
-                    meta["metrics"] = mm
+                    mean_fn = jl_resolve_fn(obj, ("Distributions", "Statistics"), :mean)
+                    if mean_fn !== nothing
+                        mm = haskey(meta, "metrics") ? meta["metrics"] : Dict{String, Any}()
+                        mm["mean"] = Float64(mean_fn(obj))
+                        meta["metrics"] = mm
+                    end
                 catch
                 end
                 try
-                    mm = haskey(meta, "metrics") ? meta["metrics"] : Dict{String, Any}()
-                    mm["std"] = Float64(std(obj))
-                    meta["metrics"] = mm
+                    std_fn = jl_resolve_fn(obj, ("Distributions", "Statistics"), :std)
+                    if std_fn !== nothing
+                        mm = haskey(meta, "metrics") ? meta["metrics"] : Dict{String, Any}()
+                        mm["std"] = Float64(std_fn(obj))
+                        meta["metrics"] = mm
+                    end
                 catch
                 end
             end
@@ -5011,7 +5118,8 @@ function jl_save_meta(obj, path)
                 false
             end
             if isflux
-                # Flux.jl models (Chain and layers).
+                # Flux.jl models (Chain and layers). Prefer Flux.trainables (Flux >= 0.14)
+                # to avoid deprecation warnings from Flux.params.
                 meta["kind"] = "model"
                 try
                     if hasproperty(obj, :layers)
@@ -5020,7 +5128,17 @@ function jl_save_meta(obj, path)
                 catch
                 end
                 try
-                    meta["n_params"] = Int(sum(length, Flux.params(obj)))
+                    flux_mod = jl_find_module("Flux")
+                    if flux_mod === nothing
+                        flux_mod = parentmodule(typeof(obj))
+                    end
+                    if isdefined(flux_mod, :trainables)
+                        ps = getfield(flux_mod, :trainables)(obj)
+                        meta["n_params"] = Int(sum(length, ps; init = 0))
+                    elseif isdefined(flux_mod, :params)
+                        ps = getfield(flux_mod, :params)(obj)
+                        meta["n_params"] = Int(sum(length, ps; init = 0))
+                    end
                 catch
                 end
             end
@@ -5079,7 +5197,8 @@ function jl_save_meta(obj, path)
                 end
             end
             iscmeans = try
-                hasproperty(obj, :centers) && hasproperty(obj, :weights) && !hasproperty(obj, :counts)
+                jl_module_matches(string(parentmodule(typeof(obj))), "Clustering") &&
+                    hasproperty(obj, :centers) && hasproperty(obj, :weights) && !hasproperty(obj, :counts)
             catch
                 false
             end
@@ -5097,12 +5216,14 @@ function jl_save_meta(obj, path)
                 end
             end
             isdbscan = try
-                hasproperty(obj, :clusters) && !(obj isa AbstractVector)
+                jl_module_matches(string(parentmodule(typeof(obj))), "Clustering") &&
+                    hasproperty(obj, :clusters) && !(obj isa AbstractVector)
             catch
                 false
             end
             if isdbscan
-                # Clustering.jl DBSCAN results.
+                # Clustering.jl DBSCAN results. Use assignments length (includes noise,
+                # matching R's dbscan) when available, falling back to core+boundary.
                 meta["kind"] = "model"
                 meta["task"] = "clustering"
                 try
@@ -5110,15 +5231,19 @@ function jl_save_meta(obj, path)
                 catch
                 end
                 try
-                    total = 0
-                    for c in obj.clusters
-                        ci = jl_lookup(c, :core_indices)
-                        if ci === nothing; ci = jl_lookup(c, :core_idxs); end
-                        bi = jl_lookup(c, :boundary_indices)
-                        if bi === nothing; bi = jl_lookup(c, :boundary_idxs); end
-                        total += (ci === nothing ? 0 : length(ci)) + (bi === nothing ? 0 : length(bi))
+                    if hasproperty(obj, :assignments)
+                        meta["n_obs"] = Int(length(obj.assignments))
+                    else
+                        total = 0
+                        for c in obj.clusters
+                            ci = jl_lookup(c, :core_indices)
+                            if ci === nothing; ci = jl_lookup(c, :core_idxs); end
+                            bi = jl_lookup(c, :boundary_indices)
+                            if bi === nothing; bi = jl_lookup(c, :boundary_idxs); end
+                            total += (ci === nothing ? 0 : length(ci)) + (bi === nothing ? 0 : length(bi))
+                        end
+                        meta["n_obs"] = Int(total)
                     end
-                    meta["n_obs"] = Int(total)
                 catch
                 end
             end
@@ -5140,7 +5265,10 @@ function jl_save_meta(obj, path)
                         meta["n_components"] = Int(size(obj.W, 2))
                     catch
                         try
-                            meta["n_components"] = Int(outdim(obj))
+                            outdim_fn = jl_resolve_fn(obj, ("MultivariateStats",), :outdim)
+                            if outdim_fn !== nothing
+                                meta["n_components"] = Int(outdim_fn(obj))
+                            end
                         catch
                         end
                     end
@@ -5179,14 +5307,20 @@ function jl_save_meta(obj, path)
                 false
             end
             if isgraphsjl
-                # Graphs.jl networks; nv/ne resolve from the loaded package.
+                # Graphs.jl networks; resolve nv/ne via package module.
                 meta["kind"] = "graph"
                 try
-                    meta["n_nodes"] = Int(nv(obj))
+                    nv_fn = jl_resolve_fn(obj, ("Graphs",), :nv)
+                    if nv_fn !== nothing
+                        meta["n_nodes"] = Int(nv_fn(obj))
+                    end
                 catch
                 end
                 try
-                    meta["n_edges"] = Int(ne(obj))
+                    ne_fn = jl_resolve_fn(obj, ("Graphs",), :ne)
+                    if ne_fn !== nothing
+                        meta["n_edges"] = Int(ne_fn(obj))
+                    end
                 catch
                 end
             end
@@ -5196,23 +5330,29 @@ function jl_save_meta(obj, path)
                 false
             end
             if isjumpmodel
-                # JuMP optimization models.
+                # JuMP optimization models; resolve num_variables/num_constraints via JuMP.
                 meta["kind"] = "optimization"
                 try
-                    mm = haskey(meta, "metrics") ? meta["metrics"] : Dict{String, Any}()
-                    mm["n_variables"] = Float64(num_variables(obj))
-                    meta["metrics"] = mm
+                    nv_fn = jl_resolve_fn(obj, ("JuMP",), :num_variables)
+                    if nv_fn !== nothing
+                        mm = haskey(meta, "metrics") ? meta["metrics"] : Dict{String, Any}()
+                        mm["n_variables"] = Float64(nv_fn(obj))
+                        meta["metrics"] = mm
+                    end
                 catch
                 end
                 try
-                    nc_val = try
-                        num_constraints(obj; count_variable_in_set_constraints = false)
-                    catch
-                        num_constraints(obj)
+                    nc_fn = jl_resolve_fn(obj, ("JuMP",), :num_constraints)
+                    if nc_fn !== nothing
+                        nc_val = try
+                            nc_fn(obj; count_variable_in_set_constraints = false)
+                        catch
+                            nc_fn(obj)
+                        end
+                        mm = haskey(meta, "metrics") ? meta["metrics"] : Dict{String, Any}()
+                        mm["n_constraints"] = Float64(nc_val)
+                        meta["metrics"] = mm
                     end
-                    mm = haskey(meta, "metrics") ? meta["metrics"] : Dict{String, Any}()
-                    mm["n_constraints"] = Float64(nc_val)
-                    meta["metrics"] = mm
                 catch
                 end
             end
@@ -5231,7 +5371,10 @@ function jl_save_meta(obj, path)
                 end
             end
             try
-                meta["n_obs"] = Int(nobs(obj))
+                nobs_fn = jl_resolve_fn(obj, ("StatsAPI", "StatsBase", "GLM"), :nobs)
+                if nobs_fn !== nothing
+                    meta["n_obs"] = Int(nobs_fn(obj))
+                end
             catch
             end
             try
@@ -5271,31 +5414,27 @@ function jl_save_meta(obj, path)
             catch
             end
             try
-                cn = coefnames(obj)
-                feats = filter(x -> x != "(Intercept)", string.(cn))
-                if !isempty(feats)
-                    meta["n_features"] = length(feats)
-                    meta["features"] = feats
+                cn_fn = jl_resolve_fn(obj, ("StatsAPI", "StatsBase", "GLM"), :coefnames)
+                if cn_fn !== nothing
+                    cn = cn_fn(obj)
+                    feats = filter(x -> x != "(Intercept)", string.(cn))
+                    if !isempty(feats)
+                        meta["n_features"] = length(feats)
+                        meta["features"] = feats
+                    end
                 end
             catch
             end
             try
                 metrics = haskey(meta, "metrics") ? meta["metrics"] : Dict{String, Any}()
-                try
-                    metrics["r_squared"] = Float64(r2(obj))
-                catch
-                end
-                try
-                    metrics["aic"] = Float64(aic(obj))
-                catch
-                end
-                try
-                    metrics["deviance"] = Float64(deviance(obj))
-                catch
-                end
-                try
-                    metrics["loglik"] = Float64(loglikelihood(obj))
-                catch
+                for (mkey, fsym) in (("r_squared", :r2), ("aic", :aic), ("deviance", :deviance), ("loglik", :loglikelihood))
+                    try
+                        mfn = jl_resolve_fn(obj, ("StatsAPI", "StatsBase", "GLM"), fsym)
+                        if mfn !== nothing
+                            metrics[mkey] = Float64(mfn(obj))
+                        end
+                    catch
+                    end
                 end
                 if !isempty(metrics)
                     meta["metrics"] = metrics
