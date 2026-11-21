@@ -811,6 +811,64 @@ Nodes without a `flake` argument are completely unaffected. The project-level en
 
 ---
 
+## 36. Build-Time Metadata Sidecars (`meta`) and Foreign Object Introspection
+
+When executing multi-language pipelines in hermetic Nix sandboxes, inspecting foreign artifacts (such as trained models, large datasets, or neural networks) traditionally posed a trade-off: either start the foreign runtime and deserialize the full artifact into memory, or lose visibility into the node's output.
+
+$T$ resolves this by emitting **build-time metadata sidecars** inside the Nix derivation for foreign runtimes (**R**, **Python**, and **Julia**).
+
+### How Sidecar Generation Works
+
+During code generation (`src/pipeline/nix_emit_node.ml`), $T$ injects an automated object inspection routine into the guest derivation wrapper:
+- In **R**: `r_save_meta(object, file.path(Sys.getenv('out'), 'meta'))`
+- In **Python**: `py_save_meta(object, os.path.join(os.environ['out'], 'meta'))`
+- In **Julia**: `jl_save_meta(object, joinpath(ENV["out"], "meta"))`
+
+These emitters run pure, duck-typed checks that inspect the object's class, structure, dimensions, and fitted properties without mutating the object or causing side effects. The extracted metadata is written to `$out/meta` alongside the main serialized output at `$out/artifact`.
+
+### Zero-Cost Introspection via `explain()`
+
+Because the metadata is stored as an independent JSON sidecar in the Nix store, $T$ can inspect the node's properties **without** loading the serialized artifact or initializing an external language runtime:
+
+```t
+-- Fast, zero-cost introspection: reads $out/meta directly
+fit_meta = explain(p.model_fit).foreign_meta
+
+fit_meta.kind         -- "model", "time_series", "forecast", etc.
+fit_meta.class        -- runtime class (e.g. "ARIMA", "ranger", "Sequential")
+fit_meta.task         -- "regression", "classification", "time_series", etc.
+fit_meta.n_params     -- parameter count for neural networks / ML
+fit_meta.order        -- [p, d, q] for time-series models
+fit_meta.metrics      -- free numeric metrics (e.g. AIC, BIC, R-squared)
+```
+
+In the CLI, `t explain --node p.model_fit` (and `t explain --json --node p.model_fit`) displays this metadata alongside the node's dependency lineage and execution timings.
+
+### Breadth of Recognized Families
+
+The sidecar emitters recognize a comprehensive range of families across the R, Python, and Julia scientific ecosystems:
+
+1. **Time-Series & Forecasting**:
+   - R: `forecast` (`ets`, `bats`, `tbats`, `nnetar`, `forecast(...)`), `prophet`, `tseries` GARCH, `rugarch` (`uGARCHfit`), `vars` (`varest`, `vec2var`), `zoo`/`xts`, `smooth`, `dlmFiltered`, tidyverts `fable`/`mable`.
+   - Python: `pmdarima` ARIMA, `prophet`, `neuralprophet`, `sktime`, `darts`, `statsforecast`, `tbats`, `skforecast`, statsmodels `VECM` and Markov-regime.
+   - Metadata exposed: `order` `[p, d, q]`, `seasonal_order` `[P, D, Q, m]`, `seasonal_period`, `horizon`, `changepoints`, `n_equations`, `start`, `end`.
+
+2. **Machine Learning & Deep Learning**:
+   - Deep Learning: PyTorch (`torch.nn`), Keras / TensorFlow, Julia `Flux.jl`, R6-based `keras` and `torch`, `neuralnet` (`n_params`, `n_layers`, optimizer).
+   - Tree Ensembles & Boosting: Random Forest, `ranger`, XGBoost, CatBoost, LightGBM, `gbm`, `C5.0`, `rpart`, `partykit::BinaryTree` (`n_trees`, `n_rounds`, `n_nodes`, `best_iteration`).
+   - Mixed & Regularized Models: `mgcv` GAM/BAM, `nlme` (`lme`/`gls`), `glmnet`/`cv.glmnet`, `caret::train`, `parsnip`, `e1071::svm`, `kernlab::ksvm` (`n_groups`, `groups`, `n_lambda`, formula).
+
+3. **Clustering, Ordination & Bayesian Inference**:
+   - Clustering & Density: `Mclust`, `dbscan`, `clara`/`fanny`, `mixEM`, `tslearn`, `Clustering.jl` (`CmeansResult`, `DbscanResult`, `KmedoidsResult`), `GaussianMixtures.GMM` (`n_clusters`, `density`).
+   - Dimensionality Reduction: `FactoMineR` (PCA, MCA, FAMD, CA), `psych`, gensim `LdaModel`/`Word2Vec`, `MultivariateStats.jl` (ICA, FactorAnalysis, PPCA, KernelPCA, MulticlassLDA) (`n_components`, `dim_reduction`).
+   - Bayesian Chains: Julia `MCMCChains.Chains`, R `coda::mcmc`/`mcmc.list` (`chain` kind, `n_chains`, `n_draws`).
+
+4. **Graphs, Systems & Differential Equations**:
+   - Graphs: `igraph` (R), `networkx` (Python), `Graphs.jl` (Julia) (`graph` kind, `n_nodes`, `n_edges`).
+   - Mathematical Systems: `JuMP.jl` (`optimization` kind, variables and constraints in metrics), `SciML` `ODEProblem`/`ODESolution` (`ode` kind, time span, return codes).
+
+---
+
 ## Next Steps
 
 Now that you've mastered pipeline materialization, learn how to manage reproducible projects and develop T packages:

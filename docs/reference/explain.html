@@ -35,17 +35,80 @@
 <div class="container">
 <h1 id="explain">explain</h1>
 <p>Explain Value</p>
-<p>Returns a dictionary describing the structure and content of a value.
-Node results from <code>read_node(...)</code> are wrapped with node
-metadata and expose the explained payload under <code>contents</code>.
-Computed pipeline nodes (e.g. <code>p.node</code>) also expose
-<code>foreign_meta</code> with shape facts from the build-time
-<code>meta</code> sidecar (dimensions for frames and arrays,
-n_obs/n_features/formula/order/metrics for models), or NA when absent.
-Explaining a pipeline lists per-node <code>dependencies</code> (direct
-inputs) and <code>children</code> (direct dependents) plus the
-transitive <code>ancestors</code> and <code>descendants</code> closures
-(nearest-first, de-duplicated).</p>
+<p>Returns a dictionary describing the structure and content of a
+value.</p>
+<p>For primitive types, collections, and DataFrames,
+<code>explain()</code> provides structural summaries: data dimensions,
+schema columns, NA counts, and example rows.</p>
+<p>For pipeline node results from <code>read_node(...)</code>,
+<code>explain()</code> returns a node wrapper with <code>kind</code>,
+<code>node_name</code>, <code>diagnostics</code>, and the explained
+payload under <code>contents</code>.</p>
+<p>For computed pipeline nodes (e.g. <code>explain(p.node)</code>),
+<code>explain()</code> exposes the zero-cost build-time
+<code>foreign_meta</code> sidecar dictionary recorded during Nix
+derivation execution for R, Python, and Julia nodes, avoiding
+deserialization or initializing foreign runtimes.</p>
+<p>Supported <code>foreign_meta</code> fields include:</p>
+<ul>
+<li><code>kind</code>: Value kind (“dataframe”, “matrix”, “vector”,
+“array”, “factor”, “series”, “table”, “model”, “test”, “data”,
+“transformer”, “distribution”, “forecast”, “chain”, “dist”, “graph”,
+“dataset”, “image”, “optimization”, “ode”, “other”, or “unknown”)</li>
+<li><code>class</code>: Runtime type name (e.g. “lm”, “DataFrame”,
+“ARIMA”, “SimpleGraph”)</li>
+<li><code>task</code>: Model task (“regression”, “classification”,
+“clustering”, “time_series”, “dim_reduction”, “density”,
+“anomaly_detection”, “ranking”, “survival”)</li>
+<li><code>dimensions</code>: Shape as an integer list, e.g. [32, 11] for
+frames, [4, 3] for matrices</li>
+<li><code>n_obs</code>: Training row count</li>
+<li><code>n_features</code>: Number of features or predictor
+columns</li>
+<li><code>n_groups</code>, <code>groups</code>: Grouping counts for
+mixed-effects and panel models (e.g. <code>nlme</code>
+<code>lme</code>/<code>gls</code>)</li>
+<li><code>n_trees</code>, <code>n_rounds</code>: Tree count and boosting
+rounds (e.g. Random Forest, XGBoost, CatBoost, gbm)</li>
+<li><code>n_clusters</code>: Cluster count (e.g. k-means, Mclust,
+dbscan, Clustering.jl)</li>
+<li><code>n_nodes</code>, <code>n_edges</code>: Graph vertex and edge
+counts (igraph, networkx, Graphs.jl) or decision tree nodes
+(<code>rpart</code>, <code>BinaryTree</code>)</li>
+<li><code>n_components</code>: Dimensionality reduction components (PCA,
+ICA, FactorAnalysis, LDA)</li>
+<li><code>n_params</code>, <code>n_layers</code>: Parameter and layer
+counts (PyTorch, Keras, Flux, neuralnet, R6 torch/keras)</li>
+<li><code>n_chains</code>, <code>n_draws</code>: MCMC chain and draw
+counts (Julia <code>Chains</code>, coda
+<code>mcmc</code>/<code>mcmc.list</code>)</li>
+<li><code>n_lambda</code>: Regularization path length
+(<code>glmnet</code>, <code>cv.glmnet</code>)</li>
+<li><code>n_equations</code>: Endogenous series count for VAR/VECM
+models</li>
+<li><code>dtype</code>: Element data type (e.g. “float64”)</li>
+<li><code>n_levels</code>, <code>levels</code>: Categorical level counts
+and values (R factors, Julia <code>CategoricalArray</code>)</li>
+<li><code>start</code>, <code>end</code>: Time-series bounds (R
+<code>ts</code>, <code>zoo</code>/<code>xts</code>)</li>
+<li><code>order</code>, <code>seasonal_order</code>,
+<code>seasonal_period</code>: Time-series specifications (ARIMA, SARIMA,
+ETS, BATS/TBATS, Prophet, NNETAR, pmdarima)</li>
+<li><code>horizon</code>: Forecast horizon (forecast results, fable,
+sktime, darts, statsforecast)</li>
+<li><code>changepoints</code>: Changepoint counts (Prophet)</li>
+<li><code>method</code>: Algorithm variant, linkage method, ETS letters,
+or test name</li>
+<li><code>target</code>, <code>formula</code>: Response variable and
+model formula</li>
+<li><code>metrics</code>: Free numeric metrics (e.g. AIC, BIC,
+log-likelihood, R-squared, RMSE, deviance)</li>
+<li><code>artifact_size</code>: Materialized artifact size in bytes</li>
+</ul>
+<p>Explaining a pipeline (<code>explain(p)</code>) lists per-node
+<code>dependencies</code> (direct inputs) and <code>children</code>
+(direct dependents) plus the transitive <code>ancestors</code> and
+<code>descendants</code> closures (nearest-first, de-duplicated).</p>
 <h2 id="parameters">Parameters</h2>
 <ul>
 <li><strong>x</strong> (<code>Any</code>): The value to explain.</li>
@@ -54,7 +117,10 @@ transitive <code>ancestors</code> and <code>descendants</code> closures
 <p>A structured description of the value.</p>
 <h2 id="examples">Examples</h2>
 <pre class="t"><code>explain(mtcars)
-explain(1)</code></pre>
+explain(p.fit).foreign_meta
+explain(p.forecast_node).foreign_meta.horizon
+explain(p.nn_model).foreign_meta.n_params
+explain(p)</code></pre>
 <h2 id="see-also">See Also</h2>
 <p><a href="str.html">str</a>, <a href="type.html">type</a></p>
 </div>

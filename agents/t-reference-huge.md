@@ -6185,7 +6185,7 @@ node.foreign_meta.n_features  -- input count (models)
 node.foreign_meta.n_trees     -- tree count (forests, when known)
 node.foreign_meta.n_rounds    -- boosting rounds (boosted trees, when known)
 node.foreign_meta.n_clusters  -- cluster count (clustering, when known)
-node.foreign_meta.n_nodes      -- tree node count (`rpart`, when known)
+node.foreign_meta.n_nodes      -- tree node count (`rpart`, `BinaryTree`, when known)
 node.foreign_meta.n_edges      -- edge count (igraph / networkx graphs, when known)
 node.foreign_meta.n_components -- component count (PCA, when known)
 node.foreign_meta.n_params     -- parameter count (torch/keras/Flux models, MCMC variables, GARCH estimates, when known)
@@ -9762,6 +9762,16 @@ Now that you can work with numerical arrays, explore statistical modeling and re
 # FILE: docs/changelog.md
 
 # Changelog
+
+## Unreleased
+
+### New features
+
+- **Richer `explain()` foreign metadata for time-series and ML models**: R nodes now report task `time_series` for `forecast`-package models (`ets` with ETS letters and seasonal period, `bats`/`tbats` with multiple periods, `nnetar` with hidden-unit and repeat counts) and for `prophet`, tseries `garch`, rugarch `uGARCHfit` (variance-model name, estimated parameter count, log-likelihood/AIC/BIC), and vars `varest`/`vec2var` (lag order and equation count). Objects from `forecast(...)` report the new `forecast` kind with method, horizon, and interval level. `zoo`/`xts` series read as `series` kind with start/end — previously misreported as matrices. `glmnet`/`cv.glmnet` report the task from the fit class plus feature count, lambda count, deviance ratio, and `lambda_min`/`lambda_1se`; `ranger` forests report tree/feature/sample counts with OOB error; `catboost.Model` objects report the loss name, tree count, and feature count. Python torch and keras models report parameter and layer counts (keras adds the optimizer class); pmdarima ARIMA reports order, seasonal order, and likelihood criteria; catboost estimators report task, trees, features, and best iteration; sktime/darts/statsforecast forecasters report the fitted horizon. Julia `Distributions` values report `distribution` kind with the distribution name and moments; MCMCChains `Chains` report the new `chain` kind with draws, variables, and chain counts; Flux models report layer and parameter counts. New sidecar keys: `n_params`, `n_layers`, `n_chains`, `n_draws`, `n_lambda`, `n_equations`, `seasonal_period`, `horizon`, `changepoints`.
+- **`explain()` recognizes the wider modeling ecosystems**: R smooth models keep their identity — `mgcv::gam` reports smooth-term counts and keeps `s(wt)` coefficient names visible instead of folding into the plain `glm` branch. Mixed, panel, and count models report their facts: nlme `lme`/`gls` group counts and fit criteria, `rq` quantile, `survreg` distribution, `betareg` precision, `zeroinfl`/`hurdle`, `plm`, ordinal `clm`/`clmm` links, VGAM `vglm` families. Tuned wrappers report resampling results: caret `train` (model name and best accuracy/RMSE), parsnip `model_fit` and workflows (engine and mode), `svm`/`ksvm` kernels and support vectors, `gbm` distributions and shrinkage, `C5.0`, `earth`, pls `mvr`, partykit `BinaryTree` node counts. Clustering and ordination report standard facts: `Mclust`, `dbscan` (noise excluded), `clara`/`fanny` silhouettes, `mixEM`, FactoMineR `PCA`/`MCA`/`FAMD`/`CA`, psych `fa`/`principal`. Statistical objects read as their own kinds: urca unit-root and cointegration tests as `test`, coda `mcmc` chains as `chain`, lavaan SEM fits with chi-square/CFI/RMSEA, `dist` objects as `dist`, sparse Matrix objects with nnz, igraph networks as `graph` with node and edge counts. Python: imbalanced-learn estimators report like sklearn, polars `LazyFrame` shows its schema, xarray `Dataset` reports the new `dataset` kind, HuggingFace transformers report model type and parameter counts, tbats/skforecast/pyspark.ml/networkx report family facts, and statsmodels VECM/Markov-regime results report `time_series`. Julia: `CategoricalArray` values report `factor` kind with levels like R factors, MLJ machines name their model, and XGBoost.jl/ARCHModels fits report their facts.
+- **`explain()` keeps the R long tail**: tidyverts tables keep their identity — fable forecast tables report the `forecast` kind with horizon and model types, and mables (`mdl_df`/`model_df`) report model column names instead of reading as plain dataframes. The `smooth` package reports orders and AIC/BIC; `dlmFiltered` fits report observation counts. R6-based models report parameter and layer counts: keras models via `count_params()`, torch modules via parameter sums. Seurat objects report `dataset` kind with cell, gene, and active-assay counts. `neuralnet` fits report error and step counts.
+- **`explain()` keeps the Python long tail**: gensim `LdaModel` reports topic counts as components and `Word2Vec` reports vector size and vocabulary counts; dask frames report schema columns with partition counts; PIL images report the new `image` kind with dimensions and pixel mode; NeuralProphet reports parameter counts; tslearn clusterers report cluster counts.
+- **`explain()` keeps the Julia long tail**: Clustering.jl `CmeansResult`/`DbscanResult` report cluster facts; MultivariateStats `ICA`/`FactorAnalysis`/`PPCA`/`KernelPCA`/`MulticlassLDA` report `dim_reduction` with component and class counts; Graphs.jl networks report `graph` kind with node and edge counts; JuMP models report the new `optimization` kind with variable and constraint counts; SciML ODE problems and solutions report the new `ode` kind with time-span and return-code facts; GaussianMixtures `GMM` fits report `density` with component counts.
 
 ## [0.56.2] - 2026-10-29
 
@@ -19005,6 +19015,126 @@ res = residuals(mtcars, model, type: "pearson")
 
 ---
 
+### Inspecting Foreign Models (`explain(p.node).foreign_meta`)
+
+In polyglot pipelines, nodes frequently train models using **R**, **Python**, or **Julia** that cannot be converted to PMML/ONNX, or that produce complex objects (such as time-series fits, deep neural networks, mixed-effects regressions, or Bayesian Markov chains) stored in native formats (`.rds`, `.pkl`, `.jld2`).
+
+While native T models can be passed directly to `summary()` or `fit_stats()`, inspecting foreign models traditionally required starting the foreign runtime and deserializing large artifacts into memory.
+
+To eliminate this overhead, $T$ provides **zero-cost build-time foreign metadata introspection**:
+
+1. **Automatic sidecar generation**: During Nix derivation execution in the sandbox, $T$'s runtime emitters (`r_save_meta`, `py_save_meta`, `jl_save_meta`) automatically inspect the returned object and write an uncompressed JSON metadata sidecar (`$out/meta`) alongside the artifact.
+2. **Instant access**: In $T$, calling `explain(p.node_name)` exposes this sidecar under `.foreign_meta`. It can be queried in milliseconds without loading the artifact or initializing R, Python, or Julia.
+3. **CLI & Agent inspection**: From the shell, `t explain --node p.node_name` (and `t explain --json --node p.node_name`) prints the metadata and DAG lineage.
+
+#### Supported Metadata Fields
+
+The `foreign_meta` dictionary exposes the following normalized fields when present:
+
+| Field | Description | Supported Families / Examples |
+|:---|:---|:---|
+| `kind` | Value kind | `"model"`, `"time_series"`, `"forecast"`, `"chain"`, `"graph"`, `"dataset"`, `"image"`, `"optimization"`, `"ode"`, `"distribution"`, `"transformer"`, `"dataframe"`, `"matrix"` |
+| `class` | Runtime type name | `"ARIMA"`, `"ets"`, `"Sequential"`, `"Chain"`, `"lme"`, `"ranger"`, `"SimpleGraph"` |
+| `task` | Statistical / ML task | `"regression"`, `"classification"`, `"clustering"`, `"time_series"`, `"dim_reduction"`, `"density"`, `"anomaly_detection"`, `"ranking"`, `"survival"` |
+| `dimensions` | Object shape | `[rows, cols]` for frames/matrices, `[dim]` for vectors, `[width, height]` for PIL images |
+| `n_obs` | Training observations | Regression, classification, time series, survival models |
+| `n_features` / `features` | Predictor counts & names | Feature column names, fitted coefficients (`lm`, `mgcv`, ARIMA `ar1`/`ma1`) |
+| `n_params` | Parameter count | PyTorch (`torch.nn`), Keras / TensorFlow, Julia Flux, R6 keras/torch, `neuralnet` |
+| `n_layers` | Layer count | Neural networks (PyTorch, Keras, Flux, R6) |
+| `n_trees` | Tree count | Random Forest, `ranger`, XGBoost, CatBoost, LightGBM, `gbm` |
+| `n_rounds` | Boosting rounds | Gradient boosted trees and rankers |
+| `n_nodes` | Tree node count | Decision trees (`rpart`, `partykit::BinaryTree`), or graph vertices |
+| `n_edges` | Graph edge count | `igraph` networks (R), `networkx` graphs (Python), `Graphs.jl` (Julia) |
+| `n_clusters` | Cluster count | k-means, `Mclust`, `dbscan`, `clara`/`fanny`, `tslearn`, `Clustering.jl` |
+| `n_components` | Component count | PCA, ICA, FactorAnalysis, LDA, gensim `LdaModel` topics |
+| `n_groups` / `groups` | Grouping structure | Mixed models (`nlme` `lme`/`gls`), panel models (`plm`) |
+| `n_chains` / `n_draws` | MCMC chain & sample counts | Julia `MCMCChains.Chains`, R `coda::mcmc` / `mcmc.list` |
+| `n_lambda` | Regularization path length | `glmnet` / `cv.glmnet` fits |
+| `n_equations` | Endogenous series count | Vector Autoregressions (VAR / VECM) |
+| `order` | Lag order `[p, d, q]` | ARIMA, SARIMA, `pmdarima`, statsmodels |
+| `seasonal_order` | `[P, D, Q, m]` | Seasonal ARIMA models |
+| `seasonal_period` | Seasonal periods list | `ets`, `bats`/`tbats`, `nnetar`, `prophet` |
+| `horizon` | Forecast horizon | `forecast(...)` results, fable forecast tables, `sktime`/`darts` forecasters |
+| `changepoints` | Changepoint count | Facebook / Meta `prophet` models |
+| `method` | Algorithm variant | Linkage method (`hclust`), ETS model string, test name (`htest`) |
+| `target` / `formula` | Target & formula | Response variable and formula representation |
+| `metrics` | Numeric fit criteria | `aic`, `bic`, `log_likelihood`, `r_squared`, `rmse`, `deviance`, `concordance` |
+| `artifact_size` | File size | Serialized artifact size in bytes |
+
+#### Examples
+
+##### Time Series & Forecasting (R & Python)
+```t
+-- Fit ARIMA in Python via pmdarima or in R via forecast
+p = pipeline {
+    ts_node = rn(
+        command = <{
+            library(forecast)
+            auto.arima(AirPassengers)
+        }>,
+        serializer = ^rds
+    )
+}
+build_pipeline(p)
+
+-- Inspect model facts in T instantly
+info = explain(p.ts_node).foreign_meta
+info.kind         -- "time_series"
+info.task         -- "time_series"
+info.order        -- [0, 1, 1]
+info.seasonal_order -- [0, 1, 1, 12]
+info.metrics.aic  -- 1017.85
+```
+
+##### Deep Learning (PyTorch, Keras, Julia Flux)
+```t
+-- Fit a PyTorch model in Python
+p = pipeline {
+    nn_node = pyn(
+        command = <{
+            import torch.nn as nn
+            model = nn.Sequential(
+                nn.Linear(20, 64),
+                nn.ReLU(),
+                nn.Linear(64, 1)
+            )
+            model
+        }>,
+        serializer = ^pickle
+    )
+}
+build_pipeline(p)
+
+-- Read parameter counts without starting Python
+info = explain(p.nn_node).foreign_meta
+info.kind         -- "model"
+info.n_params     -- 1409
+info.n_layers     -- 3
+```
+
+##### Random Forest & Gradient Boosting (ranger, XGBoost, CatBoost)
+```t
+-- Fit a random forest in R with ranger
+p = pipeline {
+    rf_node = rn(
+        command = <{
+            library(ranger)
+            ranger(Species ~ ., data = iris, num.trees = 300)
+        }>,
+        serializer = ^rds
+    )
+}
+build_pipeline(p)
+
+info = explain(p.rf_node).foreign_meta
+info.task         -- "classification"
+info.n_trees      -- 300
+info.n_features   -- 4
+info.metrics.r_squared -- 0.94
+```
+
+---
+
 ## Hypothesis Testing & Diagnostics
 
 ### `anova(model1, model2, ...)`
@@ -21052,6 +21182,64 @@ Nodes without a `flake` argument are completely unaffected. The project-level en
 
 ---
 
+## 36. Build-Time Metadata Sidecars (`meta`) and Foreign Object Introspection
+
+When executing multi-language pipelines in hermetic Nix sandboxes, inspecting foreign artifacts (such as trained models, large datasets, or neural networks) traditionally posed a trade-off: either start the foreign runtime and deserialize the full artifact into memory, or lose visibility into the node's output.
+
+$T$ resolves this by emitting **build-time metadata sidecars** inside the Nix derivation for foreign runtimes (**R**, **Python**, and **Julia**).
+
+### How Sidecar Generation Works
+
+During code generation (`src/pipeline/nix_emit_node.ml`), $T$ injects an automated object inspection routine into the guest derivation wrapper:
+- In **R**: `r_save_meta(object, file.path(Sys.getenv('out'), 'meta'))`
+- In **Python**: `py_save_meta(object, os.path.join(os.environ['out'], 'meta'))`
+- In **Julia**: `jl_save_meta(object, joinpath(ENV["out"], "meta"))`
+
+These emitters run pure, duck-typed checks that inspect the object's class, structure, dimensions, and fitted properties without mutating the object or causing side effects. The extracted metadata is written to `$out/meta` alongside the main serialized output at `$out/artifact`.
+
+### Zero-Cost Introspection via `explain()`
+
+Because the metadata is stored as an independent JSON sidecar in the Nix store, $T$ can inspect the node's properties **without** loading the serialized artifact or initializing an external language runtime:
+
+```t
+-- Fast, zero-cost introspection: reads $out/meta directly
+fit_meta = explain(p.model_fit).foreign_meta
+
+fit_meta.kind         -- "model", "time_series", "forecast", etc.
+fit_meta.class        -- runtime class (e.g. "ARIMA", "ranger", "Sequential")
+fit_meta.task         -- "regression", "classification", "time_series", etc.
+fit_meta.n_params     -- parameter count for neural networks / ML
+fit_meta.order        -- [p, d, q] for time-series models
+fit_meta.metrics      -- free numeric metrics (e.g. AIC, BIC, R-squared)
+```
+
+In the CLI, `t explain --node p.model_fit` (and `t explain --json --node p.model_fit`) displays this metadata alongside the node's dependency lineage and execution timings.
+
+### Breadth of Recognized Families
+
+The sidecar emitters recognize a comprehensive range of families across the R, Python, and Julia scientific ecosystems:
+
+1. **Time-Series & Forecasting**:
+   - R: `forecast` (`ets`, `bats`, `tbats`, `nnetar`, `forecast(...)`), `prophet`, `tseries` GARCH, `rugarch` (`uGARCHfit`), `vars` (`varest`, `vec2var`), `zoo`/`xts`, `smooth`, `dlmFiltered`, tidyverts `fable`/`mable`.
+   - Python: `pmdarima` ARIMA, `prophet`, `neuralprophet`, `sktime`, `darts`, `statsforecast`, `tbats`, `skforecast`, statsmodels `VECM` and Markov-regime.
+   - Metadata exposed: `order` `[p, d, q]`, `seasonal_order` `[P, D, Q, m]`, `seasonal_period`, `horizon`, `changepoints`, `n_equations`, `start`, `end`.
+
+2. **Machine Learning & Deep Learning**:
+   - Deep Learning: PyTorch (`torch.nn`), Keras / TensorFlow, Julia `Flux.jl`, R6-based `keras` and `torch`, `neuralnet` (`n_params`, `n_layers`, optimizer).
+   - Tree Ensembles & Boosting: Random Forest, `ranger`, XGBoost, CatBoost, LightGBM, `gbm`, `C5.0`, `rpart`, `partykit::BinaryTree` (`n_trees`, `n_rounds`, `n_nodes`, `best_iteration`).
+   - Mixed & Regularized Models: `mgcv` GAM/BAM, `nlme` (`lme`/`gls`), `glmnet`/`cv.glmnet`, `caret::train`, `parsnip`, `e1071::svm`, `kernlab::ksvm` (`n_groups`, `groups`, `n_lambda`, formula).
+
+3. **Clustering, Ordination & Bayesian Inference**:
+   - Clustering & Density: `Mclust`, `dbscan`, `clara`/`fanny`, `mixEM`, `tslearn`, `Clustering.jl` (`CmeansResult`, `DbscanResult`, `KmedoidsResult`), `GaussianMixtures.GMM` (`n_clusters`, `density`).
+   - Dimensionality Reduction: `FactoMineR` (PCA, MCA, FAMD, CA), `psych`, gensim `LdaModel`/`Word2Vec`, `MultivariateStats.jl` (ICA, FactorAnalysis, PPCA, KernelPCA, MulticlassLDA) (`n_components`, `dim_reduction`).
+   - Bayesian Chains: Julia `MCMCChains.Chains`, R `coda::mcmc`/`mcmc.list` (`chain` kind, `n_chains`, `n_draws`).
+
+4. **Graphs, Systems & Differential Equations**:
+   - Graphs: `igraph` (R), `networkx` (Python), `Graphs.jl` (Julia) (`graph` kind, `n_nodes`, `n_edges`).
+   - Mathematical Systems: `JuMP.jl` (`optimization` kind, variables and constraints in metrics), `SciML` `ODEProblem`/`ODESolution` (`ode` kind, time span, return codes).
+
+---
+
 ## Next Steps
 
 Now that you've mastered pipeline materialization, learn how to manage reproducible projects and develop T packages:
@@ -21740,6 +21928,15 @@ e.kind        -- "pipeline"
 e.node_count  -- 3
 
 explain(p.x)  -- { `runtime`: "T", `kind`: "node", `name`: "x", ... }
+
+-- For foreign nodes (R, Python, Julia), explain exposes build-time sidecar facts:
+-- e.g. for a time-series or machine learning node:
+fit_info = explain(p.model)
+fit_info.foreign_meta.kind         -- "time_series", "model", "forecast", etc.
+fit_info.foreign_meta.task         -- "regression", "classification", etc.
+fit_info.foreign_meta.n_params     -- parameter count for neural networks / models
+fit_info.foreign_meta.order        -- [p, d, q] for ARIMA
+fit_info.foreign_meta.metrics.aic  -- AIC metric without loading the artifact
 ```
 
 ---
@@ -28051,7 +28248,43 @@ The JSON description.
 
 Explain Value
 
-Returns a dictionary describing the structure and content of a value. Node results from `read_node(...)` are wrapped with node metadata and expose the explained payload under `contents`. Computed pipeline nodes (e.g. `p.node`) also expose `foreign_meta` with shape facts from the build-time `meta` sidecar (dimensions for frames and arrays, n_obs/n_features/formula/order/metrics for models), or NA when absent. Explaining a pipeline lists per-node `dependencies` (direct inputs) and `children` (direct dependents) plus the transitive `ancestors` and `descendants` closures (nearest-first, de-duplicated).
+Returns a dictionary describing the structure and content of a value. 
+
+For primitive types, collections, and DataFrames, `explain()` provides structural summaries: data dimensions, schema columns, NA counts, and example rows. 
+
+For pipeline node results from `read_node(...)`, `explain()` returns a node wrapper with `kind`, `node_name`, `diagnostics`, and the explained payload under `contents`. 
+
+For computed pipeline nodes (e.g. `explain(p.node)`), `explain()` exposes the zero-cost build-time `foreign_meta` sidecar dictionary recorded during Nix derivation execution for R, Python, and Julia nodes, avoiding deserialization or initializing foreign runtimes. 
+
+Supported `foreign_meta` fields include: 
+
+- `kind`: Value kind ("dataframe", "matrix", "vector", "array", "factor", "series", "table", "model", "test", "data", "transformer", "distribution", "forecast", "chain", "dist", "graph", "dataset", "image", "optimization", "ode", "other", or "unknown") 
+- `class`: Runtime type name (e.g. "lm", "DataFrame", "ARIMA", "SimpleGraph") 
+- `task`: Model task ("regression", "classification", "clustering", "time_series", "dim_reduction", "density", "anomaly_detection", "ranking", "survival") 
+- `dimensions`: Shape as an integer list, e.g. [32, 11] for frames, [4, 3] for matrices 
+- `n_obs`: Training row count 
+- `n_features`: Number of features or predictor columns 
+- `n_groups`, `groups`: Grouping counts for mixed-effects and panel models (e.g. `nlme` `lme`/`gls`) 
+- `n_trees`, `n_rounds`: Tree count and boosting rounds (e.g. Random Forest, XGBoost, CatBoost, gbm) 
+- `n_clusters`: Cluster count (e.g. k-means, Mclust, dbscan, Clustering.jl) 
+- `n_nodes`, `n_edges`: Graph vertex and edge counts (igraph, networkx, Graphs.jl) or decision tree nodes (`rpart`, `BinaryTree`) 
+- `n_components`: Dimensionality reduction components (PCA, ICA, FactorAnalysis, LDA) 
+- `n_params`, `n_layers`: Parameter and layer counts (PyTorch, Keras, Flux, neuralnet, R6 torch/keras) 
+- `n_chains`, `n_draws`: MCMC chain and draw counts (Julia `Chains`, coda `mcmc`/`mcmc.list`) 
+- `n_lambda`: Regularization path length (`glmnet`, `cv.glmnet`) 
+- `n_equations`: Endogenous series count for VAR/VECM models 
+- `dtype`: Element data type (e.g. "float64") 
+- `n_levels`, `levels`: Categorical level counts and values (R factors, Julia `CategoricalArray`) 
+- `start`, `end`: Time-series bounds (R `ts`, `zoo`/`xts`) 
+- `order`, `seasonal_order`, `seasonal_period`: Time-series specifications (ARIMA, SARIMA, ETS, BATS/TBATS, Prophet, NNETAR, pmdarima) 
+- `horizon`: Forecast horizon (forecast results, fable, sktime, darts, statsforecast) 
+- `changepoints`: Changepoint counts (Prophet) 
+- `method`: Algorithm variant, linkage method, ETS letters, or test name 
+- `target`, `formula`: Response variable and model formula 
+- `metrics`: Free numeric metrics (e.g. AIC, BIC, log-likelihood, R-squared, RMSE, deviance) 
+- `artifact_size`: Materialized artifact size in bytes 
+
+Explaining a pipeline (`explain(p)`) lists per-node `dependencies` (direct inputs) and `children` (direct dependents) plus the transitive `ancestors` and `descendants` closures (nearest-first, de-duplicated).
 
 ## Parameters
 
@@ -28066,7 +28299,10 @@ A structured description of the value.
 
 ```t
 explain(mtcars)
-explain(1)
+explain(p.fit).foreign_meta
+explain(p.forecast_node).foreign_meta.horizon
+explain(p.nn_model).foreign_meta.n_params
+explain(p)
 ```
 
 ## See Also
@@ -30244,6 +30480,25 @@ Predicate helper for to_factor columns or to_factor vectors.
 
 
 
+# FILE: docs/reference/is_failed.md
+
+# is_failed
+
+Test if a node failed
+
+Returns true for a failed node (VError), for a `read_node()` result whose value or diagnostics carry an error, or for an inspect result with status Errored or SoftFailed. Use this after 0.56.1 instead of is_error(inspect_node(x)), which is always false. NA propagates as NA; a value that is not a node, read_node result, inspect result, or error is false.
+
+## Parameters
+
+- **node** (`Any`): A node value, read_node result, inspect result, or error.
+
+
+## Returns
+
+True when failed or Errored.
+
+
+
 # FILE: docs/reference/is_interval.md
 
 # is_interval
@@ -31953,6 +32208,25 @@ A lens for the specified metadata field.
 
 
 
+# FILE: docs/reference/node_status.md
+
+# node_status
+
+Node build status
+
+Returns Built for a computed node, Errored for a failed node or a `read_node()` result carrying an error, or the status field of an inspect result. NA propagates as NA.
+
+## Parameters
+
+- **node** (`Any`): A node value, read_node result, inspect result, or error.
+
+
+## Returns
+
+Built or Errored.
+
+
+
 # FILE: docs/reference/node_when.md
 
 # node_when
@@ -33058,6 +33332,70 @@ The node names.
 ## See Also
 
 [pipeline_deps](pipeline_deps.html), [pipeline_node](pipeline_node.html)
+
+
+
+# FILE: docs/reference/pipeline_overview_markdown.md
+
+# pipeline_overview_markdown
+
+Unified pipeline overview table
+
+One call joins pipeline structure with the latest build log into a single per-node table: the columns of `pipeline_to_frame` plus the live build state of `pipeline_status`. 
+
+It is not a superset of the other frames. `pipeline_config_to_frame` also reports `shell`, `flake`, the `prov_*` provenance columns and the `n_*` count columns. None of these are repeated here; call that function when you need them. Node diagnostics live in `pipeline_node_options` (and as `$diagnostics` in `filter_node` predicates), not in this table nor in `pipeline_to_frame`. 
+
+Column names match the source frames so filters copy over unchanged. Failed nodes sort first so the root cause is visible without extra calls. 
+
+Columns: 
+
+- `name` — node name (String) 
+- `runtime` — e.g. "T", "R", "Python" (String) 
+- `serializer` — e.g. "default", "^csv" (String) 
+- `deserializer` — e.g. "default", "^csv" (String) 
+- `noop` — whether the node is a no-op (Bool) 
+- `deps` — names of nodes this node depends on (String, comma-separated) 
+- `depth` — topological depth in the DAG (Int); roots are depth 0 
+- `command_type` — one of "command" or "script" (String) 
+- `status` — build status from the latest matching log, or NA 
+- `duration` — node build duration in seconds (Float), or NA 
+- `path` — Nix store path of the node output, or NA 
+- `error` — `code: message` for failed nodes, or NA
+
+## Parameters
+
+- **pipeline** (`Pipeline`): The pipeline to summarize.
+
+- **only** (`String`): = NA Filter rows: failed, built, unbuilt, or all. Default shows all, failed first.
+
+- **pipeline** (`Pipeline`): The pipeline to summarize.
+
+- **only** (`String`): = NA Same filter as pipeline_overview.
+
+
+## Returns
+
+Markdown table with name, runtime, status, depth, error.
+
+## Examples
+
+```t
+pipeline_overview(p)
+pipeline_overview(p, only = "failed")
+pipeline_overview(p) |> filter($status == "Errored")
+
+Markdown overview table
+
+Same rows as pipeline_overview, rendered as a Markdown table
+for reports and workflow summaries.
+
+pipeline_overview_markdown(p)
+pipeline_overview_markdown(p, only = "failed")
+```
+
+## See Also
+
+[pipeline_overview_markdown](pipeline_overview_markdown.html), [pipeline_config_to_frame](pipeline_config_to_frame.html), [pipeline_status](pipeline_status.html), [pipeline_to_frame](pipeline_to_frame.html), [pipeline_report](pipeline_report.html), [pipeline_overview](pipeline_overview.html)
 
 
 
@@ -37249,6 +37587,31 @@ Returns the part of the string between `start` and `end` indices. Indices are ch
 ## Returns
 
 The extracted substring.
+
+
+
+# FILE: docs/reference/str_to_title.md
+
+# str_to_title
+
+Title case
+
+Capitalizes each word. Words split on space.
+
+## Parameters
+
+- **s** (`String | List | Vector`): The input string(s).
+
+
+## Returns
+
+Title-cased string.
+
+## Examples
+
+```t
+str_to_title("hello world")
+```
 
 
 
